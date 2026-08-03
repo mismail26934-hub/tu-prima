@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteJob, updateJob } from "@/lib/excel";
+import { deleteUnit, updateUnit } from "@/lib/excel";
 
 export const dynamic = "force-dynamic";
 
@@ -10,24 +10,18 @@ export async function PATCH(
   try {
     const { id } = await ctx.params;
     const body = await req.json();
-    if (!body.title || !body.unit_id) {
+    if (!body.code || !body.name) {
       return NextResponse.json(
-        { error: "title dan unit wajib diisi" },
+        { error: "code dan name wajib diisi" },
         { status: 400 }
       );
     }
-    const job = await updateJob(id, {
-      title: String(body.title),
-      unit_id: String(body.unit_id),
-      description: body.description ? String(body.description) : "",
-      estimated_minutes: body.estimated_minutes
-        ? Number(body.estimated_minutes)
-        : 60,
-      steps: Array.isArray(body.steps)
-        ? body.steps.map(String).filter(Boolean)
-        : undefined,
+    const unit = await updateUnit(id, {
+      code: String(body.code),
+      name: String(body.name),
+      active: body.active != null ? String(body.active) : undefined,
     });
-    return NextResponse.json(job);
+    return NextResponse.json(unit);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Update failed";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -40,7 +34,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await ctx.params;
-    const result = await deleteJob(id);
+    const result = await deleteUnit(id);
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Delete failed";

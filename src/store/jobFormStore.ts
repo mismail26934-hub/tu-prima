@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export interface JobFormData {
   title: string;
-  unit: string;
+  unit_id: string;
   description: string;
   estimated_minutes: string;
   steps: string;
@@ -10,7 +10,7 @@ export interface JobFormData {
 
 const emptyForm = (): JobFormData => ({
   title: "",
-  unit: "",
+  unit_id: "",
   description: "",
   estimated_minutes: "90",
   steps: "Diagnosis\nPerbaikan\nTest & QC",

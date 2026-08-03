@@ -18,7 +18,8 @@ Aplikasi monitoring job mekanik dengan **Excel sebagai database** (`data/worksho
 | Sheet | Isi |
 |---|---|
 | Technicians | id, name, skill, status, current_job_id, phone |
-| Jobs | id, title, unit, description, status, technician_id, timestamps, durasi pause |
+| Units | master unit (id, code, name, active) — dipilih di form Job |
+| Jobs | id, title, unit, unit_id, description, status, technician_id, timestamps, durasi pause |
 | JobAssignees | relasi banyak teknisi per job (job_id, technician_id, is_lead) |
 | JobSteps | tahap job + status + duration_sec |
 | JobEvents | timeline event (created, assigned, started, paused, …) |

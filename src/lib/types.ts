@@ -31,10 +31,18 @@ export interface Technician {
   phone: string;
 }
 
+export interface Unit {
+  id: string;
+  code: string;
+  name: string;
+  active: string; // "1" | "0"
+}
+
 export interface Job {
   id: string;
   title: string;
   unit: string;
+  unit_id: string;
   description: string;
   status: JobStatus;
   /** Lead / primary technician (first assignee). Kept for Excel compatibility. */
@@ -86,6 +94,7 @@ export interface JobWithDetails extends Job {
 
 export interface DashboardData {
   technicians: Technician[];
+  units: Unit[];
   jobs: JobWithDetails[];
   summary: {
     available: number;

@@ -6,6 +6,7 @@ import type {
   JobWithDetails,
   Technician,
   TechnicianStatus,
+  Unit,
 } from "@/lib/types";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import { useAssignStore } from "@/store/assignStore";
@@ -25,7 +26,14 @@ type Modal =
     }
   | { type: "cancel-job"; job: JobWithDetails }
   | { type: "delete-job"; job: JobWithDetails }
-  | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] };
+  | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] }
+  | { type: "units" }
+  | {
+      type: "unit-form";
+      mode: "create" | "edit";
+      unit?: Unit;
+    }
+  | { type: "delete-unit"; unit: Unit };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -79,6 +87,57 @@ export default function HomePage() {
   const [modal, setModal] = useState<Modal>(null);
   const [busy, setBusy] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
+
+  function openUnitCreate() {
+    setUnitForm({ code: "", name: "", active: "1" });
+    setModal({ type: "unit-form", mode: "create" });
+  }
+
+  function openUnitEdit(unit: Unit) {
+    setUnitForm({ code: unit.code, name: unit.name, active: unit.active });
+    setModal({ type: "unit-form", mode: "edit", unit });
+  }
+
+  async function saveUnit() {
+    if (modal?.type !== "unit-form") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (modal.mode === "create") {
+        await api("/api/units", {
+          method: "POST",
+          body: JSON.stringify({ code: unitForm.code, name: unitForm.name }),
+        });
+      } else if (modal.unit) {
+        await api(`/api/units/${modal.unit.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(unitForm),
+        });
+      }
+      setModal({ type: "units" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan unit");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteUnit() {
+    if (modal?.type !== "delete-unit") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/units/${modal.unit.id}`, { method: "DELETE" });
+      setModal({ type: "units" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus unit");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const form = useJobFormStore((s) => s.form);
   const setForm = useJobFormStore((s) => s.setForm);
@@ -115,7 +174,7 @@ export default function HomePage() {
   function openEdit(job: JobWithDetails) {
     loadForm({
       title: job.title,
-      unit: job.unit,
+      unit_id: job.unit_id || "",
       description: job.description,
       estimated_minutes: String(job.estimated_minutes || 60),
       steps: job.steps.map((s) => s.name).join("\n"),
@@ -274,7 +333,7 @@ export default function HomePage() {
         method: "POST",
         body: JSON.stringify({
           title: form.title,
-          unit: form.unit,
+          unit_id: form.unit_id,
           description: form.description,
           estimated_minutes: Number(form.estimated_minutes) || 60,
           steps: parseSteps(form.steps),
@@ -300,7 +359,7 @@ export default function HomePage() {
         method: "PATCH",
         body: JSON.stringify({
           title: form.title,
-          unit: form.unit,
+          unit_id: form.unit_id,
           description: form.description,
           estimated_minutes: Number(form.estimated_minutes) || 60,
           steps: canEditSteps ? parseSteps(form.steps) : undefined,
@@ -526,6 +585,13 @@ export default function HomePage() {
           <button className="btn" disabled={busy} onClick={load}>
             Refresh
           </button>
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() => setModal({ type: "units" })}
+          >
+            Master Unit
+          </button>
           <button className="btn btn-primary" disabled={busy} onClick={openCreate}>
             + Job baru
           </button>
@@ -720,7 +786,7 @@ export default function HomePage() {
           </div>
 
           <p className="db-path">
-            Database Excel: <code>data/workshop.xlsx</code> (sheet Technicians, Jobs, JobSteps, JobEvents)
+            Database Excel: <code>data/workshop.xlsx</code> (sheet Technicians, Units, Jobs, JobSteps, JobEvents)
           </p>
         </>
       )}
@@ -740,11 +806,24 @@ export default function HomePage() {
               </label>
               <label>
                 Unit / kendaraan
-                <input
-                  value={form.unit}
-                  onChange={(e) => setForm({ unit: e.target.value })}
-                  placeholder="Mis. Avanza B 1234 ABC"
-                />
+                <select
+                  value={form.unit_id}
+                  onChange={(e) => setForm({ unit_id: e.target.value })}
+                >
+                  <option value="">— Pilih unit —</option>
+                  {(data?.units || [])
+                    .filter(
+                      (u) =>
+                        u.active === "1" ||
+                        (modal.type === "edit" && u.id === form.unit_id)
+                    )
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.code} — {u.name}
+                        {u.active !== "1" ? " (nonaktif)" : ""}
+                      </option>
+                    ))}
+                </select>
               </label>
               <label>
                 Deskripsi
@@ -788,7 +867,7 @@ export default function HomePage() {
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={busy || !form.title || !form.unit}
+                  disabled={busy || !form.title || !form.unit_id}
                   onClick={modal.type === "create" ? createJob : saveEditJob}
                 >
                   {modal.type === "create" ? "Simpan" : "Update"}
@@ -1033,6 +1112,154 @@ export default function HomePage() {
                 className="btn btn-danger"
                 disabled={busy}
                 onClick={removeJob}
+              >
+                Ya, hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "units" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+            <h3>Master Unit</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Data unit dipilih saat buat/edit job (tidak ketik manual).
+            </p>
+            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
+              {(data?.units || []).length === 0 && (
+                <span style={{ color: "var(--muted)" }}>Belum ada unit.</span>
+              )}
+              {(data?.units || []).map((u) => (
+                <div
+                  key={u.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom: "1px dashed var(--line-dashed)",
+                  }}
+                >
+                  <div>
+                    <strong>{u.code}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                      {u.name}
+                      {u.active !== "1" ? " · nonaktif" : ""}
+                    </div>
+                  </div>
+                  <div className="actions" style={{ marginTop: 0 }}>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() => openUnitEdit(u)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() => setModal({ type: "delete-unit", unit: u })}
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button className="btn btn-primary" disabled={busy} onClick={openUnitCreate}>
+                + Unit baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "unit-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "units" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{modal.mode === "create" ? "Unit baru" : "Edit unit"}</h3>
+            <div className="form">
+              <label>
+                Kode
+                <input
+                  value={unitForm.code}
+                  onChange={(e) => setUnitForm({ ...unitForm, code: e.target.value })}
+                  placeholder="Mis. E448"
+                />
+              </label>
+              <label>
+                Nama
+                <input
+                  value={unitForm.name}
+                  onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })}
+                  placeholder="Mis. GOH Unit Rental"
+                />
+              </label>
+              {modal.mode === "edit" && (
+                <label>
+                  Status
+                  <select
+                    value={unitForm.active}
+                    onChange={(e) =>
+                      setUnitForm({ ...unitForm, active: e.target.value })
+                    }
+                  >
+                    <option value="1">Aktif</option>
+                    <option value="0">Nonaktif</option>
+                  </select>
+                </label>
+              )}
+              <div className="actions">
+                <button className="btn" onClick={() => setModal({ type: "units" })}>
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !unitForm.code || !unitForm.name}
+                  onClick={saveUnit}
+                >
+                  Simpan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-unit" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "units" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Hapus unit</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.unit.code} — {modal.unit.name}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus unit ini permanen? Jika masih dipakai job, penghapusan
+              akan ditolak — nonaktifkan lewat Edit jika perlu.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={() => setModal({ type: "units" })}>
+                Kembali
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={confirmDeleteUnit}
               >
                 Ya, hapus
               </button>

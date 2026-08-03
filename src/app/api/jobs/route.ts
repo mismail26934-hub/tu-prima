@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    if (!body.title || !body.unit) {
+    if (!body.title || !body.unit_id) {
       return NextResponse.json(
         { error: "title dan unit wajib diisi" },
         { status: 400 }
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
     const job = await createJob({
       title: String(body.title),
-      unit: String(body.unit),
+      unit_id: String(body.unit_id),
       description: body.description ? String(body.description) : "",
       estimated_minutes: body.estimated_minutes
         ? Number(body.estimated_minutes)

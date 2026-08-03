@@ -13,6 +13,7 @@ import type {
   StepStatus,
   Technician,
   TechnicianStatus,
+  Unit,
   DashboardData,
 } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
@@ -22,6 +23,7 @@ const DB_PATH = path.join(DATA_DIR, "workshop.xlsx");
 
 const SHEETS = {
   technicians: "Technicians",
+  units: "Units",
   jobs: "Jobs",
   assignees: "JobAssignees",
   steps: "JobSteps",
@@ -140,6 +142,7 @@ function mapJob(r: Row): Job {
     id: String(r.id || ""),
     title: String(r.title || ""),
     unit: String(r.unit || ""),
+    unit_id: String(r.unit_id || ""),
     description: String(r.description || ""),
     status: String(r.status || "queued") as JobStatus,
     technician_id: String(r.technician_id || ""),
@@ -149,6 +152,15 @@ function mapJob(r: Row): Job {
     paused_at: String(r.paused_at || ""),
     total_paused_sec: Number(r.total_paused_sec || 0),
     estimated_minutes: Number(r.estimated_minutes || 0),
+  };
+}
+
+function mapUnit(r: Row): Unit {
+  return {
+    id: String(r.id || ""),
+    code: String(r.code || ""),
+    name: String(r.name || ""),
+    active: String(r.active || "1") === "0" ? "0" : "1",
   };
 }
 
@@ -209,11 +221,21 @@ function assigneeToRow(a: JobAssignee): Row {
   return { ...a };
 }
 
+function unitToRow(u: Unit): Row {
+  return { ...u };
+}
+
+function unitLabel(u: Unit): string {
+  return u.name ? `${u.code} — ${u.name}` : u.code;
+}
+
 const TECH_HEADERS = ["id", "name", "skill", "status", "current_job_id", "phone"];
+const UNIT_HEADERS = ["id", "code", "name", "active"];
 const JOB_HEADERS = [
   "id",
   "title",
   "unit",
+  "unit_id",
   "description",
   "status",
   "technician_id",
@@ -268,6 +290,28 @@ function assigneesForJob(assignees: JobAssignee[], jobId: string): JobAssignee[]
     });
 }
 
+function loadUnits(wb: ExcelJS.Workbook, jobs: Job[]): Unit[] {
+  const ws = getSheet(wb, SHEETS.units);
+  let units = readRows(ws).map(mapUnit).filter((u) => u.id && u.code);
+  if (units.length === 0) {
+    const seen = new Set<string>();
+    jobs.forEach((j) => {
+      const label = j.unit.trim();
+      if (!label || seen.has(label)) return;
+      seen.add(label);
+      const id = uuidv4();
+      units.push({
+        id,
+        code: label.split(/\s+/)[0] || label,
+        name: label,
+        active: "1",
+      });
+      if (!j.unit_id) j.unit_id = id;
+    });
+  }
+  return units;
+}
+
 function releaseTechsFromJob(techs: Technician[], jobId: string) {
   techs.forEach((t) => {
     if (t.current_job_id === jobId) {
@@ -291,11 +335,20 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   const started2 = new Date(Date.now() - 32 * 60 * 1000).toISOString();
   const step2Start = new Date(Date.now() - 40 * 60 * 1000).toISOString();
 
+  const units: Unit[] = [
+    { id: "U01", code: "AVZ-1234", name: "Avanza B 1234 ABC", active: "1" },
+    { id: "U02", code: "INV-5678", name: "Innova D 5678 XYZ", active: "1" },
+    { id: "U03", code: "XEN-9012", name: "Xenia F 9012 LMN", active: "1" },
+    { id: "U04", code: "FRT-4455", name: "Fortuner B 4455 QRS", active: "1" },
+    { id: "U05", code: "E448", name: "GOH Unit Rental", active: "1" },
+  ];
+
   const jobs: Job[] = [
     {
       id: "J01",
       title: "Ganti Kampas Rem Depan",
-      unit: "Avanza B 1234 ABC",
+      unit: unitLabel(units[0]),
+      unit_id: "U01",
       description: "Rem depan bunyi & jarak rem jauh",
       status: "in_progress",
       technician_id: "T02",
@@ -309,7 +362,8 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
     {
       id: "J02",
       title: "Servis AC Tidak Dingin",
-      unit: "Innova D 5678 XYZ",
+      unit: unitLabel(units[1]),
+      unit_id: "U02",
       description: "Isi freon + cek compressor",
       status: "in_progress",
       technician_id: "T04",
@@ -323,7 +377,8 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
     {
       id: "J03",
       title: "Tune Up Berkala 40.000 km",
-      unit: "Xenia F 9012 LMN",
+      unit: unitLabel(units[2]),
+      unit_id: "U03",
       description: "Ganti oli, filter, busi, cek kelistrikan",
       status: "queued",
       technician_id: "",
@@ -337,7 +392,8 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
     {
       id: "J04",
       title: "Perbaikan Starter Motor",
-      unit: "Fortuner B 4455 QRS",
+      unit: unitLabel(units[3]),
+      unit_id: "U04",
       description: "Starter sering macet saat dingin",
       status: "queued",
       technician_id: "",
@@ -389,6 +445,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   ];
 
   writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+  writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
   writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
   writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
   writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
@@ -449,6 +506,13 @@ export async function getDashboard(): Promise<DashboardData> {
     const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
     const assignees = loadAssignees(wb, jobs);
+    const hadUnits = readRows(getSheet(wb, SHEETS.units)).length > 0;
+    const units = loadUnits(wb, jobs);
+    if (!hadUnits && units.length > 0) {
+      writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
+      writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+      await saveWorkbook(wb);
+    }
 
     const detailed = jobs.map((j) => enrichJob(j, techs, steps, events, assignees));
     const today = new Date().toISOString().slice(0, 10);
@@ -464,6 +528,7 @@ export async function getDashboard(): Promise<DashboardData> {
 
     return {
       technicians: techs,
+      units,
       jobs: detailed,
       summary: {
         available: techs.filter((t) => t.status === "available").length,
@@ -482,7 +547,7 @@ export async function getDashboard(): Promise<DashboardData> {
 
 export async function createJob(input: {
   title: string;
-  unit: string;
+  unit_id: string;
   description?: string;
   estimated_minutes?: number;
   steps?: string[];
@@ -493,13 +558,18 @@ export async function createJob(input: {
     const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const units = loadUnits(wb, jobs);
+
+    const unit = units.find((u) => u.id === input.unit_id && u.active === "1");
+    if (!unit) throw new Error("Unit tidak ditemukan / nonaktif");
 
     const id = `J${String(jobs.length + 1).padStart(2, "0")}-${uuidv4().slice(0, 4)}`;
     const created_at = nowIso();
     const job: Job = {
       id,
       title: input.title,
-      unit: input.unit,
+      unit: unitLabel(unit),
+      unit_id: unit.id,
       description: input.description || "",
       status: "queued",
       technician_id: "",
@@ -549,7 +619,7 @@ export async function updateJob(
   jobId: string,
   input: {
     title: string;
-    unit: string;
+    unit_id: string;
     description?: string;
     estimated_minutes?: number;
     steps?: string[];
@@ -562,16 +632,23 @@ export async function updateJob(
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const assignees = loadAssignees(wb, jobs);
+    const units = loadUnits(wb, jobs);
 
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
 
     const title = input.title.trim();
-    const unit = input.unit.trim();
-    if (!title || !unit) throw new Error("title dan unit wajib diisi");
+    if (!title || !input.unit_id) throw new Error("title dan unit wajib diisi");
+
+    const unit = units.find((u) => u.id === input.unit_id);
+    if (!unit) throw new Error("Unit tidak ditemukan");
+    if (unit.active !== "1" && unit.id !== job.unit_id) {
+      throw new Error("Unit nonaktif");
+    }
 
     job.title = title;
-    job.unit = unit;
+    job.unit_id = unit.id;
+    job.unit = unitLabel(unit);
     job.description = input.description?.trim() || "";
     job.estimated_minutes = input.estimated_minutes || job.estimated_minutes || 60;
 
@@ -631,6 +708,81 @@ export async function deleteJob(jobId: string): Promise<{ ok: true }> {
     writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    await saveWorkbook(wb);
+    return { ok: true };
+  });
+}
+
+export async function createUnit(input: {
+  code: string;
+  name: string;
+}): Promise<Unit> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const units = loadUnits(wb, jobs);
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+    if (!code || !name) throw new Error("code dan name wajib diisi");
+    if (units.some((u) => u.code.toUpperCase() === code)) {
+      throw new Error("Kode unit sudah dipakai");
+    }
+    const unit: Unit = { id: `U-${uuidv4().slice(0, 8)}`, code, name, active: "1" };
+    units.push(unit);
+    writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
+    await saveWorkbook(wb);
+    return unit;
+  });
+}
+
+export async function updateUnit(
+  unitId: string,
+  input: { code: string; name: string; active?: string }
+): Promise<Unit> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const units = loadUnits(wb, jobs);
+    const unit = units.find((u) => u.id === unitId);
+    if (!unit) throw new Error("Unit not found");
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+    if (!code || !name) throw new Error("code dan name wajib diisi");
+    if (units.some((u) => u.id !== unitId && u.code.toUpperCase() === code)) {
+      throw new Error("Kode unit sudah dipakai");
+    }
+    unit.code = code;
+    unit.name = name;
+    if (input.active === "0" || input.active === "1") unit.active = input.active;
+
+    // Refresh denormalized label on jobs that use this unit
+    const label = unitLabel(unit);
+    jobs.forEach((j) => {
+      if (j.unit_id === unitId) j.unit = label;
+    });
+
+    writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
+    writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+    await saveWorkbook(wb);
+    return unit;
+  });
+}
+
+export async function deleteUnit(unitId: string): Promise<{ ok: true }> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    let units = loadUnits(wb, jobs);
+    const unit = units.find((u) => u.id === unitId);
+    if (!unit) throw new Error("Unit not found");
+    const usedBy = jobs.filter((j) => j.unit_id === unitId);
+    if (usedBy.length > 0) {
+      throw new Error(
+        `Unit masih dipakai ${usedBy.length} job. Hapus/ubah job terkait dulu, atau nonaktifkan lewat Edit.`
+      );
+    }
+    units = units.filter((u) => u.id !== unitId);
+    writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
     await saveWorkbook(wb);
     return { ok: true };
   });

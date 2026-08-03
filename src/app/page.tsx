@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DashboardData,
   JobWithDetails,
@@ -87,7 +87,62 @@ export default function HomePage() {
   const [modal, setModal] = useState<Modal>(null);
   const [busy, setBusy] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
+  const topbarRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return;
+    const sync = () => {
+      const bottom = Math.ceil(el.getBoundingClientRect().bottom);
+      document.documentElement.style.setProperty(
+        "--topbar-offset",
+        `${bottom + 8}px`
+      );
+      el.classList.toggle("is-scrolled", window.scrollY > 8);
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    window.addEventListener("resize", sync);
+    window.addEventListener("scroll", sync, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    const open = modal != null;
+    document.documentElement.classList.toggle("modal-open", open);
+    const el = topbarRef.current;
+    if (open && el) {
+      const bottom = Math.ceil(el.getBoundingClientRect().bottom);
+      document.documentElement.style.setProperty(
+        "--topbar-offset",
+        `${bottom + 8}px`
+      );
+    }
+    return () => {
+      document.documentElement.classList.remove("modal-open");
+    };
+  }, [modal]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("menu-open", mobileMenuOpen);
+    if (mobileMenuOpen && topbarRef.current) {
+      const bottom = Math.ceil(topbarRef.current.getBoundingClientRect().bottom);
+      document.documentElement.style.setProperty(
+        "--topbar-offset",
+        `${bottom + 8}px`
+      );
+    }
+    return () => {
+      document.documentElement.classList.remove("menu-open");
+    };
+  }, [mobileMenuOpen]);
 
   function openUnitCreate() {
     setUnitForm({ code: "", name: "", active: "1" });
@@ -561,10 +616,10 @@ export default function HomePage() {
 
   return (
     <main className="app">
-      <header className="topbar">
+      <header className="topbar" ref={topbarRef}>
         <div>
           <div className="brand">
-            PRIMA
+            TU-PRIMA
             <span>Progress Report &amp; Inspection for Mechanic Allocation</span>
           </div>
         </div>
@@ -587,21 +642,90 @@ export default function HomePage() {
               </svg>
             )}
           </button>
-          <button className="btn" disabled={busy} onClick={load}>
-            Refresh
-          </button>
           <button
-            className="btn"
-            disabled={busy}
-            onClick={() => setModal({ type: "units" })}
+            className="btn btn-icon top-menu-toggle"
+            type="button"
+            aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen((o) => !o)}
           >
-            Master Unit
+            {mobileMenuOpen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            )}
           </button>
-          <button className="btn btn-primary" disabled={busy} onClick={openCreate}>
-            + Job baru
-          </button>
+          <div className="top-actions-panel top-actions-panel--bar">
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => load()}
+            >
+              Refresh
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => setModal({ type: "units" })}
+            >
+              Master Unit
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => openCreate()}
+            >
+              + Job baru
+            </button>
+          </div>
         </div>
       </header>
+
+      {mobileMenuOpen && (
+        <>
+          <div
+            className="top-menu-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="top-actions-panel top-actions-panel--float is-open">
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                load();
+              }}
+            >
+              Refresh
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setModal({ type: "units" });
+              }}
+            >
+              Master Unit
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openCreate();
+              }}
+            >
+              + Job baru
+            </button>
+          </div>
+        </>
+      )}
 
       {error && <div className="error">{error}</div>}
 

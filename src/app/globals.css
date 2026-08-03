@@ -24,7 +24,7 @@
   --danger-text: #ffc9c2;
   --error-text: #ffb4ab;
   --progress-track: #0a0c10;
-  --overlay: #000a;
+  --overlay: #000000d9;
   --brand-shadow: #0006;
   --glow-green: #3dba7a66;
   --glow-amber: #e8a31766;
@@ -56,7 +56,7 @@
   --danger-text: #b71c1c;
   --error-text: #b71c1c;
   --progress-track: #ffcc80;
-  --overlay: #3e272399;
+  --overlay: #1a0f0acc;
   --brand-shadow: #bf360c33;
   --glow-green: #1b5e2044;
   --glow-amber: #e6510044;
@@ -98,13 +98,32 @@ button {
   padding: 28px 20px 48px;
 }
 
+@media (max-width: 720px) {
+  .app {
+    padding: 20px max(16px, 4vw) 40px;
+  }
+}
+
 .topbar {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 28px;
+  position: sticky;
+  top: 0;
+  z-index: 110;
+  background: transparent;
+  padding-top: 8px;
+  padding-bottom: 12px;
+  transition: background 0.2s ease;
   animation: rise 0.5s ease both;
+}
+
+.topbar.is-scrolled {
+  background: color-mix(in srgb, var(--bg-0) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
 }
 
 .brand {
@@ -132,8 +151,20 @@ button {
 
 .top-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.top-menu-toggle.btn-icon {
+  display: none !important;
+}
+
+.top-actions-panel {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .btn {
@@ -315,6 +346,80 @@ button {
 @media (max-width: 720px) {
   .tech-cols {
     grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    gap: 12px;
+    padding-top: 4px;
+    margin-bottom: 16px;
+  }
+
+  .top-actions {
+    flex-shrink: 0;
+  }
+
+  .top-menu-toggle.btn-icon {
+    display: inline-flex !important;
+  }
+
+  .top-actions-panel--bar {
+    display: none !important;
+  }
+
+  .top-menu-backdrop {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 10000;
+    background: var(--overlay);
+    animation: fade 0.2s ease both;
+  }
+
+  html.menu-open .topbar {
+    z-index: 10020;
+    background: transparent;
+  }
+
+  html.menu-open .top-actions {
+    position: relative;
+    z-index: 10020;
+  }
+
+  .top-actions-panel--float {
+    display: none;
+    position: fixed;
+    top: var(--topbar-offset, 7rem);
+    left: max(16px, 4vw);
+    right: max(16px, 4vw);
+    z-index: 10010;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+    padding: 14px;
+    gap: 10px;
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .top-actions-panel--float.is-open {
+    display: flex;
+  }
+
+  .top-actions-panel--float .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (min-width: 721px) {
+  .top-menu-backdrop,
+  .top-actions-panel--float {
+    display: none !important;
   }
 }
 
@@ -536,12 +641,15 @@ button {
 
 .modal-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: var(--overlay);
   display: grid;
   place-items: center;
   padding: 16px;
-  z-index: 40;
+  z-index: 100;
   animation: fade 0.2s ease both;
 }
 
@@ -552,6 +660,8 @@ button {
   border-radius: 14px;
   padding: 18px;
   animation: rise 0.25s ease both;
+  max-height: min(90dvh, 900px);
+  overflow-y: auto;
 }
 
 .modal h3 {
@@ -560,6 +670,30 @@ button {
   letter-spacing: 0.05em;
   font-size: 1.5rem;
   font-weight: 400;
+}
+
+@media (max-width: 720px) {
+  .modal-backdrop {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    place-items: start stretch;
+    align-content: start;
+    padding: var(--topbar-offset, 7rem) max(16px, 4vw) 20px;
+    z-index: 10000;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: calc(100dvh - var(--topbar-offset, 7rem) - 24px);
+    position: relative;
+    z-index: 10001;
+  }
+
+  html.modal-open .topbar {
+    z-index: auto;
+  }
 }
 
 .error {

@@ -4,6 +4,7 @@
   --bg-1: #1a1f27;
   --bg-2: #232a34;
   --bg-deep: #0d1014;
+  --page-bg: #12151a;
   --glow-1: #2a3340;
   --glow-2: #2c2414;
   --line: #2f3845;
@@ -32,12 +33,13 @@
 }
 
 [data-theme="light"] {
-  --bg-0: #ffe0b2;
-  --bg-1: #fff3e0;
-  --bg-2: #ffcc80;
-  --bg-deep: #ffb74d;
-  --glow-1: #ffcc80;
-  --glow-2: #ff9800;
+  --bg-0: #ffffff;
+  --bg-1: #ffffff;
+  --bg-2: #fff8f0;
+  --bg-deep: #ff9800;
+  --page-bg: #ff9800;
+  --glow-1: transparent;
+  --glow-2: transparent;
   --line: #e65100;
   --line-dashed: #f57c00;
   --text: #3e2723;
@@ -55,7 +57,7 @@
   --danger-border: #e57373;
   --danger-text: #b71c1c;
   --error-text: #b71c1c;
-  --progress-track: #ffcc80;
+  --progress-track: #f0e6d8;
   --overlay: #1a0f0acc;
   --brand-shadow: #bf360c33;
   --glow-green: #1b5e2044;
@@ -65,6 +67,13 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 html,
@@ -79,6 +88,11 @@ body {
     radial-gradient(900px 500px at 100% 0%, var(--glow-2) 0%, transparent 50%),
     linear-gradient(180deg, var(--bg-0), var(--bg-deep) 100%);
   transition: background 0.25s ease, color 0.2s ease;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] body {
+  background: var(--page-bg, #ff9800);
 }
 
 button,
@@ -121,9 +135,7 @@ button {
 }
 
 .topbar.is-scrolled {
-  background: color-mix(in srgb, var(--bg-0) 72%, transparent);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  background: var(--page-bg);
 }
 
 .brand {
@@ -431,6 +443,50 @@ button {
   color: var(--muted);
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pager-pages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.pager-page {
+  min-width: 32px;
+  padding: 4px 8px !important;
+  font-size: 0.8rem !important;
+}
+
+.pager-page.is-active {
+  background: linear-gradient(180deg, var(--amber-bright), var(--amber-dim));
+  color: var(--amber-ink);
+  border-color: var(--amber-border);
+  font-weight: 700;
+}
+
+.pager-ellipsis {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.pager-info {
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
 .tech {
   background: var(--bg-0);
   border: 1px solid var(--line);
@@ -649,7 +705,7 @@ button {
   display: grid;
   place-items: center;
   padding: 16px;
-  z-index: 100;
+  z-index: 10000;
   animation: fade 0.2s ease both;
 }
 
@@ -662,6 +718,53 @@ button {
   animation: rise 0.25s ease both;
   max-height: min(90dvh, 900px);
   overflow-y: auto;
+  position: relative;
+  z-index: 10001;
+}
+
+.modal-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-1) 78%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--line);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.spinner--sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.btn-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .modal h3 {
@@ -670,6 +773,10 @@ button {
   letter-spacing: 0.05em;
   font-size: 1.5rem;
   font-weight: 400;
+}
+
+html.modal-open .topbar {
+  z-index: auto;
 }
 
 @media (max-width: 720px) {
@@ -681,18 +788,11 @@ button {
     place-items: start stretch;
     align-content: start;
     padding: var(--topbar-offset, 7rem) max(16px, 4vw) 20px;
-    z-index: 10000;
   }
 
   .modal {
     width: 100%;
     max-height: calc(100dvh - var(--topbar-offset, 7rem) - 24px);
-    position: relative;
-    z-index: 10001;
-  }
-
-  html.modal-open .topbar {
-    z-index: auto;
   }
 }
 

@@ -33,7 +33,14 @@ type Modal =
       mode: "create" | "edit";
       unit?: Unit;
     }
-  | { type: "delete-unit"; unit: Unit };
+  | { type: "delete-unit"; unit: Unit }
+  | { type: "techs" }
+  | {
+      type: "tech-form";
+      mode: "create" | "edit";
+      tech?: Technician;
+    }
+  | { type: "delete-tech"; tech: Technician };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -80,6 +87,107 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
   return <span>{formatDuration(sec)}</span>;
 }
 
+function BusyOverlay({ label = "Memproses..." }: { label?: string }) {
+  return (
+    <div className="modal-loading" role="status" aria-live="polite">
+      <span className="spinner" aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function BusyLabel({
+  busy,
+  idle,
+  pending = "Memproses...",
+}: {
+  busy: boolean;
+  idle: string;
+  pending?: string;
+}) {
+  if (!busy) return <>{idle}</>;
+  return (
+    <span className="btn-busy">
+      <span className="spinner spinner--sm" aria-hidden="true" />
+      {pending}
+    </span>
+  );
+}
+
+/** Build page list like: 1 2 3 … 100 or 1 … 4 5 6 … 100 */
+function getPagerItems(current: number, total: number): Array<number | "…"> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const items: Array<number | "…"> = [];
+  const pushUnique = (n: number | "…") => {
+    if (items[items.length - 1] !== n) items.push(n);
+  };
+
+  pushUnique(1);
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) pushUnique("…");
+  for (let i = start; i <= end; i++) pushUnique(i);
+  if (end < total - 1) pushUnique("…");
+  pushUnique(total);
+  return items;
+}
+
+function Pager({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const items = getPagerItems(page, totalPages);
+  return (
+    <div className="pager">
+      <button
+        type="button"
+        className="btn"
+        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+      >
+        Prev
+      </button>
+      <div className="pager-pages">
+        {items.map((item, idx) =>
+          item === "…" ? (
+            <span key={`e-${idx}`} className="pager-ellipsis" aria-hidden="true">
+              …
+            </span>
+          ) : (
+            <button
+              key={item}
+              type="button"
+              className={`btn pager-page${item === page ? " is-active" : ""}`}
+              aria-current={item === page ? "page" : undefined}
+              onClick={() => onChange(item)}
+            >
+              {item}
+            </button>
+          )
+        )}
+      </div>
+      <button
+        type="button"
+        className="btn"
+        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+        disabled={page >= totalPages}
+        onClick={() => onChange(page + 1)}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
@@ -89,6 +197,16 @@ export default function HomePage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
+  const [unitDraft, setUnitDraft] = useState("");
+  const [unitQuery, setUnitQuery] = useState("");
+  const [techForm, setTechForm] = useState({
+    name: "",
+    skill: "",
+    phone: "",
+    status: "available" as Exclude<TechnicianStatus, "busy">,
+  });
+  const [masterTechDraft, setMasterTechDraft] = useState("");
+  const [masterTechQuery, setMasterTechQuery] = useState("");
   const topbarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -194,6 +312,68 @@ export default function HomePage() {
     }
   }
 
+  function openTechCreate() {
+    setTechForm({ name: "", skill: "", phone: "", status: "available" });
+    setModal({ type: "tech-form", mode: "create" });
+  }
+
+  function openTechEdit(tech: Technician) {
+    setTechForm({
+      name: tech.name,
+      skill: tech.skill,
+      phone: tech.phone || "",
+      status: tech.status === "offline" ? "offline" : "available",
+    });
+    setModal({ type: "tech-form", mode: "edit", tech });
+  }
+
+  async function saveTech() {
+    if (modal?.type !== "tech-form") return;
+    if (!techForm.name.trim() || !techForm.skill.trim() || !techForm.phone.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        name: techForm.name,
+        skill: techForm.skill,
+        phone: techForm.phone,
+        ...(modal.tech?.status === "busy" ? {} : { status: techForm.status }),
+      };
+      if (modal.mode === "create") {
+        await api("/api/technicians", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      } else if (modal.tech) {
+        await api(`/api/technicians/${modal.tech.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      }
+      setModal({ type: "techs" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan teknisi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteTech() {
+    if (modal?.type !== "delete-tech") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/technicians/${modal.tech.id}`, { method: "DELETE" });
+      setModal({ type: "techs" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus teknisi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const form = useJobFormStore((s) => s.form);
   const setForm = useJobFormStore((s) => s.setForm);
   const resetForm = useJobFormStore((s) => s.resetForm);
@@ -214,6 +394,16 @@ export default function HomePage() {
   const setTechDraft = useTechnicianBoardStore((s) => s.setDraft);
   const applyTechSearch = useTechnicianBoardStore((s) => s.applySearch);
   const clearTechSearch = useTechnicianBoardStore((s) => s.clearSearch);
+
+  const TECH_PAGE_SIZE = 10;
+  const [techPage, setTechPage] = useState<Record<TechnicianStatus, number>>({
+    available: 1,
+    busy: 1,
+    offline: 1,
+  });
+
+  const JOB_PAGE_SIZE = 10;
+  const [activeJobPage, setActiveJobPage] = useState(1);
 
   const jobDraft = useJobBoardStore((s) => s.draft);
   const jobQuery = useJobBoardStore((s) => s.query);
@@ -257,6 +447,18 @@ export default function HomePage() {
       .filter(Boolean);
   }
 
+  const canEditJobSteps =
+    modal?.type === "create" ||
+    (modal?.type === "edit" &&
+      ["queued", "assigned"].includes(modal.job.status));
+
+  const jobFormValid =
+    form.title.trim().length > 0 &&
+    form.unit_id.trim().length > 0 &&
+    form.description.trim().length > 0 &&
+    Number(form.estimated_minutes) > 0 &&
+    (!canEditJobSteps || parseSteps(form.steps).length > 0);
+
   const load = useCallback(async () => {
     try {
       const d = await api<DashboardData>("/api/dashboard");
@@ -298,6 +500,63 @@ export default function HomePage() {
     [data]
   );
 
+  useEffect(() => {
+    if (modal?.type !== "units") {
+      setUnitDraft("");
+      setUnitQuery("");
+    }
+    if (modal?.type !== "techs") {
+      setMasterTechDraft("");
+      setMasterTechQuery("");
+    }
+  }, [modal?.type]);
+
+  const filteredUnits = useMemo(() => {
+    const units = data?.units || [];
+    const q = unitQuery.trim().toLowerCase();
+    if (!q) return units;
+    return units.filter(
+      (u) =>
+        u.code.toLowerCase().includes(q) ||
+        u.name.toLowerCase().includes(q)
+    );
+  }, [data?.units, unitQuery]);
+
+  function applyUnitSearch() {
+    setUnitQuery(unitDraft.trim());
+  }
+
+  function clearUnitSearch() {
+    setUnitDraft("");
+    setUnitQuery("");
+  }
+
+  const filteredMasterTechs = useMemo(() => {
+    const techs = data?.technicians || [];
+    const q = masterTechQuery.trim().toLowerCase();
+    if (!q) return techs;
+    return techs.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.skill.toLowerCase().includes(q) ||
+        (t.phone || "").toLowerCase().includes(q)
+    );
+  }, [data?.technicians, masterTechQuery]);
+
+  function applyMasterTechSearch() {
+    setMasterTechQuery(masterTechDraft.trim());
+  }
+
+  function clearMasterTechSearch() {
+    setMasterTechDraft("");
+    setMasterTechQuery("");
+  }
+
+  const techFormValid =
+    techForm.name.trim().length > 0 &&
+    techForm.skill.trim().length > 0 &&
+    techForm.phone.trim().length > 0;
+
   const techGroups = useMemo(() => {
     const groups: Record<TechnicianStatus, Technician[]> = {
       available: [],
@@ -317,6 +576,28 @@ export default function HomePage() {
     });
     return groups;
   }, [data, techQuery]);
+
+  useEffect(() => {
+    setTechPage({ available: 1, busy: 1, offline: 1 });
+  }, [techQuery]);
+
+  useEffect(() => {
+    setTechPage((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      (["available", "busy", "offline"] as TechnicianStatus[]).forEach((status) => {
+        const totalPages = Math.max(
+          1,
+          Math.ceil(techGroups[status].length / TECH_PAGE_SIZE)
+        );
+        if (next[status] > totalPages) {
+          next[status] = totalPages;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [techGroups]);
 
   const matchJob = useCallback(
     (j: JobWithDetails) => {
@@ -359,6 +640,25 @@ export default function HomePage() {
     [data, matchJob]
   );
 
+  useEffect(() => {
+    setActiveJobPage(1);
+  }, [jobQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(activeJobs.length / JOB_PAGE_SIZE));
+    setActiveJobPage((p) => (p > totalPages ? totalPages : p));
+  }, [activeJobs.length]);
+
+  const activeJobTotalPages = Math.max(
+    1,
+    Math.ceil(activeJobs.length / JOB_PAGE_SIZE)
+  );
+  const activeJobPageSafe = Math.min(activeJobPage, activeJobTotalPages);
+  const pagedActiveJobs = activeJobs.slice(
+    (activeJobPageSafe - 1) * JOB_PAGE_SIZE,
+    activeJobPageSafe * JOB_PAGE_SIZE
+  );
+
   async function runAction(
     jobId: string,
     action: string,
@@ -381,16 +681,17 @@ export default function HomePage() {
   }
 
   async function createJob() {
+    if (!jobFormValid) return;
     setBusy(true);
     setError("");
     try {
       await api("/api/jobs", {
         method: "POST",
         body: JSON.stringify({
-          title: form.title,
+          title: form.title.trim(),
           unit_id: form.unit_id,
-          description: form.description,
-          estimated_minutes: Number(form.estimated_minutes) || 60,
+          description: form.description.trim(),
+          estimated_minutes: Number(form.estimated_minutes),
           steps: parseSteps(form.steps),
         }),
       });
@@ -405,7 +706,7 @@ export default function HomePage() {
   }
 
   async function saveEditJob() {
-    if (modal?.type !== "edit") return;
+    if (modal?.type !== "edit" || !jobFormValid) return;
     setBusy(true);
     setError("");
     try {
@@ -413,10 +714,10 @@ export default function HomePage() {
       await api(`/api/jobs/${modal.job.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          title: form.title,
+          title: form.title.trim(),
           unit_id: form.unit_id,
-          description: form.description,
-          estimated_minutes: Number(form.estimated_minutes) || 60,
+          description: form.description.trim(),
+          estimated_minutes: Number(form.estimated_minutes),
           steps: canEditSteps ? parseSteps(form.steps) : undefined,
         }),
       });
@@ -670,6 +971,13 @@ export default function HomePage() {
             <button
               className="btn"
               disabled={busy}
+              onClick={() => setModal({ type: "techs" })}
+            >
+              Master Teknisi
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
               onClick={() => setModal({ type: "units" })}
             >
               Master Unit
@@ -702,6 +1010,16 @@ export default function HomePage() {
               }}
             >
               Refresh
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setModal({ type: "techs" });
+              }}
+            >
+              Master Teknisi
             </button>
             <button
               className="btn"
@@ -792,7 +1110,7 @@ export default function HomePage() {
                         applyTechSearch();
                       }
                     }}
-                    placeholder="Cari nama atau skill..."
+                    placeholder="Cari nama atau SN KPC..."
                     aria-label="Cari teknisi"
                   />
                   <button
@@ -814,12 +1132,18 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="tech-cols">
-                {(["available", "busy", "offline"] as TechnicianStatus[]).map((status) => (
+                {(["available", "busy", "offline"] as TechnicianStatus[]).map((status) => {
+                  const list = techGroups[status];
+                  const totalPages = Math.max(1, Math.ceil(list.length / TECH_PAGE_SIZE));
+                  const page = Math.min(techPage[status], totalPages);
+                  const start = (page - 1) * TECH_PAGE_SIZE;
+                  const pageItems = list.slice(start, start + TECH_PAGE_SIZE);
+                  return (
                   <div className="tech-col" key={status}>
                     <h3>
-                      {status} ({techGroups[status].length})
+                      {status} ({list.length})
                     </h3>
-                    {techGroups[status].map((t) => {
+                    {pageItems.map((t) => {
                       const job = data.jobs.find((j) => j.id === t.current_job_id);
                       return (
                         <div className="tech" key={t.id}>
@@ -828,7 +1152,7 @@ export default function HomePage() {
                             {t.skill}
                             {job ? ` · ${job.title}` : ""}
                           </div>
-                          <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                          <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <StatusPill status={t.status} />
                             {t.status !== "busy" && (
                               <button
@@ -840,17 +1164,43 @@ export default function HomePage() {
                                 {t.status === "available" ? "Set offline" : "Set available"}
                               </button>
                             )}
+                            <button
+                              className="btn"
+                              style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                              disabled={busy}
+                              onClick={() => openTechEdit(t)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                              disabled={busy || t.status === "busy"}
+                              onClick={() => setModal({ type: "delete-tech", tech: t })}
+                            >
+                              Hapus
+                            </button>
                           </div>
                         </div>
                       );
                     })}
-                    {techGroups[status].length === 0 && (
+                    {list.length === 0 && (
                       <div className="meta">
                         {techQuery ? "Tidak cocok" : "Tidak ada"}
                       </div>
                     )}
+                    {list.length > TECH_PAGE_SIZE && (
+                      <Pager
+                        page={page}
+                        totalPages={totalPages}
+                        onChange={(next) =>
+                          setTechPage((p) => ({ ...p, [status]: next }))
+                        }
+                      />
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
@@ -895,7 +1245,14 @@ export default function HomePage() {
                   {jobQuery ? "Tidak ada job aktif yang cocok." : "Tidak ada job aktif."}
                 </p>
               )}
-              {activeJobs.map(renderJob)}
+              {pagedActiveJobs.map(renderJob)}
+              {activeJobs.length > JOB_PAGE_SIZE && (
+                <Pager
+                  page={activeJobPageSafe}
+                  totalPages={activeJobTotalPages}
+                  onChange={setActiveJobPage}
+                />
+              )}
 
               <h2 style={{ marginTop: 22 }}>Antrian</h2>
               {queuedJobs.length === 0 && (
@@ -923,21 +1280,23 @@ export default function HomePage() {
       {(modal?.type === "create" || modal?.type === "edit") && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
             <h3>{modal.type === "create" ? "Job baru" : "Edit job"}</h3>
             <div className="form">
               <label>
-                Judul
+                Judul *
                 <input
                   value={form.title}
                   onChange={(e) => setForm({ title: e.target.value })}
-                  placeholder="Mis. Ganti oli mesin"
+                  required
                 />
               </label>
               <label>
-                Unit / kendaraan
+                Unit / kendaraan *
                 <select
                   value={form.unit_id}
                   onChange={(e) => setForm({ unit_id: e.target.value })}
+                  required
                 >
                   <option value="">— Pilih unit —</option>
                   {(data?.units || [])
@@ -955,32 +1314,36 @@ export default function HomePage() {
                 </select>
               </label>
               <label>
-                Deskripsi
+                Deskripsi *
                 <textarea
                   rows={3}
                   value={form.description}
                   onChange={(e) => setForm({ description: e.target.value })}
+                  required
                 />
               </label>
               <label>
-                Estimasi (menit)
+                Estimasi (menit) *
                 <input
                   type="number"
+                  min={1}
                   value={form.estimated_minutes}
                   onChange={(e) =>
                     setForm({ estimated_minutes: e.target.value })
                   }
+                  required
                 />
               </label>
               {(modal.type === "create" ||
                 ["queued", "assigned"].includes(modal.job.status)) && (
                 <label>
-                  Tahapan (satu baris per step)
+                  Tahapan (satu baris per step) *
                   <textarea
                     rows={4}
                     value={form.steps}
                     onChange={(e) => setForm({ steps: e.target.value })}
                     placeholder={"Diagnosis\nPerbaikan\nTest & QC"}
+                    required
                   />
                 </label>
               )}
@@ -996,10 +1359,14 @@ export default function HomePage() {
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={busy || !form.title || !form.unit_id}
+                  disabled={busy || !jobFormValid}
                   onClick={modal.type === "create" ? createJob : saveEditJob}
                 >
-                  {modal.type === "create" ? "Simpan" : "Update"}
+                  <BusyLabel
+                    busy={busy}
+                    idle={modal.type === "create" ? "Simpan" : "Update"}
+                    pending="Menyimpan..."
+                  />
                 </button>
               </div>
             </div>
@@ -1010,6 +1377,7 @@ export default function HomePage() {
       {modal?.type === "assign" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay />}
             <h3>
               {modal.job.status === "queued"
                 ? "Assign teknisi"
@@ -1034,7 +1402,7 @@ export default function HomePage() {
                         applyAssignSearch();
                       }
                     }}
-                    placeholder="Nama atau skill..."
+                    placeholder="Nama atau SN KPC..."
                     autoFocus
                   />
                   <button
@@ -1125,6 +1493,7 @@ export default function HomePage() {
       {modal?.type === "tech-status" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
             <h3>Ubah status teknisi</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.tech.name} — {modal.tech.skill}
@@ -1143,7 +1512,11 @@ export default function HomePage() {
                 disabled={busy}
                 onClick={confirmTechStatus}
               >
-                Ya, set {modal.nextStatus}
+                <BusyLabel
+                  busy={busy}
+                  idle={`Ya, set ${modal.nextStatus}`}
+                  pending="Menyimpan..."
+                />
               </button>
             </div>
           </div>
@@ -1156,6 +1529,7 @@ export default function HomePage() {
           onClick={() => setModal({ type: "assign", job: modal.job })}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
             <h3>
               {modal.job.status === "queued"
                 ? "Konfirmasi assign"
@@ -1198,9 +1572,15 @@ export default function HomePage() {
                   })
                 }
               >
-                {modal.job.status === "queued"
-                  ? `Ya, assign (${modal.techIds.length})`
-                  : `Ya, ubah (${modal.techIds.length})`}
+                <BusyLabel
+                  busy={busy}
+                  idle={
+                    modal.job.status === "queued"
+                      ? `Ya, assign (${modal.techIds.length})`
+                      : `Ya, ubah (${modal.techIds.length})`
+                  }
+                  pending="Memproses..."
+                />
               </button>
             </div>
           </div>
@@ -1210,6 +1590,7 @@ export default function HomePage() {
       {modal?.type === "cancel-job" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
             <h3>Cancel job</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — {modal.job.unit}
@@ -1227,7 +1608,7 @@ export default function HomePage() {
                 disabled={busy}
                 onClick={confirmCancelJob}
               >
-                Ya, cancel
+                <BusyLabel busy={busy} idle="Ya, cancel" pending="Memproses..." />
               </button>
             </div>
           </div>
@@ -1237,6 +1618,7 @@ export default function HomePage() {
       {modal?.type === "delete-job" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
             <h3>Hapus job</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — {modal.job.unit}
@@ -1254,7 +1636,7 @@ export default function HomePage() {
                 disabled={busy}
                 onClick={removeJob}
               >
-                Ya, hapus
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>
             </div>
           </div>
@@ -1264,15 +1646,53 @@ export default function HomePage() {
       {modal?.type === "units" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay />}
             <h3>Master Unit</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Data unit dipilih saat buat/edit job (tidak ketik manual).
             </p>
+            <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
+              <input
+                className="panel-search"
+                style={{ maxWidth: "none" }}
+                type="search"
+                value={unitDraft}
+                onChange={(e) => setUnitDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyUnitSearch();
+                  }
+                }}
+                placeholder="Cari kode atau nama..."
+                aria-label="Cari unit"
+                autoFocus
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={applyUnitSearch}
+              >
+                Cari
+              </button>
+              {unitQuery && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={clearUnitSearch}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
             <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
               {(data?.units || []).length === 0 && (
                 <span style={{ color: "var(--muted)" }}>Belum ada unit.</span>
               )}
-              {(data?.units || []).map((u) => (
+              {(data?.units || []).length > 0 && filteredUnits.length === 0 && (
+                <span style={{ color: "var(--muted)" }}>Tidak ada unit yang cocok.</span>
+              )}
+              {filteredUnits.map((u) => (
                 <div
                   key={u.id}
                   style={{
@@ -1330,6 +1750,7 @@ export default function HomePage() {
           onClick={() => setModal({ type: "units" })}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
             <h3>{modal.mode === "create" ? "Unit baru" : "Edit unit"}</h3>
             <div className="form">
               <label>
@@ -1371,7 +1792,7 @@ export default function HomePage() {
                   disabled={busy || !unitForm.code || !unitForm.name}
                   onClick={saveUnit}
                 >
-                  Simpan
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
                 </button>
               </div>
             </div>
@@ -1385,6 +1806,7 @@ export default function HomePage() {
           onClick={() => setModal({ type: "units" })}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
             <h3>Hapus unit</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.unit.code} — {modal.unit.name}
@@ -1402,7 +1824,215 @@ export default function HomePage() {
                 disabled={busy}
                 onClick={confirmDeleteUnit}
               >
-                Ya, hapus
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "techs" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay />}
+            <h3>Master Teknisi</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Kelola data teknisi (nama, SN KPC, telepon, status).
+            </p>
+            {error && <div className="error">{error}</div>}
+            <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
+              <input
+                className="panel-search"
+                style={{ maxWidth: "none" }}
+                type="search"
+                value={masterTechDraft}
+                onChange={(e) => setMasterTechDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyMasterTechSearch();
+                  }
+                }}
+                placeholder="Cari nama, SN KPC, atau telepon..."
+                aria-label="Cari teknisi"
+                autoFocus
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={applyMasterTechSearch}
+              >
+                Cari
+              </button>
+              {masterTechQuery && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={clearMasterTechSearch}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
+              {(data?.technicians || []).length === 0 && (
+                <span style={{ color: "var(--muted)" }}>Belum ada teknisi.</span>
+              )}
+              {(data?.technicians || []).length > 0 && filteredMasterTechs.length === 0 && (
+                <span style={{ color: "var(--muted)" }}>Tidak ada teknisi yang cocok.</span>
+              )}
+              {filteredMasterTechs.map((t) => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom: "1px dashed var(--line-dashed)",
+                  }}
+                >
+                  <div>
+                    <strong>{t.name}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                      {t.skill}
+                      {t.phone ? ` · ${t.phone}` : ""}
+                      {` · ${t.status}`}
+                    </div>
+                  </div>
+                  <div className="actions" style={{ marginTop: 0 }}>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() => openTechEdit(t)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy || t.status === "busy"}
+                      onClick={() => setModal({ type: "delete-tech", tech: t })}
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button className="btn btn-primary" disabled={busy} onClick={openTechCreate}>
+                + Teknisi baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "tech-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "techs" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>{modal.mode === "create" ? "Teknisi baru" : "Edit teknisi"}</h3>
+            {error && <div className="error">{error}</div>}
+            <div className="form">
+              <label>
+                Nama *
+                <input
+                  value={techForm.name}
+                  onChange={(e) => setTechForm({ ...techForm, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                SN KPC *
+                <input
+                  value={techForm.skill}
+                  onChange={(e) => setTechForm({ ...techForm, skill: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Telepon *
+                <input
+                  value={techForm.phone}
+                  onChange={(e) => setTechForm({ ...techForm, phone: e.target.value })}
+                  required
+                />
+              </label>
+              {modal.tech?.status === "busy" ? (
+                <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
+                  Status: busy — tidak bisa diubah sampai job selesai.
+                </p>
+              ) : (
+                <label>
+                  Status *
+                  <select
+                    value={techForm.status}
+                    onChange={(e) =>
+                      setTechForm({
+                        ...techForm,
+                        status: e.target.value as Exclude<TechnicianStatus, "busy">,
+                      })
+                    }
+                    required
+                  >
+                    <option value="available">available</option>
+                    <option value="offline">offline</option>
+                  </select>
+                </label>
+              )}
+              <div className="actions">
+                <button className="btn" onClick={() => setModal({ type: "techs" })}>
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !techFormValid}
+                  onClick={saveTech}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-tech" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "techs" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
+            <h3>Hapus teknisi</h3>
+            {error && <div className="error">{error}</div>}
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.tech.name} — {modal.tech.skill}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus teknisi ini permanen? Jika masih terpasang di job aktif,
+              penghapusan akan ditolak.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={() => setModal({ type: "techs" })}>
+                Kembali
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={confirmDeleteTech}
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>
             </div>
           </div>

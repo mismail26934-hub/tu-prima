@@ -808,6 +808,113 @@ export async function setTechnicianStatus(
   });
 }
 
+export async function createTechnician(input: {
+  name: string;
+  skill: string;
+  phone?: string;
+  status?: Exclude<TechnicianStatus, "busy">;
+}): Promise<Technician> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const name = input.name.trim();
+    const skill = input.skill.trim();
+    const phone = (input.phone || "").trim();
+    if (!name || !skill || !phone) {
+      throw new Error("nama, SN KPC, dan telepon wajib diisi");
+    }
+    const status: TechnicianStatus =
+      input.status === "offline" ? "offline" : "available";
+    const tech: Technician = {
+      id: `T-${uuidv4().slice(0, 8)}`,
+      name,
+      skill,
+      status,
+      current_job_id: "",
+      phone,
+    };
+    techs.push(tech);
+    writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    await saveWorkbook(wb);
+    return tech;
+  });
+}
+
+export async function updateTechnician(
+  techId: string,
+  input: {
+    name: string;
+    skill: string;
+    phone?: string;
+    status?: Exclude<TechnicianStatus, "busy">;
+  }
+): Promise<Technician> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const tech = techs.find((t) => t.id === techId);
+    if (!tech) throw new Error("Technician not found");
+    const name = input.name.trim();
+    const skill = input.skill.trim();
+    const phone = (input.phone ?? tech.phone).trim();
+    if (!name || !skill || !phone) {
+      throw new Error("nama, SN KPC, dan telepon wajib diisi");
+    }
+    tech.name = name;
+    tech.skill = skill;
+    tech.phone = phone;
+    if (input.status === "available" || input.status === "offline") {
+      if (tech.status === "busy") {
+        throw new Error("Teknisi sedang mengerjakan job. Selesaikan job dulu.");
+      }
+      tech.status = input.status;
+      if (input.status !== "busy") tech.current_job_id = "";
+    }
+    writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    await saveWorkbook(wb);
+    return tech;
+  });
+}
+
+export async function deleteTechnician(techId: string): Promise<{ ok: true }> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    let techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    let assignees = loadAssignees(wb, jobs);
+    const tech = techs.find((t) => t.id === techId);
+    if (!tech) throw new Error("Technician not found");
+    if (tech.status === "busy" || tech.current_job_id) {
+      throw new Error(
+        "Teknisi sedang mengerjakan job. Selesaikan/lepas job dulu sebelum hapus."
+      );
+    }
+    const activeJobIds = new Set(
+      jobs
+        .filter((j) => !["done", "cancelled"].includes(j.status))
+        .map((j) => j.id)
+    );
+    const activeLinks = assignees.filter(
+      (a) => a.technician_id === techId && activeJobIds.has(a.job_id)
+    );
+    if (activeLinks.length > 0) {
+      throw new Error(
+        `Teknisi masih terpasang di ${activeLinks.length} job aktif. Lepas assign dulu.`
+      );
+    }
+    techs = techs.filter((t) => t.id !== techId);
+    assignees = assignees.filter((a) => a.technician_id !== techId);
+    jobs.forEach((j) => {
+      if (j.technician_id === techId) j.technician_id = "";
+    });
+    writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+    writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
+    await saveWorkbook(wb);
+    return { ok: true };
+  });
+}
+
 type JobAction =
   | "assign"
   | "start"

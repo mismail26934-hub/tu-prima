@@ -473,13 +473,18 @@ export default function HomePage() {
         </ul>
 
         <div className="actions">
-          {(job.status === "queued" || job.status === "assigned") && (
+          {["queued", "assigned", "in_progress", "paused"].includes(
+            job.status
+          ) && (
             <button
               className="btn btn-primary"
-              disabled={busy || (job.status === "queued" && availableTechs.length === 0)}
+              disabled={
+                busy ||
+                (job.status === "queued" && availableTechs.length === 0)
+              }
               onClick={() => openAssign(job)}
             >
-              {job.status === "assigned" ? "Ubah teknisi" : "Assign teknisi"}
+              {job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"}
             </button>
           )}
           {job.status === "assigned" && (
@@ -881,7 +886,11 @@ export default function HomePage() {
       {modal?.type === "assign" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Assign teknisi</h3>
+            <h3>
+              {modal.job.status === "queued"
+                ? "Assign teknisi"
+                : "Ubah teknisi"}
+            </h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — pilih satu atau lebih
             </p>
@@ -1023,12 +1032,18 @@ export default function HomePage() {
           onClick={() => setModal({ type: "assign", job: modal.job })}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Konfirmasi assign</h3>
+            <h3>
+              {modal.job.status === "queued"
+                ? "Konfirmasi assign"
+                : "Konfirmasi ubah teknisi"}
+            </h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 8px" }}>
-              Assign {modal.techIds.length} teknisi ke job ini?
+              {modal.job.status === "queued"
+                ? `Assign ${modal.techIds.length} teknisi ke job ini?`
+                : `Ubah teknisi job ini menjadi ${modal.techIds.length} orang?`}
             </p>
             <ul style={{ margin: "0 0 16px", paddingLeft: 18, color: "var(--muted)" }}>
               {modal.techIds.map((id, index) => {
@@ -1059,7 +1074,9 @@ export default function HomePage() {
                   })
                 }
               >
-                Ya, assign ({modal.techIds.length})
+                {modal.job.status === "queued"
+                  ? `Ya, assign (${modal.techIds.length})`
+                  : `Ya, ubah (${modal.techIds.length})`}
               </button>
             </div>
           </div>

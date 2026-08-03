@@ -856,7 +856,8 @@ export async function jobAction(
         )
       );
       if (ids.length === 0) throw new Error("Pilih minimal 1 teknisi");
-      if (!["queued", "assigned"].includes(job.status)) {
+      const assignable = ["queued", "assigned", "in_progress", "paused"];
+      if (!assignable.includes(job.status)) {
         throw new Error("Job tidak bisa di-assign pada status ini");
       }
 
@@ -873,6 +874,7 @@ export async function jobAction(
         }
       }
 
+      const prevStatus = job.status;
       // Release previous assignees on this job
       releaseTechsFromJob(techs, job.id);
       assignees = assignees.filter((a) => a.job_id !== job.id);
@@ -891,10 +893,16 @@ export async function jobAction(
       });
 
       job.technician_id = selected[0].id;
-      job.status = "assigned";
+      // Keep progress status; only promote queued → assigned
+      if (prevStatus === "queued") {
+        job.status = "assigned";
+      }
+      const names = selected.map((t) => t.name).join(", ");
       pushEvent(
         "assigned",
-        `Diassign ke ${selected.map((t) => t.name).join(", ")}`
+        ["in_progress", "paused"].includes(prevStatus)
+          ? `Teknisi diubah: ${names}`
+          : `Diassign ke ${names}`
       );
     }
 

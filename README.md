@@ -10,6 +10,7 @@ Aplikasi monitoring job mekanik dengan **Excel sebagai database** (`data/worksho
 - Assign **satu atau lebih teknisi** per job, start, pause, resume, complete step, complete job
 - **CRUD Jobs**: buat, lihat, edit, hapus permanen
 - Toggle **Light / Dark** mode (tersimpan di browser)
+- State form Assign & Job pakai **Zustand** (`src/store/`)
 - Data tersimpan di file Excel (bisa dibuka di Microsoft Excel / LibreOffice)
 
 ## Sheet Excel

@@ -8,12 +8,24 @@ import type {
   TechnicianStatus,
 } from "@/lib/types";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
+import { useAssignStore } from "@/store/assignStore";
+import { useJobFormStore } from "@/store/jobFormStore";
+import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
+import { useJobBoardStore } from "@/store/jobBoardStore";
 
 type Modal =
   | null
   | { type: "create" }
   | { type: "edit"; job: JobWithDetails }
-  | { type: "assign"; job: JobWithDetails };
+  | { type: "assign"; job: JobWithDetails }
+  | {
+      type: "tech-status";
+      tech: Technician;
+      nextStatus: Exclude<TechnicianStatus, "busy">;
+    }
+  | { type: "cancel-job"; job: JobWithDetails }
+  | { type: "delete-job"; job: JobWithDetails }
+  | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -68,33 +80,40 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
-  const [form, setForm] = useState({
-    title: "",
-    unit: "",
-    description: "",
-    estimated_minutes: "90",
-    steps: "Diagnosis\nPerbaikan\nTest & QC",
-  });
-  const [assignTechIds, setAssignTechIds] = useState<string[]>([]);
-  const [assignSearch, setAssignSearch] = useState("");
+  const form = useJobFormStore((s) => s.form);
+  const setForm = useJobFormStore((s) => s.setForm);
+  const resetForm = useJobFormStore((s) => s.resetForm);
+  const loadForm = useJobFormStore((s) => s.loadForm);
 
-  function emptyForm() {
-    return {
-      title: "",
-      unit: "",
-      description: "",
-      estimated_minutes: "90",
-      steps: "Diagnosis\nPerbaikan\nTest & QC",
-    };
-  }
+  const assignTechIds = useAssignStore((s) => s.techIds);
+  const assignDraft = useAssignStore((s) => s.draft);
+  const assignQuery = useAssignStore((s) => s.query);
+  const openAssignStore = useAssignStore((s) => s.openForJob);
+  const setAssignDraft = useAssignStore((s) => s.setDraft);
+  const applyAssignSearch = useAssignStore((s) => s.applySearch);
+  const clearAssignSearch = useAssignStore((s) => s.clearSearch);
+  const toggleAssignTech = useAssignStore((s) => s.toggleTech);
+  const resetAssign = useAssignStore((s) => s.reset);
+
+  const techDraft = useTechnicianBoardStore((s) => s.draft);
+  const techQuery = useTechnicianBoardStore((s) => s.query);
+  const setTechDraft = useTechnicianBoardStore((s) => s.setDraft);
+  const applyTechSearch = useTechnicianBoardStore((s) => s.applySearch);
+  const clearTechSearch = useTechnicianBoardStore((s) => s.clearSearch);
+
+  const jobDraft = useJobBoardStore((s) => s.draft);
+  const jobQuery = useJobBoardStore((s) => s.query);
+  const setJobDraft = useJobBoardStore((s) => s.setDraft);
+  const applyJobSearch = useJobBoardStore((s) => s.applySearch);
+  const clearJobSearch = useJobBoardStore((s) => s.clearSearch);
 
   function openCreate() {
-    setForm(emptyForm());
+    resetForm();
     setModal({ type: "create" });
   }
 
   function openEdit(job: JobWithDetails) {
-    setForm({
+    loadForm({
       title: job.title,
       unit: job.unit,
       description: job.description,
@@ -102,6 +121,19 @@ export default function HomePage() {
       steps: job.steps.map((s) => s.name).join("\n"),
     });
     setModal({ type: "edit", job });
+  }
+
+  function openAssign(job: JobWithDetails) {
+    const existing =
+      job.technicians?.map((t) => t.id) ||
+      (job.technician_id ? [job.technician_id] : []);
+    openAssignStore(job.id, existing);
+    setModal({ type: "assign", job });
+  }
+
+  function closeModal() {
+    resetAssign();
+    setModal(null);
   }
 
   function parseSteps(text: string): string[] {
@@ -158,25 +190,59 @@ export default function HomePage() {
       busy: [],
       offline: [],
     };
-    data?.technicians.forEach((t) => groups[t.status].push(t));
+    const q = techQuery.toLowerCase();
+    data?.technicians.forEach((t) => {
+      if (
+        q &&
+        !t.name.toLowerCase().includes(q) &&
+        !t.skill.toLowerCase().includes(q)
+      ) {
+        return;
+      }
+      groups[t.status].push(t);
+    });
     return groups;
-  }, [data]);
+  }, [data, techQuery]);
+
+  const matchJob = useCallback(
+    (j: JobWithDetails) => {
+      const q = jobQuery.toLowerCase();
+      if (!q) return true;
+      const techNames = (j.technicians || [])
+        .map((t) => t.name)
+        .join(" ")
+        .toLowerCase();
+      return (
+        j.title.toLowerCase().includes(q) ||
+        j.unit.toLowerCase().includes(q) ||
+        j.description.toLowerCase().includes(q) ||
+        j.status.toLowerCase().includes(q) ||
+        techNames.includes(q) ||
+        (j.technician?.name || "").toLowerCase().includes(q)
+      );
+    },
+    [jobQuery]
+  );
 
   const activeJobs = useMemo(
     () =>
-      (data?.jobs || []).filter((j) =>
-        ["in_progress", "paused", "assigned"].includes(j.status)
+      (data?.jobs || []).filter(
+        (j) =>
+          ["in_progress", "paused", "assigned"].includes(j.status) && matchJob(j)
       ),
-    [data]
+    [data, matchJob]
   );
   const queuedJobs = useMemo(
-    () => (data?.jobs || []).filter((j) => j.status === "queued"),
-    [data]
+    () =>
+      (data?.jobs || []).filter((j) => j.status === "queued" && matchJob(j)),
+    [data, matchJob]
   );
   const historyJobs = useMemo(
     () =>
-      (data?.jobs || []).filter((j) => ["done", "cancelled"].includes(j.status)),
-    [data]
+      (data?.jobs || []).filter(
+        (j) => ["done", "cancelled"].includes(j.status) && matchJob(j)
+      ),
+    [data, matchJob]
   );
 
   async function runAction(
@@ -192,7 +258,7 @@ export default function HomePage() {
         body: JSON.stringify({ action, ...payload }),
       });
       await load();
-      setModal(null);
+      closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Aksi gagal");
     } finally {
@@ -214,8 +280,8 @@ export default function HomePage() {
           steps: parseSteps(form.steps),
         }),
       });
-      setForm(emptyForm());
-      setModal(null);
+      resetForm();
+      closeModal();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal buat job");
@@ -240,7 +306,7 @@ export default function HomePage() {
           steps: canEditSteps ? parseSteps(form.steps) : undefined,
         }),
       });
-      setModal(null);
+      closeModal();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal update job");
@@ -249,12 +315,14 @@ export default function HomePage() {
     }
   }
 
-  async function removeJob(job: JobWithDetails) {
-    if (!confirm(`Hapus job "${job.title}" permanen dari Excel?`)) return;
+  async function removeJob() {
+    if (modal?.type !== "delete-job") return;
+    const job = modal.job;
     setBusy(true);
     setError("");
     try {
       await api(`/api/jobs/${job.id}`, { method: "DELETE" });
+      closeModal();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus job");
@@ -263,22 +331,35 @@ export default function HomePage() {
     }
   }
 
-  async function toggleTech(tech: Technician) {
-    if (tech.status === "busy") return;
-    const next: TechnicianStatus =
-      tech.status === "available" ? "offline" : "available";
+  async function confirmCancelJob() {
+    if (modal?.type !== "cancel-job") return;
+    await runAction(modal.job.id, "cancel");
+  }
+
+  async function confirmTechStatus() {
+    if (modal?.type !== "tech-status") return;
+    const { tech, nextStatus } = modal;
     setBusy(true);
+    setError("");
     try {
       await api(`/api/technicians/${tech.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status: nextStatus }),
       });
+      closeModal();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal update teknisi");
     } finally {
       setBusy(false);
     }
+  }
+
+  function openTechStatusModal(tech: Technician) {
+    if (tech.status === "busy") return;
+    const nextStatus: Exclude<TechnicianStatus, "busy"> =
+      tech.status === "available" ? "offline" : "available";
+    setModal({ type: "tech-status", tech, nextStatus });
   }
 
   function renderJob(job: JobWithDetails) {
@@ -337,20 +418,7 @@ export default function HomePage() {
             <button
               className="btn btn-primary"
               disabled={busy || (job.status === "queued" && availableTechs.length === 0)}
-              onClick={() => {
-                const preselected =
-                  job.technicians?.map((t) => t.id) ||
-                  (job.technician_id ? [job.technician_id] : []);
-                setAssignTechIds(
-                  preselected.length
-                    ? preselected
-                    : availableTechs[0]
-                      ? [availableTechs[0].id]
-                      : []
-                );
-                setAssignSearch("");
-                setModal({ type: "assign", job });
-              }}
+              onClick={() => openAssign(job)}
             >
               {job.status === "assigned" ? "Ubah teknisi" : "Assign teknisi"}
             </button>
@@ -407,7 +475,7 @@ export default function HomePage() {
             <button
               className="btn btn-danger"
               disabled={busy}
-              onClick={() => runAction(job.id, "cancel")}
+              onClick={() => setModal({ type: "cancel-job", job })}
             >
               Cancel
             </button>
@@ -418,7 +486,7 @@ export default function HomePage() {
           <button
             className="btn btn-danger"
             disabled={busy}
-            onClick={() => removeJob(job)}
+            onClick={() => setModal({ type: "delete-job", job })}
           >
             Hapus
           </button>
@@ -470,36 +538,86 @@ export default function HomePage() {
         <p style={{ color: "var(--muted)" }}>Memuat data dari Excel...</p>
       ) : (
         <>
-          <section className="summary">
-            <div className="stat">
-              <div className="label">Available</div>
-              <div className="value" style={{ color: "var(--green)" }}>
-                {data.summary.available}
+          <div className="summary-wrap">
+            <section className="summary-group">
+              <h3 className="summary-title">Teknisi</h3>
+              <div className="summary">
+                <div className="stat">
+                  <div className="label">Available</div>
+                  <div className="value" style={{ color: "var(--green)" }}>
+                    {data.summary.available}
+                  </div>
+                </div>
+                <div className="stat">
+                  <div className="label">Busy</div>
+                  <div className="value" style={{ color: "var(--amber)" }}>
+                    {data.summary.busy}
+                  </div>
+                </div>
+                <div className="stat">
+                  <div className="label">Offline</div>
+                  <div className="value" style={{ color: "var(--steel)" }}>
+                    {data.summary.offline}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="stat">
-              <div className="label">Busy</div>
-              <div className="value" style={{ color: "var(--amber)" }}>
-                {data.summary.busy}
+            </section>
+            <section className="summary-group">
+              <h3 className="summary-title">Job</h3>
+              <div className="summary">
+                <div className="stat">
+                  <div className="label">Job aktif</div>
+                  <div className="value">{data.summary.active_jobs}</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Antrian</div>
+                  <div className="value">{data.summary.queued_jobs}</div>
+                </div>
+                <div className="stat">
+                  <div className="label">Selesai hari ini</div>
+                  <div className="value">{data.summary.done_today}</div>
+                </div>
               </div>
-            </div>
-            <div className="stat">
-              <div className="label">Job aktif</div>
-              <div className="value">{data.summary.active_jobs}</div>
-            </div>
-            <div className="stat">
-              <div className="label">Antrian</div>
-              <div className="value">{data.summary.queued_jobs}</div>
-            </div>
-            <div className="stat">
-              <div className="label">Selesai hari ini</div>
-              <div className="value">{data.summary.done_today}</div>
-            </div>
-          </section>
+            </section>
+          </div>
 
           <div className="grid">
             <section className="panel">
-              <h2>Teknisi</h2>
+              <div className="panel-head">
+                <h2>Teknisi</h2>
+                <div className="panel-search-row">
+                  <input
+                    className="panel-search"
+                    type="search"
+                    value={techDraft}
+                    onChange={(e) => setTechDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyTechSearch();
+                      }
+                    }}
+                    placeholder="Cari nama atau skill..."
+                    aria-label="Cari teknisi"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={applyTechSearch}
+                  >
+                    Cari
+                  </button>
+                  {techQuery && (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={clearTechSearch}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="tech-cols">
                 {(["available", "busy", "offline"] as TechnicianStatus[]).map((status) => (
                   <div className="tech-col" key={status}>
@@ -522,7 +640,7 @@ export default function HomePage() {
                                 className="btn btn-ghost"
                                 style={{ padding: "4px 8px", fontSize: "0.8rem" }}
                                 disabled={busy}
-                                onClick={() => toggleTech(t)}
+                                onClick={() => openTechStatusModal(t)}
                               >
                                 {t.status === "available" ? "Set offline" : "Set available"}
                               </button>
@@ -532,7 +650,9 @@ export default function HomePage() {
                       );
                     })}
                     {techGroups[status].length === 0 && (
-                      <div className="meta">Tidak ada</div>
+                      <div className="meta">
+                        {techQuery ? "Tidak cocok" : "Tidak ada"}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -540,15 +660,53 @@ export default function HomePage() {
             </section>
 
             <section className="panel">
-              <h2>Job aktif & progress</h2>
+              <div className="panel-head">
+                <h2>Job aktif & progress</h2>
+                <div className="panel-search-row">
+                  <input
+                    className="panel-search"
+                    type="search"
+                    value={jobDraft}
+                    onChange={(e) => setJobDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyJobSearch();
+                      }
+                    }}
+                    placeholder="Cari job, unit, teknisi..."
+                    aria-label="Cari job"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={applyJobSearch}
+                  >
+                    Cari
+                  </button>
+                  {jobQuery && (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={clearJobSearch}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
               {activeJobs.length === 0 && (
-                <p style={{ color: "var(--muted)" }}>Tidak ada job aktif.</p>
+                <p style={{ color: "var(--muted)" }}>
+                  {jobQuery ? "Tidak ada job aktif yang cocok." : "Tidak ada job aktif."}
+                </p>
               )}
               {activeJobs.map(renderJob)}
 
               <h2 style={{ marginTop: 22 }}>Antrian</h2>
               {queuedJobs.length === 0 && (
-                <p style={{ color: "var(--muted)" }}>Antrian kosong.</p>
+                <p style={{ color: "var(--muted)" }}>
+                  {jobQuery ? "Tidak ada antrian yang cocok." : "Antrian kosong."}
+                </p>
               )}
               {queuedJobs.map(renderJob)}
 
@@ -568,7 +726,7 @@ export default function HomePage() {
       )}
 
       {(modal?.type === "create" || modal?.type === "edit") && (
-        <div className="modal-backdrop" onClick={() => setModal(null)}>
+        <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{modal.type === "create" ? "Job baru" : "Edit job"}</h3>
             <div className="form">
@@ -576,7 +734,7 @@ export default function HomePage() {
                 Judul
                 <input
                   value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  onChange={(e) => setForm({ title: e.target.value })}
                   placeholder="Mis. Ganti oli mesin"
                 />
               </label>
@@ -584,7 +742,7 @@ export default function HomePage() {
                 Unit / kendaraan
                 <input
                   value={form.unit}
-                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  onChange={(e) => setForm({ unit: e.target.value })}
                   placeholder="Mis. Avanza B 1234 ABC"
                 />
               </label>
@@ -593,7 +751,7 @@ export default function HomePage() {
                 <textarea
                   rows={3}
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(e) => setForm({ description: e.target.value })}
                 />
               </label>
               <label>
@@ -602,7 +760,7 @@ export default function HomePage() {
                   type="number"
                   value={form.estimated_minutes}
                   onChange={(e) =>
-                    setForm({ ...form, estimated_minutes: e.target.value })
+                    setForm({ estimated_minutes: e.target.value })
                   }
                 />
               </label>
@@ -613,7 +771,7 @@ export default function HomePage() {
                   <textarea
                     rows={4}
                     value={form.steps}
-                    onChange={(e) => setForm({ ...form, steps: e.target.value })}
+                    onChange={(e) => setForm({ steps: e.target.value })}
                     placeholder={"Diagnosis\nPerbaikan\nTest & QC"}
                   />
                 </label>
@@ -625,7 +783,7 @@ export default function HomePage() {
                   </p>
                 )}
               <div className="actions">
-                <button className="btn" onClick={() => setModal(null)}>
+                <button className="btn" onClick={closeModal}>
                   Batal
                 </button>
                 <button
@@ -642,7 +800,7 @@ export default function HomePage() {
       )}
 
       {modal?.type === "assign" && (
-        <div className="modal-backdrop" onClick={() => setModal(null)}>
+        <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Assign teknisi</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -651,17 +809,43 @@ export default function HomePage() {
             <div className="form">
               <label>
                 Cari teknisi
-                <input
-                  type="search"
-                  value={assignSearch}
-                  onChange={(e) => setAssignSearch(e.target.value)}
-                  placeholder="Nama atau skill..."
-                  autoFocus
-                />
+                <div className="panel-search-row" style={{ justifyContent: "stretch", marginTop: 4 }}>
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none" }}
+                    type="search"
+                    value={assignDraft}
+                    onChange={(e) => setAssignDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyAssignSearch();
+                      }
+                    }}
+                    placeholder="Nama atau skill..."
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={applyAssignSearch}
+                  >
+                    Cari
+                  </button>
+                  {assignQuery && (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={clearAssignSearch}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
               </label>
               <div className="check-list">
                 {(() => {
-                  const q = assignSearch.trim().toLowerCase();
+                  const q = assignQuery.toLowerCase();
                   const selectable =
                     data?.technicians.filter(
                       (t) =>
@@ -688,13 +872,7 @@ export default function HomePage() {
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => {
-                            setAssignTechIds((prev) =>
-                              checked
-                                ? prev.filter((id) => id !== t.id)
-                                : [...prev, t.id]
-                            );
-                          }}
+                          onChange={() => toggleAssignTech(t.id)}
                         />
                         <span>
                           {t.name}
@@ -710,21 +888,154 @@ export default function HomePage() {
                 Teknisi pertama yang dicentang menjadi lead. Dipilih: {assignTechIds.length}
               </p>
               <div className="actions">
-                <button className="btn" onClick={() => setModal(null)}>
+                <button className="btn" onClick={closeModal}>
                   Batal
                 </button>
                 <button
                   className="btn btn-primary"
                   disabled={busy || assignTechIds.length === 0}
                   onClick={() =>
-                    runAction(modal.job.id, "assign", {
-                      technician_ids: assignTechIds,
+                    setModal({
+                      type: "confirm-assign",
+                      job: modal.job,
+                      techIds: [...assignTechIds],
                     })
                   }
                 >
                   Assign ({assignTechIds.length})
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "tech-status" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Ubah status teknisi</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.tech.name} — {modal.tech.skill}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Ubah status dari{" "}
+              <strong>{modal.tech.status}</strong> menjadi{" "}
+              <strong>{modal.nextStatus}</strong>?
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={confirmTechStatus}
+              >
+                Ya, set {modal.nextStatus}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "confirm-assign" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "assign", job: modal.job })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Konfirmasi assign</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 8px" }}>
+              Assign {modal.techIds.length} teknisi ke job ini?
+            </p>
+            <ul style={{ margin: "0 0 16px", paddingLeft: 18, color: "var(--muted)" }}>
+              {modal.techIds.map((id, index) => {
+                const tech = data?.technicians.find((t) => t.id === id);
+                return (
+                  <li key={id}>
+                    {tech?.name || id}
+                    {tech?.skill ? ` — ${tech.skill}` : ""}
+                    {index === 0 ? " · lead" : ""}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="actions">
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => setModal({ type: "assign", job: modal.job })}
+              >
+                Kembali
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() =>
+                  runAction(modal.job.id, "assign", {
+                    technician_ids: modal.techIds,
+                  })
+                }
+              >
+                Ya, assign ({modal.techIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "cancel-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Cancel job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Batalkan job ini? Status menjadi <strong>cancelled</strong>.
+              Teknisi yang terpasang akan dilepas.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tidak
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={confirmCancelJob}
+              >
+                Ya, cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Hapus job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus job ini <strong>permanen</strong> dari Excel? Tindakan ini
+              tidak bisa dibatalkan.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tidak
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={removeJob}
+              >
+                Ya, hapus
+              </button>
             </div>
           </div>
         </div>

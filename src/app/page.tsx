@@ -40,7 +40,29 @@ type Modal =
       mode: "create" | "edit";
       tech?: Technician;
     }
-  | { type: "delete-tech"; tech: Technician };
+  | { type: "delete-tech"; tech: Technician }
+  | { type: "settings" };
+
+const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
+const HIDE_JOB_PANEL_KEY = "tus-hide-job-panel";
+
+function readBoolFlag(key: string, fallback = false): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw == null) return fallback;
+    return raw === "1" || raw === "true";
+  } catch {
+    return fallback;
+  }
+}
+
+function writeBoolFlag(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -85,6 +107,18 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
   }, [step, running]);
   if (step.status === "pending") return <span style={{ color: "var(--muted)" }}>—</span>;
   return <span>{formatDuration(sec)}</span>;
+}
+
+function PanelToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return collapsed ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 15l-6-6-6 6" />
+    </svg>
+  );
 }
 
 function BusyOverlay({ label = "Memproses..." }: { label?: string }) {
@@ -149,12 +183,15 @@ function Pager({
     <div className="pager">
       <button
         type="button"
-        className="btn"
-        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+        className="btn pager-nav"
         disabled={page <= 1}
         onClick={() => onChange(page - 1)}
+        aria-label="Halaman sebelumnya"
+        title="Prev"
       >
-        Prev
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
       </button>
       <div className="pager-pages">
         {items.map((item, idx) =>
@@ -177,12 +214,15 @@ function Pager({
       </div>
       <button
         type="button"
-        className="btn"
-        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+        className="btn pager-nav"
         disabled={page >= totalPages}
         onClick={() => onChange(page + 1)}
+        aria-label="Halaman berikutnya"
+        title="Next"
       >
-        Next
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
       </button>
     </div>
   );
@@ -207,6 +247,8 @@ export default function HomePage() {
   });
   const [masterTechDraft, setMasterTechDraft] = useState("");
   const [masterTechQuery, setMasterTechQuery] = useState("");
+  const [hideTechPanel, setHideTechPanel] = useState(false);
+  const [hideJobPanel, setHideJobPanel] = useState(false);
   const topbarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -401,6 +443,12 @@ export default function HomePage() {
     busy: 1,
     offline: 1,
   });
+  const [techStatusFilter, setTechStatusFilter] = useState<
+    "all" | TechnicianStatus
+  >("all");
+  const [jobSectionFilter, setJobSectionFilter] = useState<
+    "all" | "active" | "queue" | "done"
+  >("all");
 
   const JOB_PAGE_SIZE = 10;
   const [activeJobPage, setActiveJobPage] = useState(1);
@@ -476,7 +524,25 @@ export default function HomePage() {
       (document.documentElement.getAttribute("data-theme") as "light" | "dark") ||
       "dark";
     setTheme(current);
+    setHideTechPanel(readBoolFlag(HIDE_TECH_PANEL_KEY));
+    setHideJobPanel(readBoolFlag(HIDE_JOB_PANEL_KEY));
   }, []);
+
+  function toggleHideTechPanel() {
+    setHideTechPanel((prev) => {
+      const next = !prev;
+      writeBoolFlag(HIDE_TECH_PANEL_KEY, next);
+      return next;
+    });
+  }
+
+  function toggleHideJobPanel() {
+    setHideJobPanel((prev) => {
+      const next = !prev;
+      writeBoolFlag(HIDE_JOB_PANEL_KEY, next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     load();
@@ -640,9 +706,16 @@ export default function HomePage() {
     [data, matchJob]
   );
 
+  const doneTodayJobs = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return historyJobs.filter(
+      (j) => j.status === "done" && j.completed_at?.startsWith(today)
+    );
+  }, [historyJobs]);
+
   useEffect(() => {
     setActiveJobPage(1);
-  }, [jobQuery]);
+  }, [jobQuery, jobSectionFilter]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(activeJobs.length / JOB_PAGE_SIZE));
@@ -971,6 +1044,13 @@ export default function HomePage() {
             <button
               className="btn"
               disabled={busy}
+              onClick={() => setModal({ type: "settings" })}
+            >
+              Settings
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
               onClick={() => setModal({ type: "techs" })}
             >
               Master Teknisi
@@ -1010,6 +1090,16 @@ export default function HomePage() {
               }}
             >
               Refresh
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setModal({ type: "settings" });
+              }}
+            >
+              Settings
             </button>
             <button
               className="btn"
@@ -1094,8 +1184,54 @@ export default function HomePage() {
             </section>
           </div>
 
-          <div className="grid">
+          <div
+            className={`grid${hideTechPanel || hideJobPanel ? " grid--single" : ""}`}
+          >
+            {hideTechPanel ? (
+              <section className="panel panel--collapsed">
+                <div className="panel-vis-bar">
+                  <span className="panel-vis-label">Panel Teknisi disembunyikan</span>
+                  <button
+                    type="button"
+                    className="btn btn-icon panel-vis-btn"
+                    onClick={toggleHideTechPanel}
+                    aria-label="Tampilkan panel Teknisi"
+                    title="Tampilkan"
+                  >
+                    <PanelToggleIcon collapsed />
+                  </button>
+                </div>
+              </section>
+            ) : (
             <section className="panel">
+              <div className="panel-vis-bar">
+                <label className="panel-filter">
+                  <span className="panel-vis-label">Filter</span>
+                  <select
+                    value={techStatusFilter}
+                    onChange={(e) =>
+                      setTechStatusFilter(
+                        e.target.value as "all" | TechnicianStatus
+                      )
+                    }
+                    aria-label="Filter status teknisi"
+                  >
+                    <option value="all">All</option>
+                    <option value="available">available</option>
+                    <option value="busy">busy</option>
+                    <option value="offline">offline</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-icon panel-vis-btn"
+                  onClick={toggleHideTechPanel}
+                  aria-label="Sembunyikan panel Teknisi"
+                  title="Sembunyikan"
+                >
+                  <PanelToggleIcon collapsed={false} />
+                </button>
+              </div>
               <div className="panel-head">
                 <h2>Teknisi</h2>
                 <div className="panel-search-row">
@@ -1131,8 +1267,14 @@ export default function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="tech-cols">
-                {(["available", "busy", "offline"] as TechnicianStatus[]).map((status) => {
+              <div
+                className={`tech-cols${techStatusFilter !== "all" ? " tech-cols--single" : ""}`}
+              >
+                {(
+                  techStatusFilter === "all"
+                    ? (["available", "busy", "offline"] as TechnicianStatus[])
+                    : [techStatusFilter]
+                ).map((status) => {
                   const list = techGroups[status];
                   const totalPages = Math.max(1, Math.ceil(list.length / TECH_PAGE_SIZE));
                   const page = Math.min(techPage[status], totalPages);
@@ -1203,10 +1345,63 @@ export default function HomePage() {
                 })}
               </div>
             </section>
+            )}
 
+            {hideJobPanel ? (
+              <section className="panel panel--collapsed">
+                <div className="panel-vis-bar">
+                  <span className="panel-vis-label">Panel Job disembunyikan</span>
+                  <button
+                    type="button"
+                    className="btn btn-icon panel-vis-btn"
+                    onClick={toggleHideJobPanel}
+                    aria-label="Tampilkan panel Job"
+                    title="Tampilkan"
+                  >
+                    <PanelToggleIcon collapsed />
+                  </button>
+                </div>
+              </section>
+            ) : (
             <section className="panel">
+              <div className="panel-vis-bar">
+                <label className="panel-filter">
+                  <span className="panel-vis-label">Filter</span>
+                  <select
+                    value={jobSectionFilter}
+                    onChange={(e) =>
+                      setJobSectionFilter(
+                        e.target.value as "all" | "active" | "queue" | "done"
+                      )
+                    }
+                    aria-label="Filter section job"
+                  >
+                    <option value="all">All</option>
+                    <option value="active">Job aktif</option>
+                    <option value="queue">Antrian</option>
+                    <option value="done">Selesai hari ini</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-icon panel-vis-btn"
+                  onClick={toggleHideJobPanel}
+                  aria-label="Sembunyikan panel Job"
+                  title="Sembunyikan"
+                >
+                  <PanelToggleIcon collapsed={false} />
+                </button>
+              </div>
               <div className="panel-head">
-                <h2>Job aktif & progress</h2>
+                <h2>
+                  {jobSectionFilter === "active"
+                    ? "Job aktif & progress"
+                    : jobSectionFilter === "queue"
+                      ? "Antrian"
+                      : jobSectionFilter === "done"
+                        ? "Selesai hari ini"
+                        : "Job aktif & progress"}
+                </h2>
                 <div className="panel-search-row">
                   <input
                     className="panel-search"
@@ -1240,35 +1435,63 @@ export default function HomePage() {
                   )}
                 </div>
               </div>
-              {activeJobs.length === 0 && (
-                <p style={{ color: "var(--muted)" }}>
-                  {jobQuery ? "Tidak ada job aktif yang cocok." : "Tidak ada job aktif."}
-                </p>
-              )}
-              {pagedActiveJobs.map(renderJob)}
-              {activeJobs.length > JOB_PAGE_SIZE && (
-                <Pager
-                  page={activeJobPageSafe}
-                  totalPages={activeJobTotalPages}
-                  onChange={setActiveJobPage}
-                />
-              )}
-
-              <h2 style={{ marginTop: 22 }}>Antrian</h2>
-              {queuedJobs.length === 0 && (
-                <p style={{ color: "var(--muted)" }}>
-                  {jobQuery ? "Tidak ada antrian yang cocok." : "Antrian kosong."}
-                </p>
-              )}
-              {queuedJobs.map(renderJob)}
-
-              {historyJobs.length > 0 && (
+              {(jobSectionFilter === "all" || jobSectionFilter === "active") && (
                 <>
-                  <h2 style={{ marginTop: 22 }}>Riwayat</h2>
-                  {historyJobs.map(renderJob)}
+                  {activeJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>
+                      {jobQuery ? "Tidak ada job aktif yang cocok." : "Tidak ada job aktif."}
+                    </p>
+                  )}
+                  {pagedActiveJobs.map(renderJob)}
+                  {activeJobs.length > JOB_PAGE_SIZE && (
+                    <Pager
+                      page={activeJobPageSafe}
+                      totalPages={activeJobTotalPages}
+                      onChange={setActiveJobPage}
+                    />
+                  )}
+                </>
+              )}
+
+              {(jobSectionFilter === "all" || jobSectionFilter === "queue") && (
+                <>
+                  {jobSectionFilter === "all" && (
+                    <h2 style={{ marginTop: 22 }}>Antrian</h2>
+                  )}
+                  {queuedJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>
+                      {jobQuery ? "Tidak ada antrian yang cocok." : "Antrian kosong."}
+                    </p>
+                  )}
+                  {queuedJobs.map(renderJob)}
+                </>
+              )}
+
+              {(jobSectionFilter === "all" || jobSectionFilter === "done") && (
+                <>
+                  {jobSectionFilter === "all" ? (
+                    historyJobs.length > 0 && (
+                      <>
+                        <h2 style={{ marginTop: 22 }}>Riwayat</h2>
+                        {historyJobs.map(renderJob)}
+                      </>
+                    )
+                  ) : (
+                    <>
+                      {doneTodayJobs.length === 0 && (
+                        <p style={{ color: "var(--muted)" }}>
+                          {jobQuery
+                            ? "Tidak ada job selesai hari ini yang cocok."
+                            : "Belum ada job selesai hari ini."}
+                        </p>
+                      )}
+                      {doneTodayJobs.map(renderJob)}
+                    </>
+                  )}
                 </>
               )}
             </section>
+            )}
           </div>
 
           <p className="db-path">
@@ -1292,7 +1515,7 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Unit / kendaraan *
+                Unit *
                 <select
                   value={form.unit_id}
                   onChange={(e) => setForm({ unit_id: e.target.value })}
@@ -2034,6 +2257,50 @@ export default function HomePage() {
               >
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "settings" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Settings</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Sembunyikan panel di board. Preferensi tersimpan di browser ini.
+            </p>
+            <div className="form">
+              <label className="check-item" style={{ padding: "10px 0" }}>
+                <input
+                  type="checkbox"
+                  checked={hideTechPanel}
+                  onChange={toggleHideTechPanel}
+                />
+                <span>
+                  <strong>Sembunyikan panel Teknisi</strong>
+                  <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                    Kolom available / busy / offline tidak ditampilkan
+                  </div>
+                </span>
+              </label>
+              <label className="check-item" style={{ padding: "10px 0" }}>
+                <input
+                  type="checkbox"
+                  checked={hideJobPanel}
+                  onChange={toggleHideJobPanel}
+                />
+                <span>
+                  <strong>Sembunyikan panel Job</strong>
+                  <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                    Job aktif, antrian, dan riwayat tidak ditampilkan
+                  </div>
+                </span>
+              </label>
+              <div className="actions">
+                <button className="btn btn-primary" onClick={closeModal}>
+                  Selesai
+                </button>
+              </div>
             </div>
           </div>
         </div>

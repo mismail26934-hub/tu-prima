@@ -26,6 +26,8 @@ type Modal =
     }
   | { type: "cancel-job"; job: JobWithDetails }
   | { type: "delete-job"; job: JobWithDetails }
+  | { type: "complete-step"; job: JobWithDetails }
+  | { type: "complete-job"; job: JobWithDetails }
   | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] }
   | { type: "units" }
   | {
@@ -453,6 +455,10 @@ export default function HomePage() {
   const JOB_PAGE_SIZE = 10;
   const [activeJobPage, setActiveJobPage] = useState(1);
 
+  const MASTER_PAGE_SIZE = 10;
+  const [unitMasterPage, setUnitMasterPage] = useState(1);
+  const [masterTechPage, setMasterTechPage] = useState(1);
+
   const jobDraft = useJobBoardStore((s) => s.draft);
   const jobQuery = useJobBoardStore((s) => s.query);
   const setJobDraft = useJobBoardStore((s) => s.setDraft);
@@ -570,10 +576,12 @@ export default function HomePage() {
     if (modal?.type !== "units") {
       setUnitDraft("");
       setUnitQuery("");
+      setUnitMasterPage(1);
     }
     if (modal?.type !== "techs") {
       setMasterTechDraft("");
       setMasterTechQuery("");
+      setMasterTechPage(1);
     }
   }, [modal?.type]);
 
@@ -587,6 +595,28 @@ export default function HomePage() {
         u.name.toLowerCase().includes(q)
     );
   }, [data?.units, unitQuery]);
+
+  useEffect(() => {
+    setUnitMasterPage(1);
+  }, [unitQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredUnits.length / MASTER_PAGE_SIZE)
+    );
+    setUnitMasterPage((p) => (p > totalPages ? totalPages : p));
+  }, [filteredUnits.length]);
+
+  const unitMasterTotalPages = Math.max(
+    1,
+    Math.ceil(filteredUnits.length / MASTER_PAGE_SIZE)
+  );
+  const unitMasterPageSafe = Math.min(unitMasterPage, unitMasterTotalPages);
+  const pagedUnits = filteredUnits.slice(
+    (unitMasterPageSafe - 1) * MASTER_PAGE_SIZE,
+    unitMasterPageSafe * MASTER_PAGE_SIZE
+  );
 
   function applyUnitSearch() {
     setUnitQuery(unitDraft.trim());
@@ -608,6 +638,28 @@ export default function HomePage() {
         (t.phone || "").toLowerCase().includes(q)
     );
   }, [data?.technicians, masterTechQuery]);
+
+  useEffect(() => {
+    setMasterTechPage(1);
+  }, [masterTechQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredMasterTechs.length / MASTER_PAGE_SIZE)
+    );
+    setMasterTechPage((p) => (p > totalPages ? totalPages : p));
+  }, [filteredMasterTechs.length]);
+
+  const masterTechTotalPages = Math.max(
+    1,
+    Math.ceil(filteredMasterTechs.length / MASTER_PAGE_SIZE)
+  );
+  const masterTechPageSafe = Math.min(masterTechPage, masterTechTotalPages);
+  const pagedMasterTechs = filteredMasterTechs.slice(
+    (masterTechPageSafe - 1) * MASTER_PAGE_SIZE,
+    masterTechPageSafe * MASTER_PAGE_SIZE
+  );
 
   function applyMasterTechSearch() {
     setMasterTechQuery(masterTechDraft.trim());
@@ -856,15 +908,76 @@ export default function HomePage() {
       <article className="job" key={job.id}>
         <div className="job-head">
           <div>
-            <div className="job-title">{job.title}</div>
+            <div className="job-title-row">
+              <button
+                className="btn btn-icon"
+                style={{ width: 32, height: 32, minWidth: 32 }}
+                disabled={busy}
+                onClick={() => openEdit(job)}
+                aria-label="Edit job"
+                title="Edit"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+              <div className="job-title">{job.title}</div>
+            </div>
             <div className="job-unit">
               {job.unit}
             </div>
-            <div className="tech-names">
-              {job.technicians?.length
-                ? job.technicians.map((t) => t.name).join(", ")
-                : job.technician?.name || "Belum diassign"}
-              {job.technicians?.length > 1 ? ` (${job.technicians.length} teknisi)` : ""}
+            <div className="job-tech-row">
+              {["queued", "assigned", "in_progress", "paused"].includes(
+                job.status
+              ) && (
+                <button
+                  className="btn btn-icon"
+                  style={{ width: 32, height: 32, minWidth: 32 }}
+                  disabled={
+                    busy ||
+                    (job.status === "queued" && availableTechs.length === 0)
+                  }
+                  onClick={() => openAssign(job)}
+                  aria-label={
+                    job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"
+                  }
+                  title={
+                    job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"
+                  }
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </button>
+              )}
+              <div className="tech-names">
+                {job.technicians?.length
+                  ? job.technicians.map((t) => t.name).join(", ")
+                  : job.technician?.name || "Belum diassign"}
+                {job.technicians?.length > 1 ? ` (${job.technicians.length} teknisi)` : ""}
+              </div>
             </div>
             <div style={{ marginTop: 6 }}>
               <StatusPill status={job.status} />
@@ -874,7 +987,29 @@ export default function HomePage() {
             </div>
           </div>
           {["in_progress", "paused", "done"].includes(job.status) && (
-            <LiveTimer job={jobMap[job.id] || job} />
+            <div className="job-timer-wrap">
+              {job.status === "in_progress" && (
+                <button
+                  className="btn"
+                  style={{ padding: "6px 10px", fontSize: "0.82rem" }}
+                  disabled={busy}
+                  onClick={() => runAction(job.id, "pause")}
+                >
+                  Pause
+                </button>
+              )}
+              {job.status === "paused" && (
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: "6px 10px", fontSize: "0.82rem" }}
+                  disabled={busy}
+                  onClick={() => runAction(job.id, "resume")}
+                >
+                  Resume
+                </button>
+              )}
+              <LiveTimer job={jobMap[job.id] || job} />
+            </div>
           )}
         </div>
 
@@ -902,20 +1037,6 @@ export default function HomePage() {
         </ul>
 
         <div className="actions">
-          {["queued", "assigned", "in_progress", "paused"].includes(
-            job.status
-          ) && (
-            <button
-              className="btn btn-primary"
-              disabled={
-                busy ||
-                (job.status === "queued" && availableTechs.length === 0)
-              }
-              onClick={() => openAssign(job)}
-            >
-              {job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"}
-            </button>
-          )}
           {job.status === "assigned" && (
             <button
               className="btn btn-primary"
@@ -926,63 +1047,32 @@ export default function HomePage() {
             </button>
           )}
           {job.status === "in_progress" && (
-            <>
+            <div className="actions-spread">
               <button
                 className="btn"
                 disabled={busy || !job.current_step}
-                onClick={() => runAction(job.id, "complete_step")}
+                onClick={() => setModal({ type: "complete-step", job })}
               >
                 Selesai step
               </button>
-              <button className="btn" disabled={busy} onClick={() => runAction(job.id, "pause")}>
-                Pause
-              </button>
               <button
                 className="btn btn-primary"
                 disabled={busy}
-                onClick={() => runAction(job.id, "complete")}
+                onClick={() => setModal({ type: "complete-job", job })}
               >
                 Complete job
               </button>
-            </>
+            </div>
           )}
           {job.status === "paused" && (
-            <>
-              <button
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={() => runAction(job.id, "resume")}
-              >
-                Resume
-              </button>
-              <button
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={() => runAction(job.id, "complete")}
-              >
-                Complete job
-              </button>
-            </>
-          )}
-          {!["done", "cancelled"].includes(job.status) && (
             <button
-              className="btn btn-danger"
+              className="btn btn-primary"
               disabled={busy}
-              onClick={() => setModal({ type: "cancel-job", job })}
+              onClick={() => setModal({ type: "complete-job", job })}
             >
-              Cancel
+              Complete job
             </button>
           )}
-          <button className="btn" disabled={busy} onClick={() => openEdit(job)}>
-            Edit
-          </button>
-          <button
-            className="btn btn-danger"
-            disabled={busy}
-            onClick={() => setModal({ type: "delete-job", job })}
-          >
-            Hapus
-          </button>
         </div>
       </article>
     );
@@ -1306,22 +1396,6 @@ export default function HomePage() {
                                 {t.status === "available" ? "Set offline" : "Set available"}
                               </button>
                             )}
-                            <button
-                              className="btn"
-                              style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                              disabled={busy}
-                              onClick={() => openTechEdit(t)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="btn btn-danger"
-                              style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                              disabled={busy || t.status === "busy"}
-                              onClick={() => setModal({ type: "delete-tech", tech: t })}
-                            >
-                              Hapus
-                            </button>
                           </div>
                         </div>
                       );
@@ -1504,7 +1578,37 @@ export default function HomePage() {
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             {busy && <BusyOverlay label="Menyimpan..." />}
-            <h3>{modal.type === "create" ? "Job baru" : "Edit job"}</h3>
+            {modal.type === "edit" ? (
+              <div className="modal-header">
+                <h3>Edit job</h3>
+                <div className="modal-header-actions">
+                  {!["done", "cancelled"].includes(modal.job.status) && (
+                    <button
+                      className="btn btn-danger"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        setModal({ type: "cancel-job", job: modal.job })
+                      }
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-danger"
+                    type="button"
+                    disabled={busy || modal.job.status === "done"}
+                    onClick={() =>
+                      setModal({ type: "delete-job", job: modal.job })
+                    }
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <h3>Job baru</h3>
+            )}
             <div className="form">
               <label>
                 Judul *
@@ -1577,12 +1681,18 @@ export default function HomePage() {
                   </p>
                 )}
               <div className="actions">
-                <button className="btn" onClick={closeModal}>
-                  Batal
-                </button>
+                {modal.type === "create" && (
+                  <button className="btn" onClick={closeModal}>
+                    Batal
+                  </button>
+                )}
                 <button
                   className="btn btn-primary"
-                  disabled={busy || !jobFormValid}
+                  disabled={
+                    busy ||
+                    !jobFormValid ||
+                    (modal.type === "edit" && modal.job.status === "done")
+                  }
                   onClick={modal.type === "create" ? createJob : saveEditJob}
                 >
                   <BusyLabel
@@ -1810,6 +1920,67 @@ export default function HomePage() {
         </div>
       )}
 
+      {modal?.type === "complete-step" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Selesai step</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Tandai step aktif{" "}
+              {modal.job.current_step ? (
+                <strong>{modal.job.current_step.name}</strong>
+              ) : (
+                "saat ini"
+              )}{" "}
+              sebagai selesai?
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tidak
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => runAction(modal.job.id, "complete_step")}
+              >
+                <BusyLabel busy={busy} idle="Ya, selesai step" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "complete-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Complete job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Selesaikan seluruh job ini? Status menjadi <strong>done</strong>{" "}
+              dan teknisi akan dilepas.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tidak
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => runAction(modal.job.id, "complete")}
+              >
+                <BusyLabel busy={busy} idle="Ya, complete" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "cancel-job" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -1887,7 +2058,7 @@ export default function HomePage() {
                     applyUnitSearch();
                   }
                 }}
-                placeholder="Cari kode atau nama..."
+                placeholder="Cari nomor unit atau model..."
                 aria-label="Cari unit"
                 autoFocus
               />
@@ -1915,7 +2086,7 @@ export default function HomePage() {
               {(data?.units || []).length > 0 && filteredUnits.length === 0 && (
                 <span style={{ color: "var(--muted)" }}>Tidak ada unit yang cocok.</span>
               )}
-              {filteredUnits.map((u) => (
+              {pagedUnits.map((u) => (
                 <div
                   key={u.id}
                   style={{
@@ -1955,6 +2126,13 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+            {filteredUnits.length > MASTER_PAGE_SIZE && (
+              <Pager
+                page={unitMasterPageSafe}
+                totalPages={unitMasterTotalPages}
+                onChange={setUnitMasterPage}
+              />
+            )}
             <div className="actions">
               <button className="btn" onClick={closeModal}>
                 Tutup
@@ -1977,7 +2155,7 @@ export default function HomePage() {
             <h3>{modal.mode === "create" ? "Unit baru" : "Edit unit"}</h3>
             <div className="form">
               <label>
-                Kode
+                Nomor unit
                 <input
                   value={unitForm.code}
                   onChange={(e) => setUnitForm({ ...unitForm, code: e.target.value })}
@@ -1985,11 +2163,11 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Nama
+                Model
                 <input
                   value={unitForm.name}
                   onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })}
-                  placeholder="Mis. GOH Unit Rental"
+                  placeholder="Mis. D10T"
                 />
               </label>
               {modal.mode === "edit" && (
@@ -2104,7 +2282,7 @@ export default function HomePage() {
               {(data?.technicians || []).length > 0 && filteredMasterTechs.length === 0 && (
                 <span style={{ color: "var(--muted)" }}>Tidak ada teknisi yang cocok.</span>
               )}
-              {filteredMasterTechs.map((t) => (
+              {pagedMasterTechs.map((t) => (
                 <div
                   key={t.id}
                   style={{
@@ -2145,6 +2323,13 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+            {filteredMasterTechs.length > MASTER_PAGE_SIZE && (
+              <Pager
+                page={masterTechPageSafe}
+                totalPages={masterTechTotalPages}
+                onChange={setMasterTechPage}
+              />
+            )}
             <div className="actions">
               <button className="btn" onClick={closeModal}>
                 Tutup

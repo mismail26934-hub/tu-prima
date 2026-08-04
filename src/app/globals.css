@@ -227,7 +227,7 @@ button {
 
 .summary-wrap {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.35fr;
   gap: 16px;
   margin-bottom: 24px;
   animation: rise 0.55s ease both 0.05s;
@@ -261,7 +261,23 @@ button {
 
 @media (max-width: 560px) {
   .summary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .stat {
+    padding: 8px 10px;
+  }
+
+  .stat .label,
+  .stat .value {
+    font-size: 0.82rem;
+    margin-top: 0;
+  }
+
+  .stat .value {
+    font-family: inherit;
+    letter-spacing: normal;
   }
 }
 
@@ -636,10 +652,23 @@ button {
   font-size: 1.05rem;
 }
 
+.job-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .job-unit {
   color: var(--muted);
   font-size: 0.9rem;
   margin-top: 2px;
+}
+
+.job-timer-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .timer {
@@ -707,6 +736,14 @@ button {
   margin-top: 12px;
 }
 
+.actions-spread {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
 .form {
   display: grid;
   gap: 10px;
@@ -771,6 +808,18 @@ button {
   color: var(--muted);
   font-size: 0.9rem;
   margin-top: 2px;
+}
+
+.job-tech-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.job-tech-row .tech-names {
+  margin-top: 0;
 }
 
 .modal-backdrop {
@@ -851,6 +900,27 @@ button {
   letter-spacing: 0.05em;
   font-size: 1.5rem;
   font-weight: 400;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 html.modal-open .topbar {

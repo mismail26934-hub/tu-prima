@@ -725,7 +725,7 @@ export async function createUnit(input: {
     const name = input.name.trim();
     if (!code || !name) throw new Error("code dan name wajib diisi");
     if (units.some((u) => u.code.toUpperCase() === code)) {
-      throw new Error("Kode unit sudah dipakai");
+      throw new Error("Nomor unit sudah dipakai");
     }
     const unit: Unit = { id: `U-${uuidv4().slice(0, 8)}`, code, name, active: "1" };
     units.push(unit);
@@ -749,7 +749,7 @@ export async function updateUnit(
     const name = input.name.trim();
     if (!code || !name) throw new Error("code dan name wajib diisi");
     if (units.some((u) => u.id !== unitId && u.code.toUpperCase() === code)) {
-      throw new Error("Kode unit sudah dipakai");
+      throw new Error("Nomor unit sudah dipakai");
     }
     unit.code = code;
     unit.name = name;

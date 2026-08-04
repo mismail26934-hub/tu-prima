@@ -92,10 +92,27 @@ export interface JobWithDetails extends Job {
   current_step?: JobStep | null;
 }
 
+export type AttendanceStatus = "hadir" | "izin" | "sakit" | "off" | "alpha";
+
+export interface Attendance {
+  id: string;
+  date: string; // YYYY-MM-DD
+  technician_id: string;
+  technician_name: string;
+  pernr: string;
+  status: AttendanceStatus;
+  dws: string;
+  check_in: string;
+  check_out: string;
+  absence: string;
+  note: string;
+}
+
 export interface DashboardData {
   technicians: Technician[];
   units: Unit[];
   jobs: JobWithDetails[];
+  attendance: Attendance[];
   summary: {
     available: number;
     busy: number;

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  Attendance,
+  AttendanceStatus,
   DashboardData,
   JobWithDetails,
   Technician,
@@ -43,6 +45,13 @@ type Modal =
       tech?: Technician;
     }
   | { type: "delete-tech"; tech: Technician }
+  | { type: "attendance" }
+  | {
+      type: "attendance-form";
+      mode: "create" | "edit";
+      row?: Attendance;
+    }
+  | { type: "delete-attendance"; row: Attendance }
   | { type: "settings" };
 
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
@@ -67,12 +76,15 @@ function writeBoolFlag(key: string, value: boolean) {
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers || {});
+  const isForm =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!isForm && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   const res = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
+    headers,
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
@@ -418,6 +430,114 @@ export default function HomePage() {
     }
   }
 
+  function openAttendanceCreate() {
+    const today = new Date().toISOString().slice(0, 10);
+    setAttendanceForm({
+      date: attendanceDateFilter || today,
+      technician_id: "",
+      technician_name: "",
+      pernr: "",
+      status: "hadir",
+      dws: "",
+      check_in: "",
+      check_out: "",
+      absence: "",
+      note: "",
+    });
+    setModal({ type: "attendance-form", mode: "create" });
+  }
+
+  function openAttendanceEdit(row: Attendance) {
+    setAttendanceForm({
+      date: row.date,
+      technician_id: row.technician_id,
+      technician_name: row.technician_name,
+      pernr: row.pernr,
+      status: row.status,
+      dws: row.dws,
+      check_in: row.check_in,
+      check_out: row.check_out,
+      absence: row.absence,
+      note: row.note,
+    });
+    setModal({ type: "attendance-form", mode: "edit", row });
+  }
+
+  async function saveAttendance() {
+    if (modal?.type !== "attendance-form") return;
+    if (!attendanceForm.date || !attendanceForm.technician_name.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        ...attendanceForm,
+        technician_name: attendanceForm.technician_name.trim(),
+        pernr: attendanceForm.pernr.trim(),
+      };
+      if (modal.mode === "create") {
+        await api("/api/attendance", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      } else if (modal.row) {
+        await api(`/api/attendance/${modal.row.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      }
+      setModal({ type: "attendance" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan daftar hadir");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteAttendance() {
+    if (modal?.type !== "delete-attendance") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/attendance/${modal.row.id}`, { method: "DELETE" });
+      setModal({ type: "attendance" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus daftar hadir");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importAttendanceFile(file: File) {
+    setBusy(true);
+    setError("");
+    setAttendanceImportMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("sync_tech_status", attendanceSyncTech ? "1" : "0");
+      const result = await api<{
+        imported: number;
+        updated: number;
+        unmatched: string[];
+        date: string;
+      }>("/api/attendance/import", { method: "POST", body: fd });
+      if (result.date) setAttendanceDateFilter(result.date);
+      setAttendanceImportMsg(
+        `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
+          (result.unmatched.length
+            ? ` · ${result.unmatched.length} tidak match teknisi`
+            : "")
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const form = useJobFormStore((s) => s.form);
   const setForm = useJobFormStore((s) => s.setForm);
   const resetForm = useJobFormStore((s) => s.resetForm);
@@ -458,6 +578,24 @@ export default function HomePage() {
   const MASTER_PAGE_SIZE = 10;
   const [unitMasterPage, setUnitMasterPage] = useState(1);
   const [masterTechPage, setMasterTechPage] = useState(1);
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [attendanceDraft, setAttendanceDraft] = useState("");
+  const [attendanceQuery, setAttendanceQuery] = useState("");
+  const [attendanceDateFilter, setAttendanceDateFilter] = useState("");
+  const [attendanceSyncTech, setAttendanceSyncTech] = useState(true);
+  const [attendanceImportMsg, setAttendanceImportMsg] = useState("");
+  const [attendanceForm, setAttendanceForm] = useState({
+    date: "",
+    technician_id: "",
+    technician_name: "",
+    pernr: "",
+    status: "hadir" as AttendanceStatus,
+    dws: "",
+    check_in: "",
+    check_out: "",
+    absence: "",
+    note: "",
+  });
 
   const jobDraft = useJobBoardStore((s) => s.draft);
   const jobQuery = useJobBoardStore((s) => s.query);
@@ -583,6 +721,12 @@ export default function HomePage() {
       setMasterTechQuery("");
       setMasterTechPage(1);
     }
+    if (modal?.type !== "attendance") {
+      setAttendanceDraft("");
+      setAttendanceQuery("");
+      setAttendancePage(1);
+      setAttendanceImportMsg("");
+    }
   }, [modal?.type]);
 
   const filteredUnits = useMemo(() => {
@@ -669,6 +813,58 @@ export default function HomePage() {
     setMasterTechDraft("");
     setMasterTechQuery("");
   }
+
+  const filteredAttendance = useMemo(() => {
+    let rows = data?.attendance || [];
+    if (attendanceDateFilter) {
+      rows = rows.filter((a) => a.date === attendanceDateFilter);
+    }
+    const q = attendanceQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (a) =>
+        a.technician_name.toLowerCase().includes(q) ||
+        a.pernr.toLowerCase().includes(q) ||
+        a.status.toLowerCase().includes(q) ||
+        a.absence.toLowerCase().includes(q)
+    );
+  }, [data?.attendance, attendanceDateFilter, attendanceQuery]);
+
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [attendanceQuery, attendanceDateFilter]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredAttendance.length / MASTER_PAGE_SIZE)
+    );
+    setAttendancePage((p) => (p > totalPages ? totalPages : p));
+  }, [filteredAttendance.length]);
+
+  const attendanceTotalPages = Math.max(
+    1,
+    Math.ceil(filteredAttendance.length / MASTER_PAGE_SIZE)
+  );
+  const attendancePageSafe = Math.min(attendancePage, attendanceTotalPages);
+  const pagedAttendance = filteredAttendance.slice(
+    (attendancePageSafe - 1) * MASTER_PAGE_SIZE,
+    attendancePageSafe * MASTER_PAGE_SIZE
+  );
+
+  function applyAttendanceSearch() {
+    setAttendanceQuery(attendanceDraft.trim());
+  }
+
+  function clearAttendanceSearch() {
+    setAttendanceDraft("");
+    setAttendanceQuery("");
+  }
+
+  const attendanceDates = useMemo(() => {
+    const set = new Set((data?.attendance || []).map((a) => a.date));
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [data?.attendance]);
 
   const techFormValid =
     techForm.name.trim().length > 0 &&
@@ -1153,6 +1349,13 @@ export default function HomePage() {
               Master Unit
             </button>
             <button
+              className="btn"
+              disabled={busy}
+              onClick={() => setModal({ type: "attendance" })}
+            >
+              Daftar Hadir
+            </button>
+            <button
               className="btn btn-primary"
               disabled={busy}
               onClick={() => openCreate()}
@@ -1210,6 +1413,16 @@ export default function HomePage() {
               }}
             >
               Master Unit
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setModal({ type: "attendance" });
+              }}
+            >
+              Daftar Hadir
             </button>
             <button
               className="btn btn-primary"
@@ -2439,6 +2652,382 @@ export default function HomePage() {
                 className="btn btn-danger"
                 disabled={busy}
                 onClick={confirmDeleteTech}
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "attendance" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div
+            className="modal"
+            style={{ width: "min(640px, 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {busy && <BusyOverlay />}
+            <h3>Daftar Hadir</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Upload Excel daftar hadir (Pernr / Name Employee) lalu kelola
+              data. Match teknisi via SN KPC = Pernr.
+            </p>
+            {error && <div className="error">{error}</div>}
+            {attendanceImportMsg && (
+              <p style={{ color: "var(--green)", marginTop: 0 }}>
+                {attendanceImportMsg}
+              </p>
+            )}
+            <div className="form" style={{ marginBottom: 12 }}>
+              <label>
+                Upload Excel (.xlsx)
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) importAttendanceFile(file);
+                  }}
+                />
+              </label>
+              <label className="check-item">
+                <input
+                  type="checkbox"
+                  checked={attendanceSyncTech}
+                  onChange={(e) => setAttendanceSyncTech(e.target.checked)}
+                />
+                <span>
+                  Sync status teknisi (hadir → available, lainnya → offline)
+                </span>
+              </label>
+            </div>
+            <div
+              className="panel-search-row"
+              style={{ justifyContent: "stretch", marginBottom: 12, flexWrap: "wrap" }}
+            >
+              <select
+                value={attendanceDateFilter}
+                onChange={(e) => setAttendanceDateFilter(e.target.value)}
+                style={{ maxWidth: 160 }}
+                aria-label="Filter tanggal"
+              >
+                <option value="">Semua tanggal</option>
+                {attendanceDates.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="panel-search"
+                style={{ maxWidth: "none", flex: 1 }}
+                type="search"
+                value={attendanceDraft}
+                onChange={(e) => setAttendanceDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyAttendanceSearch();
+                  }
+                }}
+                placeholder="Cari nama, Pernr, status..."
+                aria-label="Cari daftar hadir"
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={applyAttendanceSearch}
+              >
+                Cari
+              </button>
+              {(attendanceQuery || attendanceDateFilter) && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    clearAttendanceSearch();
+                    setAttendanceDateFilter("");
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
+              {(data?.attendance || []).length === 0 && (
+                <span style={{ color: "var(--muted)" }}>
+                  Belum ada data hadir. Upload Excel untuk mulai.
+                </span>
+              )}
+              {(data?.attendance || []).length > 0 &&
+                filteredAttendance.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    Tidak ada data yang cocok.
+                  </span>
+                )}
+              {pagedAttendance.map((a) => (
+                <div
+                  key={a.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom: "1px dashed var(--line-dashed)",
+                  }}
+                >
+                  <div>
+                    <strong>{a.technician_name}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                      {a.date}
+                      {a.pernr ? ` · ${a.pernr}` : ""}
+                      {` · ${a.status}`}
+                      {a.dws ? ` · ${a.dws}` : ""}
+                      {!a.technician_id ? " · belum match" : ""}
+                    </div>
+                  </div>
+                  <div className="actions" style={{ marginTop: 0 }}>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() => openAttendanceEdit(a)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() =>
+                        setModal({ type: "delete-attendance", row: a })
+                      }
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {filteredAttendance.length > MASTER_PAGE_SIZE && (
+              <Pager
+                page={attendancePageSafe}
+                totalPages={attendanceTotalPages}
+                onChange={setAttendancePage}
+              />
+            )}
+            <div className="actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={openAttendanceCreate}
+              >
+                + Hadir baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "attendance-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "attendance" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>
+              {modal.mode === "create" ? "Hadir baru" : "Edit daftar hadir"}
+            </h3>
+            {error && <div className="error">{error}</div>}
+            <div className="form">
+              <label>
+                Tanggal *
+                <input
+                  type="date"
+                  value={attendanceForm.date}
+                  onChange={(e) =>
+                    setAttendanceForm({ ...attendanceForm, date: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Teknisi (opsional — auto isi nama/Pernr)
+                <select
+                  value={attendanceForm.technician_id}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const tech = (data?.technicians || []).find((t) => t.id === id);
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      technician_id: id,
+                      technician_name: tech?.name || attendanceForm.technician_name,
+                      pernr: tech?.skill || attendanceForm.pernr,
+                    });
+                  }}
+                >
+                  <option value="">— Pilih teknisi —</option>
+                  {(data?.technicians || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.skill})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Nama *
+                <input
+                  value={attendanceForm.technician_name}
+                  onChange={(e) =>
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      technician_name: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Pernr / SN KPC
+                <input
+                  value={attendanceForm.pernr}
+                  onChange={(e) =>
+                    setAttendanceForm({ ...attendanceForm, pernr: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Status *
+                <select
+                  value={attendanceForm.status}
+                  onChange={(e) =>
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      status: e.target.value as AttendanceStatus,
+                    })
+                  }
+                >
+                  <option value="hadir">hadir</option>
+                  <option value="izin">izin</option>
+                  <option value="sakit">sakit</option>
+                  <option value="off">off</option>
+                  <option value="alpha">alpha</option>
+                </select>
+              </label>
+              <label>
+                DWS
+                <input
+                  value={attendanceForm.dws}
+                  onChange={(e) =>
+                    setAttendanceForm({ ...attendanceForm, dws: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Clock in
+                <input
+                  value={attendanceForm.check_in}
+                  onChange={(e) =>
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      check_in: e.target.value,
+                    })
+                  }
+                  placeholder="HH:mm"
+                />
+              </label>
+              <label>
+                Clock out
+                <input
+                  value={attendanceForm.check_out}
+                  onChange={(e) =>
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      check_out: e.target.value,
+                    })
+                  }
+                  placeholder="HH:mm"
+                />
+              </label>
+              <label>
+                Absence
+                <input
+                  value={attendanceForm.absence}
+                  onChange={(e) =>
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      absence: e.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                Catatan
+                <input
+                  value={attendanceForm.note}
+                  onChange={(e) =>
+                    setAttendanceForm({ ...attendanceForm, note: e.target.value })
+                  }
+                />
+              </label>
+              <div className="actions">
+                <button
+                  className="btn"
+                  onClick={() => setModal({ type: "attendance" })}
+                >
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    busy ||
+                    !attendanceForm.date ||
+                    !attendanceForm.technician_name.trim()
+                  }
+                  onClick={saveAttendance}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-attendance" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "attendance" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
+            <h3>Hapus daftar hadir</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.row.technician_name} — {modal.row.date}
+              {modal.row.pernr ? ` · ${modal.row.pernr}` : ""}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus data hadir ini permanen?
+            </p>
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => setModal({ type: "attendance" })}
+              >
+                Kembali
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={confirmDeleteAttendance}
               >
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>

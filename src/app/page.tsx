@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { signOut } from "next-auth/react";
 import type {
   Attendance,
   AttendanceStatus,
@@ -705,6 +706,10 @@ export default function HomePage() {
     }
   }
 
+  async function handleLogout() {
+    await signOut({ callbackUrl: "/login" });
+  }
+
   const availableTechs = useMemo(
     () => data?.technicians.filter((t) => t.status === "available") || [],
     [data]
@@ -1355,6 +1360,9 @@ export default function HomePage() {
             >
               Daftar Hadir
             </button>
+            <button className="btn" disabled={busy} onClick={handleLogout}>
+              Logout
+            </button>
             <button
               className="btn btn-primary"
               disabled={busy}
@@ -1423,6 +1431,16 @@ export default function HomePage() {
               }}
             >
               Daftar Hadir
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+            >
+              Logout
             </button>
             <button
               className="btn btn-primary"

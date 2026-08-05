@@ -915,6 +915,125 @@ export async function deleteUnit(unitId: string): Promise<{ ok: true }> {
   });
 }
 
+function normalizeUnitStatus(raw: string): "1" | "0" | null {
+  const status = raw.trim().toLowerCase();
+  if (!status) return null;
+  if (["1", "aktif", "active", "ya", "yes"].includes(status)) return "1";
+  if (["0", "nonaktif", "non-aktif", "inactive", "tidak", "no"].includes(status)) {
+    return "0";
+  }
+  return null;
+}
+
+export async function importUnitsFromBuffer(
+  buffer: ArrayBuffer | Buffer
+): Promise<{
+  imported: number;
+  updated: number;
+  skipped: string[];
+}> {
+  return withDbLock(async () => {
+    const src = new ExcelJS.Workbook();
+    const bytes =
+      buffer instanceof ArrayBuffer
+        ? Buffer.from(new Uint8Array(buffer))
+        : Buffer.from(buffer);
+    await src.xlsx.load(bytes as unknown as ExcelJS.Buffer);
+    const ws = src.worksheets[0];
+    if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
+
+    const headerMap: Record<string, number> = {};
+    ws.getRow(1).eachCell((cell, column) => {
+      const key = cellStr(cell.value).trim().toLowerCase();
+      if (key) headerMap[key] = column;
+    });
+    const col = (...names: string[]) => {
+      for (const name of names) {
+        const column = headerMap[name.toLowerCase()];
+        if (column) return column;
+      }
+      return 0;
+    };
+
+    const cCode = col("nomor unit", "no unit", "no. unit", "code", "kode", "unit");
+    const cName = col("model", "name", "nama", "nama unit");
+    const cStatus = col("status", "active", "aktif");
+    if (!cCode || !cName) {
+      throw new Error(
+        'Kolom wajib tidak ditemukan. Butuh header "Nomor unit" dan "Model".'
+      );
+    }
+
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const units = loadUnits(wb, jobs);
+    const skipped: string[] = [];
+    let imported = 0;
+    let updated = 0;
+    let changed = false;
+
+    ws.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const code = cellStr(row.getCell(cCode).value).trim().toUpperCase();
+      const name = cellStr(row.getCell(cName).value).trim();
+      const statusRaw = cStatus
+        ? cellStr(row.getCell(cStatus).value).trim()
+        : "";
+      if (!code && !name && !statusRaw) return;
+      if (!code || !name) {
+        skipped.push(
+          `Baris ${rowNumber}: nomor unit dan model wajib (${code || "?"} / ${name || "?"})`
+        );
+        return;
+      }
+
+      const active = normalizeUnitStatus(statusRaw);
+      if (statusRaw && !active) {
+        skipped.push(
+          `Baris ${rowNumber}: status "${statusRaw}" tidak valid (gunakan aktif/nonaktif)`
+        );
+        return;
+      }
+
+      const existing = units.find((unit) => unit.code.toUpperCase() === code);
+      if (existing) {
+        existing.name = name;
+        if (active) existing.active = active;
+        const label = unitLabel(existing);
+        jobs.forEach((job) => {
+          if (job.unit_id === existing.id) job.unit = label;
+        });
+        updated += 1;
+        changed = true;
+        return;
+      }
+
+      units.push({
+        id: `U-${uuidv4().slice(0, 8)}`,
+        code,
+        name,
+        active: active || "1",
+      });
+      imported += 1;
+      changed = true;
+    });
+
+    if (!changed && skipped.length === 0) {
+      throw new Error("Tidak ada baris data unit yang bisa diimpor");
+    }
+    if (changed) {
+      writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
+      writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+      await saveWorkbook(wb);
+    }
+    return {
+      imported,
+      updated,
+      skipped: skipped.slice(0, 50),
+    };
+  });
+}
+
 export async function setTechnicianStatus(
   techId: string,
   status: TechnicianStatus

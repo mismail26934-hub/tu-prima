@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { canAccess } from "@/lib/permissions";
+import {
+  canAccess,
+  canAssignJob,
+  canManageJobProgress,
+} from "@/lib/permissions";
 import type {
   AccessAction,
   AccessLevel,
@@ -26,6 +30,44 @@ export async function requirePermission(
     }
     return NextResponse.json(
       { error: `Akses ${action} ${resource} tidak diizinkan untuk level ${level}` },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+export async function requireAssignPermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (!canAssignJob(level)) {
+    if (level === "guest") {
+      return NextResponse.json(
+        { error: "Silakan login untuk melakukan aksi ini" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: `Assign teknisi hanya untuk level superuser dan foreman (level Anda: ${level})`,
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+export async function requireJobProgressPermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (!canManageJobProgress(level)) {
+    if (level === "guest") {
+      return NextResponse.json(
+        { error: "Silakan login untuk melakukan aksi ini" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: `Start/pause/resume/selesaikan job hanya untuk level superuser dan foreman (level Anda: ${level})`,
+      },
       { status: 403 }
     );
   }

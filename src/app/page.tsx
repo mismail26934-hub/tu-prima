@@ -14,7 +14,11 @@ import type {
   UserLevel,
 } from "@/lib/types";
 import { USER_LEVELS } from "@/lib/types";
-import { canAccess } from "@/lib/permissions";
+import {
+  canAccess,
+  canAssignJob,
+  canManageJobProgress,
+} from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
@@ -261,6 +265,8 @@ export default function HomePage() {
   const canJobCreate = canAccess(userLevel, "job", "create");
   const canJobUpdate = canAccess(userLevel, "job", "update");
   const canJobDelete = canAccess(userLevel, "job", "delete");
+  const canJobAssign = canAssignJob(userLevel);
+  const canJobProgress = canManageJobProgress(userLevel);
   const canUserCreate = canAccess(userLevel, "user", "create");
   const canUserUpdate = canAccess(userLevel, "user", "update");
   const canUserDelete = canAccess(userLevel, "user", "delete");
@@ -287,6 +293,7 @@ export default function HomePage() {
   const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
+  const [unitImportMsg, setUnitImportMsg] = useState("");
   const [techForm, setTechForm] = useState({
     name: "",
     skill: "",
@@ -435,6 +442,32 @@ export default function HomePage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus unit");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importUnitsFile(file: File) {
+    setBusy(true);
+    setError("");
+    setUnitImportMsg("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await api<{
+        imported: number;
+        updated: number;
+        skipped: string[];
+      }>("/api/units/import", { method: "POST", body: formData });
+      setUnitImportMsg(
+        `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
+          (result.skipped.length
+            ? ` · ${result.skipped.length} baris dilewati`
+            : "")
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import unit gagal");
     } finally {
       setBusy(false);
     }
@@ -820,7 +853,7 @@ export default function HomePage() {
   }
 
   function openAssign(job: JobWithDetails) {
-    if (!canJobUpdate) return;
+    if (!canJobAssign) return;
     const existing =
       job.technicians?.map((t) => t.id) ||
       (job.technician_id ? [job.technician_id] : []);
@@ -1412,7 +1445,7 @@ export default function HomePage() {
                   style={{ width: 32, height: 32, minWidth: 32 }}
                   disabled={
                     busy ||
-                    !canJobUpdate ||
+                    !canJobAssign ||
                     (job.status === "queued" && availableTechs.length === 0)
                   }
                   onClick={() => openAssign(job)}
@@ -1420,7 +1453,11 @@ export default function HomePage() {
                     job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"
                   }
                   title={
-                    job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"
+                    !canJobAssign
+                      ? "Assign hanya untuk Foreman & Superuser"
+                      : job.status === "queued"
+                        ? "Assign teknisi"
+                        : "Ubah teknisi"
                   }
                 >
                   <svg
@@ -1459,8 +1496,13 @@ export default function HomePage() {
                 <button
                   className="btn"
                   style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                  disabled={busy || !canJobUpdate}
+                  disabled={busy || !canJobProgress}
                   onClick={() => runAction(job.id, "pause")}
+                  title={
+                    canJobProgress
+                      ? "Pause job"
+                      : "Hanya Foreman & Superuser yang dapat pause job"
+                  }
                 >
                   Pause
                 </button>
@@ -1469,8 +1511,13 @@ export default function HomePage() {
                 <button
                   className="btn btn-primary"
                   style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                  disabled={busy || !canJobUpdate}
+                  disabled={busy || !canJobProgress}
                   onClick={() => runAction(job.id, "resume")}
+                  title={
+                    canJobProgress
+                      ? "Resume job"
+                      : "Hanya Foreman & Superuser yang dapat resume job"
+                  }
                 >
                   Resume
                 </button>
@@ -1507,8 +1554,13 @@ export default function HomePage() {
           {job.status === "assigned" && (
             <button
               className="btn btn-primary"
-              disabled={busy || !canJobUpdate}
+              disabled={busy || !canJobProgress}
               onClick={() => runAction(job.id, "start")}
+              title={
+                canJobProgress
+                  ? "Start job"
+                  : "Hanya Foreman & Superuser yang dapat start job"
+              }
             >
               Start job
             </button>
@@ -1517,15 +1569,25 @@ export default function HomePage() {
             <div className="actions-spread">
               <button
                 className="btn"
-                disabled={busy || !canJobUpdate || !job.current_step}
+                disabled={busy || !canJobProgress || !job.current_step}
                 onClick={() => setModal({ type: "complete-step", job })}
+                title={
+                  canJobProgress
+                    ? "Selesaikan step"
+                    : "Hanya Foreman & Superuser yang dapat menyelesaikan step"
+                }
               >
                 Selesai step
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobUpdate}
+                disabled={busy || !canJobProgress}
                 onClick={() => setModal({ type: "complete-job", job })}
+                title={
+                  canJobProgress
+                    ? "Complete job"
+                    : "Hanya Foreman & Superuser yang dapat complete job"
+                }
               >
                 Complete job
               </button>
@@ -1534,8 +1596,13 @@ export default function HomePage() {
           {job.status === "paused" && (
             <button
               className="btn btn-primary"
-              disabled={busy || !canJobUpdate}
+              disabled={busy || !canJobProgress}
               onClick={() => setModal({ type: "complete-job", job })}
+              title={
+                canJobProgress
+                  ? "Complete job"
+                  : "Hanya Foreman & Superuser yang dapat complete job"
+              }
             >
               Complete job
             </button>
@@ -2563,7 +2630,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy}
+                disabled={busy || !canJobProgress}
                 onClick={() => runAction(modal.job.id, "complete_step")}
               >
                 <BusyLabel busy={busy} idle="Ya, selesai step" pending="Memproses..." />
@@ -2591,7 +2658,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy}
+                disabled={busy || !canJobProgress}
                 onClick={() => runAction(modal.job.id, "complete")}
               >
                 <BusyLabel busy={busy} idle="Ya, complete" pending="Memproses..." />
@@ -2663,8 +2730,41 @@ export default function HomePage() {
             {busy && <BusyOverlay />}
             <h3>Master Unit</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Data unit dipilih saat buat/edit job (tidak ketik manual).
+              Data unit dipilih saat buat/edit job. Upload Excel untuk mass input
+              — header: Nomor unit, Model, Status (opsional).
             </p>
+            {error && <div className="error">{error}</div>}
+            {unitImportMsg && (
+              <p style={{ color: "var(--green)", marginTop: 0 }}>
+                {unitImportMsg}
+              </p>
+            )}
+            {canUnitCreate && (
+              <div className="form" style={{ marginBottom: 12 }}>
+                <div className="actions" style={{ marginTop: 0 }}>
+                  <a
+                    className="btn"
+                    href="/api/units/template"
+                    download="template-upload-unit.xlsx"
+                  >
+                    Unduh template Excel
+                  </a>
+                </div>
+                <label>
+                  Mass upload Excel (.xlsx)
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    disabled={busy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) importUnitsFile(file);
+                    }}
+                  />
+                </label>
+              </div>
+            )}
             <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
               <input
                 className="panel-search"

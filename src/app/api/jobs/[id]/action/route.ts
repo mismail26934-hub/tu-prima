@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { jobAction } from "@/lib/excel";
-import { requirePermission } from "@/lib/access";
+import {
+  requireAssignPermission,
+  requireJobProgressPermission,
+  requirePermission,
+} from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +24,6 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requirePermission("job", "update");
-  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const body = await req.json();
@@ -29,6 +31,19 @@ export async function POST(
     if (!ACTIONS.includes(action)) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
+
+    let denied;
+    if (action === "assign") {
+      denied = await requireAssignPermission();
+    } else if (
+      ["start", "pause", "resume", "complete_step", "complete"].includes(action)
+    ) {
+      denied = await requireJobProgressPermission();
+    } else {
+      denied = await requirePermission("job", "update");
+    }
+    if (denied) return denied;
+
     const job = await jobAction(id, action, {
       technician_id: body.technician_id,
       technician_ids: Array.isArray(body.technician_ids)

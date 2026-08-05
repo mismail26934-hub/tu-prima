@@ -75,3 +75,13 @@ export function canAccess(
 ): boolean {
   return Boolean(level && ACCESS_MATRIX[level]?.[resource]?.includes(action));
 }
+
+/** Assign teknisi ke job: hanya superuser & foreman. */
+export function canAssignJob(level: AccessLevel | undefined): boolean {
+  return level === "superuser" || level === "foreman";
+}
+
+/** Start/pause/resume, selesaikan step, dan complete job: hanya superuser & foreman. */
+export function canManageJobProgress(level: AccessLevel | undefined): boolean {
+  return level === "superuser" || level === "foreman";
+}

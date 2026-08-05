@@ -40,19 +40,21 @@ Pengunjung yang **belum login** diperlakukan sebagai `guest`.
 
 Keterangan: **CRUD** = Create/Read/Update/Delete, **R** = Read saja, **—** = tanpa akses.
 
-| Level | Job | User | Teknisi | Unit | Daftar Hadir |
-|---|---|---|---|---|---|
-| superuser | CRUD | CRUD | CRUD | CRUD | CRUD |
-| inputer | CRUD | R | R | CRUD | R |
-| teknisi | R | R | R | — | R |
-| foreman | CRUD | R | R | CRUD | R |
-| spv | CRUD | R | R | CRUD | R |
-| hrd | R | R | R | R | CRUD |
-| guest (belum login) | R | R | R | — | R |
+| Level | Job | User | Teknisi | Unit | Daftar Hadir | Assign teknisi |
+|---|---|---|---|---|---|---|
+| superuser | CRUD | CRUD | CRUD | CRUD | CRUD | Ya |
+| inputer | CRUD | R | R | CRUD | R | — |
+| teknisi | R | R | R | — | R | — |
+| foreman | CRUD | R | R | CRUD | R | Ya |
+| spv | CRUD | R | R | CRUD | R | — |
+| hrd | R | R | R | R | CRUD | — |
+| guest (belum login) | R | R | R | — | R | — |
 
 Catatan penerapan:
 
 - Hak akses dipaksakan di **dua lapis**: UI (tombol disembunyikan/di-disable) dan **API route** (menolak dengan `401`/`403`).
+- **Assign teknisi** ke job hanya untuk level **superuser** dan **foreman** (level lain tombol disabled + API 403).
+- **Start / Pause / Resume / Selesai step / Complete job** hanya untuk level **superuser** dan **foreman** (level lain tombol disabled + API 403).
 - `guest` & `teknisi` tidak melihat data Unit (dikosongkan di dashboard).
 - Minimal satu `superuser` aktif harus selalu tersisa (tidak bisa dihapus/dinonaktifkan/diturunkan level).
 

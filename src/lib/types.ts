@@ -108,6 +108,19 @@ export interface Attendance {
   note: string;
 }
 
+/** App login account stored in Excel Users sheet. */
+export interface AppUser {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  active: string; // "1" | "0"
+  created_at: string;
+}
+
+/** User payload without password (for API / UI). */
+export type AppUserPublic = Omit<AppUser, "password">;
+
 export interface DashboardData {
   technicians: Technician[];
   units: Unit[];

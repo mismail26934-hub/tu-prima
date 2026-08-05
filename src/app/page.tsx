@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import type {
+  AppUserPublic,
   Attendance,
   AttendanceStatus,
   DashboardData,
@@ -53,6 +54,13 @@ type Modal =
       row?: Attendance;
     }
   | { type: "delete-attendance"; row: Attendance }
+  | { type: "users" }
+  | {
+      type: "user-form";
+      mode: "create" | "edit";
+      user?: AppUserPublic;
+    }
+  | { type: "delete-user"; user: AppUserPublic }
   | { type: "settings" };
 
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
@@ -244,6 +252,8 @@ function Pager({
 }
 
 export default function HomePage() {
+  const { data: session } = useSession();
+  const displayName = session?.user?.name || session?.user?.email || "";
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -251,6 +261,7 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
@@ -262,9 +273,46 @@ export default function HomePage() {
   });
   const [masterTechDraft, setMasterTechDraft] = useState("");
   const [masterTechQuery, setMasterTechQuery] = useState("");
+  const [techImportMsg, setTechImportMsg] = useState("");
+  const [appUsers, setAppUsers] = useState<AppUserPublic[]>([]);
+  const [userForm, setUserForm] = useState({
+    username: "",
+    password: "",
+    name: "",
+    active: "1",
+  });
+  const [masterUserDraft, setMasterUserDraft] = useState("");
+  const [masterUserQuery, setMasterUserQuery] = useState("");
   const [hideTechPanel, setHideTechPanel] = useState(false);
   const [hideJobPanel, setHideJobPanel] = useState(false);
   const topbarRef = useRef<HTMLElement>(null);
+  const manageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!manageOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (manageRef.current && !manageRef.current.contains(e.target as Node)) {
+        setManageOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setManageOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [manageOpen]);
+
+  useEffect(() => {
+    if (mobileMenuOpen) setManageOpen(false);
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (modal) setManageOpen(false);
+  }, [modal]);
 
   useEffect(() => {
     const el = topbarRef.current;
@@ -431,6 +479,119 @@ export default function HomePage() {
     }
   }
 
+  async function importTechniciansFile(file: File) {
+    setBusy(true);
+    setError("");
+    setTechImportMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const result = await api<{
+        imported: number;
+        updated: number;
+        skipped: string[];
+      }>("/api/technicians/import", { method: "POST", body: fd });
+      setTechImportMsg(
+        `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
+          (result.skipped.length
+            ? ` · ${result.skipped.length} baris dilewati`
+            : "")
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import teknisi gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadUsers() {
+    const users = await api<AppUserPublic[]>("/api/users");
+    setAppUsers(users);
+  }
+
+  async function openUsersMaster() {
+    setError("");
+    setMasterUserDraft("");
+    setMasterUserQuery("");
+    setBusy(true);
+    try {
+      await loadUsers();
+      setModal({ type: "users" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat user");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openUserCreate() {
+    setUserForm({ username: "", password: "", name: "", active: "1" });
+    setModal({ type: "user-form", mode: "create" });
+  }
+
+  function openUserEdit(user: AppUserPublic) {
+    setUserForm({
+      username: user.username,
+      password: "",
+      name: user.name,
+      active: user.active,
+    });
+    setModal({ type: "user-form", mode: "edit", user });
+  }
+
+  async function saveUser() {
+    if (modal?.type !== "user-form") return;
+    if (!userForm.username.trim()) return;
+    if (modal.mode === "create" && !userForm.password) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (modal.mode === "create") {
+        await api("/api/users", {
+          method: "POST",
+          body: JSON.stringify({
+            username: userForm.username,
+            password: userForm.password,
+            name: userForm.name,
+            active: userForm.active,
+          }),
+        });
+      } else if (modal.user) {
+        await api(`/api/users/${modal.user.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            username: userForm.username,
+            name: userForm.name,
+            active: userForm.active,
+            ...(userForm.password ? { password: userForm.password } : {}),
+          }),
+        });
+      }
+      await loadUsers();
+      setModal({ type: "users" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan user");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteUser() {
+    if (modal?.type !== "delete-user") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/users/${modal.user.id}`, { method: "DELETE" });
+      await loadUsers();
+      setModal({ type: "users" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus user");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openAttendanceCreate() {
     const today = new Date().toISOString().slice(0, 10);
     setAttendanceForm({
@@ -579,6 +740,7 @@ export default function HomePage() {
   const MASTER_PAGE_SIZE = 10;
   const [unitMasterPage, setUnitMasterPage] = useState(1);
   const [masterTechPage, setMasterTechPage] = useState(1);
+  const [masterUserPage, setMasterUserPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
   const [attendanceDraft, setAttendanceDraft] = useState("");
   const [attendanceQuery, setAttendanceQuery] = useState("");
@@ -707,7 +869,14 @@ export default function HomePage() {
   }
 
   async function handleLogout() {
-    await signOut({ callbackUrl: "/login" });
+    setBusy(true);
+    try {
+      await signOut({ callbackUrl: "/login" });
+    } catch {
+      window.location.href = "/login";
+    } finally {
+      setBusy(false);
+    }
   }
 
   const availableTechs = useMemo(
@@ -818,6 +987,53 @@ export default function HomePage() {
     setMasterTechDraft("");
     setMasterTechQuery("");
   }
+
+  const filteredMasterUsers = useMemo(() => {
+    const q = masterUserQuery.trim().toLowerCase();
+    if (!q) return appUsers;
+    return appUsers.filter(
+      (u) =>
+        u.username.toLowerCase().includes(q) ||
+        u.name.toLowerCase().includes(q)
+    );
+  }, [appUsers, masterUserQuery]);
+
+  useEffect(() => {
+    setMasterUserPage(1);
+  }, [masterUserQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredMasterUsers.length / MASTER_PAGE_SIZE)
+    );
+    setMasterUserPage((p) => (p > totalPages ? totalPages : p));
+  }, [filteredMasterUsers.length]);
+
+  const masterUserTotalPages = Math.max(
+    1,
+    Math.ceil(filteredMasterUsers.length / MASTER_PAGE_SIZE)
+  );
+  const masterUserPageSafe = Math.min(masterUserPage, masterUserTotalPages);
+  const pagedMasterUsers = filteredMasterUsers.slice(
+    (masterUserPageSafe - 1) * MASTER_PAGE_SIZE,
+    masterUserPageSafe * MASTER_PAGE_SIZE
+  );
+
+  function applyMasterUserSearch() {
+    setMasterUserQuery(masterUserDraft.trim());
+  }
+
+  function clearMasterUserSearch() {
+    setMasterUserDraft("");
+    setMasterUserQuery("");
+  }
+
+  const userFormValid =
+    userForm.username.trim().length > 0 &&
+    (modal?.type === "user-form" && modal.mode === "edit"
+      ? true
+      : userForm.password.length > 0);
 
   const filteredAttendance = useMemo(() => {
     let rows = data?.attendance || [];
@@ -1289,79 +1505,128 @@ export default function HomePage() {
           </div>
         </div>
         <div className="top-actions">
-          <button
-            className="btn btn-icon"
-            type="button"
-            onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
-            title={theme === "dark" ? "Light mode" : "Dark mode"}
-          >
-            {theme === "dark" ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
-              </svg>
-            )}
-          </button>
-          <button
-            className="btn btn-icon top-menu-toggle"
-            type="button"
-            aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
-            aria-expanded={mobileMenuOpen}
-            onClick={() => setMobileMenuOpen((o) => !o)}
-          >
-            {mobileMenuOpen ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </svg>
-            )}
-          </button>
           <div className="top-actions-panel top-actions-panel--bar">
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => load()}
-            >
+            <div className={`nav-manage${manageOpen ? " is-open" : ""}`} ref={manageRef}>
+              <button
+                className="btn"
+                type="button"
+                disabled={busy}
+                aria-haspopup="menu"
+                aria-expanded={manageOpen}
+                onClick={() => setManageOpen((o) => !o)}
+              >
+                Kelola
+                <svg
+                  className="nav-manage-caret"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {manageOpen && (
+                <div className="nav-manage-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy}
+                    onClick={() => {
+                      setManageOpen(false);
+                      setModal({ type: "settings" });
+                    }}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy}
+                    onClick={() => {
+                      setManageOpen(false);
+                      setTechImportMsg("");
+                      setModal({ type: "techs" });
+                    }}
+                  >
+                    Master Teknisi
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy}
+                    onClick={() => {
+                      setManageOpen(false);
+                      openUsersMaster();
+                    }}
+                  >
+                    Master User
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy}
+                    onClick={() => {
+                      setManageOpen(false);
+                      setModal({ type: "units" });
+                    }}
+                  >
+                    Master Unit
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy}
+                    onClick={() => {
+                      setManageOpen(false);
+                      setModal({ type: "attendance" });
+                    }}
+                  >
+                    Daftar Hadir
+                  </button>
+                </div>
+              )}
+            </div>
+            <button className="btn" disabled={busy} onClick={() => load()}>
               Refresh
             </button>
+            <div className="nav-session">
+              {displayName && (
+                <span className="nav-user" title={displayName}>
+                  {displayName}
+                </span>
+              )}
+              <button className="btn" disabled={busy} onClick={handleLogout}>
+                Logout
+              </button>
+            </div>
             <button
-              className="btn"
-              disabled={busy}
-              onClick={() => setModal({ type: "settings" })}
+              className="btn btn-icon"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
+              title={theme === "dark" ? "Light mode" : "Dark mode"}
             >
-              Settings
-            </button>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => setModal({ type: "techs" })}
-            >
-              Master Teknisi
-            </button>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => setModal({ type: "units" })}
-            >
-              Master Unit
-            </button>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => setModal({ type: "attendance" })}
-            >
-              Daftar Hadir
-            </button>
-            <button className="btn" disabled={busy} onClick={handleLogout}>
-              Logout
+              {theme === "dark" ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                </svg>
+              )}
             </button>
             <button
               className="btn btn-primary"
@@ -1369,6 +1634,51 @@ export default function HomePage() {
               onClick={() => openCreate()}
             >
               + Job baru
+            </button>
+          </div>
+
+          <div className="top-actions-mobile">
+            <button
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => openCreate()}
+            >
+              + Job
+            </button>
+            <button
+              className="btn btn-icon"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
+              title={theme === "dark" ? "Light mode" : "Dark mode"}
+            >
+              {theme === "dark" ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                </svg>
+              )}
+            </button>
+            <button
+              className="btn btn-icon top-menu-toggle"
+              type="button"
+              aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((o) => !o)}
+            >
+              {mobileMenuOpen ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              )}
             </button>
           </div>
         </div>
@@ -1382,6 +1692,12 @@ export default function HomePage() {
             aria-hidden="true"
           />
           <div className="top-actions-panel top-actions-panel--float is-open">
+            {displayName && (
+              <div className="nav-user nav-user--menu" title={displayName}>
+                {displayName}
+              </div>
+            )}
+            <p className="nav-menu-label">Aksi</p>
             <button
               className="btn"
               disabled={busy}
@@ -1392,6 +1708,7 @@ export default function HomePage() {
             >
               Refresh
             </button>
+            <p className="nav-menu-label">Kelola</p>
             <button
               className="btn"
               disabled={busy}
@@ -1407,10 +1724,21 @@ export default function HomePage() {
               disabled={busy}
               onClick={() => {
                 setMobileMenuOpen(false);
+                setTechImportMsg("");
                 setModal({ type: "techs" });
               }}
             >
               Master Teknisi
+            </button>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openUsersMaster();
+              }}
+            >
+              Master User
             </button>
             <button
               className="btn"
@@ -1441,16 +1769,6 @@ export default function HomePage() {
               }}
             >
               Logout
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                openCreate();
-              }}
-            >
-              + Job baru
             </button>
           </div>
         </>
@@ -1800,7 +2118,7 @@ export default function HomePage() {
           </div>
 
           <p className="db-path">
-            Database Excel: <code>data/workshop.xlsx</code> (sheet Technicians, Units, Jobs, JobSteps, JobEvents)
+            Database Excel: <code>data/workshop.xlsx</code> (sheet Technicians, Units, Jobs, JobSteps, JobEvents, Users)
           </p>
         </>
       )}
@@ -2465,13 +2783,45 @@ export default function HomePage() {
 
       {modal?.type === "techs" && (
         <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal"
+            style={{ width: "min(600px, 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {busy && <BusyOverlay />}
             <h3>Master Teknisi</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Kelola data teknisi (nama, SN KPC, telepon, status).
+              Kelola data teknisi (nama, SN KPC, telepon, status). Upload Excel
+              untuk mass input — header: Nama, SN KPC, Telepon, Status (opsional).
             </p>
             {error && <div className="error">{error}</div>}
+            {techImportMsg && (
+              <p style={{ color: "var(--green)", marginTop: 0 }}>{techImportMsg}</p>
+            )}
+            <div className="form" style={{ marginBottom: 12 }}>
+              <div className="actions" style={{ marginTop: 0 }}>
+                <a
+                  className="btn"
+                  href="/api/technicians/template"
+                  download="template-upload-teknisi.xlsx"
+                >
+                  Unduh template Excel
+                </a>
+              </div>
+              <label>
+                Mass upload Excel (.xlsx)
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) importTechniciansFile(file);
+                  }}
+                />
+              </label>
+            </div>
             <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
               <input
                 className="panel-search"
@@ -2670,6 +3020,224 @@ export default function HomePage() {
                 className="btn btn-danger"
                 disabled={busy}
                 onClick={confirmDeleteTech}
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "users" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay />}
+            <h3>Master User</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Kelola akun login (tersimpan di sheet Users pada Excel).
+            </p>
+            {error && <div className="error">{error}</div>}
+            <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
+              <input
+                className="panel-search"
+                style={{ maxWidth: "none" }}
+                type="search"
+                value={masterUserDraft}
+                onChange={(e) => setMasterUserDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyMasterUserSearch();
+                  }
+                }}
+                placeholder="Cari username atau nama..."
+                aria-label="Cari user"
+                autoFocus
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={applyMasterUserSearch}
+              >
+                Cari
+              </button>
+              {masterUserQuery && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={clearMasterUserSearch}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
+              {appUsers.length === 0 && (
+                <span style={{ color: "var(--muted)" }}>Belum ada user.</span>
+              )}
+              {appUsers.length > 0 && filteredMasterUsers.length === 0 && (
+                <span style={{ color: "var(--muted)" }}>Tidak ada user yang cocok.</span>
+              )}
+              {pagedMasterUsers.map((u) => (
+                <div
+                  key={u.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom: "1px dashed var(--line-dashed)",
+                  }}
+                >
+                  <div>
+                    <strong>{u.username}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                      {u.name || "—"}
+                      {` · ${u.active === "1" ? "aktif" : "nonaktif"}`}
+                    </div>
+                  </div>
+                  <div className="actions" style={{ marginTop: 0 }}>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() => openUserEdit(u)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      onClick={() => setModal({ type: "delete-user", user: u })}
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {filteredMasterUsers.length > MASTER_PAGE_SIZE && (
+              <Pager
+                page={masterUserPageSafe}
+                totalPages={masterUserTotalPages}
+                onChange={setMasterUserPage}
+              />
+            )}
+            <div className="actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={openUserCreate}
+              >
+                + User baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "user-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "users" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>{modal.mode === "create" ? "User baru" : "Edit user"}</h3>
+            {error && <div className="error">{error}</div>}
+            <div className="form">
+              <label>
+                Username *
+                <input
+                  value={userForm.username}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, username: e.target.value })
+                  }
+                  autoComplete="off"
+                  required
+                />
+              </label>
+              <label>
+                Password {modal.mode === "create" ? "*" : "(kosongkan jika tidak diubah)"}
+                <input
+                  type="password"
+                  value={userForm.password}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, password: e.target.value })
+                  }
+                  autoComplete="new-password"
+                  required={modal.mode === "create"}
+                />
+              </label>
+              <label>
+                Nama tampilan
+                <input
+                  value={userForm.name}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, name: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Status *
+                <select
+                  value={userForm.active}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, active: e.target.value })
+                  }
+                  required
+                >
+                  <option value="1">aktif</option>
+                  <option value="0">nonaktif</option>
+                </select>
+              </label>
+              <div className="actions">
+                <button className="btn" onClick={() => setModal({ type: "users" })}>
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !userFormValid}
+                  onClick={saveUser}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-user" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "users" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
+            <h3>Hapus user</h3>
+            {error && <div className="error">{error}</div>}
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.user.username}
+              {modal.user.name ? ` — ${modal.user.name}` : ""}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus user ini permanen dari Excel? User aktif terakhir tidak bisa
+              dihapus.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={() => setModal({ type: "users" })}>
+                Kembali
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={confirmDeleteUser}
               >
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>

@@ -34,7 +34,7 @@ export default function LoginPage() {
     <main className="app app-login">
       <section className="login-card">
         <h1>TU-PRIMA</h1>
-        <p>Silakan login untuk mengakses dashboard.</p>
+        <p>Silakan login untuk mengakses dashboard. Akun disimpan di sheet Users (Excel).</p>
         <form className="form" onSubmit={onSubmit}>
           <label>
             Username

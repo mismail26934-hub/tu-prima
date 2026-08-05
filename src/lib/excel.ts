@@ -16,6 +16,8 @@ import type {
   Unit,
   Attendance,
   AttendanceStatus,
+  AppUser,
+  AppUserPublic,
   DashboardData,
 } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
@@ -31,6 +33,7 @@ const SHEETS = {
   steps: "JobSteps",
   events: "JobEvents",
   attendance: "Attendance",
+  users: "Users",
 } as const;
 
 type Row = Record<string, string | number>;
@@ -218,6 +221,43 @@ function mapAttendance(r: Row): Attendance {
   };
 }
 
+function mapUser(r: Row): AppUser {
+  return {
+    id: String(r.id || ""),
+    username: String(r.username || "").trim(),
+    password: String(r.password || ""),
+    name: String(r.name || "").trim(),
+    active: String(r.active || "1") === "0" ? "0" : "1",
+    created_at: String(r.created_at || ""),
+  };
+}
+
+function userToRow(u: AppUser): Row {
+  return { ...u };
+}
+
+function toPublicUser(u: AppUser): AppUserPublic {
+  const { password: _password, ...rest } = u;
+  return rest;
+}
+
+function defaultSeedUser(): AppUser {
+  const username =
+    (typeof process.env.APP_USERNAME === "string" && process.env.APP_USERNAME) ||
+    "admin";
+  const password =
+    (typeof process.env.APP_PASSWORD === "string" && process.env.APP_PASSWORD) ||
+    "admin123";
+  return {
+    id: "U-admin",
+    username,
+    password,
+    name: "Administrator",
+    active: "1",
+    created_at: nowIso(),
+  };
+}
+
 function techToRow(t: Technician): Row {
   return { ...t };
 }
@@ -296,6 +336,23 @@ const ATTENDANCE_HEADERS = [
   "absence",
   "note",
 ];
+const USER_HEADERS = ["id", "username", "password", "name", "active", "created_at"];
+
+/** Ensure Users sheet exists; seed default admin if empty. Returns true if workbook mutated. */
+function ensureUsers(wb: ExcelJS.Workbook): boolean {
+  const existing = readRows(getSheet(wb, SHEETS.users))
+    .map(mapUser)
+    .filter((u) => u.id && u.username);
+  if (existing.length > 0) return false;
+  writeSheet(wb, SHEETS.users, USER_HEADERS, [userToRow(defaultSeedUser())]);
+  return true;
+}
+
+function readUsers(wb: ExcelJS.Workbook): AppUser[] {
+  return readRows(getSheet(wb, SHEETS.users))
+    .map(mapUser)
+    .filter((u) => u.id && u.username);
+}
 
 /** Ensure JobAssignees exists; migrate from Jobs.technician_id if empty. */
 function loadAssignees(
@@ -489,6 +546,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
   writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
   writeSheet(wb, SHEETS.attendance, ATTENDANCE_HEADERS, []);
+  writeSheet(wb, SHEETS.users, USER_HEADERS, [userToRow(defaultSeedUser())]);
 }
 
 function enrichJob(
@@ -547,9 +605,12 @@ export async function getDashboard(): Promise<DashboardData> {
     const assignees = loadAssignees(wb, jobs);
     const hadUnits = readRows(getSheet(wb, SHEETS.units)).length > 0;
     const units = loadUnits(wb, jobs);
-    if (!hadUnits && units.length > 0) {
-      writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
-      writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+    const usersSeeded = ensureUsers(wb);
+    if ((!hadUnits && units.length > 0) || usersSeeded) {
+      if (!hadUnits && units.length > 0) {
+        writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
+        writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+      }
       await saveWorkbook(wb);
     }
 
@@ -883,6 +944,141 @@ export async function createTechnician(input: {
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
     await saveWorkbook(wb);
     return tech;
+  });
+}
+
+function normalizeTechStatus(
+  raw: string
+): Exclude<TechnicianStatus, "busy"> | null {
+  const s = raw.trim().toLowerCase();
+  if (!s) return null;
+  if (["offline", "off", "tidak hadir"].includes(s)) return "offline";
+  if (["available", "avail", "hadir", "aktif", "active"].includes(s)) {
+    return "available";
+  }
+  return null;
+}
+
+export async function importTechniciansFromBuffer(
+  buffer: ArrayBuffer | Buffer
+): Promise<{
+  imported: number;
+  updated: number;
+  skipped: string[];
+}> {
+  return withDbLock(async () => {
+    const src = new ExcelJS.Workbook();
+    const bytes =
+      buffer instanceof ArrayBuffer
+        ? Buffer.from(new Uint8Array(buffer))
+        : Buffer.from(buffer);
+    await src.xlsx.load(bytes as unknown as ExcelJS.Buffer);
+    const ws = src.worksheets[0];
+    if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
+
+    const headerRow = ws.getRow(1);
+    const headerMap: Record<string, number> = {};
+    headerRow.eachCell((cell, col) => {
+      const key = cellStr(cell.value).trim().toLowerCase();
+      if (key) headerMap[key] = col;
+    });
+
+    const col = (...names: string[]) => {
+      for (const n of names) {
+        const c = headerMap[n.toLowerCase()];
+        if (c) return c;
+      }
+      return 0;
+    };
+
+    const cName = col("name", "nama", "name employee", "nama karyawan");
+    const cSkill = col(
+      "skill",
+      "sn kpc",
+      "sn",
+      "pernr",
+      "nik",
+      "kpc"
+    );
+    const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
+    const cStatus = col("status");
+
+    if (!cName || !cSkill) {
+      throw new Error(
+        'Kolom wajib tidak ditemukan. Butuh header "Nama" dan "SN KPC" (atau Pernr/Skill).'
+      );
+    }
+
+    const wb = await loadWorkbook();
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const skipped: string[] = [];
+    let imported = 0;
+    let updated = 0;
+    let changed = false;
+
+    ws.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const name = cellStr(row.getCell(cName).value).trim();
+      const skill = cellStr(row.getCell(cSkill).value).trim();
+      const phone = cPhone ? cellStr(row.getCell(cPhone).value).trim() : "";
+      const statusRaw = cStatus
+        ? cellStr(row.getCell(cStatus).value).trim()
+        : "";
+      if (!name && !skill) return;
+      if (!name || !skill) {
+        skipped.push(
+          `Baris ${rowNumber}: nama dan SN KPC wajib (${name || "?"} / ${skill || "?"})`
+        );
+        return;
+      }
+
+      const status = normalizeTechStatus(statusRaw);
+      const existing = techs.find(
+        (t) => t.skill.trim().toLowerCase() === skill.toLowerCase()
+      );
+
+      if (existing) {
+        existing.name = name;
+        existing.skill = skill;
+        if (phone) existing.phone = phone;
+        if (status && existing.status !== "busy") {
+          existing.status = status;
+          existing.current_job_id = "";
+        }
+        updated += 1;
+        changed = true;
+        return;
+      }
+
+      if (!phone) {
+        skipped.push(`Baris ${rowNumber}: ${name} — telepon wajib untuk data baru`);
+        return;
+      }
+
+      techs.push({
+        id: `T-${uuidv4().slice(0, 8)}`,
+        name,
+        skill,
+        phone,
+        status: status || "available",
+        current_job_id: "",
+      });
+      imported += 1;
+      changed = true;
+    });
+
+    if (!changed && skipped.length === 0) {
+      throw new Error("Tidak ada baris data teknisi yang bisa diimpor");
+    }
+    if (changed) {
+      writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+      await saveWorkbook(wb);
+    }
+    return {
+      imported,
+      updated,
+      skipped: skipped.slice(0, 50),
+    };
   });
 }
 
@@ -1589,5 +1785,135 @@ export async function importAttendanceFromBuffer(
       unmatched: [...new Set(unmatched)].slice(0, 50),
       date: primaryDate,
     };
+  });
+}
+
+export async function listUsers(): Promise<AppUserPublic[]> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const seeded = ensureUsers(wb);
+    if (seeded) await saveWorkbook(wb);
+    return readUsers(wb)
+      .map(toPublicUser)
+      .sort((a, b) => a.username.localeCompare(b.username));
+  });
+}
+
+export async function authenticateUser(
+  username: string,
+  password: string
+): Promise<AppUserPublic | null> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const seeded = ensureUsers(wb);
+    if (seeded) await saveWorkbook(wb);
+    const user = readUsers(wb).find(
+      (u) =>
+        u.username.toLowerCase() === username.trim().toLowerCase() &&
+        u.password === password &&
+        u.active === "1"
+    );
+    return user ? toPublicUser(user) : null;
+  });
+}
+
+export async function createUser(input: {
+  username: string;
+  password: string;
+  name?: string;
+  active?: string;
+}): Promise<AppUserPublic> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    ensureUsers(wb);
+    const users = readUsers(wb);
+    const username = input.username.trim();
+    const password = input.password;
+    const name = (input.name || "").trim() || username;
+    if (!username || !password) {
+      throw new Error("username dan password wajib diisi");
+    }
+    if (users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+      throw new Error("Username sudah dipakai");
+    }
+    const user: AppUser = {
+      id: `U-${uuidv4().slice(0, 8)}`,
+      username,
+      password,
+      name,
+      active: input.active === "0" ? "0" : "1",
+      created_at: nowIso(),
+    };
+    users.push(user);
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
+    await saveWorkbook(wb);
+    return toPublicUser(user);
+  });
+}
+
+export async function updateUser(
+  userId: string,
+  input: {
+    username?: string;
+    password?: string;
+    name?: string;
+    active?: string;
+  }
+): Promise<AppUserPublic> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    ensureUsers(wb);
+    const users = readUsers(wb);
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new Error("User tidak ditemukan");
+
+    if (input.username != null) {
+      const username = input.username.trim();
+      if (!username) throw new Error("username wajib diisi");
+      if (
+        users.some(
+          (u) =>
+            u.id !== userId &&
+            u.username.toLowerCase() === username.toLowerCase()
+        )
+      ) {
+        throw new Error("Username sudah dipakai");
+      }
+      user.username = username;
+    }
+    if (input.password != null && input.password !== "") {
+      user.password = input.password;
+    }
+    if (input.name != null) {
+      user.name = input.name.trim() || user.username;
+    }
+    if (input.active === "0" || input.active === "1") {
+      const activeUsers = users.filter((u) => u.active === "1" && u.id !== userId);
+      if (input.active === "0" && activeUsers.length === 0) {
+        throw new Error("Minimal satu user aktif harus tersisa");
+      }
+      user.active = input.active;
+    }
+
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
+    await saveWorkbook(wb);
+    return toPublicUser(user);
+  });
+}
+
+export async function deleteUser(userId: string): Promise<{ ok: true }> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    ensureUsers(wb);
+    const users = readUsers(wb);
+    const target = users.find((u) => u.id === userId);
+    if (!target) throw new Error("User tidak ditemukan");
+    const remaining = users.filter((u) => u.id !== userId);
+    if (remaining.filter((u) => u.active === "1").length === 0) {
+      throw new Error("Tidak bisa hapus user aktif terakhir");
+    }
+    writeSheet(wb, SHEETS.users, USER_HEADERS, remaining.map(userToRow));
+    await saveWorkbook(wb);
+    return { ok: true };
   });
 }

@@ -1,7 +1,10 @@
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { authConfig } from "@/auth.config";
 
-export default auth((req: { nextUrl: URL; auth?: unknown }) => {
+const { auth } = NextAuth(authConfig);
+
+export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = Boolean(req.auth);
   const isLoginPage = nextUrl.pathname.startsWith("/login");
@@ -20,7 +23,5 @@ export default auth((req: { nextUrl: URL; auth?: unknown }) => {
 });
 
 export const config = {
-  matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
 };

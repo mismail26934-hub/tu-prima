@@ -37,6 +37,8 @@ type Modal =
     }
   | { type: "cancel-job"; job: JobWithDetails }
   | { type: "delete-job"; job: JobWithDetails }
+  | { type: "pause-job"; job: JobWithDetails }
+  | { type: "resume-job"; job: JobWithDetails }
   | { type: "complete-step"; job: JobWithDetails }
   | { type: "complete-job"; job: JobWithDetails }
   | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] }
@@ -68,6 +70,8 @@ type Modal =
       user?: AppUserPublic;
     }
   | { type: "delete-user"; user: AppUserPublic }
+  | { type: "change-password" }
+  | { type: "logout" }
   | { type: "settings" };
 
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
@@ -281,6 +285,11 @@ export default function HomePage() {
   const canAttendanceUpdate = canAccess(userLevel, "attendance", "update");
   const canAttendanceDelete = canAccess(userLevel, "attendance", "delete");
   const displayName = session?.user?.name || session?.user?.email || "";
+  const displayNameShort = (() => {
+    const parts = displayName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return displayName;
+    return parts.map((part) => part[0]?.toUpperCase() || "").join("");
+  })();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -290,6 +299,7 @@ export default function HomePage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
   const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
@@ -313,10 +323,17 @@ export default function HomePage() {
   });
   const [masterUserDraft, setMasterUserDraft] = useState("");
   const [masterUserQuery, setMasterUserQuery] = useState("");
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordChangeMsg, setPasswordChangeMsg] = useState("");
   const [hideTechPanel, setHideTechPanel] = useState(false);
   const [hideJobPanel, setHideJobPanel] = useState(false);
   const topbarRef = useRef<HTMLElement>(null);
   const manageRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!manageOpen) return;
@@ -337,11 +354,35 @@ export default function HomePage() {
   }, [manageOpen]);
 
   useEffect(() => {
-    if (mobileMenuOpen) setManageOpen(false);
+    if (!sessionOpen || mobileMenuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (sessionRef.current && !sessionRef.current.contains(e.target as Node)) {
+        setSessionOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSessionOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [sessionOpen, mobileMenuOpen]);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      setManageOpen(false);
+      setSessionOpen(false);
+    }
   }, [mobileMenuOpen]);
 
   useEffect(() => {
-    if (modal) setManageOpen(false);
+    if (modal) {
+      setManageOpen(false);
+      setSessionOpen(false);
+    }
   }, [modal]);
 
   useEffect(() => {
@@ -944,7 +985,48 @@ export default function HomePage() {
       window.location.href = "/login";
       return;
     }
-    void handleLogout();
+    openLogoutConfirm();
+  }
+
+  function openLogoutConfirm() {
+    setError("");
+    setSessionOpen(false);
+    setMobileMenuOpen(false);
+    setModal({ type: "logout" });
+  }
+
+  function openChangePassword() {
+    setError("");
+    setPasswordChangeMsg("");
+    setPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setModal({ type: "change-password" });
+  }
+
+  async function saveOwnPassword() {
+    if (modal?.type !== "change-password") return;
+    setBusy(true);
+    setError("");
+    setPasswordChangeMsg("");
+    try {
+      await api<{ ok: true }>("/api/account/password", {
+        method: "POST",
+        body: JSON.stringify(passwordForm),
+      });
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setPasswordChangeMsg("Password berhasil diperbarui.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal mengubah password");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleLogout() {
@@ -1497,7 +1579,7 @@ export default function HomePage() {
                   className="btn"
                   style={{ padding: "6px 10px", fontSize: "0.82rem" }}
                   disabled={busy || !canJobProgress}
-                  onClick={() => runAction(job.id, "pause")}
+                  onClick={() => setModal({ type: "pause-job", job })}
                   title={
                     canJobProgress
                       ? "Pause job"
@@ -1512,7 +1594,7 @@ export default function HomePage() {
                   className="btn btn-primary"
                   style={{ padding: "6px 10px", fontSize: "0.82rem" }}
                   disabled={busy || !canJobProgress}
-                  onClick={() => runAction(job.id, "resume")}
+                  onClick={() => setModal({ type: "resume-job", job })}
                   title={
                     canJobProgress
                       ? "Resume job"
@@ -1630,7 +1712,10 @@ export default function HomePage() {
                 disabled={busy}
                 aria-haspopup="menu"
                 aria-expanded={manageOpen}
-                onClick={() => setManageOpen((o) => !o)}
+                onClick={() => {
+                  setSessionOpen(false);
+                  setManageOpen((o) => !o);
+                }}
               >
                 Kelola
                 <svg
@@ -1718,22 +1803,81 @@ export default function HomePage() {
               Refresh
             </button>
             <div className="nav-session">
-              {isLoggedIn && displayName && (
-                <span className="nav-user" title={displayName}>
-                  {displayName} · {userLevel}
-                </span>
+              {isLoggedIn ? (
+                <div
+                  className={`nav-session-menu${sessionOpen ? " is-open" : ""}`}
+                  ref={sessionRef}
+                >
+                  <button
+                    className="btn nav-account"
+                    type="button"
+                    disabled={busy || loggingOut}
+                    aria-label="Menu akun"
+                    aria-haspopup="menu"
+                    aria-expanded={sessionOpen}
+                    title={`${displayName} · ${userLevel}`}
+                    onClick={() => {
+                      setManageOpen(false);
+                      setSessionOpen((open) => !open);
+                    }}
+                  >
+                    <span className="nav-user">
+                      <span className="nav-user-name">{displayNameShort}</span>
+                      <span className="nav-user-level">{userLevel}</span>
+                    </span>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </button>
+                  {sessionOpen && (
+                    <div className="nav-manage-menu" role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="nav-manage-item"
+                        disabled={busy || loggingOut}
+                        onClick={() => {
+                          setSessionOpen(false);
+                          openChangePassword();
+                        }}
+                      >
+                        Edit password
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="nav-manage-item"
+                        disabled={busy || loggingOut}
+                        onClick={() => {
+                          setSessionOpen(false);
+                          openLogoutConfirm();
+                        }}
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  className="btn"
+                  disabled={busy || sessionStatus === "loading" || loggingOut}
+                  onClick={handleAuthClick}
+                >
+                  Login
+                </button>
               )}
-              <button
-                className="btn"
-                disabled={busy || sessionStatus === "loading" || loggingOut}
-                onClick={handleAuthClick}
-              >
-                <BusyLabel
-                  busy={loggingOut}
-                  idle={isLoggedIn ? "Logout" : "Login"}
-                  pending="Keluar..."
-                />
-              </button>
             </div>
             <button
               className="btn btn-icon"
@@ -1818,8 +1962,67 @@ export default function HomePage() {
           />
           <div className="top-actions-panel top-actions-panel--float is-open">
             {displayName && (
-              <div className="nav-user nav-user--menu" title={displayName}>
-                {displayName} · {userLevel}
+              <div
+                className="nav-user nav-user--menu"
+                title={`${displayName} · ${userLevel}`}
+              >
+                <span className="nav-user-text">
+                  <span className="nav-user-name">{displayNameShort}</span>
+                  <span className="nav-user-level">{userLevel}</span>
+                </span>
+                {isLoggedIn && (
+                  <button
+                    className="btn btn-icon"
+                    style={{ width: 28, height: 28, minWidth: 28 }}
+                    type="button"
+                    disabled={busy || loggingOut}
+                    aria-label="Menu akun"
+                    aria-expanded={sessionOpen}
+                    title="Menu akun"
+                    onClick={() => setSessionOpen((open) => !open)}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+            {isLoggedIn && sessionOpen && (
+              <div className="nav-session-actions">
+                <button
+                  className="btn"
+                  disabled={busy || loggingOut}
+                  onClick={() => {
+                    setSessionOpen(false);
+                    setMobileMenuOpen(false);
+                    openChangePassword();
+                  }}
+                >
+                  Edit password
+                </button>
+                <button
+                  className="btn"
+                  disabled={busy || loggingOut}
+                  onClick={() => {
+                    setSessionOpen(false);
+                    setMobileMenuOpen(false);
+                    openLogoutConfirm();
+                  }}
+                >
+                  Logout
+                </button>
               </div>
             )}
             <p className="nav-menu-label">Aksi</p>
@@ -1885,20 +2088,18 @@ export default function HomePage() {
             >
               Daftar Hadir
             </button>
-            <button
-              className="btn"
-              disabled={busy || sessionStatus === "loading" || loggingOut}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleAuthClick();
-              }}
-            >
-              <BusyLabel
-                busy={loggingOut}
-                idle={isLoggedIn ? "Logout" : "Login"}
-                pending="Keluar..."
-              />
-            </button>
+            {!isLoggedIn && (
+              <button
+                className="btn"
+                disabled={busy || sessionStatus === "loading" || loggingOut}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleAuthClick();
+                }}
+              >
+                Login
+              </button>
+            )}
           </div>
         </>
       )}
@@ -2259,6 +2460,132 @@ export default function HomePage() {
         </>
       )}
 
+      {modal?.type === "logout" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Keluar..." />}
+            <h3>Logout</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {displayName ? `${displayName} · ${userLevel}` : "Akun saat ini"}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Keluar dari akun ini? Anda perlu login lagi untuk melakukan aksi
+              yang memerlukan akses.
+            </p>
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={closeModal}
+                disabled={busy || loggingOut}
+              >
+                Tidak
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy || loggingOut}
+                onClick={() => void handleLogout()}
+              >
+                <BusyLabel
+                  busy={loggingOut}
+                  idle="Ya, logout"
+                  pending="Keluar..."
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "change-password" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memperbarui password..." />}
+            <h3>Update password</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Masukkan password saat ini dan password baru minimal 6 karakter.
+            </p>
+            {error && <div className="error">{error}</div>}
+            {passwordChangeMsg && (
+              <p style={{ color: "var(--green)", marginTop: 0 }}>
+                {passwordChangeMsg}
+              </p>
+            )}
+            <div className="form">
+              <label>
+                Password saat ini *
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) =>
+                    setPasswordForm({
+                      ...passwordForm,
+                      currentPassword: e.target.value,
+                    })
+                  }
+                  autoComplete="current-password"
+                  autoFocus
+                />
+              </label>
+              <label>
+                Password baru *
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) =>
+                    setPasswordForm({
+                      ...passwordForm,
+                      newPassword: e.target.value,
+                    })
+                  }
+                  autoComplete="new-password"
+                />
+              </label>
+              <label>
+                Konfirmasi password baru *
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) =>
+                    setPasswordForm({
+                      ...passwordForm,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                  autoComplete="new-password"
+                />
+              </label>
+              {passwordForm.confirmPassword &&
+                passwordForm.newPassword !== passwordForm.confirmPassword && (
+                  <p className="error" style={{ margin: 0 }}>
+                    Konfirmasi password baru belum cocok.
+                  </p>
+                )}
+              <div className="actions">
+                <button className="btn" onClick={closeModal} disabled={busy}>
+                  Tutup
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    busy ||
+                    !passwordForm.currentPassword ||
+                    passwordForm.newPassword.length < 6 ||
+                    passwordForm.newPassword !== passwordForm.confirmPassword
+                  }
+                  onClick={saveOwnPassword}
+                >
+                  <BusyLabel
+                    busy={busy}
+                    idle="Update password"
+                    pending="Memperbarui..."
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(modal?.type === "create" || modal?.type === "edit") && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -2601,6 +2928,62 @@ export default function HomePage() {
                   }
                   pending="Memproses..."
                 />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "pause-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Pause job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Pause job ini? Timer akan berhenti sementara dan status menjadi{" "}
+              <strong>paused</strong>.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tidak
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canJobProgress}
+                onClick={() => runAction(modal.job.id, "pause")}
+              >
+                <BusyLabel busy={busy} idle="Ya, pause" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "resume-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Resume job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Lanjutkan job ini? Status kembali menjadi{" "}
+              <strong>in progress</strong> dan timer berjalan lagi.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tidak
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canJobProgress}
+                onClick={() => runAction(modal.job.id, "resume")}
+              >
+                <BusyLabel busy={busy} idle="Ya, resume" pending="Memproses..." />
               </button>
             </div>
           </div>

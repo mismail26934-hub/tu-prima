@@ -9,6 +9,7 @@ Aplikasi monitoring job mekanik dengan **Excel sebagai database** (`data/worksho
 - Timer durasi live per job & per step
 - Assign **satu atau lebih teknisi** per job, start, pause, resume, complete step, complete job
 - **CRUD Jobs**: buat, lihat, edit, hapus permanen
+- Setiap user login dapat memperbarui password sendiri dengan verifikasi password saat ini
 - Toggle **Light / Dark** mode (tersimpan di browser)
 - State form Assign & Job pakai **Zustand** (`src/store/`)
 - Data tersimpan di file Excel (bisa dibuka di Microsoft Excel / LibreOffice)
@@ -30,6 +31,7 @@ Aplikasi monitoring job mekanik dengan **Excel sebagai database** (`data/worksho
 
 Login memakai **NextAuth (Credentials)**; akun tersimpan di sheet **Users** pada Excel.
 Saat sheet kosong, user awal di-seed dari `.env.local` (`APP_USERNAME` / `APP_PASSWORD`) sebagai `superuser`.
+Ikon user di samping nama · level membuka menu **Edit password** dan **Logout**.
 
 ### Level user
 

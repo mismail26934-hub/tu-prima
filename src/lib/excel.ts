@@ -1956,6 +1956,34 @@ export async function authenticateUser(
   });
 }
 
+export async function changeOwnPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ ok: true }> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    ensureUsers(wb);
+    const users = readUsers(wb);
+    const user = users.find((item) => item.id === userId && item.active === "1");
+    if (!user) throw new Error("User tidak ditemukan atau sudah nonaktif");
+    if (user.password !== currentPassword) {
+      throw new Error("Password saat ini salah");
+    }
+    if (newPassword.length < 6) {
+      throw new Error("Password baru minimal 6 karakter");
+    }
+    if (newPassword === currentPassword) {
+      throw new Error("Password baru harus berbeda dari password saat ini");
+    }
+
+    user.password = newPassword;
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
+    await saveWorkbook(wb);
+    return { ok: true };
+  });
+}
+
 export async function getUserByUsername(
   username: string
 ): Promise<AppUserPublic | null> {

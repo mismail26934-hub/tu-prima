@@ -281,18 +281,67 @@ button {
   border-left: 1px solid var(--line);
 }
 
+.top-actions-panel--bar .nav-session {
+  order: 1;
+}
+
+.nav-session-menu {
+  position: relative;
+}
+
+.nav-session-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.nav-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+  min-height: 42px;
+}
+
 .nav-user {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
   max-width: 140px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--muted);
   font-size: 0.88rem;
   font-weight: 600;
-  padding: 0 2px;
+}
+
+.nav-user-name,
+.nav-user-level {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-user-name {
+  color: var(--text);
+}
+
+.nav-user-level {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  text-transform: capitalize;
 }
 
 .nav-user--menu {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   max-width: none;
   padding: 4px 2px 8px;
   width: 100%;
@@ -300,6 +349,17 @@ button {
   font-size: 1rem;
   border-bottom: 1px dashed var(--line-dashed);
   margin-bottom: 4px;
+}
+
+.nav-user-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.nav-user--menu .nav-user-level {
+  font-size: 0.8rem;
 }
 
 .nav-menu-label {

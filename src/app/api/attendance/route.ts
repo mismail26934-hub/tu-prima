@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { createAttendance, getDashboard } from "@/lib/excel";
 import type { AttendanceStatus } from "@/lib/types";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED: AttendanceStatus[] = ["hadir", "izin", "sakit", "off", "alpha"];
 
 export async function GET(req: Request) {
+  const denied = await requirePermission("attendance", "read");
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date")?.trim() || "";
@@ -22,6 +25,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const denied = await requirePermission("attendance", "create");
+  if (denied) return denied;
   try {
     const body = await req.json();
     const status = String(body.status || "") as AttendanceStatus;

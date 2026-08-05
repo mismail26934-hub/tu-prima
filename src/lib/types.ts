@@ -109,11 +109,23 @@ export interface Attendance {
 }
 
 /** App login account stored in Excel Users sheet. */
+export const USER_LEVELS = [
+  "superuser",
+  "inputer",
+  "teknisi",
+  "foreman",
+  "hrd",
+  "spv",
+] as const;
+
+export type UserLevel = (typeof USER_LEVELS)[number];
+
 export interface AppUser {
   id: string;
   username: string;
   password: string;
   name: string;
+  level: UserLevel;
   active: string; // "1" | "0"
   created_at: string;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteJob, updateJob } from "@/lib/excel";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,8 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("job", "update");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const body = await req.json();
@@ -38,6 +41,8 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("job", "delete");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const result = await deleteJob(id);

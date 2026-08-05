@@ -1,8 +1,11 @@
 import ExcelJS from "exceljs";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const denied = await requirePermission("technician", "create");
+  if (denied) return denied;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "TU-PRIMA";
 

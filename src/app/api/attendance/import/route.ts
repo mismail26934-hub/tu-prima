@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { importAttendanceFromBuffer } from "@/lib/excel";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const denied = await requirePermission("attendance", "create");
+  if (denied) return denied;
   try {
     const form = await req.formData();
     const file = form.get("file");
@@ -23,6 +26,10 @@ export async function POST(req: Request) {
     const syncTechStatus =
       String(form.get("sync_tech_status") || "") === "1" ||
       String(form.get("sync_tech_status") || "") === "true";
+    if (syncTechStatus) {
+      const techDenied = await requirePermission("technician", "update");
+      if (techDenied) return techDenied;
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await importAttendanceFromBuffer(buffer, { syncTechStatus });

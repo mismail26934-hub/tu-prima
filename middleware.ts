@@ -8,12 +8,14 @@ export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = Boolean(req.auth);
   const isLoginPage = nextUrl.pathname.startsWith("/login");
+  const isApi = nextUrl.pathname.startsWith("/api/");
+  const isGuestPage = nextUrl.pathname === "/";
 
   if (isLoginPage && isLoggedIn) {
     return NextResponse.redirect(new URL("/", nextUrl));
   }
 
-  if (!isLoginPage && !isLoggedIn) {
+  if (!isLoggedIn && !isLoginPage && !isGuestPage && !isApi) {
     const loginUrl = new URL("/login", nextUrl);
     loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
     return NextResponse.redirect(loginUrl);

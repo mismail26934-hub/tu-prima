@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { importTechniciansFromBuffer } from "@/lib/excel";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const denied = await requirePermission("technician", "create");
+  if (denied) return denied;
   try {
     const form = await req.formData();
     const file = form.get("file");

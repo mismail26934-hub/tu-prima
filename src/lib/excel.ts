@@ -19,7 +19,9 @@ import type {
   AppUser,
   AppUserPublic,
   DashboardData,
+  UserLevel,
 } from "./types";
+import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -222,11 +224,20 @@ function mapAttendance(r: Row): Attendance {
 }
 
 function mapUser(r: Row): AppUser {
+  const username = String(r.username || "").trim();
+  const fallbackLevel: UserLevel =
+    String(r.id || "") === "U-admin" || username.toLowerCase() === "admin"
+      ? "superuser"
+      : "teknisi";
+  const rawLevel = String(r.level || fallbackLevel).trim().toLowerCase();
   return {
     id: String(r.id || ""),
-    username: String(r.username || "").trim(),
+    username,
     password: String(r.password || ""),
     name: String(r.name || "").trim(),
+    level: USER_LEVELS.includes(rawLevel as UserLevel)
+      ? (rawLevel as UserLevel)
+      : fallbackLevel,
     active: String(r.active || "1") === "0" ? "0" : "1",
     created_at: String(r.created_at || ""),
   };
@@ -253,6 +264,7 @@ function defaultSeedUser(): AppUser {
     username,
     password,
     name: "Administrator",
+    level: "superuser",
     active: "1",
     created_at: nowIso(),
   };
@@ -336,7 +348,15 @@ const ATTENDANCE_HEADERS = [
   "absence",
   "note",
 ];
-const USER_HEADERS = ["id", "username", "password", "name", "active", "created_at"];
+const USER_HEADERS = [
+  "id",
+  "username",
+  "password",
+  "name",
+  "level",
+  "active",
+  "created_at",
+];
 
 /** Ensure Users sheet exists; seed default admin if empty. Returns true if workbook mutated. */
 function ensureUsers(wb: ExcelJS.Workbook): boolean {
@@ -1817,10 +1837,25 @@ export async function authenticateUser(
   });
 }
 
+export async function getUserByUsername(
+  username: string
+): Promise<AppUserPublic | null> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const seeded = ensureUsers(wb);
+    if (seeded) await saveWorkbook(wb);
+    const user = readUsers(wb).find(
+      (u) => u.username.toLowerCase() === username.trim().toLowerCase()
+    );
+    return user ? toPublicUser(user) : null;
+  });
+}
+
 export async function createUser(input: {
   username: string;
   password: string;
   name?: string;
+  level?: UserLevel;
   active?: string;
 }): Promise<AppUserPublic> {
   return withDbLock(async () => {
@@ -1841,6 +1876,9 @@ export async function createUser(input: {
       username,
       password,
       name,
+      level: input.level && USER_LEVELS.includes(input.level)
+        ? input.level
+        : "teknisi",
       active: input.active === "0" ? "0" : "1",
       created_at: nowIso(),
     };
@@ -1857,6 +1895,7 @@ export async function updateUser(
     username?: string;
     password?: string;
     name?: string;
+    level?: UserLevel;
     active?: string;
   }
 ): Promise<AppUserPublic> {
@@ -1887,10 +1926,37 @@ export async function updateUser(
     if (input.name != null) {
       user.name = input.name.trim() || user.username;
     }
+    if (input.level && USER_LEVELS.includes(input.level)) {
+      if (
+        user.level === "superuser" &&
+        input.level !== "superuser" &&
+        !users.some(
+          (u) =>
+            u.id !== userId &&
+            u.level === "superuser" &&
+            u.active === "1"
+        )
+      ) {
+        throw new Error("Minimal satu superuser aktif harus tersisa");
+      }
+      user.level = input.level;
+    }
     if (input.active === "0" || input.active === "1") {
       const activeUsers = users.filter((u) => u.active === "1" && u.id !== userId);
       if (input.active === "0" && activeUsers.length === 0) {
         throw new Error("Minimal satu user aktif harus tersisa");
+      }
+      if (
+        input.active === "0" &&
+        user.level === "superuser" &&
+        !users.some(
+          (u) =>
+            u.id !== userId &&
+            u.level === "superuser" &&
+            u.active === "1"
+        )
+      ) {
+        throw new Error("Minimal satu superuser aktif harus tersisa");
       }
       user.active = input.active;
     }
@@ -1911,6 +1977,13 @@ export async function deleteUser(userId: string): Promise<{ ok: true }> {
     const remaining = users.filter((u) => u.id !== userId);
     if (remaining.filter((u) => u.active === "1").length === 0) {
       throw new Error("Tidak bisa hapus user aktif terakhir");
+    }
+    if (
+      target.level === "superuser" &&
+      remaining.filter((u) => u.level === "superuser" && u.active === "1")
+        .length === 0
+    ) {
+      throw new Error("Tidak bisa hapus superuser aktif terakhir");
     }
     writeSheet(wb, SHEETS.users, USER_HEADERS, remaining.map(userToRow));
     await saveWorkbook(wb);

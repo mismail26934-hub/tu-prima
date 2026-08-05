@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { deleteUser, updateUser } from "@/lib/excel";
+import { requirePermission } from "@/lib/access";
+import { USER_LEVELS } from "@/lib/types";
+import type { UserLevel } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +10,8 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("user", "update");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const body = await req.json();
@@ -14,6 +19,9 @@ export async function PATCH(
       username: body.username != null ? String(body.username) : undefined,
       password: body.password != null ? String(body.password) : undefined,
       name: body.name != null ? String(body.name) : undefined,
+      level: USER_LEVELS.includes(body.level as UserLevel)
+        ? (body.level as UserLevel)
+        : undefined,
       active:
         body.active === "0" || body.active === "1" ? body.active : undefined,
     });
@@ -28,6 +36,8 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("user", "delete");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const result = await deleteUser(id);

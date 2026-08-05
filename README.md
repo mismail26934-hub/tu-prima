@@ -23,6 +23,38 @@ Aplikasi monitoring job mekanik dengan **Excel sebagai database** (`data/worksho
 | JobAssignees | relasi banyak teknisi per job (job_id, technician_id, is_lead) |
 | JobSteps | tahap job + status + duration_sec |
 | JobEvents | timeline event (created, assigned, started, paused, …) |
+| Attendance | daftar hadir (date, technician_id, pernr, status, dws, check_in/out) |
+| Users | akun login (id, username, password, name, level, active, created_at) |
+
+## Autentikasi & Hak Akses
+
+Login memakai **NextAuth (Credentials)**; akun tersimpan di sheet **Users** pada Excel.
+Saat sheet kosong, user awal di-seed dari `.env.local` (`APP_USERNAME` / `APP_PASSWORD`) sebagai `superuser`.
+
+### Level user
+
+Setiap user punya salah satu level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv`.
+Pengunjung yang **belum login** diperlakukan sebagai `guest`.
+
+### Matriks hak akses (CRUD)
+
+Keterangan: **CRUD** = Create/Read/Update/Delete, **R** = Read saja, **—** = tanpa akses.
+
+| Level | Job | User | Teknisi | Unit | Daftar Hadir |
+|---|---|---|---|---|---|
+| superuser | CRUD | CRUD | CRUD | CRUD | CRUD |
+| inputer | CRUD | R | R | CRUD | R |
+| teknisi | R | R | R | — | R |
+| foreman | CRUD | R | R | CRUD | R |
+| spv | CRUD | R | R | CRUD | R |
+| hrd | R | R | R | R | CRUD |
+| guest (belum login) | R | R | R | — | R |
+
+Catatan penerapan:
+
+- Hak akses dipaksakan di **dua lapis**: UI (tombol disembunyikan/di-disable) dan **API route** (menolak dengan `401`/`403`).
+- `guest` & `teknisi` tidak melihat data Unit (dikosongkan di dashboard).
+- Minimal satu `superuser` aktif harus selalu tersisa (tidak bisa dihapus/dinonaktifkan/diturunkan level).
 
 ## Menjalankan
 

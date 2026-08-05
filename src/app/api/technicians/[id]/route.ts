@@ -5,6 +5,7 @@ import {
   updateTechnician,
 } from "@/lib/excel";
 import type { TechnicianStatus } from "@/lib/types";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("technician", "update");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const body = await req.json();
@@ -51,6 +54,8 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("technician", "delete");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const result = await deleteTechnician(id);

@@ -11,7 +11,10 @@ import type {
   Technician,
   TechnicianStatus,
   Unit,
+  UserLevel,
 } from "@/lib/types";
+import { USER_LEVELS } from "@/lib/types";
+import { canAccess } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
@@ -252,13 +255,32 @@ function Pager({
 }
 
 export default function HomePage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const isLoggedIn = sessionStatus === "authenticated";
+  const userLevel = session?.user?.level || "guest";
+  const canJobCreate = canAccess(userLevel, "job", "create");
+  const canJobUpdate = canAccess(userLevel, "job", "update");
+  const canJobDelete = canAccess(userLevel, "job", "delete");
+  const canUserCreate = canAccess(userLevel, "user", "create");
+  const canUserUpdate = canAccess(userLevel, "user", "update");
+  const canUserDelete = canAccess(userLevel, "user", "delete");
+  const canTechCreate = canAccess(userLevel, "technician", "create");
+  const canTechUpdate = canAccess(userLevel, "technician", "update");
+  const canTechDelete = canAccess(userLevel, "technician", "delete");
+  const canUnitRead = canAccess(userLevel, "unit", "read");
+  const canUnitCreate = canAccess(userLevel, "unit", "create");
+  const canUnitUpdate = canAccess(userLevel, "unit", "update");
+  const canUnitDelete = canAccess(userLevel, "unit", "delete");
+  const canAttendanceCreate = canAccess(userLevel, "attendance", "create");
+  const canAttendanceUpdate = canAccess(userLevel, "attendance", "update");
+  const canAttendanceDelete = canAccess(userLevel, "attendance", "delete");
   const displayName = session?.user?.name || session?.user?.email || "";
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<Modal>(null);
   const [busy, setBusy] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -279,6 +301,7 @@ export default function HomePage() {
     username: "",
     password: "",
     name: "",
+    level: "teknisi" as UserLevel,
     active: "1",
   });
   const [masterUserDraft, setMasterUserDraft] = useState("");
@@ -526,7 +549,13 @@ export default function HomePage() {
   }
 
   function openUserCreate() {
-    setUserForm({ username: "", password: "", name: "", active: "1" });
+    setUserForm({
+      username: "",
+      password: "",
+      name: "",
+      level: "teknisi",
+      active: "1",
+    });
     setModal({ type: "user-form", mode: "create" });
   }
 
@@ -535,6 +564,7 @@ export default function HomePage() {
       username: user.username,
       password: "",
       name: user.name,
+      level: user.level,
       active: user.active,
     });
     setModal({ type: "user-form", mode: "edit", user });
@@ -554,6 +584,7 @@ export default function HomePage() {
             username: userForm.username,
             password: userForm.password,
             name: userForm.name,
+            level: userForm.level,
             active: userForm.active,
           }),
         });
@@ -563,6 +594,7 @@ export default function HomePage() {
           body: JSON.stringify({
             username: userForm.username,
             name: userForm.name,
+            level: userForm.level,
             active: userForm.active,
             ...(userForm.password ? { password: userForm.password } : {}),
           }),
@@ -678,7 +710,10 @@ export default function HomePage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("sync_tech_status", attendanceSyncTech ? "1" : "0");
+      fd.append(
+        "sync_tech_status",
+        attendanceSyncTech && canTechUpdate ? "1" : "0"
+      );
       const result = await api<{
         imported: number;
         updated: number;
@@ -767,11 +802,13 @@ export default function HomePage() {
   const clearJobSearch = useJobBoardStore((s) => s.clearSearch);
 
   function openCreate() {
+    if (!canJobCreate) return;
     resetForm();
     setModal({ type: "create" });
   }
 
   function openEdit(job: JobWithDetails) {
+    if (!canJobUpdate) return;
     loadForm({
       title: job.title,
       unit_id: job.unit_id || "",
@@ -783,6 +820,7 @@ export default function HomePage() {
   }
 
   function openAssign(job: JobWithDetails) {
+    if (!canJobUpdate) return;
     const existing =
       job.technicians?.map((t) => t.id) ||
       (job.technician_id ? [job.technician_id] : []);
@@ -868,14 +906,25 @@ export default function HomePage() {
     }
   }
 
+  function handleAuthClick() {
+    if (!isLoggedIn) {
+      window.location.href = "/login";
+      return;
+    }
+    void handleLogout();
+  }
+
   async function handleLogout() {
+    setLoggingOut(true);
     setBusy(true);
     try {
       await signOut({ callbackUrl: "/login" });
     } catch {
       window.location.href = "/login";
     } finally {
+      // Keep overlay if redirect is slow; reset if still on page
       setBusy(false);
+      setLoggingOut(false);
     }
   }
 
@@ -1313,7 +1362,7 @@ export default function HomePage() {
   }
 
   function openTechStatusModal(tech: Technician) {
-    if (tech.status === "busy") return;
+    if (!canTechUpdate || tech.status === "busy") return;
     const nextStatus: Exclude<TechnicianStatus, "busy"> =
       tech.status === "available" ? "offline" : "available";
     setModal({ type: "tech-status", tech, nextStatus });
@@ -1329,7 +1378,7 @@ export default function HomePage() {
               <button
                 className="btn btn-icon"
                 style={{ width: 32, height: 32, minWidth: 32 }}
-                disabled={busy}
+                disabled={busy || !canJobUpdate}
                 onClick={() => openEdit(job)}
                 aria-label="Edit job"
                 title="Edit"
@@ -1363,6 +1412,7 @@ export default function HomePage() {
                   style={{ width: 32, height: 32, minWidth: 32 }}
                   disabled={
                     busy ||
+                    !canJobUpdate ||
                     (job.status === "queued" && availableTechs.length === 0)
                   }
                   onClick={() => openAssign(job)}
@@ -1409,7 +1459,7 @@ export default function HomePage() {
                 <button
                   className="btn"
                   style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                  disabled={busy}
+                  disabled={busy || !canJobUpdate}
                   onClick={() => runAction(job.id, "pause")}
                 >
                   Pause
@@ -1419,7 +1469,7 @@ export default function HomePage() {
                 <button
                   className="btn btn-primary"
                   style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                  disabled={busy}
+                  disabled={busy || !canJobUpdate}
                   onClick={() => runAction(job.id, "resume")}
                 >
                   Resume
@@ -1457,7 +1507,7 @@ export default function HomePage() {
           {job.status === "assigned" && (
             <button
               className="btn btn-primary"
-              disabled={busy}
+              disabled={busy || !canJobUpdate}
               onClick={() => runAction(job.id, "start")}
             >
               Start job
@@ -1467,14 +1517,14 @@ export default function HomePage() {
             <div className="actions-spread">
               <button
                 className="btn"
-                disabled={busy || !job.current_step}
+                disabled={busy || !canJobUpdate || !job.current_step}
                 onClick={() => setModal({ type: "complete-step", job })}
               >
                 Selesai step
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy}
+                disabled={busy || !canJobUpdate}
                 onClick={() => setModal({ type: "complete-job", job })}
               >
                 Complete job
@@ -1484,7 +1534,7 @@ export default function HomePage() {
           {job.status === "paused" && (
             <button
               className="btn btn-primary"
-              disabled={busy}
+              disabled={busy || !canJobUpdate}
               onClick={() => setModal({ type: "complete-job", job })}
             >
               Complete job
@@ -1574,7 +1624,7 @@ export default function HomePage() {
                     type="button"
                     role="menuitem"
                     className="nav-manage-item"
-                    disabled={busy}
+                    disabled={busy || !canUnitRead}
                     onClick={() => {
                       setManageOpen(false);
                       setModal({ type: "units" });
@@ -1601,13 +1651,21 @@ export default function HomePage() {
               Refresh
             </button>
             <div className="nav-session">
-              {displayName && (
+              {isLoggedIn && displayName && (
                 <span className="nav-user" title={displayName}>
-                  {displayName}
+                  {displayName} · {userLevel}
                 </span>
               )}
-              <button className="btn" disabled={busy} onClick={handleLogout}>
-                Logout
+              <button
+                className="btn"
+                disabled={busy || sessionStatus === "loading" || loggingOut}
+                onClick={handleAuthClick}
+              >
+                <BusyLabel
+                  busy={loggingOut}
+                  idle={isLoggedIn ? "Logout" : "Login"}
+                  pending="Keluar..."
+                />
               </button>
             </div>
             <button
@@ -1630,7 +1688,7 @@ export default function HomePage() {
             </button>
             <button
               className="btn btn-primary"
-              disabled={busy}
+              disabled={busy || !canJobCreate}
               onClick={() => openCreate()}
             >
               + Job baru
@@ -1640,7 +1698,7 @@ export default function HomePage() {
           <div className="top-actions-mobile">
             <button
               className="btn btn-primary"
-              disabled={busy}
+              disabled={busy || !canJobCreate}
               onClick={() => openCreate()}
             >
               + Job
@@ -1694,7 +1752,7 @@ export default function HomePage() {
           <div className="top-actions-panel top-actions-panel--float is-open">
             {displayName && (
               <div className="nav-user nav-user--menu" title={displayName}>
-                {displayName}
+                {displayName} · {userLevel}
               </div>
             )}
             <p className="nav-menu-label">Aksi</p>
@@ -1742,7 +1800,7 @@ export default function HomePage() {
             </button>
             <button
               className="btn"
-              disabled={busy}
+              disabled={busy || !canUnitRead}
               onClick={() => {
                 setMobileMenuOpen(false);
                 setModal({ type: "units" });
@@ -1762,16 +1820,27 @@ export default function HomePage() {
             </button>
             <button
               className="btn"
-              disabled={busy}
+              disabled={busy || sessionStatus === "loading" || loggingOut}
               onClick={() => {
                 setMobileMenuOpen(false);
-                handleLogout();
+                handleAuthClick();
               }}
             >
-              Logout
+              <BusyLabel
+                busy={loggingOut}
+                idle={isLoggedIn ? "Logout" : "Login"}
+                pending="Keluar..."
+              />
             </button>
           </div>
         </>
+      )}
+
+      {loggingOut && (
+        <div className="page-loading" role="status" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
+          <span>Keluar dari akun...</span>
+        </div>
       )}
 
       {error && <div className="error">{error}</div>}
@@ -1939,7 +2008,7 @@ export default function HomePage() {
                               <button
                                 className="btn btn-ghost"
                                 style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                                disabled={busy}
+                                disabled={busy || !canTechUpdate}
                                 onClick={() => openTechStatusModal(t)}
                               >
                                 {t.status === "available" ? "Set offline" : "Set available"}
@@ -2135,7 +2204,7 @@ export default function HomePage() {
                     <button
                       className="btn btn-danger"
                       type="button"
-                      disabled={busy}
+                      disabled={busy || !canJobUpdate}
                       onClick={() =>
                         setModal({ type: "cancel-job", job: modal.job })
                       }
@@ -2146,7 +2215,9 @@ export default function HomePage() {
                   <button
                     className="btn btn-danger"
                     type="button"
-                    disabled={busy || modal.job.status === "done"}
+                    disabled={
+                      busy || !canJobDelete || modal.job.status === "done"
+                    }
                     onClick={() =>
                       setModal({ type: "delete-job", job: modal.job })
                     }
@@ -2658,7 +2729,7 @@ export default function HomePage() {
                     <button
                       className="btn"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canUnitUpdate}
                       onClick={() => openUnitEdit(u)}
                     >
                       Edit
@@ -2666,7 +2737,7 @@ export default function HomePage() {
                     <button
                       className="btn btn-danger"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canUnitDelete}
                       onClick={() => setModal({ type: "delete-unit", unit: u })}
                     >
                       Hapus
@@ -2686,7 +2757,11 @@ export default function HomePage() {
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
-              <button className="btn btn-primary" disabled={busy} onClick={openUnitCreate}>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canUnitCreate}
+                onClick={openUnitCreate}
+              >
                 + Unit baru
               </button>
             </div>
@@ -2798,6 +2873,7 @@ export default function HomePage() {
             {techImportMsg && (
               <p style={{ color: "var(--green)", marginTop: 0 }}>{techImportMsg}</p>
             )}
+            {canTechCreate && (
             <div className="form" style={{ marginBottom: 12 }}>
               <div className="actions" style={{ marginTop: 0 }}>
                 <a
@@ -2822,6 +2898,7 @@ export default function HomePage() {
                 />
               </label>
             </div>
+            )}
             <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
               <input
                 className="panel-search"
@@ -2887,7 +2964,7 @@ export default function HomePage() {
                     <button
                       className="btn"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canTechUpdate}
                       onClick={() => openTechEdit(t)}
                     >
                       Edit
@@ -2895,7 +2972,7 @@ export default function HomePage() {
                     <button
                       className="btn btn-danger"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || t.status === "busy"}
+                      disabled={busy || !canTechDelete || t.status === "busy"}
                       onClick={() => setModal({ type: "delete-tech", tech: t })}
                     >
                       Hapus
@@ -2915,7 +2992,11 @@ export default function HomePage() {
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
-              <button className="btn btn-primary" disabled={busy} onClick={openTechCreate}>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canTechCreate}
+                onClick={openTechCreate}
+              >
                 + Teknisi baru
               </button>
             </div>
@@ -3094,6 +3175,7 @@ export default function HomePage() {
                     <strong>{u.username}</strong>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
                       {u.name || "—"}
+                      {` · ${u.level}`}
                       {` · ${u.active === "1" ? "aktif" : "nonaktif"}`}
                     </div>
                   </div>
@@ -3101,7 +3183,7 @@ export default function HomePage() {
                     <button
                       className="btn"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canUserUpdate}
                       onClick={() => openUserEdit(u)}
                     >
                       Edit
@@ -3109,7 +3191,7 @@ export default function HomePage() {
                     <button
                       className="btn btn-danger"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canUserDelete}
                       onClick={() => setModal({ type: "delete-user", user: u })}
                     >
                       Hapus
@@ -3131,7 +3213,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy}
+                disabled={busy || !canUserCreate}
                 onClick={openUserCreate}
               >
                 + User baru
@@ -3182,6 +3264,25 @@ export default function HomePage() {
                     setUserForm({ ...userForm, name: e.target.value })
                   }
                 />
+              </label>
+              <label>
+                Level akses *
+                <select
+                  value={userForm.level}
+                  onChange={(e) =>
+                    setUserForm({
+                      ...userForm,
+                      level: e.target.value as UserLevel,
+                    })
+                  }
+                  required
+                >
+                  {USER_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Status *
@@ -3265,6 +3366,7 @@ export default function HomePage() {
                 {attendanceImportMsg}
               </p>
             )}
+            {canAttendanceCreate && (
             <div className="form" style={{ marginBottom: 12 }}>
               <label>
                 Upload Excel (.xlsx)
@@ -3283,6 +3385,7 @@ export default function HomePage() {
                 <input
                   type="checkbox"
                   checked={attendanceSyncTech}
+                  disabled={!canTechUpdate}
                   onChange={(e) => setAttendanceSyncTech(e.target.checked)}
                 />
                 <span>
@@ -3290,6 +3393,7 @@ export default function HomePage() {
                 </span>
               </label>
             </div>
+            )}
             <div
               className="panel-search-row"
               style={{ justifyContent: "stretch", marginBottom: 12, flexWrap: "wrap" }}
@@ -3380,7 +3484,7 @@ export default function HomePage() {
                     <button
                       className="btn"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canAttendanceUpdate}
                       onClick={() => openAttendanceEdit(a)}
                     >
                       Edit
@@ -3388,7 +3492,7 @@ export default function HomePage() {
                     <button
                       className="btn btn-danger"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
+                      disabled={busy || !canAttendanceDelete}
                       onClick={() =>
                         setModal({ type: "delete-attendance", row: a })
                       }
@@ -3412,7 +3516,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy}
+                disabled={busy || !canAttendanceCreate}
                 onClick={openAttendanceCreate}
               >
                 + Hadir baru

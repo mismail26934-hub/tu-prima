@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { jobAction } from "@/lib/excel";
+import { requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requirePermission("job", "update");
+  if (denied) return denied;
   try {
     const { id } = await ctx.params;
     const body = await req.json();

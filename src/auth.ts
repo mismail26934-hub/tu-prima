@@ -1,7 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { authenticateUser } from "@/lib/excel";
+import { authenticateUser, getUserByUsername } from "@/lib/excel";
 import { authConfig } from "@/auth.config";
+import type { UserLevel } from "@/lib/types";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -22,8 +23,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           name: user.name || user.username,
           email: user.username,
+          level: user.level,
         };
       },
     }),
   ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id || "";
+        token.level = user.level;
+      } else if (!token.level && token.email) {
+        const storedUser = await getUserByUsername(token.email);
+        if (storedUser) {
+          token.id = storedUser.id;
+          token.level = storedUser.level;
+        }
+      }
+      return token;
+    },
+    session({ session, token }) {
+      session.user.id = String(token.id || "");
+      session.user.level = token.level as UserLevel;
+      return session;
+    },
+  },
 });

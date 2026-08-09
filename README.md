@@ -1,6 +1,9 @@
 # PRIMA — Progress Report & Inspection for Mechanic Allocation
 
-Aplikasi monitoring job mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
+Aplikasi monitoring job mekanik.
+
+- **Dev lokal (saat ini):** Excel sebagai database (`data/workshop.xlsx`) via Next.js API routes.
+- **Production target:** Frontend Next.js di **VPS Hostinger** + API PHP native di **File Manager** + **MySQL** (phpMyAdmin). Lihat [`api-php/README.md`](api-php/README.md).
 
 ## Fitur
 

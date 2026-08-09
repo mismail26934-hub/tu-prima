@@ -5,3 +5,6 @@ data/*.xlsx
 .env
 .env.local
 .env*.local
+api-php/config.php
+api-php/uploads/*
+!api-php/uploads/.gitkeep

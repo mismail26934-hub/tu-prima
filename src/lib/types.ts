@@ -184,6 +184,8 @@ export interface JobWithDetails extends Job {
   current_step?: JobStep | null;
   /** All steps currently in_progress (may be multiple / parallel). */
   current_steps: JobStep[];
+  /** Loaded from data/completed-jobs.xlsx (not in workshop). */
+  from_archive?: boolean;
 }
 
 export type AttendanceStatus = "hadir" | "izin" | "sakit" | "off" | "alpha";
@@ -231,6 +233,8 @@ export interface DashboardData {
   technicians: Technician[];
   units: Unit[];
   jobs: JobWithDetails[];
+  /** Jobs archived after complete (from completed-jobs.xlsx). */
+  completed_jobs: JobWithDetails[];
   attendance: Attendance[];
   summary: {
     available: number;
@@ -239,6 +243,7 @@ export interface DashboardData {
     active_jobs: number;
     queued_jobs: number;
     done_today: number;
+    completed_jobs: number;
     avg_duration_sec: number;
   };
 }

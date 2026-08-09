@@ -1829,17 +1829,15 @@ export default function HomePage() {
   const historyJobs = useMemo(
     () =>
       (data?.jobs || []).filter(
-        (j) => ["done", "cancelled"].includes(j.status) && matchJob(j)
+        (j) => j.status === "cancelled" && matchJob(j)
       ),
     [data, matchJob]
   );
 
-  const doneTodayJobs = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return historyJobs.filter(
-      (j) => j.status === "done" && j.completed_at?.startsWith(today)
-    );
-  }, [historyJobs]);
+  const completedJobs = useMemo(
+    () => (data?.completed_jobs || []).filter((j) => matchJob(j)),
+    [data, matchJob]
+  );
 
   useEffect(() => {
     setActiveJobPage(1);
@@ -2331,6 +2329,8 @@ export default function HomePage() {
   }
 
   function renderJob(job: JobWithDetails) {
+    const canHandoverWrite =
+      canManageHandover(userLevel) && !job.from_archive;
     const jobMap = Object.fromEntries((data?.jobs || []).map((j) => [j.id, j]));
     return (
       <article className="job" key={job.id}>
@@ -2660,7 +2660,7 @@ export default function HomePage() {
               className="btn"
               disabled={busy}
               onClick={() => setModal({ type: "reopen-job", job })}
-              title="Buka kembali job (status menjadi paused) — hanya Superuser"
+              title="Buka kembali dari archive → paused (Superuser)"
             >
               Buka kembali
             </button>
@@ -3726,8 +3726,8 @@ export default function HomePage() {
                   <div className="value">{data.summary.queued_jobs}</div>
                 </div>
                 <div className="stat">
-                  <div className="label">Selesai hari ini</div>
-                  <div className="value">{data.summary.done_today}</div>
+                  <div className="label">Job completed</div>
+                  <div className="value">{data.summary.completed_jobs}</div>
                 </div>
               </div>
             </section>
@@ -3912,7 +3912,7 @@ export default function HomePage() {
                     <option value="all">All</option>
                     <option value="active">Job aktif</option>
                     <option value="queue">Antrian</option>
-                    <option value="done">Selesai hari ini</option>
+                    <option value="done">Job completed</option>
                   </select>
                 </label>
                 <button
@@ -3932,7 +3932,7 @@ export default function HomePage() {
                     : jobSectionFilter === "queue"
                       ? "Antrian"
                       : jobSectionFilter === "done"
-                        ? "Selesai hari ini"
+                        ? "Job completed"
                         : "Job aktif & progress"}
                 </h2>
                 <div className="panel-search-row">
@@ -4003,22 +4003,30 @@ export default function HomePage() {
               {(jobSectionFilter === "all" || jobSectionFilter === "done") && (
                 <>
                   {jobSectionFilter === "all" ? (
-                    historyJobs.length > 0 && (
-                      <>
-                        <h2 style={{ marginTop: 22 }}>Riwayat</h2>
-                        {historyJobs.map(renderJob)}
-                      </>
-                    )
+                    <>
+                      {completedJobs.length > 0 && (
+                        <>
+                          <h2 style={{ marginTop: 22 }}>Job completed</h2>
+                          {completedJobs.map(renderJob)}
+                        </>
+                      )}
+                      {historyJobs.length > 0 && (
+                        <>
+                          <h2 style={{ marginTop: 22 }}>Dibatalkan</h2>
+                          {historyJobs.map(renderJob)}
+                        </>
+                      )}
+                    </>
                   ) : (
                     <>
-                      {doneTodayJobs.length === 0 && (
+                      {completedJobs.length === 0 && (
                         <p style={{ color: "var(--muted)" }}>
                           {jobQuery
-                            ? "Tidak ada job selesai hari ini yang cocok."
-                            : "Belum ada job selesai hari ini."}
+                            ? "Tidak ada job completed yang cocok."
+                            : "Belum ada job di completed-jobs.xlsx."}
                         </p>
                       )}
-                      {doneTodayJobs.map(renderJob)}
+                      {completedJobs.map(renderJob)}
                     </>
                   )}
                 </>
@@ -4028,7 +4036,9 @@ export default function HomePage() {
           </div>
 
           <p className="db-path">
-            Database Excel: <code>data/workshop.xlsx</code> (termasuk sheet <code>AuditLog</code> + user di <code>JobEvents</code>) · Template: <code>data/job-templates.json</code>
+            Database Excel: <code>data/workshop.xlsx</code> · Archive:{" "}
+            <code>data/completed-jobs.xlsx</code> / <code>data/deleted-jobs.xlsx</code>{" "}
+            · Template: <code>data/job-templates.json</code>
           </p>
         </>
       )}
@@ -5032,8 +5042,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Selesaikan seluruh job ini? Status menjadi <strong>done</strong>{" "}
-              dan teknisi akan dilepas.
+              Selesaikan seluruh job ini? Data dipindah ke{" "}
+              <code>data/completed-jobs.xlsx</code> dan dihapus dari database
+              aktif. Teknisi akan dilepas.
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
@@ -5060,9 +5071,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Buka kembali job yang sudah <strong>done</strong>? Status menjadi{" "}
-              <strong>paused</strong>. Assign teknisi sebelumnya dipasang ulang
-              jika masih available; jika tidak, assign ulang manual lalu Resume.
+              Buka kembali job dari <code>completed-jobs.xlsx</code>? Job
+              dikembalikan ke database aktif dengan status{" "}
+              <strong>paused</strong>.
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
@@ -5207,8 +5218,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Hapus job ini <strong>permanen</strong> dari Excel? Tindakan ini
-              tidak bisa dibatalkan.
+              Hapus job ini dari database aktif? Data lengkap (job, steps,
+              events, assignees, handover, part loans) akan di-backup ke{" "}
+              <code>data/deleted-jobs.xlsx</code> sebelum dihapus.
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>

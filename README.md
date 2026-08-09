@@ -39,11 +39,12 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 
 ### Job
 
-- **CRUD job**: buat, edit, hapus, cancel
+- **CRUD job**: buat, edit, hapus (backup ke `data/deleted-jobs.xlsx`), cancel
 - Buat job dari **template time frame** (Component Engine / Non Engine) atau **custom**
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
-- Start, pause, resume, complete step, complete job
-- **Buka kembali** job `done` → `paused` (hanya **superuser**)
+- Start, pause, resume, complete step, complete job (pindah ke `completed-jobs.xlsx`)
+- **Buka kembali** job completed dari archive → `paused` (hanya **superuser**)
+- Filter board **Job completed** (data dari `completed-jobs.xlsx`)
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
 - **Catatan handover** pada job aktif: tabel NO / Job Handover / Done / Note
 - **Catatan peminjaman part** pada job aktif: NO / Part yang dipinjam / Status (open|closed) / Note
@@ -265,11 +266,18 @@ File: **`data/workshop.xlsx`**
 ```text
 data/
   workshop.xlsx          ← database runtime
+  completed-jobs.xlsx    ← job setelah Complete (pindah penuh)
+  deleted-jobs.xlsx      ← archive otomatis saat job dihapus
   job-templates.json     ← katalog template Engine / Non Engine
   templates/             ← file Excel time frame sumber
     TIME FRAME ENGINE RECONDITION.xlsx
     TIME FRAME NON ENGINE RECONDITION (TRANSMISI).xlsx
 ```
+
+- **Complete** → snapshot ke `completed-jobs.xlsx`, hapus dari `workshop.xlsx`. Filter **Job completed** membaca file ini. **Buka kembali** (superuser) restore → `paused`.
+- **Hapus** → snapshot ke `deleted-jobs.xlsx`.
+
+Saat job dihapus, snapshot lengkap di-append ke `deleted-jobs.xlsx` (sheet DeletedJobs / …) beserta `deleted_at` dan user yang menghapus.
 
 Struktur ringkas template:
 
@@ -424,7 +432,7 @@ npm start
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
 - Jangan jalankan dua `next dev` bersamaan di port berbeda pada project yang sama.
 - Template time frame diubah → regenerate `data/job-templates.json` (parse ulang Excel sumber), lalu restart / refresh.
-- `data/*.xlsx` biasanya di-ignore git; pastikan backup `workshop.xlsx` dan `AuditLog` jika data produksi penting.
+- `data/*.xlsx` biasanya di-ignore git; pastikan backup `workshop.xlsx`, `completed-jobs.xlsx`, `deleted-jobs.xlsx`, dan `AuditLog` jika data produksi penting.
 - Timer & warna sisa estimasi (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
 - Timer per step & warna sisa stp/std hours (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
 - Last git feat/stp/timeframe-handover

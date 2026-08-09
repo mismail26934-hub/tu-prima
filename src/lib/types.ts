@@ -38,6 +38,36 @@ export interface Unit {
   active: string; // "1" | "0"
 }
 
+export type JobTemplateCategory = "engine" | "non_engine";
+
+/** Master catalog entry (from data/job-templates.json). */
+export interface JobTemplateStep {
+  id: string;
+  template_id: string;
+  phase: string;
+  name: string;
+  order: number;
+  man_power: number;
+  std_minutes: number;
+}
+
+export interface JobTemplate {
+  id: string;
+  category: JobTemplateCategory;
+  name: string;
+  active: string; // "1" | "0"
+  std_minutes: number;
+  steps: JobTemplateStep[];
+}
+
+export interface JobTemplateSummary {
+  id: string;
+  category: JobTemplateCategory;
+  name: string;
+  std_minutes: number;
+  step_count: number;
+}
+
 export interface Job {
   id: string;
   title: string;
@@ -47,6 +77,8 @@ export interface Job {
   status: JobStatus;
   /** Lead / primary technician (first assignee). Kept for Excel compatibility. */
   technician_id: string;
+  /** Reference to JobTemplate.id — avoids duplicating time-frame master data. */
+  template_id: string;
   created_at: string;
   started_at: string;
   completed_at: string;

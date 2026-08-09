@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       steps: Array.isArray(body.steps)
         ? body.steps.map(String).filter(Boolean)
         : undefined,
+      template_id: body.template_id ? String(body.template_id) : undefined,
     });
     return NextResponse.json(job);
   } catch (e) {

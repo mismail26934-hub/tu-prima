@@ -7,6 +7,9 @@ import type {
   Attendance,
   AttendanceStatus,
   DashboardData,
+  JobTemplate,
+  JobTemplateCategory,
+  JobTemplateSummary,
   JobWithDetails,
   Technician,
   TechnicianStatus,
@@ -868,6 +871,13 @@ export default function HomePage() {
     absence: "",
     note: "",
   });
+  const [templateSummaries, setTemplateSummaries] = useState<
+    JobTemplateSummary[]
+  >([]);
+  const [templatePreview, setTemplatePreview] = useState<JobTemplate | null>(
+    null
+  );
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   const jobDraft = useJobBoardStore((s) => s.draft);
   const jobQuery = useJobBoardStore((s) => s.query);
@@ -878,6 +888,8 @@ export default function HomePage() {
   function openCreate() {
     if (!canJobCreate) return;
     resetForm();
+    setTemplatePreview(null);
+    setTemplateSummaries([]);
     setModal({ type: "create" });
   }
 
@@ -919,12 +931,84 @@ export default function HomePage() {
     (modal?.type === "edit" &&
       ["queued", "assigned"].includes(modal.job.status));
 
+  const isTemplateCreate =
+    modal?.type === "create" && form.mode === "template";
+
   const jobFormValid =
     form.title.trim().length > 0 &&
     form.unit_id.trim().length > 0 &&
     form.description.trim().length > 0 &&
     Number(form.estimated_minutes) > 0 &&
-    (!canEditJobSteps || parseSteps(form.steps).length > 0);
+    (isTemplateCreate
+      ? Boolean(form.template_id)
+      : !canEditJobSteps || parseSteps(form.steps).length > 0);
+
+  useEffect(() => {
+    if (modal?.type !== "create" || form.mode !== "template" || !form.category) {
+      if (!form.category) setTemplateSummaries([]);
+      return;
+    }
+    let cancelled = false;
+    setTemplatesLoading(true);
+    api<{ templates: JobTemplateSummary[] }>(
+      `/api/job-templates?category=${form.category}`
+    )
+      .then((res) => {
+        if (!cancelled) setTemplateSummaries(res.templates || []);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setTemplateSummaries([]);
+          setError(e instanceof Error ? e.message : "Gagal load template");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTemplatesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modal?.type, form.mode, form.category]);
+
+  async function applyJobTemplate(templateId: string) {
+    if (!templateId) {
+      setTemplatePreview(null);
+      setForm({
+        template_id: "",
+        steps: "",
+        estimated_minutes: "90",
+      });
+      return;
+    }
+    try {
+      const tpl = await api<JobTemplate>(
+        `/api/job-templates?id=${encodeURIComponent(templateId)}`
+      );
+      setTemplatePreview(tpl);
+      const stepLines = tpl.steps
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((s) => (s.phase ? `${s.phase}: ${s.name}` : s.name));
+      setForm({
+        template_id: tpl.id,
+        title: `Recondition ${tpl.name}`,
+        estimated_minutes: String(tpl.std_minutes || 60),
+        steps: stepLines.join("\n"),
+        description: `Job recondition ${tpl.name} (time frame standar).`,
+      });
+    } catch (e) {
+      setTemplatePreview(null);
+      setError(e instanceof Error ? e.message : "Gagal load detail template");
+    }
+  }
+
+  function formatStdLabel(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h <= 0) return `${m} mnt`;
+    if (m === 0) return `${h} jam`;
+    return `${h} jam ${m} mnt`;
+  }
 
   const load = useCallback(async () => {
     try {
@@ -1399,9 +1483,12 @@ export default function HomePage() {
           description: form.description.trim(),
           estimated_minutes: Number(form.estimated_minutes),
           steps: parseSteps(form.steps),
+          template_id: form.template_id || undefined,
         }),
       });
       resetForm();
+      setTemplatePreview(null);
+      setTemplateSummaries([]);
       closeModal();
       await load();
     } catch (e) {
@@ -2455,7 +2542,7 @@ export default function HomePage() {
           </div>
 
           <p className="db-path">
-            Database Excel: <code>data/workshop.xlsx</code> (sheet Technicians, Units, Jobs, JobSteps, JobEvents, Users)
+            Database Excel: <code>data/workshop.xlsx</code> · Template time frame: <code>data/job-templates.json</code> (Engine / Non Engine)
           </p>
         </>
       )}
@@ -2588,7 +2675,10 @@ export default function HomePage() {
 
       {(modal?.type === "create" || modal?.type === "edit") && (
         <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`modal${modal.type === "create" ? " modal-wide" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             {busy && <BusyOverlay label="Menyimpan..." />}
             {modal.type === "edit" ? (
               <div className="modal-header">
@@ -2624,6 +2714,96 @@ export default function HomePage() {
               <h3>Job baru</h3>
             )}
             <div className="form">
+              {modal.type === "create" && (
+                <>
+                  <label>
+                    Mode input
+                    <select
+                      value={form.mode}
+                      onChange={(e) => {
+                        const mode = e.target.value as "template" | "custom";
+                        setTemplatePreview(null);
+                        if (mode === "custom") {
+                          setForm({
+                            mode,
+                            category: "",
+                            template_id: "",
+                            steps: "Diagnosis\nPerbaikan\nTest & QC",
+                            estimated_minutes: "90",
+                            title: "",
+                            description: "",
+                          });
+                        } else {
+                          setForm({
+                            mode,
+                            category: "",
+                            template_id: "",
+                            steps: "",
+                            estimated_minutes: "90",
+                            title: "",
+                            description: "",
+                          });
+                        }
+                      }}
+                    >
+                      <option value="template">Dari time frame (template)</option>
+                      <option value="custom">Custom (manual)</option>
+                    </select>
+                  </label>
+                  {form.mode === "template" && (
+                    <>
+                      <label>
+                        Jenis komponen *
+                        <select
+                          value={form.category}
+                          onChange={(e) => {
+                            const category = e.target.value as
+                              | JobTemplateCategory
+                              | "";
+                            setTemplatePreview(null);
+                            setForm({
+                              category,
+                              template_id: "",
+                              title: "",
+                              steps: "",
+                              estimated_minutes: "90",
+                              description: "",
+                            });
+                          }}
+                          required
+                        >
+                          <option value="">— Pilih jenis —</option>
+                          <option value="engine">Component Engine</option>
+                          <option value="non_engine">
+                            Component Non Engine (Transmisi)
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        Template komponen *
+                        <select
+                          value={form.template_id}
+                          disabled={!form.category || templatesLoading}
+                          onChange={(e) => applyJobTemplate(e.target.value)}
+                          required
+                        >
+                          <option value="">
+                            {templatesLoading
+                              ? "Memuat template..."
+                              : "— Pilih komponen —"}
+                          </option>
+                          {templateSummaries.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} · {t.step_count} step ·{" "}
+                              {formatStdLabel(t.std_minutes)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
+                  )}
+                </>
+              )}
               <label>
                 Judul *
                 <input
@@ -2672,22 +2852,76 @@ export default function HomePage() {
                   onChange={(e) =>
                     setForm({ estimated_minutes: e.target.value })
                   }
+                  readOnly={isTemplateCreate && Boolean(form.template_id)}
                   required
                 />
+                {isTemplateCreate && form.template_id && (
+                  <span className="field-hint">
+                    Standar time frame:{" "}
+                    {formatStdLabel(Number(form.estimated_minutes) || 0)}
+                  </span>
+                )}
               </label>
-              {(modal.type === "create" ||
-                ["queued", "assigned"].includes(modal.job.status)) && (
-                <label>
-                  Tahapan (satu baris per step) *
-                  <textarea
-                    rows={4}
-                    value={form.steps}
-                    onChange={(e) => setForm({ steps: e.target.value })}
-                    placeholder={"Diagnosis\nPerbaikan\nTest & QC"}
-                    required
-                  />
-                </label>
-              )}
+              {modal.type === "create" &&
+                form.mode === "template" &&
+                templatePreview && (
+                  <div className="template-preview">
+                    <div className="template-preview-head">
+                      Tahapan dari template ({templatePreview.steps.length})
+                    </div>
+                    <div className="template-preview-body">
+                      {(() => {
+                        const phases: {
+                          phase: string;
+                          steps: typeof templatePreview.steps;
+                        }[] = [];
+                        for (const step of templatePreview.steps
+                          .slice()
+                          .sort((a, b) => a.order - b.order)) {
+                          const key = step.phase || "General";
+                          const last = phases[phases.length - 1];
+                          if (!last || last.phase !== key) {
+                            phases.push({ phase: key, steps: [step] });
+                          } else {
+                            last.steps.push(step);
+                          }
+                        }
+                        return phases.map(({ phase, steps }) => (
+                          <div key={phase} className="template-phase">
+                            <div className="template-phase-title">{phase}</div>
+                            <ul>
+                              {steps.map((s) => (
+                                <li key={s.id}>
+                                  <span>{s.name}</span>
+                                  <span className="template-step-min">
+                                    {s.std_minutes > 0
+                                      ? formatStdLabel(s.std_minutes)
+                                      : "—"}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+              {(modal.type === "edit" ||
+                (modal.type === "create" && form.mode === "custom")) &&
+                (modal.type === "create" ||
+                  ["queued", "assigned"].includes(modal.job.status)) && (
+                  <label>
+                    Tahapan (satu baris per step) *
+                    <textarea
+                      rows={4}
+                      value={form.steps}
+                      onChange={(e) => setForm({ steps: e.target.value })}
+                      placeholder={"Diagnosis\nPerbaikan\nTest & QC"}
+                      required
+                    />
+                  </label>
+                )}
               {modal.type === "edit" &&
                 !["queued", "assigned"].includes(modal.job.status) && (
                   <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>

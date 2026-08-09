@@ -1,0 +1,5252 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "eng-engine-3306",
+      "category": "engine",
+      "name": "Engine 3306",
+      "active": "1",
+      "std_minutes": 9840,
+      "steps": [
+        {
+          "id": "eng-engine-3306-S01",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S02",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3306-S03",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S04",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S05",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S06",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S07",
+          "template_id": "eng-engine-3306",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3306-S08",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3306-S09",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-3306-S10",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S11",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3306-S12",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S13",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3306-S14",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3306-S15",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3306-S16",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S17",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S18",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S19",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "-Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S20",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "- ECM and Injectors",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S21",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S22",
+          "template_id": "eng-engine-3306",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S23",
+          "template_id": "eng-engine-3306",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3306-S24",
+          "template_id": "eng-engine-3306",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3306-S25",
+          "template_id": "eng-engine-3306",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S26",
+          "template_id": "eng-engine-3306",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S27",
+          "template_id": "eng-engine-3306",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S28",
+          "template_id": "eng-engine-3306",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S29",
+          "template_id": "eng-engine-3306",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S30",
+          "template_id": "eng-engine-3306",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S31",
+          "template_id": "eng-engine-3306",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S32",
+          "template_id": "eng-engine-3306",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S33",
+          "template_id": "eng-engine-3306",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S34",
+          "template_id": "eng-engine-3306",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S35",
+          "template_id": "eng-engine-3306",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S36",
+          "template_id": "eng-engine-3306",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S37",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3306-S38",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S39",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S40",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S41",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3306-S42",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-3306-S43",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3306-S44",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 420
+        },
+        {
+          "id": "eng-engine-3306-S45",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3306-S46",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3306-S47",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3306-S48",
+          "template_id": "eng-engine-3306",
+          "phase": "Assemble",
+          "name": "- FIP & Nozzle.",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3306-S49",
+          "template_id": "eng-engine-3306",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-3306-S50",
+          "template_id": "eng-engine-3306",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 840
+        },
+        {
+          "id": "eng-engine-3306-S51",
+          "template_id": "eng-engine-3306",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S52",
+          "template_id": "eng-engine-3306",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S53",
+          "template_id": "eng-engine-3306",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S54",
+          "template_id": "eng-engine-3306",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3306-S55",
+          "template_id": "eng-engine-3306",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S56",
+          "template_id": "eng-engine-3306",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3306-S57",
+          "template_id": "eng-engine-3306",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3306-S58",
+          "template_id": "eng-engine-3306",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3306-S59",
+          "template_id": "eng-engine-3306",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "eng-engine-3406",
+      "category": "engine",
+      "name": "Engine 3406",
+      "active": "1",
+      "std_minutes": 9840,
+      "steps": [
+        {
+          "id": "eng-engine-3406-S01",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S02",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3406-S03",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S04",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S05",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S06",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S07",
+          "template_id": "eng-engine-3406",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3406-S08",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3406-S09",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-3406-S10",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S11",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3406-S12",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S13",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3406-S14",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3406-S15",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3406-S16",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S17",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S18",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S19",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "-Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S20",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "- Nozzle",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S21",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S22",
+          "template_id": "eng-engine-3406",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S23",
+          "template_id": "eng-engine-3406",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3406-S24",
+          "template_id": "eng-engine-3406",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3406-S25",
+          "template_id": "eng-engine-3406",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S26",
+          "template_id": "eng-engine-3406",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S27",
+          "template_id": "eng-engine-3406",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S28",
+          "template_id": "eng-engine-3406",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S29",
+          "template_id": "eng-engine-3406",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S30",
+          "template_id": "eng-engine-3406",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S31",
+          "template_id": "eng-engine-3406",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S32",
+          "template_id": "eng-engine-3406",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S33",
+          "template_id": "eng-engine-3406",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S34",
+          "template_id": "eng-engine-3406",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S35",
+          "template_id": "eng-engine-3406",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S36",
+          "template_id": "eng-engine-3406",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S37",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3406-S38",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S39",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S40",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S41",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3406-S42",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-3406-S43",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3406-S44",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 420
+        },
+        {
+          "id": "eng-engine-3406-S45",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3406-S46",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3406-S47",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3406-S48",
+          "template_id": "eng-engine-3406",
+          "phase": "Assemble",
+          "name": "- ECM and Injectors.",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3406-S49",
+          "template_id": "eng-engine-3406",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-3406-S50",
+          "template_id": "eng-engine-3406",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 840
+        },
+        {
+          "id": "eng-engine-3406-S51",
+          "template_id": "eng-engine-3406",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S52",
+          "template_id": "eng-engine-3406",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S53",
+          "template_id": "eng-engine-3406",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S54",
+          "template_id": "eng-engine-3406",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3406-S55",
+          "template_id": "eng-engine-3406",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S56",
+          "template_id": "eng-engine-3406",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3406-S57",
+          "template_id": "eng-engine-3406",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3406-S58",
+          "template_id": "eng-engine-3406",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3406-S59",
+          "template_id": "eng-engine-3406",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "eng-engine-3412",
+      "category": "engine",
+      "name": "Engine 3412",
+      "active": "1",
+      "std_minutes": 16500,
+      "steps": [
+        {
+          "id": "eng-engine-3412-S01",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S02",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3412-S03",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S04",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S05",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S06",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S07",
+          "template_id": "eng-engine-3412",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-S08",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3412-S09",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 2820
+        },
+        {
+          "id": "eng-engine-3412-S10",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S11",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-S12",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S13",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3412-S14",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S15",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 720
+        },
+        {
+          "id": "eng-engine-3412-S16",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S17",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S18",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S19",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S20",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "- Nozzle",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S21",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-3412-S22",
+          "template_id": "eng-engine-3412",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3412-S23",
+          "template_id": "eng-engine-3412",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S24",
+          "template_id": "eng-engine-3412",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S25",
+          "template_id": "eng-engine-3412",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3412-S26",
+          "template_id": "eng-engine-3412",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 1.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3412-S27",
+          "template_id": "eng-engine-3412",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S28",
+          "template_id": "eng-engine-3412",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S29",
+          "template_id": "eng-engine-3412",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S30",
+          "template_id": "eng-engine-3412",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S31",
+          "template_id": "eng-engine-3412",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S32",
+          "template_id": "eng-engine-3412",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S33",
+          "template_id": "eng-engine-3412",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S34",
+          "template_id": "eng-engine-3412",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S35",
+          "template_id": "eng-engine-3412",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S36",
+          "template_id": "eng-engine-3412",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S37",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S38",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3412-S39",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 2.0,
+          "std_minutes": 1800
+        },
+        {
+          "id": "eng-engine-3412-S40",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S41",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-S42",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-3412-S43",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-S44",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 720
+        },
+        {
+          "id": "eng-engine-3412-S45",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S46",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S47",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S48",
+          "template_id": "eng-engine-3412",
+          "phase": "Assemble",
+          "name": "- Nozzle",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-S49",
+          "template_id": "eng-engine-3412",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-3412-S50",
+          "template_id": "eng-engine-3412",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-3412-S51",
+          "template_id": "eng-engine-3412",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-3412-S52",
+          "template_id": "eng-engine-3412",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S53",
+          "template_id": "eng-engine-3412",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S54",
+          "template_id": "eng-engine-3412",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S55",
+          "template_id": "eng-engine-3412",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S56",
+          "template_id": "eng-engine-3412",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-S57",
+          "template_id": "eng-engine-3412",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-S58",
+          "template_id": "eng-engine-3412",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3412-S59",
+          "template_id": "eng-engine-3412",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "eng-engine-c9",
+      "category": "engine",
+      "name": "Engine C9",
+      "active": "1",
+      "std_minutes": 9840,
+      "steps": [
+        {
+          "id": "eng-engine-c9-S01",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S02",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-c9-S03",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S04",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S05",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S06",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S07",
+          "template_id": "eng-engine-c9",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c9-S08",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-c9-S09",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-c9-S10",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S11",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c9-S12",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S13",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c9-S14",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c9-S15",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c9-S16",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S17",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S18",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S19",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "-Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S20",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "- ECM and Injectors",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S21",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S22",
+          "template_id": "eng-engine-c9",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S23",
+          "template_id": "eng-engine-c9",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c9-S24",
+          "template_id": "eng-engine-c9",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c9-S25",
+          "template_id": "eng-engine-c9",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S26",
+          "template_id": "eng-engine-c9",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S27",
+          "template_id": "eng-engine-c9",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S28",
+          "template_id": "eng-engine-c9",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S29",
+          "template_id": "eng-engine-c9",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S30",
+          "template_id": "eng-engine-c9",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S31",
+          "template_id": "eng-engine-c9",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S32",
+          "template_id": "eng-engine-c9",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S33",
+          "template_id": "eng-engine-c9",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S34",
+          "template_id": "eng-engine-c9",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S35",
+          "template_id": "eng-engine-c9",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S36",
+          "template_id": "eng-engine-c9",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S37",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c9-S38",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S39",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S40",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S41",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c9-S42",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-c9-S43",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c9-S44",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 420
+        },
+        {
+          "id": "eng-engine-c9-S45",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c9-S46",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c9-S47",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c9-S48",
+          "template_id": "eng-engine-c9",
+          "phase": "Assemble",
+          "name": "- ECM and Injectors.",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c9-S49",
+          "template_id": "eng-engine-c9",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-c9-S50",
+          "template_id": "eng-engine-c9",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 840
+        },
+        {
+          "id": "eng-engine-c9-S51",
+          "template_id": "eng-engine-c9",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S52",
+          "template_id": "eng-engine-c9",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S53",
+          "template_id": "eng-engine-c9",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S54",
+          "template_id": "eng-engine-c9",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c9-S55",
+          "template_id": "eng-engine-c9",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S56",
+          "template_id": "eng-engine-c9",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c9-S57",
+          "template_id": "eng-engine-c9",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c9-S58",
+          "template_id": "eng-engine-c9",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c9-S59",
+          "template_id": "eng-engine-c9",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "eng-engine-c13",
+      "category": "engine",
+      "name": "Engine C13",
+      "active": "1",
+      "std_minutes": 9840,
+      "steps": [
+        {
+          "id": "eng-engine-c13-S01",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S02",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-c13-S03",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S04",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S05",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S06",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S07",
+          "template_id": "eng-engine-c13",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c13-S08",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-c13-S09",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-c13-S10",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S11",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c13-S12",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S13",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c13-S14",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c13-S15",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c13-S16",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S17",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S18",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S19",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "-Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S20",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "- ECM and Injectors",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S21",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S22",
+          "template_id": "eng-engine-c13",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S23",
+          "template_id": "eng-engine-c13",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c13-S24",
+          "template_id": "eng-engine-c13",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c13-S25",
+          "template_id": "eng-engine-c13",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S26",
+          "template_id": "eng-engine-c13",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S27",
+          "template_id": "eng-engine-c13",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S28",
+          "template_id": "eng-engine-c13",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S29",
+          "template_id": "eng-engine-c13",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S30",
+          "template_id": "eng-engine-c13",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S31",
+          "template_id": "eng-engine-c13",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S32",
+          "template_id": "eng-engine-c13",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S33",
+          "template_id": "eng-engine-c13",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S34",
+          "template_id": "eng-engine-c13",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S35",
+          "template_id": "eng-engine-c13",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S36",
+          "template_id": "eng-engine-c13",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S37",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c13-S38",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S39",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S40",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S41",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c13-S42",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-c13-S43",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c13-S44",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 420
+        },
+        {
+          "id": "eng-engine-c13-S45",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c13-S46",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c13-S47",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c13-S48",
+          "template_id": "eng-engine-c13",
+          "phase": "Assemble",
+          "name": "- ECM and Injectors.",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c13-S49",
+          "template_id": "eng-engine-c13",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-c13-S50",
+          "template_id": "eng-engine-c13",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 840
+        },
+        {
+          "id": "eng-engine-c13-S51",
+          "template_id": "eng-engine-c13",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S52",
+          "template_id": "eng-engine-c13",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S53",
+          "template_id": "eng-engine-c13",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S54",
+          "template_id": "eng-engine-c13",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c13-S55",
+          "template_id": "eng-engine-c13",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S56",
+          "template_id": "eng-engine-c13",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c13-S57",
+          "template_id": "eng-engine-c13",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c13-S58",
+          "template_id": "eng-engine-c13",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c13-S59",
+          "template_id": "eng-engine-c13",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "eng-engine-c27",
+      "category": "engine",
+      "name": "Engine C27",
+      "active": "1",
+      "std_minutes": 16500,
+      "steps": [
+        {
+          "id": "eng-engine-c27-S01",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S02",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-c27-S03",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S04",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S05",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S06",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S07",
+          "template_id": "eng-engine-c27",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c27-S08",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-c27-S09",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 2820
+        },
+        {
+          "id": "eng-engine-c27-S10",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S11",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 0.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c27-S12",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S13",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c27-S14",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S15",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 720
+        },
+        {
+          "id": "eng-engine-c27-S16",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S17",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S18",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S19",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "-Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S20",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "- ECM and Injectors",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S21",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-c27-S22",
+          "template_id": "eng-engine-c27",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c27-S23",
+          "template_id": "eng-engine-c27",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S24",
+          "template_id": "eng-engine-c27",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S25",
+          "template_id": "eng-engine-c27",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c27-S26",
+          "template_id": "eng-engine-c27",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 1.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c27-S27",
+          "template_id": "eng-engine-c27",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S28",
+          "template_id": "eng-engine-c27",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S29",
+          "template_id": "eng-engine-c27",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S30",
+          "template_id": "eng-engine-c27",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S31",
+          "template_id": "eng-engine-c27",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S32",
+          "template_id": "eng-engine-c27",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S33",
+          "template_id": "eng-engine-c27",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S34",
+          "template_id": "eng-engine-c27",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S35",
+          "template_id": "eng-engine-c27",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S36",
+          "template_id": "eng-engine-c27",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S37",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S38",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-c27-S39",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 2.0,
+          "std_minutes": 1800
+        },
+        {
+          "id": "eng-engine-c27-S40",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S41",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c27-S42",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-c27-S43",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-c27-S44",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 720
+        },
+        {
+          "id": "eng-engine-c27-S45",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S46",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S47",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S48",
+          "template_id": "eng-engine-c27",
+          "phase": "Assemble",
+          "name": "- ECM and Injectors.",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-c27-S49",
+          "template_id": "eng-engine-c27",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-c27-S50",
+          "template_id": "eng-engine-c27",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-c27-S51",
+          "template_id": "eng-engine-c27",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-c27-S52",
+          "template_id": "eng-engine-c27",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S53",
+          "template_id": "eng-engine-c27",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S54",
+          "template_id": "eng-engine-c27",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S55",
+          "template_id": "eng-engine-c27",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S56",
+          "template_id": "eng-engine-c27",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-c27-S57",
+          "template_id": "eng-engine-c27",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-c27-S58",
+          "template_id": "eng-engine-c27",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-c27-S59",
+          "template_id": "eng-engine-c27",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "eng-engine-3412-e",
+      "category": "engine",
+      "name": "Engine 3412 E",
+      "active": "1",
+      "std_minutes": 16500,
+      "steps": [
+        {
+          "id": "eng-engine-3412-e-S01",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Receipt by Planner",
+          "order": 1,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S02",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Unpacking",
+          "order": 2,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3412-e-S03",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Pre-inspection for condition and missing parts",
+          "order": 3,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S04",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Photograph component.",
+          "order": 4,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S05",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Open work order",
+          "order": 5,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S06",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Tag component",
+          "order": 6,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S07",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Receive",
+          "name": "Compile abnormal part list and CCR",
+          "order": 7,
+          "man_power": 1.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-e-S08",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "Moving component",
+          "order": 8,
+          "man_power": 1.0,
+          "std_minutes": 60
+        },
+        {
+          "id": "eng-engine-3412-e-S09",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "Disassembly engine and cleaning of all parts",
+          "order": 9,
+          "man_power": 2.0,
+          "std_minutes": 2820
+        },
+        {
+          "id": "eng-engine-3412-e-S10",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "Disassembly and cleaning small components as follows :",
+          "order": 10,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S11",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Crankshaft",
+          "order": 11,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-e-S12",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Camshaft",
+          "order": 12,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S13",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Cylinder block",
+          "order": 13,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3412-e-S14",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Conrod",
+          "order": 14,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S15",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Cylinder head",
+          "order": 15,
+          "man_power": 2.0,
+          "std_minutes": 720
+        },
+        {
+          "id": "eng-engine-3412-e-S16",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Turbocharger",
+          "order": 16,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S17",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Water Pump",
+          "order": 17,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S18",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- Oil Pump",
+          "order": 18,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S19",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "-Fan drive",
+          "order": 19,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S20",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "- ECM and Injectors",
+          "order": 20,
+          "man_power": 2.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S21",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "Apply contamination control",
+          "order": 21,
+          "man_power": 2.0,
+          "std_minutes": 600
+        },
+        {
+          "id": "eng-engine-3412-e-S22",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Disassemble",
+          "name": "Failure analysis if required.",
+          "order": 22,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3412-e-S23",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Inspect and Measure",
+          "name": "Visually inspect parts",
+          "order": 23,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S24",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Inspect and Measure",
+          "name": "Measure and record facts & Photograph parts for reports",
+          "order": 24,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S25",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Inspect and Measure",
+          "name": "NTD Testing (crack testing).",
+          "order": 25,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3412-e-S26",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Inspect and Measure",
+          "name": "Compare against resuability guides",
+          "order": 26,
+          "man_power": 1.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3412-e-S27",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Inspect and Measure",
+          "name": "Check for product updates",
+          "order": 27,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S28",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Quotation",
+          "name": "Prepare Service Parts Requisition (SPR).",
+          "order": 28,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S29",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Quotation",
+          "name": "Check parts availability.",
+          "order": 29,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S30",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Quotation",
+          "name": "Parts pricing",
+          "order": 30,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S31",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Quotation",
+          "name": "Complete quote",
+          "order": 31,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S32",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Quotation",
+          "name": "Customer approval",
+          "order": 32,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S33",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Parts Order",
+          "name": "Enter order into system",
+          "order": 33,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S34",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Parts Order",
+          "name": "Follow-up back orders",
+          "order": 34,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S35",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Parts Order",
+          "name": "Part collection / delivery",
+          "order": 35,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S36",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Parts Order",
+          "name": "Part receiving",
+          "order": 36,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S37",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "Verify correct parts",
+          "order": 37,
+          "man_power": 1.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S38",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "Final clean / confirm cc control",
+          "order": 38,
+          "man_power": 2.0,
+          "std_minutes": 480
+        },
+        {
+          "id": "eng-engine-3412-e-S39",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "Assemble engine, follow procedures",
+          "order": 39,
+          "man_power": 2.0,
+          "std_minutes": 1800
+        },
+        {
+          "id": "eng-engine-3412-e-S40",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "Assemble components as follow :",
+          "order": 40,
+          "man_power": 0.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S41",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Crankshaft",
+          "order": 41,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-e-S42",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Camshaft",
+          "order": 42,
+          "man_power": 2.0,
+          "std_minutes": 180
+        },
+        {
+          "id": "eng-engine-3412-e-S43",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Conrod",
+          "order": 43,
+          "man_power": 2.0,
+          "std_minutes": 360
+        },
+        {
+          "id": "eng-engine-3412-e-S44",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Cylinder head",
+          "order": 44,
+          "man_power": 2.0,
+          "std_minutes": 720
+        },
+        {
+          "id": "eng-engine-3412-e-S45",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Turbocharger",
+          "order": 45,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S46",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Water Pump",
+          "order": 46,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S47",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- Oil Pump",
+          "order": 47,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S48",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Assemble",
+          "name": "- ECM and Injectors.",
+          "order": 48,
+          "man_power": 2.0,
+          "std_minutes": 300
+        },
+        {
+          "id": "eng-engine-3412-e-S49",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Test and Adjust",
+          "name": "Test preparation",
+          "order": 49,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-3412-e-S50",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Test and Adjust",
+          "name": "Bench test performance",
+          "order": 50,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-3412-e-S51",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Test and Adjust",
+          "name": "Install on proper stand",
+          "order": 51,
+          "man_power": 2.0,
+          "std_minutes": 660
+        },
+        {
+          "id": "eng-engine-3412-e-S52",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Paint",
+          "name": "Plug and cover",
+          "order": 52,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S53",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Paint",
+          "name": "Clean and prepare for painting",
+          "order": 53,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S54",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Paint",
+          "name": "Paint",
+          "order": 54,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S55",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Paint",
+          "name": "Install component ID tag.",
+          "order": 55,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S56",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Paint",
+          "name": "Final inspection.",
+          "order": 56,
+          "man_power": 1.0,
+          "std_minutes": 120
+        },
+        {
+          "id": "eng-engine-3412-e-S57",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Paint",
+          "name": "Shrink wrap.",
+          "order": 57,
+          "man_power": 1.0,
+          "std_minutes": 0
+        },
+        {
+          "id": "eng-engine-3412-e-S58",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Completing plug and play parts",
+          "name": "Installation other attachments such as V-belts, Alternator, Starting motor, AC compressor, Air cleaner, Heat Shields, etc..",
+          "order": 58,
+          "man_power": 1.0,
+          "std_minutes": 240
+        },
+        {
+          "id": "eng-engine-3412-e-S59",
+          "template_id": "eng-engine-3412-e",
+          "phase": "Completing plug and play parts",
+          "name": "Retorque bolt after dyno test",
+          "order": 59,
+          "man_power": 1.0,
+          "std_minutes": 120
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-24h-m",
+      "category": "non_engine",
+      "name": "Transmission 24H,M",
+      "active": "1",
+      "std_minutes": 7560,
+      "steps": [
+        {
+          "id": "ne-transmission-24h-m-S01",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Washing Transmission gp",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S02",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Control Valve",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S03",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Input Trans Gear",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S04",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Disconnect Planetary",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S05",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Clutch 6 & Housing",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-24h-m-S06",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Clutch 5",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S07",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Clutch 4",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S08",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Clutch 3",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S09",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Clutch 2",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S10",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Clutch 1",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S11",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Planetary & Shaft In-Out",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S12",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Output Trans Gear",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 480
+        },
+        {
+          "id": "ne-transmission-24h-m-S13",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-24h-m-S14",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Output Trans Gear",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-24h-m-S15",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Planetary & Shaft In-Out",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 420
+        },
+        {
+          "id": "ne-transmission-24h-m-S16",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Clutch 1",
+          "order": 16,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S17",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Clutch 2",
+          "order": 17,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S18",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Clutch 3",
+          "order": 18,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S19",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Clutch 4",
+          "order": 19,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S20",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Clutch 5",
+          "order": 20,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-24h-m-S21",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Clutch 6 & Housing",
+          "order": 21,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S22",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Input Trans Gear",
+          "order": 22,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S23",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Connect Planetary Gp",
+          "order": 23,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-24h-m-S24",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Assemble",
+          "name": "Control Valve",
+          "order": 24,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S25",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 25,
+          "man_power": 0,
+          "std_minutes": 420
+        },
+        {
+          "id": "ne-transmission-24h-m-S26",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 26,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-24h-m-S27",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 27,
+          "man_power": 0,
+          "std_minutes": 360
+        },
+        {
+          "id": "ne-transmission-24h-m-S28",
+          "template_id": "ne-transmission-24h-m",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 28,
+          "man_power": 0,
+          "std_minutes": 300
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-16m",
+      "category": "non_engine",
+      "name": "Transmission 16M",
+      "active": "1",
+      "std_minutes": 5880,
+      "steps": [
+        {
+          "id": "ne-transmission-16m-S01",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Washing Transmission gp",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16m-S02",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Control Valve,Harness,Sensor",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 60
+        },
+        {
+          "id": "ne-transmission-16m-S03",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Parking Brake",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16m-S04",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Disconnect Housing",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-16m-S05",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Clutch 1 & 2",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S06",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Clutch 3 & 4",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S07",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Clutch 5 & 6",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 360
+        },
+        {
+          "id": "ne-transmission-16m-S08",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Clutch 7 & 8",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 360
+        },
+        {
+          "id": "ne-transmission-16m-S09",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Clean up Housing 2ea",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-16m-S10",
+          "template_id": "ne-transmission-16m",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16m-S11",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "Clutch 1 & 2",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S12",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "Clutch 3 & 4",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S13",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "Clutch 5 & 6",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 360
+        },
+        {
+          "id": "ne-transmission-16m-S14",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "Clutch 7 & 8",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 360
+        },
+        {
+          "id": "ne-transmission-16m-S15",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "Assamble Housing, Install Clutch",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 540
+        },
+        {
+          "id": "ne-transmission-16m-S16",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "Parking Brake",
+          "order": 16,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16m-S17",
+          "template_id": "ne-transmission-16m",
+          "phase": "Assemble",
+          "name": "CV, Harness, & Sensor",
+          "order": 17,
+          "man_power": 0,
+          "std_minutes": 120
+        },
+        {
+          "id": "ne-transmission-16m-S18",
+          "template_id": "ne-transmission-16m",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 18,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S19",
+          "template_id": "ne-transmission-16m",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 19,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S20",
+          "template_id": "ne-transmission-16m",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 20,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16m-S21",
+          "template_id": "ne-transmission-16m",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 21,
+          "man_power": 0,
+          "std_minutes": 300
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-740",
+      "category": "non_engine",
+      "name": "Transmission 740",
+      "active": "1",
+      "std_minutes": 8100,
+      "steps": [
+        {
+          "id": "ne-transmission-740-S01",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Washing Transmission gp",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-740-S02",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Control Valve 2ea",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 480
+        },
+        {
+          "id": "ne-transmission-740-S03",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Disconnect TC",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-740-S04",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Torque Converter",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-740-S05",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Transmission Pump",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 120
+        },
+        {
+          "id": "ne-transmission-740-S06",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Clutch 6 & Housing",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-740-S07",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Clutch 5",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S08",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Clutch 4",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S09",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Clutch 3",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S10",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Clutch 2",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S11",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Clutch 1",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S12",
+          "template_id": "ne-transmission-740",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S13",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Torque Converter",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-740-S14",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Transmission Pump",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-740-S15",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Clutch 1",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S16",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Clutch 2",
+          "order": 16,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S17",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Clutch 3",
+          "order": 17,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S18",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Clutch 4",
+          "order": 18,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S19",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Clutch 5",
+          "order": 19,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S20",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Clutch 6 & Housing",
+          "order": 20,
+          "man_power": 0,
+          "std_minutes": 360
+        },
+        {
+          "id": "ne-transmission-740-S21",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Connect TC",
+          "order": 21,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-740-S22",
+          "template_id": "ne-transmission-740",
+          "phase": "Assemble",
+          "name": "Control Valve 2ea",
+          "order": 22,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-740-S23",
+          "template_id": "ne-transmission-740",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 23,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-740-S24",
+          "template_id": "ne-transmission-740",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 24,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-740-S25",
+          "template_id": "ne-transmission-740",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 25,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-740-S26",
+          "template_id": "ne-transmission-740",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 26,
+          "man_power": 0,
+          "std_minutes": 300
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-777",
+      "category": "non_engine",
+      "name": "Transmission 777",
+      "active": "1",
+      "std_minutes": 8100,
+      "steps": [
+        {
+          "id": "ne-transmission-777-S01",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Washing Transmission gp",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S02",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Control Valve 2ea",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 480
+        },
+        {
+          "id": "ne-transmission-777-S03",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Clutch 6",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S04",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Clutch 5",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S05",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Clutch 4",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S06",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Clutch 3",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S07",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Clutch 2",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S08",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Clutch 1",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S09",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Trans Gear & Housing",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 480
+        },
+        {
+          "id": "ne-transmission-777-S10",
+          "template_id": "ne-transmission-777",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-777-S11",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Trans Gear & Housing",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 900
+        },
+        {
+          "id": "ne-transmission-777-S12",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Clutch 1",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S13",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Clutch 2",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S14",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Clutch 3",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S15",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Clutch 4",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S16",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Clutch 5",
+          "order": 16,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S17",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Clutch 6",
+          "order": 17,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S18",
+          "template_id": "ne-transmission-777",
+          "phase": "Assemble",
+          "name": "Control Valve 2ea",
+          "order": 18,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-777-S19",
+          "template_id": "ne-transmission-777",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 19,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S20",
+          "template_id": "ne-transmission-777",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 20,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-777-S21",
+          "template_id": "ne-transmission-777",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 21,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-777-S22",
+          "template_id": "ne-transmission-777",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 22,
+          "man_power": 0,
+          "std_minutes": 300
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-16h-g",
+      "category": "non_engine",
+      "name": "Transmission 16H,G",
+      "active": "1",
+      "std_minutes": 5340,
+      "steps": [
+        {
+          "id": "ne-transmission-16h-g-S01",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Washing Transmission gp",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16h-g-S02",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Control Valve 2EA",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S03",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Pump, Lines, & Screen",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16h-g-S04",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Planetary GP",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 900
+        },
+        {
+          "id": "ne-transmission-16h-g-S05",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Directional & Idler gear",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S06",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Clean up Housing 2ea",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 120
+        },
+        {
+          "id": "ne-transmission-16h-g-S07",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-16h-g-S08",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Assemble",
+          "name": "Directional & Idler gear",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-16h-g-S09",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Assemble",
+          "name": "Planetary GP",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-16h-g-S10",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Assemble",
+          "name": "CV 2EA",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S11",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Assemble",
+          "name": "Pump, Lines, & Screen",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S12",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S13",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S14",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-16h-g-S15",
+          "template_id": "ne-transmission-16h-g",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 300
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-785-789",
+      "category": "non_engine",
+      "name": "Transmission 785 789",
+      "active": "1",
+      "std_minutes": 8100,
+      "steps": [
+        {
+          "id": "ne-transmission-785-789-S01",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Washing Transmission gp, Screen, & cover.",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S02",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Control Valve 2ea",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 480
+        },
+        {
+          "id": "ne-transmission-785-789-S03",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Clutch 6",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S04",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Clutch 5",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S05",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Clutch 4",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S06",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Clutch 3",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S07",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Clutch 2",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S08",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Clutch 1",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S09",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Trans Gear, Housing 2ea , & Rotor sensor",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 480
+        },
+        {
+          "id": "ne-transmission-785-789-S10",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-785-789-S11",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Trans Gear & Housing",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 900
+        },
+        {
+          "id": "ne-transmission-785-789-S12",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Clutch 1",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S13",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Clutch 2",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S14",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Clutch 3",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S15",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Clutch 4",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S16",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Clutch 5",
+          "order": 16,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S17",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Clutch 6",
+          "order": 17,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S18",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Assemble",
+          "name": "Control Valve 2ea",
+          "order": 18,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-785-789-S19",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 19,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S20",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 20,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-785-789-S21",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 21,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-785-789-S22",
+          "template_id": "ne-transmission-785-789",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 22,
+          "man_power": 0,
+          "std_minutes": 300
+        }
+      ]
+    },
+    {
+      "id": "ne-transmission-d10t-r",
+      "category": "non_engine",
+      "name": "Transmission D10T,R",
+      "active": "1",
+      "std_minutes": 5820,
+      "steps": [
+        {
+          "id": "ne-transmission-d10t-r-S01",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Washing Transmission",
+          "order": 1,
+          "man_power": 0,
+          "std_minutes": 60
+        },
+        {
+          "id": "ne-transmission-d10t-r-S02",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Trans Gear",
+          "order": 2,
+          "man_power": 0,
+          "std_minutes": 600
+        },
+        {
+          "id": "ne-transmission-d10t-r-S03",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "CV, Harness, & Sensor",
+          "order": 3,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-d10t-r-S04",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Clutch 5",
+          "order": 4,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S05",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Clutch 4",
+          "order": 5,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S06",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Clutch 3",
+          "order": 6,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S07",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Clutch 2",
+          "order": 7,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S08",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Clutch 1",
+          "order": 8,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S09",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Planetary & Shaft",
+          "order": 9,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-d10t-r-S10",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Dismantle",
+          "name": "Part list & Tear Down",
+          "order": 10,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-d10t-r-S11",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Planetary & Shaft In-Out",
+          "order": 11,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-d10t-r-S12",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Clutch 1",
+          "order": 12,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S13",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Clutch 2",
+          "order": 13,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S14",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Clutch 3",
+          "order": 14,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S15",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Clutch 4",
+          "order": 15,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S16",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Clutch 5",
+          "order": 16,
+          "man_power": 0,
+          "std_minutes": 180
+        },
+        {
+          "id": "ne-transmission-d10t-r-S17",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "CV, Harness & Sensor",
+          "order": 17,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-d10t-r-S18",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Assemble",
+          "name": "Trans Gear",
+          "order": 18,
+          "man_power": 0,
+          "std_minutes": 900
+        },
+        {
+          "id": "ne-transmission-d10t-r-S19",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Test Bench & Completed",
+          "name": "Set up",
+          "order": 19,
+          "man_power": 0,
+          "std_minutes": 300
+        },
+        {
+          "id": "ne-transmission-d10t-r-S20",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Test Bench & Completed",
+          "name": "Test",
+          "order": 20,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-d10t-r-S21",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Test Bench & Completed",
+          "name": "Release",
+          "order": 21,
+          "man_power": 0,
+          "std_minutes": 240
+        },
+        {
+          "id": "ne-transmission-d10t-r-S22",
+          "template_id": "ne-transmission-d10t-r",
+          "phase": "Test Bench & Completed",
+          "name": "Completed & Painting",
+          "order": 22,
+          "man_power": 0,
+          "std_minutes": 240
+        }
+      ]
+    }
+  ]
+}

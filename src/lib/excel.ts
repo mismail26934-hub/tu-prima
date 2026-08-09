@@ -23,6 +23,10 @@ import type {
 } from "./types";
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
+import {
+  getJobTemplate,
+  stepNamesFromTemplate,
+} from "./job-templates";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "workshop.xlsx");
@@ -154,6 +158,7 @@ function mapJob(r: Row): Job {
     description: String(r.description || ""),
     status: String(r.status || "queued") as JobStatus,
     technician_id: String(r.technician_id || ""),
+    template_id: String(r.template_id || ""),
     created_at: String(r.created_at || ""),
     started_at: String(r.started_at || ""),
     completed_at: String(r.completed_at || ""),
@@ -316,6 +321,7 @@ const JOB_HEADERS = [
   "description",
   "status",
   "technician_id",
+  "template_id",
   "created_at",
   "started_at",
   "completed_at",
@@ -467,6 +473,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
       description: "Rem depan bunyi & jarak rem jauh",
       status: "in_progress",
       technician_id: "T02",
+      template_id: "",
       created_at: new Date(Date.now() - 100 * 60 * 1000).toISOString(),
       started_at: started1,
       completed_at: "",
@@ -482,6 +489,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
       description: "Isi freon + cek compressor",
       status: "in_progress",
       technician_id: "T04",
+      template_id: "",
       created_at: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
       started_at: started2,
       completed_at: "",
@@ -497,6 +505,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
       description: "Ganti oli, filter, busi, cek kelistrikan",
       status: "queued",
       technician_id: "",
+      template_id: "",
       created_at: now,
       started_at: "",
       completed_at: "",
@@ -512,6 +521,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
       description: "Starter sering macet saat dingin",
       status: "queued",
       technician_id: "",
+      template_id: "",
       created_at: now,
       started_at: "",
       completed_at: "",
@@ -678,6 +688,7 @@ export async function createJob(input: {
   description?: string;
   estimated_minutes?: number;
   steps?: string[];
+  template_id?: string;
 }): Promise<JobWithDetails> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
@@ -690,6 +701,25 @@ export async function createJob(input: {
     const unit = units.find((u) => u.id === input.unit_id && u.active === "1");
     if (!unit) throw new Error("Unit tidak ditemukan / nonaktif");
 
+    const templateId = input.template_id ? String(input.template_id).trim() : "";
+    const template = templateId ? getJobTemplate(templateId) : null;
+    if (templateId && !template) {
+      throw new Error("Template job tidak ditemukan");
+    }
+
+    const fromTemplateSteps = template ? stepNamesFromTemplate(template) : [];
+    const stepNames =
+      fromTemplateSteps.length > 0
+        ? fromTemplateSteps
+        : input.steps && input.steps.length
+          ? input.steps
+          : ["Diagnosis", "Perbaikan", "Test & QC"];
+
+    const estimated =
+      template?.std_minutes ||
+      input.estimated_minutes ||
+      60;
+
     const id = `J${String(jobs.length + 1).padStart(2, "0")}-${uuidv4().slice(0, 4)}`;
     const created_at = nowIso();
     const job: Job = {
@@ -700,20 +730,17 @@ export async function createJob(input: {
       description: input.description || "",
       status: "queued",
       technician_id: "",
+      template_id: template?.id || "",
       created_at,
       started_at: "",
       completed_at: "",
       paused_at: "",
       total_paused_sec: 0,
-      estimated_minutes: input.estimated_minutes || 60,
+      estimated_minutes: estimated,
     };
     jobs.push(job);
 
-    const defaultSteps =
-      input.steps && input.steps.length
-        ? input.steps
-        : ["Diagnosis", "Perbaikan", "Test & QC"];
-    defaultSteps.forEach((name, i) => {
+    stepNames.forEach((name, i) => {
       steps.push({
         id: uuidv4(),
         job_id: id,
@@ -730,7 +757,9 @@ export async function createJob(input: {
       id: uuidv4(),
       job_id: id,
       type: "created",
-      note: "Job dibuat",
+      note: template
+        ? `Job dibuat dari template ${template.name}`
+        : "Job dibuat",
       created_at,
     });
 

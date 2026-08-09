@@ -768,6 +768,10 @@ export default function HomePage() {
   }
 
   async function openUsersMaster() {
+    if (userLevel !== "superuser") {
+      setError("Master User hanya untuk superuser");
+      return;
+    }
     setError("");
     setMasterUserDraft("");
     setMasterUserQuery("");
@@ -3398,18 +3402,20 @@ export default function HomePage() {
                   >
                     {t("nav.technicians")}
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy}
-                    onClick={() => {
-                      setManageOpen(false);
-                      openUsersMaster();
-                    }}
-                  >
-                    {t("nav.usersMaster")}
-                  </button>
+                  {userLevel === "superuser" && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nav-manage-item"
+                      disabled={busy}
+                      onClick={() => {
+                        setManageOpen(false);
+                        openUsersMaster();
+                      }}
+                    >
+                      {t("nav.usersMaster")}
+                    </button>
+                  )}
                   <button
                     type="button"
                     role="menuitem"
@@ -3585,24 +3591,28 @@ export default function HomePage() {
             >
               {t("nav.newJobShort")}
             </button>
-            <LanguageToggle />
             <button
               className="btn btn-icon"
               type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
-              title={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
+              disabled={busy}
+              onClick={() => load()}
+              aria-label={t("nav.refresh")}
+              title={t("nav.refresh")}
             >
-              {theme === "dark" ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
-                </svg>
-              )}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 12a9 9 0 1 1-2.1-5.7" />
+                <path d="M21 3v6h-6" />
+              </svg>
             </button>
             <button
               className="btn btn-icon top-menu-toggle"
@@ -3697,17 +3707,28 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            <p className="nav-menu-label">Aksi</p>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                load();
-              }}
-            >
-              {t("nav.refresh")}
-            </button>
+            <p className="nav-menu-label">{t("nav.language")}</p>
+            <div className="nav-menu-prefs">
+              <LanguageToggle />
+              <button
+                className="btn btn-icon"
+                type="button"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
+                title={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
+              >
+                {theme === "dark" ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             <p className="nav-menu-label">{t("nav.manage")}</p>
             <button
               className="btn"
@@ -3730,16 +3751,18 @@ export default function HomePage() {
             >
               {t("nav.technicians")}
             </button>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                openUsersMaster();
-              }}
-            >
-              {t("nav.usersMaster")}
-            </button>
+            {userLevel === "superuser" && (
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openUsersMaster();
+                }}
+              >
+                {t("nav.usersMaster")}
+              </button>
+            )}
             <button
               className="btn"
               disabled={busy || !canUnitRead}

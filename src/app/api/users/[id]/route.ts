@@ -1,15 +1,32 @@
 import { NextResponse } from "next/server";
 import { deleteUser, updateUser } from "@/lib/excel";
-import { requirePermission } from "@/lib/access";
+import { getCurrentLevel, requirePermission } from "@/lib/access";
 import { USER_LEVELS } from "@/lib/types";
 import type { UserLevel } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+function denyUnlessSuperuser(level: string) {
+  if (level === "superuser") return null;
+  if (level === "guest") {
+    return NextResponse.json(
+      { error: "Silakan login untuk mengakses Master User" },
+      { status: 401 }
+    );
+  }
+  return NextResponse.json(
+    { error: "Master User hanya untuk superuser" },
+    { status: 403 }
+  );
+}
+
 export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const level = await getCurrentLevel();
+  const deniedSu = denyUnlessSuperuser(level);
+  if (deniedSu) return deniedSu;
   const denied = await requirePermission("user", "update");
   if (denied) return denied;
   try {
@@ -36,6 +53,9 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const level = await getCurrentLevel();
+  const deniedSu = denyUnlessSuperuser(level);
+  if (deniedSu) return deniedSu;
   const denied = await requirePermission("user", "delete");
   if (denied) return denied;
   try {

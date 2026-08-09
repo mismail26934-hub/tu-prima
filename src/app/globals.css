@@ -385,6 +385,13 @@ button {
   margin-top: 0;
 }
 
+.nav-menu-prefs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .btn {
   border: 1px solid var(--line);
   background: var(--bg-2);
@@ -813,6 +820,11 @@ button {
   .top-actions-panel--float .btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .top-actions-panel--float .nav-menu-prefs .btn {
+    width: 42px;
+    flex: 0 0 auto;
   }
 }
 

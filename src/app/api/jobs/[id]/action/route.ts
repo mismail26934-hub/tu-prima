@@ -5,6 +5,7 @@ import {
   requireAssignPermission,
   requireJobProgressPermission,
   requirePermission,
+  requireReopenPermission,
 } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ const ACTIONS = [
   "complete_step",
   "complete",
   "cancel",
+  "reopen",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -38,6 +40,8 @@ export async function POST(
     let denied;
     if (action === "assign") {
       denied = await requireAssignPermission();
+    } else if (action === "reopen") {
+      denied = await requireReopenPermission();
     } else if (
       [
         "start",

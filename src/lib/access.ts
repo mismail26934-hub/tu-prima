@@ -5,6 +5,7 @@ import {
   canAssignJob,
   canManageHandover,
   canManageJobProgress,
+  canReopenJob,
 } from "@/lib/permissions";
 import type {
   AccessAction,
@@ -102,6 +103,26 @@ export async function requireHandoverWritePermission(): Promise<NextResponse | n
     return NextResponse.json(
       {
         error: `Tambah/ubah/hapus catatan handover hanya untuk level foreman (level Anda: ${level})`,
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+/** Buka kembali job done: hanya superuser. */
+export async function requireReopenPermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (!canReopenJob(level)) {
+    if (level === "guest") {
+      return NextResponse.json(
+        { error: "Silakan login untuk membuka kembali job" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: `Buka kembali job hanya untuk level superuser (level Anda: ${level})`,
       },
       { status: 403 }
     );

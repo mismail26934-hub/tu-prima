@@ -23,6 +23,7 @@ import {
   canAssignJob,
   canManageHandover,
   canManageJobProgress,
+  canReopenJob,
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import { downloadJobPdf } from "@/lib/job-pdf";
@@ -54,6 +55,7 @@ type Modal =
   | { type: "start-next-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-job"; job: JobWithDetails }
+  | { type: "reopen-job"; job: JobWithDetails }
     | {
       type: "handover-delete";
       job: JobWithDetails;
@@ -383,6 +385,7 @@ export default function HomePage() {
   const canJobDelete = canAccess(userLevel, "job", "delete");
   const canJobAssign = canAssignJob(userLevel);
   const canJobProgress = canManageJobProgress(userLevel);
+  const canJobReopen = canReopenJob(userLevel);
   const canHandoverWrite = canManageHandover(userLevel);
   const canUserCreate = canAccess(userLevel, "user", "create");
   const canUserUpdate = canAccess(userLevel, "user", "update");
@@ -2650,6 +2653,16 @@ export default function HomePage() {
               }
             >
               Complete job
+            </button>
+          )}
+          {job.status === "done" && canJobReopen && (
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => setModal({ type: "reopen-job", job })}
+              title="Buka kembali job (status menjadi paused) — hanya Superuser"
+            >
+              Buka kembali
             </button>
           )}
         </div>
@@ -5032,6 +5045,39 @@ export default function HomePage() {
                 onClick={() => runAction(modal.job.id, "complete")}
               >
                 <BusyLabel busy={busy} idle="Ya, complete" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "reopen-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Buka kembali job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Buka kembali job yang sudah <strong>done</strong>? Status menjadi{" "}
+              <strong>paused</strong>. Assign teknisi sebelumnya dipasang ulang
+              jika masih available; jika tidak, assign ulang manual lalu Resume.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canJobReopen}
+                onClick={() => runAction(modal.job.id, "reopen")}
+              >
+                <BusyLabel
+                  busy={busy}
+                  idle="Ya, buka kembali"
+                  pending="Memproses..."
+                />
               </button>
             </div>
           </div>

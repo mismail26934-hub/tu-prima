@@ -43,6 +43,7 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 - Buat job dari **template time frame** (Component Engine / Non Engine) atau **custom**
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
 - Start, pause, resume, complete step, complete job
+- **Buka kembali** job `done` → `paused` (hanya **superuser**)
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
 - **Catatan handover** pada job aktif: tabel NO / Job Handover / Done / Note
 - **Catatan peminjaman part** pada job aktif: NO / Part yang dipinjam / Status (open|closed) / Note
@@ -221,7 +222,7 @@ Setiap aksi job / assign / progress mencatat **user login** (dari session).
 
 Kolom: `id`, `job_id`, `type`, `note`, `created_at`, **`user_id`**, **`user_name`**, **`user_level`**
 
-Jenis event: `created`, `updated`, `assigned`, `started`, `paused`, `resumed`, `step_started`, `step_completed`, `completed`, `cancelled`, …
+Jenis event: `created`, `updated`, `assigned`, `started`, `paused`, `resumed`, `step_started`, `step_completed`, `completed`, `cancelled`, `reopened`, …
 
 ### Sheet `AuditLog` (append-only)
 
@@ -231,11 +232,11 @@ Tetap ada **meski job dihapus**.
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `at`                                   | timestamp                                                                                             |
 | `user_id` / `user_name` / `user_level` | pelaku                                                                                                |
-| `action`                               | create, update, delete, assign, start, pause, resume, start_steps, complete_step, complete, cancel, … |
+| `action`                               | create, update, delete, assign, start, pause, resume, start_steps, complete_step, complete, cancel, reopen, … |
 | `entity` / `entity_id`                 | biasanya `job` + id job                                                                               |
 | `detail`                               | ringkasan (judul, unit, status, catatan)                                                              |
 
-Tercakup: create/update/delete job, assign/ubah teknisi, start/pause/resume/step/complete/cancel.
+Tercakup: create/update/delete job, assign/ubah teknisi, start/pause/resume/step/complete/cancel/reopen.
 
 ---
 
@@ -303,15 +304,15 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 
 **CRUD** = Create/Read/Update/Delete · **R** = Read · **—** = tidak ada
 
-| Level     | Job  | User | Teknisi | Unit | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write |
-| --------- | ---- | ---- | ------- | ---- | ------------ | ------ | -------------------------------- | -------------- |
-| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD         | Ya     | Ya                               | —              |
-| inputer   | CRUD | R    | R       | CRUD | R            | —      | —                                | —              |
-| teknisi   | R    | R    | R       | —    | R            | —      | —                                | —              |
-| foreman   | CRUD | R    | R       | CRUD | R            | Ya     | Ya                               | Ya             |
-| spv       | CRUD | R    | R       | CRUD | R            | —      | —                                | —              |
-| hrd       | R    | R    | R       | R    | CRUD         | —      | —                                | —              |
-| guest     | R    | R    | R       | —    | R            | —      | —                                | —              |
+| Level     | Job  | User | Teknisi | Unit | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
+| --------- | ---- | ---- | ------- | ---- | ------------ | ------ | -------------------------------- | -------------- | ------ |
+| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD         | Ya     | Ya                               | —              | Ya     |
+| inputer   | CRUD | R    | R       | CRUD | R            | —      | —                                | —              | —      |
+| teknisi   | R    | R    | R       | —    | R            | —      | —                                | —              | —      |
+| foreman   | CRUD | R    | R       | CRUD | R            | Ya     | Ya                               | Ya             | —      |
+| spv       | CRUD | R    | R       | CRUD | R            | —      | —                                | —              | —      |
+| hrd       | R    | R    | R       | R    | CRUD         | —      | —                                | —              | —      |
+| guest     | R    | R    | R       | —    | R            | —      | —                                | —              | —      |
 
 Catatan:
 
@@ -319,6 +320,7 @@ Catatan:
 - `guest` & `teknisi` tidak mendapat data Unit di dashboard.
 - Minimal satu `superuser` aktif harus tersisa.
 - **Handover write** (add/update/delete) hanya `foreman`; level lain tetap bisa melihat tabel read-only.
+- **Reopen** job `done` → `paused` hanya `superuser`.
 
 ---
 
@@ -356,7 +358,7 @@ data/
 | GET          | `/api/job-templates`                                              | List / detail template                                                                                   |
 | POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, actor audit)                                                                  |
 | PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                       |
-| POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel` |
+| POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel`, `reopen` |
 | POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                  |
 | PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                          |
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                           |

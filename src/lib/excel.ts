@@ -1972,7 +1972,8 @@ type JobAction =
   | "start_steps"
   | "complete_step"
   | "complete"
-  | "cancel";
+  | "cancel"
+  | "reopen";
 
 export async function jobAction(
   jobId: string,
@@ -2282,6 +2283,45 @@ export async function jobAction(
       job.completed_at = nowIso();
       releaseTechsFromJob(techs, job.id);
       pushEvent("cancelled", payload?.note || "Job dibatalkan");
+    }
+
+    if (action === "reopen") {
+      if (job.status !== "done") {
+        throw new Error("Hanya job done yang bisa dibuka kembali");
+      }
+      job.status = "paused";
+      job.completed_at = "";
+      job.paused_at = nowIso();
+
+      // Pastikan ada step aktif (paused) agar resume bisa dilanjutkan
+      const ordered = jobSteps()
+        .slice()
+        .sort((a, b) => a.order - b.order);
+      const hasActive = ordered.some((s) => s.status === "in_progress");
+      if (!hasActive && ordered.length > 0) {
+        const last = ordered[ordered.length - 1];
+        if (last.status === "done") {
+          last.status = "in_progress";
+          last.started_at = "";
+          last.completed_at = "";
+        }
+      }
+
+      // Pasang lagi teknisi assignee yang sedang available
+      const jobAssignees = assigneesForJob(assignees, job.id);
+      for (const a of jobAssignees) {
+        const tech = techs.find((t) => t.id === a.technician_id);
+        if (!tech) continue;
+        if (tech.status === "available" || !tech.current_job_id) {
+          tech.status = "busy";
+          tech.current_job_id = job.id;
+        }
+      }
+
+      pushEvent(
+        "reopened",
+        payload?.note || "Job dibuka kembali (status paused)"
+      );
     }
 
     pushAudit(

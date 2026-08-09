@@ -20,6 +20,7 @@ export type JobEventType =
   | "step_completed"
   | "completed"
   | "cancelled"
+  | "reopened"
   | "updated"
   | "deleted";
 

@@ -90,3 +90,8 @@ export function canManageJobProgress(level: AccessLevel | undefined): boolean {
 export function canManageHandover(level: AccessLevel | undefined): boolean {
   return level === "foreman";
 }
+
+/** Buka kembali job done → paused: hanya superuser. */
+export function canReopenJob(level: AccessLevel | undefined): boolean {
+  return level === "superuser";
+}

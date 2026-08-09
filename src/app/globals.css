@@ -88,6 +88,7 @@ body {
     radial-gradient(900px 500px at 100% 0%, var(--glow-2) 0%, transparent 50%),
     linear-gradient(180deg, var(--bg-0), var(--bg-deep) 100%);
   transition: background 0.25s ease, color 0.2s ease;
+  overflow-x: hidden;
 }
 
 html[data-theme="light"],
@@ -108,8 +109,11 @@ button {
 
 .app {
   max-width: 1280px;
+  width: 100%;
   margin: 0 auto;
   padding: 28px 20px 48px;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .app-login {
@@ -470,12 +474,13 @@ button {
 
 @media (max-width: 560px) {
   .summary {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
   .stat {
     padding: 8px 10px;
+    min-width: 0;
   }
 
   .stat .label,
@@ -534,6 +539,9 @@ button {
   padding: 16px;
   backdrop-filter: blur(6px);
   animation: rise 0.6s ease both 0.1s;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .panel h2 {
@@ -551,6 +559,8 @@ button {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+  min-width: 0;
+  width: 100%;
 }
 
 .panel-vis-bar {
@@ -623,12 +633,12 @@ button {
   flex: 1;
   justify-content: flex-end;
   flex-wrap: wrap;
-  min-width: 200px;
+  min-width: 0;
 }
 
 .panel-search {
   flex: 1;
-  min-width: 140px;
+  min-width: 0;
   max-width: 240px;
   background: var(--bg-0);
   border: 1px solid var(--line);
@@ -649,26 +659,112 @@ button {
   }
 
   .topbar {
-    align-items: center;
-    gap: 12px;
+    align-items: flex-start;
+    gap: 10px;
     padding-top: 4px;
     margin-bottom: 16px;
+    min-width: 0;
+  }
+
+  .topbar > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .brand {
+    font-size: clamp(1.65rem, 9vw, 2.2rem);
+  }
+
+  .brand span {
+    font-size: 0.68rem;
+    max-width: 100%;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .top-actions {
     flex-shrink: 0;
+    max-width: 100%;
+  }
+
+  .top-actions-mobile {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100%;
   }
 
   .top-actions-panel--bar {
     display: none !important;
   }
 
-  .top-actions-mobile {
-    display: inline-flex;
-  }
-
   .top-menu-toggle.btn-icon {
     display: inline-flex !important;
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panel-head h2 {
+    margin: 0;
+  }
+
+  .panel-search-row {
+    flex: none;
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .panel-search {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .panel-search-row .btn {
+    flex-shrink: 0;
+  }
+
+  .panel-vis-bar {
+    flex-wrap: wrap;
+  }
+
+  .panel-filter {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .panel-filter select {
+    min-width: 0;
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .summary-wrap,
+  .grid {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .job-head {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .job-timer-wrap {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .remain-card {
+    min-width: 0;
   }
 
   .top-menu-backdrop {

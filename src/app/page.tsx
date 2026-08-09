@@ -4186,15 +4186,6 @@ export default function HomePage() {
             </section>
             )}
           </div>
-
-          <p className="db-path">
-            Database Excel: <code>data/workshop.xlsx</code> · Archive:{" "}
-            <code>data/completed-jobs.xlsx</code> /{" "}
-            <code>data/cancelled-jobs.xlsx</code> /{" "}
-            <code>data/deleted-jobs.xlsx</code> · Backup undo:{" "}
-            <code>data/backup-jobs.xlsx</code> · Template:{" "}
-            <code>data/job-templates.json</code>
-          </p>
         </>
       )}
 

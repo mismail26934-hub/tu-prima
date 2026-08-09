@@ -943,6 +943,16 @@ button {
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px dashed var(--line-dashed);
+  position: relative;
+}
+
+.handover-panel.is-busy {
+  min-height: 96px;
+  pointer-events: none;
+}
+
+.handover-panel .modal-loading {
+  border-radius: 10px;
 }
 
 .handover-head {

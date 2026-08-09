@@ -1047,6 +1047,30 @@ export default function HomePage() {
       }>
     >
   >({});
+  /** Loading state untuk tambah/simpan/hapus handover & part-loan. */
+  const [notePanelBusy, setNotePanelBusy] = useState<{
+    jobId: string;
+    panel: "handover" | "part-loan";
+    action: "add" | "save" | "delete";
+  } | null>(null);
+
+  function isNotePanelBusy(
+    jobId: string,
+    panel: "handover" | "part-loan",
+    action?: "add" | "save" | "delete"
+  ) {
+    if (!notePanelBusy) return false;
+    if (notePanelBusy.jobId !== jobId || notePanelBusy.panel !== panel) {
+      return false;
+    }
+    return action ? notePanelBusy.action === action : true;
+  }
+
+  function notePanelBusyLabel(action: "add" | "save" | "delete") {
+    if (action === "add") return "Menambah...";
+    if (action === "save") return "Menyimpan...";
+    return "Menghapus...";
+  }
 
   type PartLoanLocalRow = {
     key: string;
@@ -1850,6 +1874,7 @@ export default function HomePage() {
     const title = draft.title.trim();
     if (!title) return;
     setBusy(true);
+    setNotePanelBusy({ jobId: job.id, panel: "handover", action: "add" });
     setError("");
     try {
       await api(`/api/jobs/${job.id}/handovers`, {
@@ -1874,6 +1899,7 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Gagal tambah handover");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
@@ -1893,6 +1919,7 @@ export default function HomePage() {
     if (!toUpdate.length) return;
 
     setBusy(true);
+    setNotePanelBusy({ jobId: job.id, panel: "handover", action: "save" });
     setError("");
     try {
       for (const row of toUpdate) {
@@ -1916,11 +1943,13 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Gagal simpan handover");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
   async function removeHandover(jobId: string, handoverKey: string, handoverId?: string) {
     setBusy(true);
+    setNotePanelBusy({ jobId, panel: "handover", action: "delete" });
     setError("");
     try {
       if (handoverId) {
@@ -1952,6 +1981,7 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Gagal hapus handover");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
@@ -2011,6 +2041,7 @@ export default function HomePage() {
     const part_name = draft.part_name.trim();
     if (!part_name) return;
     setBusy(true);
+    setNotePanelBusy({ jobId: job.id, panel: "part-loan", action: "add" });
     setError("");
     try {
       await api(`/api/jobs/${job.id}/part-loans`, {
@@ -2035,6 +2066,7 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Gagal tambah peminjaman part");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
@@ -2054,6 +2086,7 @@ export default function HomePage() {
     if (!toUpdate.length) return;
 
     setBusy(true);
+    setNotePanelBusy({ jobId: job.id, panel: "part-loan", action: "save" });
     setError("");
     try {
       for (const row of toUpdate) {
@@ -2077,6 +2110,7 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Gagal simpan peminjaman part");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
@@ -2086,6 +2120,7 @@ export default function HomePage() {
     loanId?: string
   ) {
     setBusy(true);
+    setNotePanelBusy({ jobId, panel: "part-loan", action: "delete" });
     setError("");
     try {
       if (loanId) {
@@ -2117,6 +2152,7 @@ export default function HomePage() {
       setError(e instanceof Error ? e.message : "Gagal hapus peminjaman part");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
@@ -2302,12 +2338,6 @@ export default function HomePage() {
                 {job.technicians?.length > 1 ? ` (${job.technicians.length} teknisi)` : ""}
               </div>
             </div>
-            <div style={{ marginTop: 6 }}>
-              <StatusPill status={job.status} />
-              <span style={{ color: "var(--muted)", marginLeft: 10, fontSize: "0.85rem" }}>
-                Est. {job.estimated_minutes} mnt · Progress {job.progress_pct}%
-              </span>
-            </div>
           </div>
           {["in_progress", "paused", "done"].includes(job.status) && (
             <div className="job-timer-wrap">
@@ -2354,6 +2384,16 @@ export default function HomePage() {
             {job.description}
           </p>
         )}
+
+        <div style={{ marginTop: job.description ? 6 : 10 }}>
+          <StatusPill status={job.status} />
+          <span style={{ color: "var(--muted)", marginLeft: 10, fontSize: "0.85rem" }}>
+            Est. {job.estimated_minutes} mnt /{" "}
+            {Math.floor(Number(job.estimated_minutes || 0) / 60)} jam{" "}
+            {Number(job.estimated_minutes || 0) % 60} mnt · Progress{" "}
+            {job.progress_pct}%
+          </span>
+        </div>
 
         <div className="progress">
           <span style={{ width: `${job.progress_pct}%` }} />
@@ -2538,7 +2578,14 @@ export default function HomePage() {
         </div>
 
         {["in_progress", "paused", "done"].includes(job.status) && (
-          <div className="handover-panel">
+          <div
+            className={`handover-panel${
+              isNotePanelBusy(job.id, "handover") ? " is-busy" : ""
+            }`}
+          >
+            {isNotePanelBusy(job.id, "handover") && notePanelBusy && (
+              <BusyOverlay label={notePanelBusyLabel(notePanelBusy.action)} />
+            )}
             <div className="handover-head">
               <h4>
                 Catatan handover{" "}
@@ -2648,7 +2695,11 @@ export default function HomePage() {
                   disabled={busy || !getHandoverDraft(job.id).title.trim()}
                   onClick={() => addHandover(job)}
                 >
-                  + Tambah
+                  <BusyLabel
+                    busy={isNotePanelBusy(job.id, "handover", "add")}
+                    idle="+ Tambah"
+                    pending="Menambah..."
+                  />
                 </button>
               </div>
             )}
@@ -2665,7 +2716,11 @@ export default function HomePage() {
                   disabled={busy || !isHandoverDirty(job)}
                   onClick={() => saveHandovers(job)}
                 >
-                  Save
+                  <BusyLabel
+                    busy={isNotePanelBusy(job.id, "handover", "save")}
+                    idle="Save"
+                    pending="Menyimpan..."
+                  />
                 </button>
               </div>
             )}
@@ -2805,7 +2860,14 @@ export default function HomePage() {
         )}
 
         {["in_progress", "paused", "done"].includes(job.status) && (
-          <div className="handover-panel part-loan-panel">
+          <div
+            className={`handover-panel part-loan-panel${
+              isNotePanelBusy(job.id, "part-loan") ? " is-busy" : ""
+            }`}
+          >
+            {isNotePanelBusy(job.id, "part-loan") && notePanelBusy && (
+              <BusyOverlay label={notePanelBusyLabel(notePanelBusy.action)} />
+            )}
             <div className="handover-head">
               <h4>
                 Catatan peminjaman part{" "}
@@ -2917,7 +2979,11 @@ export default function HomePage() {
                   }
                   onClick={() => addPartLoan(job)}
                 >
-                  + Tambah
+                  <BusyLabel
+                    busy={isNotePanelBusy(job.id, "part-loan", "add")}
+                    idle="+ Tambah"
+                    pending="Menambah..."
+                  />
                 </button>
               </div>
             )}
@@ -2934,7 +3000,11 @@ export default function HomePage() {
                   disabled={busy || !isPartLoanDirty(job)}
                   onClick={() => savePartLoans(job)}
                 >
-                  Save
+                  <BusyLabel
+                    busy={isNotePanelBusy(job.id, "part-loan", "save")}
+                    idle="Save"
+                    pending="Menyimpan..."
+                  />
                 </button>
               </div>
             )}
@@ -4833,7 +4903,15 @@ export default function HomePage() {
       {modal?.type === "handover-delete" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            {busy && <BusyOverlay label="Memproses..." />}
+            {busy && (
+              <BusyOverlay
+                label={
+                  isNotePanelBusy(modal.job.id, "handover", "delete")
+                    ? "Menghapus..."
+                    : "Memproses..."
+                }
+              />
+            )}
             <h3>Hapus catatan handover</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — {modal.job.unit}
@@ -4870,7 +4948,15 @@ export default function HomePage() {
       {modal?.type === "part-loan-delete" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            {busy && <BusyOverlay label="Memproses..." />}
+            {busy && (
+              <BusyOverlay
+                label={
+                  isNotePanelBusy(modal.job.id, "part-loan", "delete")
+                    ? "Menghapus..."
+                    : "Memproses..."
+                }
+              />
+            )}
             <h3>Hapus peminjaman part</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — {modal.job.unit}

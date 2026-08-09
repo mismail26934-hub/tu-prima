@@ -179,9 +179,9 @@ Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `dura
 
 Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** (serah terima shift):
 
-| NO | Job Handover | Done | Note |
-|----|--------------|------|------|
-| 1 | Cleaning camshaft | Yes/No | Opsional |
+| NO  | Job Handover      | Done   | Note     |
+| --- | ----------------- | ------ | -------- |
+| 1   | Cleaning camshaft | Yes/No | Opsional |
 
 - Pilih aksi **Tambah / Ubah / Hapus** (select) agar UI lebih aman:
   - **Tambah** — field + tombol `+ Tambah` (langsung simpan)
@@ -198,9 +198,9 @@ API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[
 
 Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan peminjaman part**:
 
-| NO | Part yang dipinjam | Status | Note |
-|----|--------------------|--------|------|
-| 1 | Seal kit | open / closed | Opsional |
+| NO  | Part yang dipinjam | Status        | Note     |
+| --- | ------------------ | ------------- | -------- |
+| 1   | Seal kit           | open / closed | Opsional |
 
 - Pola UI sama handover: aksi **Tambah / Ubah / Hapus**
 - Status default **open** saat tambah; ubah ke **closed** lewat mode Ubah
@@ -357,10 +357,10 @@ data/
 | PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                       |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel` |
 | POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                  |
-| PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                            | Update / hapus catatan handover                                                                          |
+| PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                          |
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                           |
-| PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                               | Update / hapus catatan peminjaman part                                                                   |
-| GET          | `/api/reports/jobs?scope=active\|queue`                            | Export Excel job aktif / antrian (file terpisah, login)                                                  |
+| PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                   |
+| GET          | `/api/reports/jobs?scope=active\|queue`                           | Export Excel job aktif / antrian (file terpisah, login)                                                  |
 | \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                          |
 | POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                   |
 
@@ -423,6 +423,7 @@ npm start
 - Template time frame diubah → regenerate `data/job-templates.json` (parse ulang Excel sumber), lalu restart / refresh.
 - `data/*.xlsx` biasanya di-ignore git; pastikan backup `workshop.xlsx` dan `AuditLog` jika data produksi penting.
 - Timer & warna sisa estimasi (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
+- Last git feat/stp/timeframe-handover
 
 ---
 

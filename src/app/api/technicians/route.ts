@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const sn = body.sn ?? body.skill;
     if (!body.name || !sn || !body.phone) {
       return NextResponse.json(
-        { error: "nama, SN KPC, dan telepon wajib diisi" },
+        { error: "nama, SN, dan telepon wajib diisi" },
         { status: 400 }
       );
     }

@@ -120,10 +120,17 @@ button {
 
 .login-card {
   width: min(420px, 100%);
+  position: relative;
   background: var(--bg-1);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 22px;
+}
+
+.login-lang {
+  position: absolute;
+  top: 14px;
+  right: 14px;
 }
 
 .login-card h1 {
@@ -412,6 +419,13 @@ button {
   width: 42px;
   height: 42px;
   padding: 0;
+}
+
+.lang-toggle-icon .lang-toggle-code {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
 }
 
 .btn:disabled {

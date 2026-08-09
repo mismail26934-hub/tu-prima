@@ -31,6 +31,8 @@ import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
 import { useJobBoardStore } from "@/store/jobBoardStore";
+import { useT } from "@/i18n/useT";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 type Modal =
   | null
@@ -171,6 +173,7 @@ function LiveTimer({ job }: { job: JobWithDetails }) {
 
 /** Remaining vs estimate; card tone from remaining % of estimate. */
 function RemainingTimerCard({ job }: { job: JobWithDetails }) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(() => calcElapsedSec(job));
   useEffect(() => {
     setElapsed(calcElapsedSec(job));
@@ -207,18 +210,25 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
       className={`remain-card remain-card--${tone}`}
       title={
         estimateSec > 0
-          ? `Sisa ${Math.round(Math.max(0, remainingPct))}% dari estimasi ${job.estimated_minutes} mnt`
-          : "Estimasi belum diisi"
+          ? t("job.remainTitleTip", {
+              pct: Math.round(Math.max(0, remainingPct)),
+              minutes: job.estimated_minutes,
+              minUnit: t("common.minutes"),
+            })
+          : t("job.remainNoEstimate")
       }
     >
-      <span className="remain-card-label">Sisa estimasi</span>
+      <span className="remain-card-label">{t("job.remainTitle")}</span>
       <span className="remain-card-value">{value}</span>
-      <span className="remain-card-pct">{pctLabel} tersisa</span>
+      <span className="remain-card-pct">
+        {pctLabel} {t("common.remainingPct")}
+      </span>
     </div>
   );
 }
 
 function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; running: boolean }) {
+  const t = useT();
   const [sec, setSec] = useState(() => calcStepElapsedSec(step));
   useEffect(() => {
     setSec(calcStepElapsedSec(step));
@@ -247,8 +257,15 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
       title={
         stdSec > 0
           ? remainingSec >= 0
-            ? `Sisa ${Math.round(remainingPct)}% dari STP ${step.std_minutes} mnt`
-            : `Melebihi STP/Std Hours (${step.std_minutes} mnt)`
+            ? t("job.stpRemainTip", {
+                pct: Math.round(remainingPct),
+                minutes: step.std_minutes,
+                minUnit: t("common.minutes"),
+              })
+            : t("job.stpOverTip", {
+                minutes: step.std_minutes,
+                minUnit: t("common.minutes"),
+              })
           : undefined
       }
     >
@@ -377,6 +394,7 @@ function Pager({
 }
 
 export default function HomePage() {
+  const t = useT();
   const { data: session, status: sessionStatus } = useSession();
   const isLoggedIn = sessionStatus === "authenticated";
   const userLevel = session?.user?.level || "guest";
@@ -1287,9 +1305,11 @@ export default function HomePage() {
     const m = Math.max(0, Math.round(Number(minutes) || 0));
     const h = Math.floor(m / 60);
     const rem = m % 60;
-    if (rem === 0) return `${h} jam`;
-    if (h <= 0) return `${rem} mnt`;
-    return `${h} jam ${rem} mnt`;
+    const hours = t("common.hours");
+    const mins = t("common.minutes");
+    if (rem === 0) return `${h} ${hours}`;
+    if (h <= 0) return `${rem} ${mins}`;
+    return `${h} ${hours} ${rem} ${mins}`;
   }
 
   const load = useCallback(async () => {
@@ -1334,7 +1354,9 @@ export default function HomePage() {
 
     const scope = exportForm.scope;
     const title =
-      scope === "active" ? "Export Job Aktif" : "Export Job Antrian";
+      scope === "active"
+        ? t("export.busyLabel")
+        : t("export.busyLabelQueue");
     setModal({
       type: "process-alert",
       title,
@@ -2459,10 +2481,10 @@ export default function HomePage() {
         <div style={{ marginTop: job.description ? 6 : 10 }}>
           <StatusPill status={job.status} />
           <span style={{ color: "var(--muted)", marginLeft: 10, fontSize: "0.85rem" }}>
-            Est. {job.estimated_minutes} mnt /{" "}
-            {Math.floor(Number(job.estimated_minutes || 0) / 60)} jam{" "}
-            {Number(job.estimated_minutes || 0) % 60} mnt · Progress{" "}
-            {job.progress_pct}%
+            {t("job.est")} {job.estimated_minutes} {t("common.minutes")} /{" "}
+            {Math.floor(Number(job.estimated_minutes || 0) / 60)} {t("common.hours")}{" "}
+            {Number(job.estimated_minutes || 0) % 60} {t("common.minutes")} ·{" "}
+            {t("job.progress")} {job.progress_pct}%
           </span>
         </div>
 
@@ -2478,7 +2500,7 @@ export default function HomePage() {
               disabled={busy}
               onClick={() => setStepMode(job.id, "sequential")}
             >
-              Berurutan
+              {t("job.sequential")}
             </button>
             <button
               type="button"
@@ -2486,12 +2508,12 @@ export default function HomePage() {
               disabled={busy}
               onClick={() => setStepMode(job.id, "parallel")}
             >
-              Parallel
+              {t("job.parallel")}
             </button>
             <span className="step-hint">
               {getStepMode(job.id) === "sequential"
-                ? "Satu step aktif; selesai → lanjut otomatis"
-                : "Centang beberapa step → Start terpilih (timer sama)"}
+                ? t("job.sequentialHint")
+                : t("job.parallelHint")}
             </span>
           </div>
         )}
@@ -2525,7 +2547,7 @@ export default function HomePage() {
                   {Number(s.std_minutes || 0) > 0 && (
                     <span className="step-stp" title="STP / Std Hours">
                       {" "}
-                      · STP/Std Hours: {formatStdLabel(Number(s.std_minutes))}
+                      · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
                     </span>
                   )}
                 </span>
@@ -3239,7 +3261,7 @@ export default function HomePage() {
         <div>
           <div className="brand">
             TU-PRIMA
-            <span>Progress Report &amp; Inspection for Mechanic Allocation</span>
+            <span>{t("brand.tagline")}</span>
           </div>
         </div>
         <div className="top-actions">
@@ -3256,7 +3278,7 @@ export default function HomePage() {
                   setManageOpen((o) => !o);
                 }}
               >
-                Kelola
+                {t("nav.manage")}
                 <svg
                   className="nav-manage-caret"
                   width="12"
@@ -3284,7 +3306,7 @@ export default function HomePage() {
                       setModal({ type: "settings" });
                     }}
                   >
-                    Settings
+                    {t("nav.settings")}
                   </button>
                   <button
                     type="button"
@@ -3297,7 +3319,7 @@ export default function HomePage() {
                       setModal({ type: "techs" });
                     }}
                   >
-                    Master Teknisi
+                    {t("nav.technicians")}
                   </button>
                   <button
                     type="button"
@@ -3309,7 +3331,7 @@ export default function HomePage() {
                       openUsersMaster();
                     }}
                   >
-                    Master User
+                    {t("nav.usersMaster")}
                   </button>
                   <button
                     type="button"
@@ -3321,7 +3343,7 @@ export default function HomePage() {
                       setModal({ type: "units" });
                     }}
                   >
-                    Master Unit
+                    {t("nav.unitsMaster")}
                   </button>
                   <button
                     type="button"
@@ -3333,7 +3355,7 @@ export default function HomePage() {
                       setModal({ type: "attendance" });
                     }}
                   >
-                    Daftar Hadir
+                    {t("nav.attendance")}
                   </button>
                   <button
                     type="button"
@@ -3342,21 +3364,21 @@ export default function HomePage() {
                     disabled={busy || !isLoggedIn}
                     title={
                       isLoggedIn
-                        ? "Export Excel job aktif / antrian"
-                        : "Login untuk export laporan"
+                        ? t("nav.exportExcelTip")
+                        : t("nav.exportNeedLogin")
                     }
                     onClick={() => {
                       setManageOpen(false);
                       openExportJobsModal();
                     }}
                   >
-                    Export to excel
+                    {t("nav.exportExcel")}
                   </button>
                 </div>
               )}
             </div>
             <button className="btn" disabled={busy} onClick={() => load()}>
-              Refresh
+              {t("nav.refresh")}
             </button>
             <div className="nav-session">
               {isLoggedIn ? (
@@ -3368,7 +3390,7 @@ export default function HomePage() {
                     className="btn nav-account"
                     type="button"
                     disabled={busy || loggingOut}
-                    aria-label="Menu akun"
+                    aria-label={t("nav.accountMenu")}
                     aria-haspopup="menu"
                     aria-expanded={sessionOpen}
                     title={`${displayName} · ${userLevel}`}
@@ -3408,7 +3430,7 @@ export default function HomePage() {
                           openChangePassword();
                         }}
                       >
-                        Edit password
+                        {t("nav.editPassword")}
                       </button>
                       <button
                         type="button"
@@ -3420,7 +3442,7 @@ export default function HomePage() {
                           openLogoutConfirm();
                         }}
                       >
-                        Logout
+                        {t("nav.logout")}
                       </button>
                     </div>
                   )}
@@ -3431,16 +3453,17 @@ export default function HomePage() {
                   disabled={busy || sessionStatus === "loading" || loggingOut}
                   onClick={handleAuthClick}
                 >
-                  Login
+                  {t("nav.login")}
                 </button>
               )}
             </div>
+            <LanguageToggle />
             <button
               className="btn btn-icon"
               type="button"
               onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
+              aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
+              title={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
             >
               {theme === "dark" ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -3458,7 +3481,7 @@ export default function HomePage() {
               disabled={busy || !canJobCreate}
               onClick={() => openCreate()}
             >
-              + Job baru
+              {t("nav.newJob")}
             </button>
           </div>
 
@@ -3468,14 +3491,15 @@ export default function HomePage() {
               disabled={busy || !canJobCreate}
               onClick={() => openCreate()}
             >
-              + Job
+              {t("nav.newJobShort")}
             </button>
+            <LanguageToggle />
             <button
               className="btn btn-icon"
               type="button"
               onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
+              aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
+              title={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
             >
               {theme === "dark" ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -3491,7 +3515,7 @@ export default function HomePage() {
             <button
               className="btn btn-icon top-menu-toggle"
               type="button"
-              aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
+              aria-label={mobileMenuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((o) => !o)}
             >
@@ -3532,9 +3556,9 @@ export default function HomePage() {
                     style={{ width: 28, height: 28, minWidth: 28 }}
                     type="button"
                     disabled={busy || loggingOut}
-                    aria-label="Menu akun"
+                    aria-label={t("nav.accountMenu")}
                     aria-expanded={sessionOpen}
-                    title="Menu akun"
+                    title={t("nav.accountMenu")}
                     onClick={() => setSessionOpen((open) => !open)}
                   >
                     <svg
@@ -3566,7 +3590,7 @@ export default function HomePage() {
                     openChangePassword();
                   }}
                 >
-                  Edit password
+                  {t("nav.editPassword")}
                 </button>
                 <button
                   className="btn"
@@ -3577,7 +3601,7 @@ export default function HomePage() {
                     openLogoutConfirm();
                   }}
                 >
-                  Logout
+                  {t("nav.logout")}
                 </button>
               </div>
             )}
@@ -3590,9 +3614,9 @@ export default function HomePage() {
                 load();
               }}
             >
-              Refresh
+              {t("nav.refresh")}
             </button>
-            <p className="nav-menu-label">Kelola</p>
+            <p className="nav-menu-label">{t("nav.manage")}</p>
             <button
               className="btn"
               disabled={busy}
@@ -3601,7 +3625,7 @@ export default function HomePage() {
                 setModal({ type: "settings" });
               }}
             >
-              Settings
+              {t("nav.settings")}
             </button>
             <button
               className="btn"
@@ -3612,7 +3636,7 @@ export default function HomePage() {
                 setModal({ type: "techs" });
               }}
             >
-              Master Teknisi
+              {t("nav.technicians")}
             </button>
             <button
               className="btn"
@@ -3622,7 +3646,7 @@ export default function HomePage() {
                 openUsersMaster();
               }}
             >
-              Master User
+              {t("nav.usersMaster")}
             </button>
             <button
               className="btn"
@@ -3632,7 +3656,7 @@ export default function HomePage() {
                 setModal({ type: "units" });
               }}
             >
-              Master Unit
+              {t("nav.unitsMaster")}
             </button>
             <button
               className="btn"
@@ -3642,22 +3666,22 @@ export default function HomePage() {
                 setModal({ type: "attendance" });
               }}
             >
-              Daftar Hadir
+              {t("nav.attendance")}
             </button>
             <button
               className="btn"
               disabled={busy || !isLoggedIn}
               title={
                 isLoggedIn
-                  ? "Export Excel job aktif / antrian"
-                  : "Login untuk export laporan"
+                  ? t("nav.exportExcelTip")
+                  : t("nav.exportNeedLogin")
               }
               onClick={() => {
                 setMobileMenuOpen(false);
                 openExportJobsModal();
               }}
             >
-              Export to excel
+              {t("nav.exportExcel")}
             </button>
             {!isLoggedIn && (
               <button
@@ -3668,7 +3692,7 @@ export default function HomePage() {
                   handleAuthClick();
                 }}
               >
-                Login
+                {t("nav.login")}
               </button>
             )}
           </div>
@@ -3678,34 +3702,34 @@ export default function HomePage() {
       {loggingOut && (
         <div className="page-loading" role="status" aria-live="polite">
           <span className="spinner" aria-hidden="true" />
-          <span>Keluar dari akun...</span>
+          <span>{t("logout.leaving")}</span>
         </div>
       )}
 
       {error && <div className="error">{error}</div>}
 
       {loading || !data ? (
-        <p style={{ color: "var(--muted)" }}>Memuat data dari Excel...</p>
+        <p style={{ color: "var(--muted)" }}>{t("loading.dashboard")}</p>
       ) : (
         <>
           <div className="summary-wrap">
             <section className="summary-group">
-              <h3 className="summary-title">Teknisi</h3>
+              <h3 className="summary-title">{t("summary.technicians")}</h3>
               <div className="summary">
                 <div className="stat">
-                  <div className="label">Available</div>
+                  <div className="label">{t("summary.available")}</div>
                   <div className="value" style={{ color: "var(--green)" }}>
                     {data.summary.available}
                   </div>
                 </div>
                 <div className="stat">
-                  <div className="label">Busy</div>
+                  <div className="label">{t("summary.busy")}</div>
                   <div className="value" style={{ color: "var(--amber)" }}>
                     {data.summary.busy}
                   </div>
                 </div>
                 <div className="stat">
-                  <div className="label">Offline</div>
+                  <div className="label">{t("summary.offline")}</div>
                   <div className="value" style={{ color: "var(--steel)" }}>
                     {data.summary.offline}
                   </div>
@@ -3713,18 +3737,18 @@ export default function HomePage() {
               </div>
             </section>
             <section className="summary-group">
-              <h3 className="summary-title">Job</h3>
+              <h3 className="summary-title">{t("summary.jobs")}</h3>
               <div className="summary">
                 <div className="stat">
-                  <div className="label">Job aktif</div>
+                  <div className="label">{t("summary.activeJobs")}</div>
                   <div className="value">{data.summary.active_jobs}</div>
                 </div>
                 <div className="stat">
-                  <div className="label">Antrian</div>
+                  <div className="label">{t("summary.queue")}</div>
                   <div className="value">{data.summary.queued_jobs}</div>
                 </div>
                 <div className="stat">
-                  <div className="label">Job completed</div>
+                  <div className="label">{t("summary.completed")}</div>
                   <div className="value">{data.summary.completed_jobs}</div>
                 </div>
               </div>
@@ -3737,13 +3761,13 @@ export default function HomePage() {
             {hideTechPanel ? (
               <section className="panel panel--collapsed">
                 <div className="panel-vis-bar">
-                  <span className="panel-vis-label">Panel Teknisi disembunyikan</span>
+                  <span className="panel-vis-label">{t("panel.techHidden")}</span>
                   <button
                     type="button"
                     className="btn btn-icon panel-vis-btn"
                     onClick={toggleHideTechPanel}
-                    aria-label="Tampilkan panel Teknisi"
-                    title="Tampilkan"
+                    aria-label={t("panel.showTech")}
+                    title={t("panel.show")}
                   >
                     <PanelToggleIcon collapsed />
                   </button>
@@ -3753,7 +3777,7 @@ export default function HomePage() {
             <section className="panel">
               <div className="panel-vis-bar">
                 <label className="panel-filter">
-                  <span className="panel-vis-label">Filter</span>
+                  <span className="panel-vis-label">{t("panel.filter")}</span>
                   <select
                     value={techStatusFilter}
                     onChange={(e) =>
@@ -3761,9 +3785,9 @@ export default function HomePage() {
                         e.target.value as "all" | TechnicianStatus
                       )
                     }
-                    aria-label="Filter status teknisi"
+                    aria-label={t("panel.filterTechStatus")}
                   >
-                    <option value="all">All</option>
+                    <option value="all">{t("panel.all")}</option>
                     <option value="available">available</option>
                     <option value="busy">busy</option>
                     <option value="offline">offline</option>
@@ -3773,8 +3797,8 @@ export default function HomePage() {
                   type="button"
                   className="btn btn-icon panel-vis-btn"
                   onClick={toggleHideTechPanel}
-                  aria-label="Sembunyikan panel Teknisi"
-                  title="Sembunyikan"
+                  aria-label={t("panel.hideTech")}
+                  title={t("panel.hide")}
                 >
                   <PanelToggleIcon collapsed={false} />
                 </button>
@@ -3793,7 +3817,7 @@ export default function HomePage() {
                         applyTechSearch();
                       }
                     }}
-                    placeholder="Cari nama atau SN KPC..."
+                    placeholder="Cari nama atau SN..."
                     aria-label="Cari teknisi"
                   />
                   <button
@@ -3881,13 +3905,13 @@ export default function HomePage() {
             {hideJobPanel ? (
               <section className="panel panel--collapsed">
                 <div className="panel-vis-bar">
-                  <span className="panel-vis-label">Panel Job disembunyikan</span>
+                  <span className="panel-vis-label">{t("panel.jobHidden")}</span>
                   <button
                     type="button"
                     className="btn btn-icon panel-vis-btn"
                     onClick={toggleHideJobPanel}
-                    aria-label="Tampilkan panel Job"
-                    title="Tampilkan"
+                    aria-label={t("panel.showJob")}
+                    title={t("panel.show")}
                   >
                     <PanelToggleIcon collapsed />
                   </button>
@@ -3897,7 +3921,7 @@ export default function HomePage() {
             <section className="panel">
               <div className="panel-vis-bar">
                 <label className="panel-filter">
-                  <span className="panel-vis-label">Filter</span>
+                  <span className="panel-vis-label">{t("panel.filter")}</span>
                   <select
                     value={jobSectionFilter}
                     onChange={(e) =>
@@ -3910,21 +3934,21 @@ export default function HomePage() {
                           | "cancelled"
                       )
                     }
-                    aria-label="Filter section job"
+                    aria-label={t("panel.filterJobSection")}
                   >
                     <option value="all">All</option>
-                    <option value="active">Job aktif</option>
-                    <option value="queue">Antrian</option>
-                    <option value="done">Job completed</option>
-                    <option value="cancelled">Job cancelled</option>
+                    <option value="active">{t("job.section.active")}</option>
+                    <option value="queue">{t("job.section.queue")}</option>
+                    <option value="done">{t("job.section.done")}</option>
+                    <option value="cancelled">{t("job.section.cancelled")}</option>
                   </select>
                 </label>
                 <button
                   type="button"
                   className="btn btn-icon panel-vis-btn"
                   onClick={toggleHideJobPanel}
-                  aria-label="Sembunyikan panel Job"
-                  title="Sembunyikan"
+                  aria-label={t("panel.hideJob")}
+                  title={t("panel.hide")}
                 >
                   <PanelToggleIcon collapsed={false} />
                 </button>
@@ -3932,14 +3956,14 @@ export default function HomePage() {
               <div className="panel-head">
                 <h2>
                   {jobSectionFilter === "active"
-                    ? "Job aktif & progress"
+                    ? t("panel.activeJobsProgress")
                     : jobSectionFilter === "queue"
-                      ? "Antrian"
+                      ? t("job.section.queue")
                       : jobSectionFilter === "done"
-                        ? "Job completed"
+                        ? t("job.section.done")
                         : jobSectionFilter === "cancelled"
-                          ? "Job cancelled"
-                          : "Job aktif & progress"}
+                          ? t("job.section.cancelled")
+                          : t("panel.activeJobsProgress")}
                 </h2>
                 <div className="panel-search-row">
                   <input
@@ -3978,7 +4002,7 @@ export default function HomePage() {
                 <>
                   {activeJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
-                      {jobQuery ? "Tidak ada job aktif yang cocok." : "Tidak ada job aktif."}
+                      {jobQuery ? t("panel.activeNoMatch") : t("panel.activeEmpty")}
                     </p>
                   )}
                   {pagedActiveJobs.map(renderJob)}
@@ -3995,11 +4019,11 @@ export default function HomePage() {
               {(jobSectionFilter === "all" || jobSectionFilter === "queue") && (
                 <>
                   {jobSectionFilter === "all" && (
-                    <h2 style={{ marginTop: 22 }}>Antrian</h2>
+                    <h2 style={{ marginTop: 22 }}>{t("job.section.queue")}</h2>
                   )}
                   {queuedJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
-                      {jobQuery ? "Tidak ada antrian yang cocok." : "Antrian kosong."}
+                      {jobQuery ? t("panel.queueNoMatch") : t("panel.queueEmpty")}
                     </p>
                   )}
                   {queuedJobs.map(renderJob)}
@@ -4011,7 +4035,7 @@ export default function HomePage() {
                   {jobSectionFilter === "all" ? (
                     completedJobs.length > 0 && (
                       <>
-                        <h2 style={{ marginTop: 22 }}>Job completed</h2>
+                        <h2 style={{ marginTop: 22 }}>{t("job.section.done")}</h2>
                         {completedJobs.map(renderJob)}
                       </>
                     )
@@ -4020,8 +4044,8 @@ export default function HomePage() {
                       {completedJobs.length === 0 && (
                         <p style={{ color: "var(--muted)" }}>
                           {jobQuery
-                            ? "Tidak ada job completed yang cocok."
-                            : "Belum ada job di completed-jobs.xlsx."}
+                            ? t("panel.doneNoMatch")
+                            : t("panel.doneEmptyArchive")}
                         </p>
                       )}
                       {completedJobs.map(renderJob)}
@@ -4036,7 +4060,7 @@ export default function HomePage() {
                   {jobSectionFilter === "all" ? (
                     historyJobs.length > 0 && (
                       <>
-                        <h2 style={{ marginTop: 22 }}>Job cancelled</h2>
+                        <h2 style={{ marginTop: 22 }}>{t("job.section.cancelled")}</h2>
                         {historyJobs.map(renderJob)}
                       </>
                     )
@@ -4045,8 +4069,8 @@ export default function HomePage() {
                       {historyJobs.length === 0 && (
                         <p style={{ color: "var(--muted)" }}>
                           {jobQuery
-                            ? "Tidak ada job cancelled yang cocok."
-                            : "Belum ada job di cancelled-jobs.xlsx."}
+                            ? t("panel.cancelledNoMatch")
+                            : t("panel.cancelledEmptyArchive")}
                         </p>
                       )}
                       {historyJobs.map(renderJob)}
@@ -4071,13 +4095,13 @@ export default function HomePage() {
       {modal?.type === "export-jobs" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Export to excel</h3>
+            <h3>{t("export.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Pilih jenis laporan dan filter tanggal (opsional).
+              {t("export.hint")}
             </p>
             <div className="form">
               <label>
-                Jenis export
+                {t("export.scope")}
                 <select
                   value={exportForm.scope}
                   disabled={busy}
@@ -4088,12 +4112,12 @@ export default function HomePage() {
                     }))
                   }
                 >
-                  <option value="active">Export Job Aktif</option>
-                  <option value="queue">Export Job Antrian</option>
+                  <option value="active">{t("export.scopeActive")}</option>
+                  <option value="queue">{t("export.scopeQueue")}</option>
                 </select>
               </label>
               <label>
-                Filter berdasarkan
+                {t("export.dateField")}
                 <select
                   value={exportForm.dateField}
                   disabled={busy}
@@ -4107,13 +4131,13 @@ export default function HomePage() {
                     }))
                   }
                 >
-                  <option value="created">Tanggal create job</option>
-                  <option value="started">Tanggal start job</option>
-                  <option value="completed">Tanggal end job</option>
+                  <option value="created">{t("export.dateCreated")}</option>
+                  <option value="started">{t("export.dateStarted")}</option>
+                  <option value="completed">{t("export.dateCompleted")}</option>
                 </select>
               </label>
               <label>
-                Dari tanggal
+                {t("export.from")}
                 <input
                   type="date"
                   value={exportForm.dateFrom}
@@ -4127,7 +4151,7 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Sampai tanggal
+                {t("export.to")}
                 <input
                   type="date"
                   value={exportForm.dateTo}
@@ -4142,19 +4166,22 @@ export default function HomePage() {
               </label>
             </div>
             <p className="step-hint" style={{ marginTop: 8 }}>
-              Kosongkan tanggal untuk export semua job pada jenis yang dipilih.
-              Filter end job memakai <code>completed_at</code>.
+              {t("export.hintDates")}
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
-                Batal
+                {t("job.cancelAction")}
               </button>
               <button
                 className="btn btn-primary"
                 disabled={busy}
                 onClick={() => exportJobsReport()}
               >
-                <BusyLabel busy={busy} idle="Export" pending="Mengekspor..." />
+                <BusyLabel
+                  busy={busy}
+                  idle={t("export.action")}
+                  pending={t("export.exporting")}
+                />
               </button>
             </div>
           </div>
@@ -4210,22 +4237,21 @@ export default function HomePage() {
       {modal?.type === "logout" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            {busy && <BusyOverlay label="Keluar..." />}
-            <h3>Logout</h3>
+            {busy && <BusyOverlay label={t("logout.leavingShort")} />}
+            <h3>{t("logout.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              {displayName ? `${displayName} · ${userLevel}` : "Akun saat ini"}
+              {displayName
+                ? `${displayName} · ${userLevel}`
+                : t("logout.currentAccount")}
             </p>
-            <p style={{ margin: "0 0 16px" }}>
-              Keluar dari akun ini? Anda perlu login lagi untuk melakukan aksi
-              yang memerlukan akses.
-            </p>
+            <p style={{ margin: "0 0 16px" }}>{t("logout.body")}</p>
             <div className="actions">
               <button
                 className="btn"
                 onClick={closeModal}
                 disabled={busy || loggingOut}
               >
-                Tidak
+                {t("logout.no")}
               </button>
               <button
                 className="btn btn-danger"
@@ -4234,8 +4260,8 @@ export default function HomePage() {
               >
                 <BusyLabel
                   busy={loggingOut}
-                  idle="Ya, logout"
-                  pending="Keluar..."
+                  idle={t("logout.confirm")}
+                  pending={t("logout.leavingShort")}
                 />
               </button>
             </div>
@@ -4641,7 +4667,7 @@ export default function HomePage() {
                         applyAssignSearch();
                       }
                     }}
-                    placeholder="Nama atau SN KPC..."
+                    placeholder="Nama atau SN..."
                     autoFocus
                   />
                   <button
@@ -5515,8 +5541,8 @@ export default function HomePage() {
             {busy && <BusyOverlay />}
             <h3>Master Teknisi</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Kelola data teknisi (nama, SN KPC, telepon, status). Upload Excel
-              untuk mass input — header: Nama, SN KPC, Telepon, Status (opsional).
+              Kelola data teknisi (nama, SN, telepon, status). Upload Excel
+              untuk mass input — header: Nama, SN, Telepon, Status (opsional).
             </p>
             {error && <div className="error">{error}</div>}
             {techImportMsg && (
@@ -5561,7 +5587,7 @@ export default function HomePage() {
                     applyMasterTechSearch();
                   }
                 }}
-                placeholder="Cari nama, SN KPC, atau telepon..."
+                placeholder="Cari nama, SN, atau telepon..."
                 aria-label="Cari teknisi"
                 autoFocus
               />
@@ -5672,7 +5698,7 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                SN KPC *
+                SN *
                 <input
                   value={techForm.sn}
                   onChange={(e) => setTechForm({ ...techForm, sn: e.target.value })}
@@ -6007,7 +6033,7 @@ export default function HomePage() {
             <h3>Daftar Hadir</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Upload Excel daftar hadir (Pernr / Name Employee) lalu kelola
-              data. Match teknisi via SN KPC = Pernr.
+              data. Match teknisi via SN = Pernr.
             </p>
             {error && <div className="error">{error}</div>}
             {attendanceImportMsg && (
@@ -6235,7 +6261,7 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Pernr / SN KPC
+                Pernr / SN
                 <input
                   value={attendanceForm.pernr}
                   onChange={(e) =>

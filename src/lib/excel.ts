@@ -1770,7 +1770,7 @@ export async function createTechnician(input: {
     const sn = input.sn.trim();
     const phone = (input.phone || "").trim();
     if (!name || !sn || !phone) {
-      throw new Error("nama, SN KPC, dan telepon wajib diisi");
+      throw new Error("nama, SN, dan telepon wajib diisi");
     }
     const status: TechnicianStatus =
       input.status === "offline" ? "offline" : "available";
@@ -1847,7 +1847,7 @@ export async function importTechniciansFromBuffer(
 
     if (!cName || !cSn) {
       throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh header "Nama" dan "SN KPC" (atau sn/pernr).'
+        'Kolom wajib tidak ditemukan. Butuh header "Nama" dan "SN" (atau sn/sn kpc/pernr).'
       );
     }
 
@@ -1869,7 +1869,7 @@ export async function importTechniciansFromBuffer(
       if (!name && !sn) return;
       if (!name || !sn) {
         skipped.push(
-          `Baris ${rowNumber}: nama dan SN KPC wajib (${name || "?"} / ${sn || "?"})`
+          `Baris ${rowNumber}: nama dan SN wajib (${name || "?"} / ${sn || "?"})`
         );
         return;
       }
@@ -1942,7 +1942,7 @@ export async function updateTechnician(
     const sn = input.sn.trim();
     const phone = (input.phone ?? tech.phone).trim();
     if (!name || !sn || !phone) {
-      throw new Error("nama, SN KPC, dan telepon wajib diisi");
+      throw new Error("nama, SN, dan telepon wajib diisi");
     }
     tech.name = name;
     tech.sn = sn;

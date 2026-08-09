@@ -3,8 +3,11 @@
 import { FormEvent, Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { useT } from "@/i18n/useT";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 function LoginForm() {
+  const t = useT();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const [username, setUsername] = useState("");
@@ -24,7 +27,7 @@ function LoginForm() {
     });
     setBusy(false);
     if (!result || result.error) {
-      setError("Username atau password salah.");
+      setError(t("login.error"));
       return;
     }
     window.location.href = result.url || callbackUrl;
@@ -33,11 +36,14 @@ function LoginForm() {
   return (
     <main className="app app-login">
       <section className="login-card">
-        <h1>TU-PRIMA</h1>
-        <p>Silakan login untuk mengakses dashboard. Akun disimpan di sheet Users (Excel).</p>
+        <div className="login-lang">
+          <LanguageToggle />
+        </div>
+        <h1>{t("login.title")}</h1>
+        <p>{t("login.hint")}</p>
         <form className="form" onSubmit={onSubmit}>
           <label>
-            Username
+            {t("login.username")}
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -46,7 +52,7 @@ function LoginForm() {
             />
           </label>
           <label>
-            Password
+            {t("login.password")}
             <input
               type="password"
               value={password}
@@ -57,7 +63,7 @@ function LoginForm() {
           </label>
           {error && <div className="error">{error}</div>}
           <button className="btn btn-primary" disabled={busy} type="submit">
-            {busy ? "Masuk..." : "Login"}
+            {busy ? t("login.submitting") : t("login.submit")}
           </button>
         </form>
       </section>
@@ -67,14 +73,17 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="app app-login">
-          <section className="login-card">Memuat halaman login...</section>
-        </main>
-      }
-    >
+    <Suspense fallback={<LoginFallback />}>
       <LoginForm />
     </Suspense>
+  );
+}
+
+function LoginFallback() {
+  const t = useT();
+  return (
+    <main className="app app-login">
+      <section className="login-card">{t("login.loading")}</section>
+    </main>
   );
 }

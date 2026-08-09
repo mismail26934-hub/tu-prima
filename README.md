@@ -36,6 +36,7 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 - Timer live per **job** dan per **step**
 - Kartu **sisa estimasi** (estimasi − waktu berjalan) dengan warna status
 - Toggle **Light / Dark** mode (tersimpan di browser)
+- Toggle bahasa **ID / EN** (tersimpan di browser)
 - Panel teknisi / job bisa disembunyikan (preferensi lokal)
 
 ### Job
@@ -73,6 +74,14 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 ### State UI
 
 - Form Assign, Job, board filter: **Zustand** (`src/store/`)
+- Bahasa UI: **Zustand** `localeStore` + kamus `src/i18n/messages.ts` (default `id`)
+
+### Bahasa (ID / EN)
+
+- Toggle bahasa via tombol ikon (satu klik ID ↔ EN), sama pola dengan Light/Dark
+- Preferensi disimpan di `localStorage` key `tu-prima-locale`
+- Menerjemahkan chrome UI (nav, filter, summary, export, login, timer labels, jam/mnt)
+- **Tidak** auto-translate data bisnis (judul job, nama unit, nama step template, status mentah Excel)
 
 ---
 
@@ -281,7 +290,7 @@ File: **`data/workshop.xlsx`**
 
 | Sheet        | Isi utama                                                                                                           |
 | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Technicians  | id, name, **sn** (SN KPC), status, current_job_id, phone                                                            |
+| Technicians  | id, name, **sn** (SN), status, current_job_id, phone                                                            |
 | Units        | id, code, name, active                                                                                              |
 | Jobs         | id, title, unit, unit_id, description, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
 | JobAssignees | job_id, technician_id, is_lead, assigned_at                                                                         |
@@ -385,7 +394,9 @@ src/
     access.ts / permissions.ts
     duration.ts           ← timer & progress
     types.ts
-  store/                  ← Zustand (job form, assign, board)
+  store/                  ← Zustand (job form, assign, board, locale)
+  i18n/                   ← kamus ID/EN + useT()
+  components/LanguageToggle.tsx
 middleware.ts             ← proteksi route + guest boleh /
 data/
   workshop.xlsx

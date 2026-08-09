@@ -34,7 +34,7 @@ export interface AuditActor {
 export interface Technician {
   id: string;
   name: string;
-  /** Serial number / SN KPC */
+  /** Serial number / SN */
   sn: string;
   status: TechnicianStatus;
   current_job_id: string;

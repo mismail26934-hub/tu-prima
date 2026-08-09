@@ -12,7 +12,7 @@ export async function GET() {
   const sheet = workbook.addWorksheet("Teknisi");
   sheet.columns = [
     { header: "Nama", key: "name", width: 28 },
-    { header: "SN KPC", key: "sn", width: 18 },
+    { header: "SN", key: "sn", width: 18 },
     { header: "Telepon", key: "phone", width: 20 },
     { header: "Status", key: "status", width: 16 },
   ];
@@ -46,7 +46,7 @@ export async function GET() {
   guide.addRows([
     { column: "Nama", rule: "Wajib. Nama lengkap teknisi." },
     {
-      column: "SN KPC",
+      column: "SN",
       rule: "Wajib dan unik. Jika sudah ada, data teknisi tersebut akan diperbarui.",
     },
     {

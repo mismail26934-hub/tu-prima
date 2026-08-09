@@ -107,6 +107,7 @@ type Modal =
   | { type: "logout" }
   | { type: "settings" }
   | { type: "export-jobs" }
+  | { type: "job-backups" }
   | {
       type: "process-alert";
       title: string;
@@ -202,8 +203,8 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
     estimateSec <= 0
       ? "—"
       : remainingSec >= 0
-        ? `${Math.round(remainingPct)}%`
-        : "0%";
+        ? `${remainingPct.toFixed(1)}%`
+        : "0.0%";
 
   return (
     <div
@@ -211,7 +212,7 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
       title={
         estimateSec > 0
           ? t("job.remainTitleTip", {
-              pct: Math.round(Math.max(0, remainingPct)),
+              pct: Math.max(0, remainingPct).toFixed(1),
               minutes: job.estimated_minutes,
               minUnit: t("common.minutes"),
             })
@@ -258,7 +259,7 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
         stdSec > 0
           ? remainingSec >= 0
             ? t("job.stpRemainTip", {
-                pct: Math.round(remainingPct),
+                pct: remainingPct.toFixed(1),
                 minutes: step.std_minutes,
                 minUnit: t("common.minutes"),
               })
@@ -441,6 +442,20 @@ export default function HomePage() {
     dateFrom: "",
     dateTo: "",
   });
+  const [jobBackups, setJobBackups] = useState<
+    Array<{
+      id: string;
+      at: string;
+      user_name: string;
+      user_level: string;
+      action: string;
+      entity: string;
+      job_id: string;
+      summary: string;
+      undone: string;
+    }>
+  >([]);
+  const [jobBackupsIncludeUndone, setJobBackupsIncludeUndone] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -1336,6 +1351,68 @@ export default function HomePage() {
       dateTo: "",
     });
     setModal({ type: "export-jobs" });
+  }
+
+  async function loadJobBackups(includeUndone = jobBackupsIncludeUndone) {
+    const params = new URLSearchParams({
+      limit: "80",
+      includeUndone: includeUndone ? "1" : "0",
+    });
+    const res = await fetch(`/api/backups/jobs?${params}`, {
+      credentials: "include",
+    });
+    const body = (await res.json().catch(() => null)) as {
+      items?: typeof jobBackups;
+      error?: string;
+    } | null;
+    if (!res.ok) {
+      throw new Error(body?.error || `Gagal load backup (${res.status})`);
+    }
+    setJobBackups(body?.items || []);
+  }
+
+  async function openJobBackupsModal() {
+    if (userLevel !== "superuser") {
+      setError("Backup / Undo hanya untuk superuser");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await loadJobBackups(false);
+      setJobBackupsIncludeUndone(false);
+      setModal({ type: "job-backups" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal load backup");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function undoJobBackup(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/backups/jobs", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+        summary?: string;
+      } | null;
+      if (!res.ok) {
+        throw new Error(body?.error || `Gagal undo (${res.status})`);
+      }
+      await loadJobBackups(jobBackupsIncludeUndone);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal undo");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function exportJobsReport() {
@@ -3374,6 +3451,21 @@ export default function HomePage() {
                   >
                     {t("nav.exportExcel")}
                   </button>
+                  {userLevel === "superuser" && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="nav-manage-item"
+                      disabled={busy}
+                      title="Riwayat backup perubahan job (undo)"
+                      onClick={() => {
+                        setManageOpen(false);
+                        void openJobBackupsModal();
+                      }}
+                    >
+                      Backup / Undo
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -3683,6 +3775,19 @@ export default function HomePage() {
             >
               {t("nav.exportExcel")}
             </button>
+            {userLevel === "superuser" && (
+              <button
+                className="btn"
+                disabled={busy}
+                title="Riwayat backup perubahan job (undo)"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void openJobBackupsModal();
+                }}
+              >
+                Backup / Undo
+              </button>
+            )}
             {!isLoggedIn && (
               <button
                 className="btn"
@@ -4086,7 +4191,8 @@ export default function HomePage() {
             Database Excel: <code>data/workshop.xlsx</code> · Archive:{" "}
             <code>data/completed-jobs.xlsx</code> /{" "}
             <code>data/cancelled-jobs.xlsx</code> /{" "}
-            <code>data/deleted-jobs.xlsx</code> · Template:{" "}
+            <code>data/deleted-jobs.xlsx</code> · Backup undo:{" "}
+            <code>data/backup-jobs.xlsx</code> · Template:{" "}
             <code>data/job-templates.json</code>
           </p>
         </>
@@ -4182,6 +4288,125 @@ export default function HomePage() {
                   idle={t("export.action")}
                   pending={t("export.exporting")}
                 />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "job-backups" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div
+            className="modal modal-wide"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {busy && <BusyOverlay label="Memuat backup..." />}
+            <h3>Backup perubahan job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Snapshot tersimpan di <code>data/backup-jobs.xlsx</code>. Undo
+              mengembalikan data sebelum perubahan (superuser).
+            </p>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 12,
+                fontSize: "0.9rem",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={jobBackupsIncludeUndone}
+                disabled={busy}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setJobBackupsIncludeUndone(next);
+                  void loadJobBackups(next).catch((err) =>
+                    setError(
+                      err instanceof Error ? err.message : "Gagal load backup"
+                    )
+                  );
+                }}
+              />
+              Tampilkan yang sudah di-undo
+            </label>
+            {jobBackups.length === 0 ? (
+              <p style={{ color: "var(--muted)" }}>Belum ada entri backup.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Waktu</th>
+                      <th>Aksi</th>
+                      <th>Ringkasan</th>
+                      <th>Oleh</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobBackups.map((row) => (
+                      <tr key={row.id}>
+                        <td style={{ whiteSpace: "nowrap", fontSize: "0.82rem" }}>
+                          {row.at?.replace("T", " ").slice(0, 19)}
+                        </td>
+                        <td>
+                          <code>
+                            {row.action}/{row.entity}
+                          </code>
+                        </td>
+                        <td>
+                          {row.summary}
+                          {row.job_id ? (
+                            <div
+                              style={{ color: "var(--muted)", fontSize: "0.8rem" }}
+                            >
+                              {row.job_id}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td style={{ fontSize: "0.85rem" }}>
+                          {row.user_name || "—"}
+                          {row.user_level ? ` · ${row.user_level}` : ""}
+                          {row.undone === "1" ? (
+                            <div style={{ color: "var(--amber)" }}>sudah undo</div>
+                          ) : null}
+                        </td>
+                        <td>
+                          {row.undone !== "1" && userLevel === "superuser" ? (
+                            <button
+                              type="button"
+                              className="btn btn-step"
+                              disabled={busy}
+                              onClick={() => void undoJobBackup(row.id)}
+                            >
+                              Undo
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="actions">
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() =>
+                  void loadJobBackups(jobBackupsIncludeUndone).catch((err) =>
+                    setError(
+                      err instanceof Error ? err.message : "Gagal load backup"
+                    )
+                  )
+                }
+              >
+                Refresh
+              </button>
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Tutup
               </button>
             </div>
           </div>

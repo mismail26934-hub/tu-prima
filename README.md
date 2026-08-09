@@ -57,6 +57,7 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 - **Catatan peminjaman part** + loading tambah/ubah/hapus (foreman write)
 - **Print PDF** per job (modal loading/success/error)
 - **Export to excel** (menu Kelola): satu menu → popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), kolom **stp_std_hours** + STP per step
+- **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke `backup-jobs.xlsx`
 
 ### Master data (via menu Kelola)
 
@@ -282,6 +283,20 @@ Tetap ada **meski job dihapus**.
 
 Tercakup: create/update/delete job, assign/ubah teknisi, start/pause/resume/step/complete/cancel/reopen.
 
+### File `backup-jobs.xlsx` (ChangeLog — untuk undo)
+
+Setiap create / update / delete job, assign, start/pause/resume/step/complete/cancel, handover, dan part loan menyimpan **snapshot JSON sebelum & sesudah** di sheet `ChangeLog` file terpisah `data/backup-jobs.xlsx`.
+
+| Kolom | Isi |
+|-------|-----|
+| `before_json` / `after_json` | Snapshot data (job bundle / handover / part loan) |
+| `user_*` | Pelaku |
+| `undone` | `1` jika sudah di-undo |
+
+- UI: menu **Kelola → Backup / Undo** (**superuser** saja)
+- API: `GET/POST /api/backups/jobs` (**superuser** saja)
+- Undo mengembalikan state `before_json` ke `workshop.xlsx` (dan membersihkan arsip complete/cancel bila relevan)
+
 ---
 
 ## Struktur data Excel
@@ -312,6 +327,7 @@ data/
   completed-jobs.xlsx    ← job setelah Complete (pindah penuh)
   cancelled-jobs.xlsx    ← job setelah Cancel (pindah penuh)
   deleted-jobs.xlsx      ← backup saat Hapus
+  backup-jobs.xlsx       ← ChangeLog snapshot before/after (untuk undo)
   job-templates.json     ← katalog template Engine / Non Engine
   templates/             ← file Excel time frame sumber
     TIME FRAME ENGINE RECONDITION.xlsx
@@ -388,6 +404,7 @@ src/
     job-completed-archive.ts
     job-cancelled-archive.ts
     job-delete-archive.ts
+    job-change-backup.ts  ← backup-jobs.xlsx ChangeLog + helpers
     job-excel-report.ts   ← export Job Aktif / Antrian
     job-pdf.ts
     job-templates.ts      ← katalog time frame
@@ -423,6 +440,8 @@ data/
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                           |
 | PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                   |
 | GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                  |
+| GET          | `/api/backups/jobs`                                               | List ChangeLog `backup-jobs.xlsx` (**superuser**)                                                       |
+| POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                               |
 | \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                          |
 | POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                   |
 

@@ -29,6 +29,14 @@ import type {
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
 import {
+  appendJobChangeBackup,
+  getJobChangeBackup,
+  markJobChangeBackupUndone,
+  parseBundle,
+  techSnap,
+  type JobChangeBundle,
+} from "./job-change-backup";
+import {
   getJobTemplate,
   stepsFromTemplate,
 } from "./job-templates";
@@ -641,6 +649,35 @@ function formatActorLabel(actor?: AuditActor | null): string {
   return actor.user_level ? `${who} (${actor.user_level})` : who;
 }
 
+function buildJobChangeBundle(
+  jobId: string,
+  jobs: Job[],
+  steps: JobStep[],
+  assignees: JobAssignee[],
+  handovers: JobHandover[],
+  partLoans: JobPartLoan[],
+  techs?: Technician[],
+  extraTechIds: string[] = []
+): JobChangeBundle {
+  const job = jobs.find((j) => j.id === jobId) || null;
+  const asg = assignees.filter((a) => a.job_id === jobId);
+  const techIds = [
+    ...asg.map((a) => a.technician_id),
+    ...(job?.technician_id ? [job.technician_id] : []),
+    ...extraTechIds,
+  ];
+  return {
+    job: job ? { ...job } : null,
+    steps: steps.filter((s) => s.job_id === jobId).map((s) => ({ ...s })),
+    assignees: asg.map((a) => ({ ...a })),
+    handovers: handovers.filter((h) => h.job_id === jobId).map((h) => ({ ...h })),
+    part_loans: partLoans
+      .filter((p) => p.job_id === jobId)
+      .map((p) => ({ ...p })),
+    technicians: techs ? techSnap(techs, [...new Set(techIds)]) : undefined,
+  };
+}
+
 /** Ensure JobAssignees exists; migrate from Jobs.technician_id if empty. */
 function loadAssignees(
   wb: ExcelJS.Workbook,
@@ -1086,6 +1123,25 @@ export async function createJob(input: {
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "create",
+      entity: "job",
+      entity_id: id,
+      job_id: id,
+      summary: `Buat job ${job.title} · ${job.unit}`,
+      before: null,
+      after: buildJobChangeBundle(
+        id,
+        jobs,
+        steps,
+        [],
+        [],
+        [],
+        techs
+      ),
+      actor: input.actor,
+      at: created_at,
+    });
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, []);
   });
@@ -1114,6 +1170,18 @@ export async function updateJob(
 
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
+
+    const handoversBefore = loadHandovers(wb);
+    const partLoansBefore = loadPartLoans(wb);
+    const beforeBundle = buildJobChangeBundle(
+      jobId,
+      jobs,
+      steps,
+      assignees,
+      handoversBefore,
+      partLoansBefore,
+      techs
+    );
 
     const title = input.title.trim();
     if (!title || !input.unit_id) throw new Error("title dan unit wajib diisi");
@@ -1177,6 +1245,25 @@ export async function updateJob(
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "update",
+      entity: "job",
+      entity_id: jobId,
+      job_id: jobId,
+      summary: `Update job ${job.title} · ${job.unit}`,
+      before: beforeBundle,
+      after: buildJobChangeBundle(
+        jobId,
+        jobs,
+        steps,
+        assignees,
+        handoversBefore,
+        partLoansBefore,
+        techs
+      ),
+      actor: input.actor,
+      at,
+    });
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, assignees);
   });
@@ -1219,6 +1306,19 @@ export async function deleteJob(
       deleted_at: at,
     });
 
+    const beforeBundle: JobChangeBundle = {
+      job: { ...job },
+      steps: jobSteps.map((s) => ({ ...s })),
+      assignees: jobAssignees.map((a) => ({ ...a })),
+      handovers: jobHandovers.map((h) => ({ ...h })),
+      part_loans: jobPartLoans.map((p) => ({ ...p })),
+      technicians: techSnap(
+        techs,
+        jobAssignees.map((a) => a.technician_id).concat(job.technician_id || "")
+      ),
+      meta: { archived_to: "deleted-jobs.xlsx" },
+    };
+
     audits.push(
       makeAuditEntry({
         action: "delete",
@@ -1246,6 +1346,17 @@ export async function deleteJob(
     writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
     writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "delete",
+      entity: "job",
+      entity_id: jobId,
+      job_id: jobId,
+      summary: `Hapus job ${job.title} · ${job.unit}`,
+      before: beforeBundle,
+      after: null,
+      actor,
+      at,
+    });
     await saveWorkbook(wb);
     return { ok: true };
   });
@@ -1301,6 +1412,17 @@ export async function createJobHandover(input: {
     );
     writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "create",
+      entity: "job_handover",
+      entity_id: row.id,
+      job_id: input.job_id,
+      summary: `Tambah handover #${order} ${title}`,
+      before: null,
+      after: { handover: { ...row }, job: { ...job } },
+      actor: input.actor,
+      at,
+    });
     await saveWorkbook(wb);
     return row;
   });
@@ -1330,6 +1452,8 @@ export async function updateJobHandover(
       );
     }
 
+    const beforeRow = { ...row };
+
     if (input.title !== undefined) {
       const title = input.title.trim();
       if (!title) throw new Error("Judul handover wajib diisi");
@@ -1352,6 +1476,16 @@ export async function updateJobHandover(
     );
     writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "update",
+      entity: "job_handover",
+      entity_id: row.id,
+      job_id: row.job_id,
+      summary: `Update handover #${row.order} ${row.title}`,
+      before: { handover: beforeRow, job: { ...job } },
+      after: { handover: { ...row }, job: { ...job } },
+      actor: input.actor,
+    });
     await saveWorkbook(wb);
     return row;
   });
@@ -1390,6 +1524,16 @@ export async function deleteJobHandover(
     );
     writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "delete",
+      entity: "job_handover",
+      entity_id: handoverId,
+      job_id: row.job_id,
+      summary: `Hapus handover #${row.order} ${row.title}`,
+      before: { handover: { ...row }, job: job ? { ...job } : null },
+      after: null,
+      actor,
+    });
     await saveWorkbook(wb);
     return { ok: true };
   });
@@ -1447,6 +1591,17 @@ export async function createJobPartLoan(input: {
     );
     writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "create",
+      entity: "job_part_loan",
+      entity_id: row.id,
+      job_id: input.job_id,
+      summary: `Tambah part loan #${order} ${part_name}`,
+      before: null,
+      after: { part_loan: { ...row }, job: { ...job } },
+      actor: input.actor,
+      at,
+    });
     await saveWorkbook(wb);
     return row;
   });
@@ -1476,6 +1631,8 @@ export async function updateJobPartLoan(
       );
     }
 
+    const beforeRow = { ...row };
+
     if (input.part_name !== undefined) {
       const part_name = input.part_name.trim();
       if (!part_name) throw new Error("Nama part wajib diisi");
@@ -1500,6 +1657,16 @@ export async function updateJobPartLoan(
     );
     writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "update",
+      entity: "job_part_loan",
+      entity_id: row.id,
+      job_id: row.job_id,
+      summary: `Update part loan #${row.order} ${row.part_name}`,
+      before: { part_loan: beforeRow, job: { ...job } },
+      after: { part_loan: { ...row }, job: { ...job } },
+      actor: input.actor,
+    });
     await saveWorkbook(wb);
     return row;
   });
@@ -1538,6 +1705,16 @@ export async function deleteJobPartLoan(
     );
     writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action: "delete",
+      entity: "job_part_loan",
+      entity_id: loanId,
+      job_id: row.job_id,
+      summary: `Hapus part loan #${row.order} ${row.part_name}`,
+      before: { part_loan: { ...row }, job: job ? { ...job } : null },
+      after: null,
+      actor,
+    });
     await saveWorkbook(wb);
     return { ok: true };
   });
@@ -2228,6 +2405,16 @@ export async function jobAction(
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
 
+    const beforeBundle = buildJobChangeBundle(
+      jobId,
+      jobs,
+      steps,
+      assignees,
+      handovers,
+      partLoans,
+      techs
+    );
+
     const pushEvent = (type: JobEventType, note: string) => {
       const who = formatActorLabel(actor);
       const stamped = who ? `${note} · oleh ${who}` : note;
@@ -2523,6 +2710,20 @@ export async function jobAction(
       writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
       writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
       writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+      await appendJobChangeBackup({
+        action: "complete",
+        entity: "job",
+        entity_id: jobId,
+        job_id: jobId,
+        summary: `Complete job ${job.title} · ${job.unit}`,
+        before: beforeBundle,
+        after: {
+          job: { ...job },
+          meta: { archived_to: "completed-jobs.xlsx" },
+        },
+        actor,
+        at: archivedAt,
+      });
       await saveWorkbook(wb);
 
       return {
@@ -2587,6 +2788,20 @@ export async function jobAction(
       writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
       writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
       writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+      await appendJobChangeBackup({
+        action: "cancel",
+        entity: "job",
+        entity_id: jobId,
+        job_id: jobId,
+        summary: `Cancel job ${job.title} · ${job.unit}`,
+        before: beforeBundle,
+        after: {
+          job: { ...job },
+          meta: { archived_to: "cancelled-jobs.xlsx" },
+        },
+        actor,
+        at: archivedAt,
+      });
       await saveWorkbook(wb);
 
       return {
@@ -2616,10 +2831,171 @@ export async function jobAction(
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await appendJobChangeBackup({
+      action,
+      entity: "job",
+      entity_id: jobId,
+      job_id: jobId,
+      summary: `${action} · ${job.title} · status ${job.status}`,
+      before: beforeBundle,
+      after: buildJobChangeBundle(
+        jobId,
+        jobs,
+        steps,
+        assignees,
+        handovers,
+        partLoans,
+        techs
+      ),
+      actor,
+    });
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, assignees, handovers, partLoans);
   });
 }
+
+/** Restore workshop state from backup-jobs.xlsx ChangeLog entry (superuser undo). */
+export async function undoJobChange(
+  changeId: string,
+  actor?: AuditActor | null
+): Promise<{ ok: true; summary: string }> {
+  const entry = await getJobChangeBackup(changeId);
+  if (!entry) throw new Error("Entri backup tidak ditemukan");
+  if (entry.undone === "1") throw new Error("Entri backup sudah di-undo");
+
+  const before = parseBundle(entry.before_json);
+  const after = parseBundle(entry.after_json);
+
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    let jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    let steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
+    let events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
+    const audits = loadAuditLog(wb);
+    let assignees = loadAssignees(wb, jobs);
+    let handovers = loadHandovers(wb);
+    let partLoans = loadPartLoans(wb);
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+
+    const applyTechSnap = (list?: JobChangeBundle["technicians"]) => {
+      if (!list) return;
+      for (const snap of list) {
+        const tech = techs.find((t) => t.id === snap.id);
+        if (!tech) continue;
+        tech.status = snap.status;
+        tech.current_job_id = snap.current_job_id;
+      }
+    };
+
+    const restoreJobBundle = (bundle: JobChangeBundle) => {
+      const jobId = bundle.job?.id || entry.job_id;
+      if (!jobId) throw new Error("Backup tidak punya job_id");
+
+      jobs = jobs.filter((j) => j.id !== jobId);
+      steps = steps.filter((s) => s.job_id !== jobId);
+      assignees = assignees.filter((a) => a.job_id !== jobId);
+      handovers = handovers.filter((h) => h.job_id !== jobId);
+      partLoans = partLoans.filter((p) => p.job_id !== jobId);
+
+      if (bundle.job) {
+        jobs.push({ ...bundle.job });
+        steps.push(...(bundle.steps || []).map((s) => ({ ...s })));
+        assignees.push(...(bundle.assignees || []).map((a) => ({ ...a })));
+        handovers.push(...(bundle.handovers || []).map((h) => ({ ...h })));
+        partLoans.push(...(bundle.part_loans || []).map((p) => ({ ...p })));
+      }
+      applyTechSnap(bundle.technicians);
+    };
+
+    if (entry.entity === "job_handover") {
+      if (entry.action === "create" && after?.handover) {
+        handovers = handovers.filter((h) => h.id !== after.handover!.id);
+      } else if (entry.action === "delete" && before?.handover) {
+        if (!handovers.some((h) => h.id === before.handover!.id)) {
+          handovers.push({ ...before.handover });
+        }
+      } else if (entry.action === "update" && before?.handover) {
+        const idx = handovers.findIndex((h) => h.id === before.handover!.id);
+        if (idx >= 0) handovers[idx] = { ...before.handover };
+        else handovers.push({ ...before.handover });
+      } else {
+        throw new Error("Snapshot handover tidak lengkap untuk undo");
+      }
+    } else if (entry.entity === "job_part_loan") {
+      if (entry.action === "create" && after?.part_loan) {
+        partLoans = partLoans.filter((p) => p.id !== after.part_loan!.id);
+      } else if (entry.action === "delete" && before?.part_loan) {
+        if (!partLoans.some((p) => p.id === before.part_loan!.id)) {
+          partLoans.push({ ...before.part_loan });
+        }
+      } else if (entry.action === "update" && before?.part_loan) {
+        const idx = partLoans.findIndex((p) => p.id === before.part_loan!.id);
+        if (idx >= 0) partLoans[idx] = { ...before.part_loan };
+        else partLoans.push({ ...before.part_loan });
+      } else {
+        throw new Error("Snapshot part loan tidak lengkap untuk undo");
+      }
+    } else if (entry.entity === "job") {
+      if (entry.action === "create") {
+        const id = entry.job_id || after?.job?.id;
+        if (!id) throw new Error("Tidak ada job untuk di-undo create");
+        releaseTechsFromJob(techs, id);
+        jobs = jobs.filter((j) => j.id !== id);
+        steps = steps.filter((s) => s.job_id !== id);
+        events = events.filter((e) => e.job_id !== id);
+        assignees = assignees.filter((a) => a.job_id !== id);
+        handovers = handovers.filter((h) => h.job_id !== id);
+        partLoans = partLoans.filter((p) => p.job_id !== id);
+      } else if (
+        entry.action === "complete" ||
+        entry.action === "cancel" ||
+        entry.action === "delete"
+      ) {
+        if (!before?.job) {
+          throw new Error("Snapshot before tidak ada untuk undo");
+        }
+        // Drop orphan archive copy if present
+        if (entry.action === "complete") {
+          await takeCompletedJobFromArchive(entry.job_id);
+        } else if (entry.action === "cancel") {
+          await takeCancelledJobFromArchive(entry.job_id);
+        }
+        restoreJobBundle(before);
+      } else {
+        if (!before) throw new Error("Snapshot before tidak ada untuk undo");
+        restoreJobBundle(before);
+      }
+    } else {
+      throw new Error(`Entity ${entry.entity} belum didukung undo`);
+    }
+
+    const at = nowIso();
+    audits.push(
+      makeAuditEntry({
+        action: "undo",
+        entity: entry.entity,
+        entity_id: entry.entity_id,
+        detail: `Undo ${entry.action}: ${entry.summary}`,
+        actor,
+        at,
+      })
+    );
+
+    writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+    writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
+    writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
+    writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
+    writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    await markJobChangeBackupUndone(changeId, actor);
+    return { ok: true as const, summary: entry.summary };
+  });
+}
+
+export { listJobChangeBackups } from "./job-change-backup";
 
 function loadAttendance(wb: ExcelJS.Workbook): Attendance[] {
   return readRows(getSheet(wb, SHEETS.attendance))

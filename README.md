@@ -13,14 +13,16 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 3. [Template time frame (Engine / Non Engine)](#template-time-frame-engine--non-engine)
 4. [Mode step: Berurutan vs Parallel](#mode-step-berurutan-vs-parallel)
 5. [Timer & sisa estimasi](#timer--sisa-estimasi)
-6. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
-7. [Struktur data Excel](#struktur-data-excel)
-8. [Template JSON](#template-json)
-9. [Autentikasi & hak akses](#autentikasi--hak-akses)
-10. [Struktur folder](#struktur-folder)
-11. [API ringkas](#api-ringkas)
-12. [Menjalankan project](#menjalankan-project)
-13. [Catatan operasional](#catatan-operasional)
+6. [Catatan handover](#catatan-handover-job-aktif)
+7. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
+8. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
+9. [Struktur data Excel](#struktur-data-excel)
+10. [Template JSON](#template-json)
+11. [Autentikasi & hak akses](#autentikasi--hak-akses)
+12. [Struktur folder](#struktur-folder)
+13. [API ringkas](#api-ringkas)
+14. [Menjalankan project](#menjalankan-project)
+15. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -42,6 +44,10 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
 - Start, pause, resume, complete step, complete job
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
+- **Catatan handover** pada job aktif: tabel NO / Job Handover / Done / Note
+- **Catatan peminjaman part** pada job aktif: NO / Part yang dipinjam / Status (open|closed) / Note
+- **Print PDF** per job: ringkasan job, teknisi, steps, handover, peminjaman part
+- **Export Excel** (menu Kelola): **Export Job Aktif** / **Export Job Antrian** — file terpisah, 1 sheet detail lengkap per file
 
 ### Master data (via menu Kelola)
 
@@ -169,6 +175,43 @@ Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `dura
 
 ---
 
+## Catatan handover (job aktif)
+
+Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** (serah terima shift):
+
+| NO | Job Handover | Done | Note |
+|----|--------------|------|------|
+| 1 | Cleaning camshaft | Yes/No | Opsional |
+
+- Pilih aksi **Tambah / Ubah / Hapus** (select) agar UI lebih aman:
+  - **Tambah** — field + tombol `+ Tambah` (langsung simpan)
+  - **Ubah** — tabel editable + tombol **Save**
+  - **Hapus** — tombol Hapus per baris
+- **Add / update / delete hanya foreman**; level lain hanya lihat read-only (termasuk pada job `done`)
+- Tersimpan di sheet **JobHandovers**; aksi tercatat di **AuditLog**
+
+API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[handoverId]`
+
+---
+
+## Catatan peminjaman part (job aktif)
+
+Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan peminjaman part**:
+
+| NO | Part yang dipinjam | Status | Note |
+|----|--------------------|--------|------|
+| 1 | Seal kit | open / closed | Opsional |
+
+- Pola UI sama handover: aksi **Tambah / Ubah / Hapus**
+- Status default **open** saat tambah; ubah ke **closed** lewat mode Ubah
+- Judul menampilkan jumlah, mis. `Catatan peminjaman part (2)`
+- Write hanya **foreman** (juga pada job `done`); level lain read-only
+- Tersimpan di sheet **JobPartLoans** + **AuditLog**
+
+API: `POST /api/jobs/[id]/part-loans` · `PATCH|DELETE /api/jobs/[id]/part-loans/[loanId]`
+
+---
+
 ## Audit trail (siapa melakukan apa)
 
 Setiap aksi job / assign / progress mencatat **user login** (dari session).
@@ -201,12 +244,14 @@ File: **`data/workshop.xlsx`**
 
 | Sheet        | Isi utama                                                                                                           |
 | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Technicians  | id, name, skill, status, current_job_id, phone                                                                      |
+| Technicians  | id, name, **sn** (SN KPC), status, current_job_id, phone                                                            |
 | Units        | id, code, name, active                                                                                              |
 | Jobs         | id, title, unit, unit_id, description, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
 | JobAssignees | job_id, technician_id, is_lead, assigned_at                                                                         |
 | JobSteps     | job_id, name, order, status, started_at, completed_at, duration_sec                                                 |
 | JobEvents    | timeline + **user_id / user_name / user_level**                                                                     |
+| JobHandovers | catatan serah terima job aktif (order, title, done, note, user)                                                     |
+| JobPartLoans | catatan peminjaman part (order, part_name, status open/closed, note, user)                                          |
 | Attendance   | date, technician_id, pernr, status, dws, check_in/out, …                                                            |
 | Users        | username, password, name, level, active                                                                             |
 | **AuditLog** | jejak aksi user (tahan delete)                                                                                      |
@@ -257,21 +302,22 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 
 **CRUD** = Create/Read/Update/Delete · **R** = Read · **—** = tidak ada
 
-| Level     | Job  | User | Teknisi | Unit | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete |
-| --------- | ---- | ---- | ------- | ---- | ------------ | ------ | -------------------------------- |
-| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD         | Ya     | Ya                               |
-| inputer   | CRUD | R    | R       | CRUD | R            | —      | —                                |
-| teknisi   | R    | R    | R       | —    | R            | —      | —                                |
-| foreman   | CRUD | R    | R       | CRUD | R            | Ya     | Ya                               |
-| spv       | CRUD | R    | R       | CRUD | R            | —      | —                                |
-| hrd       | R    | R    | R       | R    | CRUD         | —      | —                                |
-| guest     | R    | R    | R       | —    | R            | —      | —                                |
+| Level     | Job  | User | Teknisi | Unit | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write |
+| --------- | ---- | ---- | ------- | ---- | ------------ | ------ | -------------------------------- | -------------- |
+| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD         | Ya     | Ya                               | —              |
+| inputer   | CRUD | R    | R       | CRUD | R            | —      | —                                | —              |
+| teknisi   | R    | R    | R       | —    | R            | —      | —                                | —              |
+| foreman   | CRUD | R    | R       | CRUD | R            | Ya     | Ya                               | Ya             |
+| spv       | CRUD | R    | R       | CRUD | R            | —      | —                                | —              |
+| hrd       | R    | R    | R       | R    | CRUD         | —      | —                                | —              |
+| guest     | R    | R    | R       | —    | R            | —      | —                                | —              |
 
 Catatan:
 
 - Enforce di **UI** dan **API** (`401` / `403`).
 - `guest` & `teknisi` tidak mendapat data Unit di dashboard.
 - Minimal satu `superuser` aktif harus tersisa.
+- **Handover write** (add/update/delete) hanya `foreman`; level lain tetap bisa melihat tabel read-only.
 
 ---
 
@@ -310,6 +356,11 @@ data/
 | POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, actor audit)                                                                  |
 | PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                       |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel` |
+| POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                  |
+| PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                            | Update / hapus catatan handover                                                                          |
+| POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                           |
+| PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                               | Update / hapus catatan peminjaman part                                                                   |
+| GET          | `/api/reports/jobs?scope=active\|queue`                            | Export Excel job aktif / antrian (file terpisah, login)                                                  |
 | \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                          |
 | POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                   |
 

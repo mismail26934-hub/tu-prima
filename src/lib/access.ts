@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import {
   canAccess,
   canAssignJob,
+  canManageHandover,
   canManageJobProgress,
 } from "@/lib/permissions";
 import type {
@@ -81,6 +82,26 @@ export async function requireJobProgressPermission(): Promise<NextResponse | nul
     return NextResponse.json(
       {
         error: `Start/pause/resume/selesaikan job hanya untuk level superuser dan foreman (level Anda: ${level})`,
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+/** Catatan handover add/update/delete: hanya foreman. */
+export async function requireHandoverWritePermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (!canManageHandover(level)) {
+    if (level === "guest") {
+      return NextResponse.json(
+        { error: "Silakan login untuk menambah/ubah catatan handover" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: `Tambah/ubah/hapus catatan handover hanya untuk level foreman (level Anda: ${level})`,
       },
       { status: 403 }
     );

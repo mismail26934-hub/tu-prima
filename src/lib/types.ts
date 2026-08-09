@@ -33,7 +33,8 @@ export interface AuditActor {
 export interface Technician {
   id: string;
   name: string;
-  skill: string;
+  /** Serial number / SN KPC */
+  sn: string;
   status: TechnicianStatus;
   current_job_id: string;
   phone: string;
@@ -138,11 +139,42 @@ export interface AuditLogEntry {
   detail: string;
 }
 
+export interface JobHandover {
+  id: string;
+  job_id: string;
+  order: number;
+  title: string;
+  /** "1" = Yes/done, "0" = No */
+  done: string;
+  note: string;
+  user_id: string;
+  user_name: string;
+  updated_at: string;
+}
+
+/** Catatan peminjaman part pada job aktif. */
+export type PartLoanStatus = "open" | "closed";
+
+export interface JobPartLoan {
+  id: string;
+  job_id: string;
+  order: number;
+  /** Part yang dipinjam */
+  part_name: string;
+  status: PartLoanStatus;
+  note: string;
+  user_id: string;
+  user_name: string;
+  updated_at: string;
+}
+
 export interface JobWithDetails extends Job {
   technician?: Technician | null;
   technicians: Technician[];
   steps: JobStep[];
   events: JobEvent[];
+  handovers: JobHandover[];
+  part_loans: JobPartLoan[];
   elapsed_sec: number;
   progress_pct: number;
   /** First active step (compat). Prefer current_steps for parallel work. */

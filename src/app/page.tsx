@@ -11,6 +11,7 @@ import type {
   JobTemplateCategory,
   JobTemplateSummary,
   JobWithDetails,
+  PartLoanStatus,
   Technician,
   TechnicianStatus,
   Unit,
@@ -20,9 +21,11 @@ import { USER_LEVELS } from "@/lib/types";
 import {
   canAccess,
   canAssignJob,
+  canManageHandover,
   canManageJobProgress,
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
+import { downloadJobPdf } from "@/lib/job-pdf";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
@@ -51,6 +54,22 @@ type Modal =
   | { type: "start-next-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-job"; job: JobWithDetails }
+    | {
+      type: "handover-delete";
+      job: JobWithDetails;
+      handoverKey: string;
+      handoverId?: string;
+      order: number;
+      title: string;
+    }
+    | {
+      type: "part-loan-delete";
+      job: JobWithDetails;
+      loanKey: string;
+      loanId?: string;
+      order: number;
+      part_name: string;
+    }
   | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] }
   | { type: "units" }
   | {
@@ -82,7 +101,13 @@ type Modal =
   | { type: "delete-user"; user: AppUserPublic }
   | { type: "change-password" }
   | { type: "logout" }
-  | { type: "settings" };
+  | { type: "settings" }
+  | {
+      type: "process-alert";
+      title: string;
+      message: string;
+      phase: "loading" | "success" | "error";
+    };
 
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
 const HIDE_JOB_PANEL_KEY = "tus-hide-job-panel";
@@ -167,17 +192,25 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
       ? formatDuration(remainingSec)
       : `-${formatDuration(Math.abs(remainingSec))}`;
 
+  const pctLabel =
+    estimateSec <= 0
+      ? "—"
+      : remainingSec >= 0
+        ? `${Math.round(remainingPct)}%`
+        : "0%";
+
   return (
     <div
       className={`remain-card remain-card--${tone}`}
       title={
         estimateSec > 0
-          ? `Sisa ${Math.round(remainingPct)}% dari estimasi ${job.estimated_minutes} mnt`
+          ? `Sisa ${Math.round(Math.max(0, remainingPct))}% dari estimasi ${job.estimated_minutes} mnt`
           : "Estimasi belum diisi"
       }
     >
       <span className="remain-card-label">Sisa estimasi</span>
       <span className="remain-card-value">{value}</span>
+      <span className="remain-card-pct">{pctLabel} tersisa</span>
     </div>
   );
 }
@@ -322,6 +355,7 @@ export default function HomePage() {
   const canJobDelete = canAccess(userLevel, "job", "delete");
   const canJobAssign = canAssignJob(userLevel);
   const canJobProgress = canManageJobProgress(userLevel);
+  const canHandoverWrite = canManageHandover(userLevel);
   const canUserCreate = canAccess(userLevel, "user", "create");
   const canUserUpdate = canAccess(userLevel, "user", "update");
   const canUserDelete = canAccess(userLevel, "user", "delete");
@@ -357,7 +391,7 @@ export default function HomePage() {
   const [unitImportMsg, setUnitImportMsg] = useState("");
   const [techForm, setTechForm] = useState({
     name: "",
-    skill: "",
+    sn: "",
     phone: "",
     status: "available" as Exclude<TechnicianStatus, "busy">,
   });
@@ -566,14 +600,14 @@ export default function HomePage() {
   }
 
   function openTechCreate() {
-    setTechForm({ name: "", skill: "", phone: "", status: "available" });
+    setTechForm({ name: "", sn: "", phone: "", status: "available" });
     setModal({ type: "tech-form", mode: "create" });
   }
 
   function openTechEdit(tech: Technician) {
     setTechForm({
       name: tech.name,
-      skill: tech.skill,
+      sn: tech.sn,
       phone: tech.phone || "",
       status: tech.status === "offline" ? "offline" : "available",
     });
@@ -582,13 +616,13 @@ export default function HomePage() {
 
   async function saveTech() {
     if (modal?.type !== "tech-form") return;
-    if (!techForm.name.trim() || !techForm.skill.trim() || !techForm.phone.trim()) return;
+    if (!techForm.name.trim() || !techForm.sn.trim() || !techForm.phone.trim()) return;
     setBusy(true);
     setError("");
     try {
       const payload = {
         name: techForm.name,
-        skill: techForm.skill,
+        sn: techForm.sn,
         phone: techForm.phone,
         ...(modal.tech?.status === "busy" ? {} : { status: techForm.status }),
       };
@@ -934,6 +968,116 @@ export default function HomePage() {
   const [stepModeByJob, setStepModeByJob] = useState<
     Record<string, "sequential" | "parallel">
   >({});
+  const [handoverDraftByJob, setHandoverDraftByJob] = useState<
+    Record<string, { title: string; note: string }>
+  >({});
+  /** Mode aksi handover per job: tampilkan UI sesuai pilihan. */
+  const [handoverModeByJob, setHandoverModeByJob] = useState<
+    Record<string, "tambah" | "ubah" | "hapus">
+  >({});
+  /** Saat kosong: form input baru muncul setelah klik + Tambah. */
+  const [handoverComposeByJob, setHandoverComposeByJob] = useState<
+    Record<string, boolean>
+  >({});
+  /** Local handover drafts per job — Save (mode ubah) writes to API. */
+  const [handoverLocalByJob, setHandoverLocalByJob] = useState<
+    Record<
+      string,
+      Array<{
+        key: string;
+        id?: string;
+        title: string;
+        note: string;
+        done: boolean;
+        order: number;
+      }>
+    >
+  >({});
+
+  type HandoverLocalRow = {
+    key: string;
+    id?: string;
+    title: string;
+    note: string;
+    done: boolean;
+    order: number;
+  };
+
+  function getHandoverMode(jobId: string): "tambah" | "ubah" | "hapus" {
+    return handoverModeByJob[jobId] || "tambah";
+  }
+
+  function setHandoverMode(jobId: string, mode: "tambah" | "ubah" | "hapus") {
+    setHandoverModeByJob((prev) => ({ ...prev, [jobId]: mode }));
+    setHandoverLocalByJob((prev) => {
+      if (!prev[jobId]) return prev;
+      const next = { ...prev };
+      delete next[jobId];
+      return next;
+    });
+    if (mode !== "tambah") {
+      setHandoverDraftByJob((prev) => {
+        if (!prev[jobId]) return prev;
+        const next = { ...prev };
+        delete next[jobId];
+        return next;
+      });
+    }
+  }
+
+  const [partLoanDraftByJob, setPartLoanDraftByJob] = useState<
+    Record<string, { part_name: string; note: string; status: PartLoanStatus }>
+  >({});
+  const [partLoanModeByJob, setPartLoanModeByJob] = useState<
+    Record<string, "tambah" | "ubah" | "hapus">
+  >({});
+  const [partLoanComposeByJob, setPartLoanComposeByJob] = useState<
+    Record<string, boolean>
+  >({});
+  const [partLoanLocalByJob, setPartLoanLocalByJob] = useState<
+    Record<
+      string,
+      Array<{
+        key: string;
+        id?: string;
+        part_name: string;
+        note: string;
+        status: PartLoanStatus;
+        order: number;
+      }>
+    >
+  >({});
+
+  type PartLoanLocalRow = {
+    key: string;
+    id?: string;
+    part_name: string;
+    note: string;
+    status: PartLoanStatus;
+    order: number;
+  };
+
+  function getPartLoanMode(jobId: string): "tambah" | "ubah" | "hapus" {
+    return partLoanModeByJob[jobId] || "tambah";
+  }
+
+  function setPartLoanMode(jobId: string, mode: "tambah" | "ubah" | "hapus") {
+    setPartLoanModeByJob((prev) => ({ ...prev, [jobId]: mode }));
+    setPartLoanLocalByJob((prev) => {
+      if (!prev[jobId]) return prev;
+      const next = { ...prev };
+      delete next[jobId];
+      return next;
+    });
+    if (mode !== "tambah") {
+      setPartLoanDraftByJob((prev) => {
+        if (!prev[jobId]) return prev;
+        const next = { ...prev };
+        delete next[jobId];
+        return next;
+      });
+    }
+  }
 
   function getStepMode(jobId: string): "sequential" | "parallel" {
     return stepModeByJob[jobId] || "sequential";
@@ -1092,6 +1236,104 @@ export default function HomePage() {
       setLoading(false);
     }
   }, []);
+
+  async function exportJobsReport(scope: "active" | "queue") {
+    if (!isLoggedIn) {
+      setError("Silakan login untuk export laporan job");
+      return;
+    }
+    const title =
+      scope === "active" ? "Export Job Aktif" : "Export Job Antrian";
+    setModal({
+      type: "process-alert",
+      title,
+      message:
+        scope === "active"
+          ? "Sedang mengekspor job aktif ke Excel..."
+          : "Sedang mengekspor job antrian ke Excel...",
+      phase: "loading",
+    });
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/reports/jobs?scope=${scope}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || `Gagal export (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const matched = disposition.match(/filename="([^"]+)"/i);
+      const filename =
+        matched?.[1] ||
+        (scope === "active"
+          ? "report-job-aktif.xlsx"
+          : "report-job-antrian.xlsx");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setModal({
+        type: "process-alert",
+        title,
+        message: `Export berhasil.\nFile: ${filename}`,
+        phase: "success",
+      });
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "Gagal export laporan job";
+      setError(message);
+      setModal({
+        type: "process-alert",
+        title,
+        message,
+        phase: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function printJobPdf(job: JobWithDetails) {
+    setModal({
+      type: "process-alert",
+      title: "Print PDF",
+      message: `Sedang menyiapkan PDF untuk:\n${job.title}`,
+      phase: "loading",
+    });
+    setBusy(true);
+    setError("");
+    try {
+      await new Promise((r) => setTimeout(r, 80));
+      downloadJobPdf(job);
+      setModal({
+        type: "process-alert",
+        title: "Print PDF",
+        message: `PDF berhasil dibuat untuk:\n${job.title}`,
+        phase: "success",
+      });
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "Gagal membuat PDF job";
+      setError(message);
+      setModal({
+        type: "process-alert",
+        title: "Print PDF",
+        message,
+        phase: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     const current =
@@ -1271,7 +1513,7 @@ export default function HomePage() {
     return techs.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
-        t.skill.toLowerCase().includes(q) ||
+        t.sn.toLowerCase().includes(q) ||
         (t.phone || "").toLowerCase().includes(q)
     );
   }, [data?.technicians, masterTechQuery]);
@@ -1408,7 +1650,7 @@ export default function HomePage() {
 
   const techFormValid =
     techForm.name.trim().length > 0 &&
-    techForm.skill.trim().length > 0 &&
+    techForm.sn.trim().length > 0 &&
     techForm.phone.trim().length > 0;
 
   const techGroups = useMemo(() => {
@@ -1422,7 +1664,7 @@ export default function HomePage() {
       if (
         q &&
         !t.name.toLowerCase().includes(q) &&
-        !t.skill.toLowerCase().includes(q)
+        !t.sn.toLowerCase().includes(q)
       ) {
         return;
       }
@@ -1555,6 +1797,327 @@ export default function HomePage() {
       else cur.delete(stepId);
       return { ...prev, [jobId]: Array.from(cur) };
     });
+  }
+
+  function getHandoverDraft(jobId: string) {
+    return handoverDraftByJob[jobId] || { title: "", note: "" };
+  }
+
+  function handoversFromServer(job: JobWithDetails): HandoverLocalRow[] {
+    return (job.handovers || []).map((h) => ({
+      key: h.id,
+      id: h.id,
+      title: h.title,
+      note: h.note,
+      done: h.done === "1",
+      order: h.order,
+    }));
+  }
+
+  function getHandoverLocal(job: JobWithDetails): HandoverLocalRow[] {
+    return handoverLocalByJob[job.id] || handoversFromServer(job);
+  }
+
+  function setHandoverLocal(
+    job: JobWithDetails,
+    updater: (rows: HandoverLocalRow[]) => HandoverLocalRow[]
+  ) {
+    setHandoverLocalByJob((prev) => ({
+      ...prev,
+      [job.id]: updater(prev[job.id] || handoversFromServer(job)),
+    }));
+  }
+
+  function isHandoverDirty(job: JobWithDetails): boolean {
+    const local = handoverLocalByJob[job.id];
+    if (!local) return false;
+    const server = handoversFromServer(job);
+    if (local.length !== server.length) return true;
+    if (local.some((r) => !r.id)) return true;
+    return local.some((r) => {
+      const s = server.find((x) => x.id === r.id);
+      if (!s) return true;
+      return (
+        r.title.trim() !== s.title ||
+        r.note.trim() !== s.note ||
+        r.done !== s.done
+      );
+    });
+  }
+
+  async function addHandover(job: JobWithDetails) {
+    const draft = getHandoverDraft(job.id);
+    const title = draft.title.trim();
+    if (!title) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/jobs/${job.id}/handovers`, {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          note: draft.note.trim(),
+          done: false,
+        }),
+      });
+      setHandoverDraftByJob((prev) => ({
+        ...prev,
+        [job.id]: { title: "", note: "" },
+      }));
+      setHandoverComposeByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal tambah handover");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveHandovers(job: JobWithDetails) {
+    const local = getHandoverLocal(job);
+    const server = handoversFromServer(job);
+    const toUpdate = local.filter((r) => {
+      if (!r.id) return false;
+      const s = server.find((x) => x.id === r.id);
+      if (!s) return true;
+      return (
+        r.title.trim() !== s.title ||
+        r.note.trim() !== s.note ||
+        r.done !== s.done
+      );
+    });
+    if (!toUpdate.length) return;
+
+    setBusy(true);
+    setError("");
+    try {
+      for (const row of toUpdate) {
+        if (!row.id || !row.title.trim()) continue;
+        await api(`/api/jobs/${job.id}/handovers/${row.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: row.title.trim(),
+            note: row.note.trim(),
+            done: row.done,
+          }),
+        });
+      }
+      setHandoverLocalByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan handover");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeHandover(jobId: string, handoverKey: string, handoverId?: string) {
+    setBusy(true);
+    setError("");
+    try {
+      if (handoverId) {
+        await api(`/api/jobs/${jobId}/handovers/${handoverId}`, {
+          method: "DELETE",
+        });
+      }
+      setHandoverLocalByJob((prev) => {
+        const rows = prev[jobId];
+        if (!rows) {
+          if (!handoverId) return prev;
+          const job = data?.jobs.find((j) => j.id === jobId);
+          if (!job) return prev;
+          return {
+            ...prev,
+            [jobId]: handoversFromServer(job).filter((r) => r.id !== handoverId),
+          };
+        }
+        return {
+          ...prev,
+          [jobId]: rows
+            .filter((r) => r.key !== handoverKey)
+            .map((r, i) => ({ ...r, order: i + 1 })),
+        };
+      });
+      await load();
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus handover");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function getPartLoanDraft(jobId: string) {
+    return (
+      partLoanDraftByJob[jobId] || {
+        part_name: "",
+        note: "",
+        status: "open" as PartLoanStatus,
+      }
+    );
+  }
+
+  function partLoansFromServer(job: JobWithDetails): PartLoanLocalRow[] {
+    return (job.part_loans || []).map((p) => ({
+      key: p.id,
+      id: p.id,
+      part_name: p.part_name,
+      note: p.note,
+      status: p.status,
+      order: p.order,
+    }));
+  }
+
+  function getPartLoanLocal(job: JobWithDetails): PartLoanLocalRow[] {
+    return partLoanLocalByJob[job.id] || partLoansFromServer(job);
+  }
+
+  function setPartLoanLocal(
+    job: JobWithDetails,
+    updater: (rows: PartLoanLocalRow[]) => PartLoanLocalRow[]
+  ) {
+    setPartLoanLocalByJob((prev) => ({
+      ...prev,
+      [job.id]: updater(prev[job.id] || partLoansFromServer(job)),
+    }));
+  }
+
+  function isPartLoanDirty(job: JobWithDetails): boolean {
+    const local = partLoanLocalByJob[job.id];
+    if (!local) return false;
+    const server = partLoansFromServer(job);
+    if (local.length !== server.length) return true;
+    return local.some((r) => {
+      const s = server.find((x) => x.id === r.id);
+      if (!s) return true;
+      return (
+        r.part_name.trim() !== s.part_name ||
+        r.note.trim() !== s.note ||
+        r.status !== s.status
+      );
+    });
+  }
+
+  async function addPartLoan(job: JobWithDetails) {
+    const draft = getPartLoanDraft(job.id);
+    const part_name = draft.part_name.trim();
+    if (!part_name) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/jobs/${job.id}/part-loans`, {
+        method: "POST",
+        body: JSON.stringify({
+          part_name,
+          note: draft.note.trim(),
+          status: "open",
+        }),
+      });
+      setPartLoanDraftByJob((prev) => ({
+        ...prev,
+        [job.id]: { part_name: "", note: "", status: "open" },
+      }));
+      setPartLoanComposeByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal tambah peminjaman part");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePartLoans(job: JobWithDetails) {
+    const local = getPartLoanLocal(job);
+    const server = partLoansFromServer(job);
+    const toUpdate = local.filter((r) => {
+      if (!r.id) return false;
+      const s = server.find((x) => x.id === r.id);
+      if (!s) return true;
+      return (
+        r.part_name.trim() !== s.part_name ||
+        r.note.trim() !== s.note ||
+        r.status !== s.status
+      );
+    });
+    if (!toUpdate.length) return;
+
+    setBusy(true);
+    setError("");
+    try {
+      for (const row of toUpdate) {
+        if (!row.id || !row.part_name.trim()) continue;
+        await api(`/api/jobs/${job.id}/part-loans/${row.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            part_name: row.part_name.trim(),
+            note: row.note.trim(),
+            status: row.status,
+          }),
+        });
+      }
+      setPartLoanLocalByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan peminjaman part");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePartLoan(
+    jobId: string,
+    loanKey: string,
+    loanId?: string
+  ) {
+    setBusy(true);
+    setError("");
+    try {
+      if (loanId) {
+        await api(`/api/jobs/${jobId}/part-loans/${loanId}`, {
+          method: "DELETE",
+        });
+      }
+      setPartLoanLocalByJob((prev) => {
+        const rows = prev[jobId];
+        if (!rows) {
+          if (!loanId) return prev;
+          const job = data?.jobs.find((j) => j.id === jobId);
+          if (!job) return prev;
+          return {
+            ...prev,
+            [jobId]: partLoansFromServer(job).filter((r) => r.id !== loanId),
+          };
+        }
+        return {
+          ...prev,
+          [jobId]: rows
+            .filter((r) => r.key !== loanKey)
+            .map((r, i) => ({ ...r, order: i + 1 })),
+        };
+      });
+      await load();
+      closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus peminjaman part");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createJob() {
@@ -1879,6 +2442,15 @@ export default function HomePage() {
         </ul>
 
         <div className="actions">
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => printJobPdf(job)}
+            title="Unduh PDF job (teknisi, steps, handover, peminjaman part)"
+          >
+            Print PDF
+          </button>
           {job.status === "assigned" && (
             <button
               className="btn btn-primary"
@@ -1964,6 +2536,541 @@ export default function HomePage() {
             </button>
           )}
         </div>
+
+        {["in_progress", "paused", "done"].includes(job.status) && (
+          <div className="handover-panel">
+            <div className="handover-head">
+              <h4>
+                Catatan handover{" "}
+                <span className="handover-count">
+                  ({getHandoverLocal(job).length})
+                </span>
+              </h4>
+              {canHandoverWrite &&
+              getHandoverLocal(job).length === 0 &&
+              !handoverComposeByJob[job.id] ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => {
+                    setHandoverMode(job.id, "tambah");
+                    setHandoverComposeByJob((prev) => ({
+                      ...prev,
+                      [job.id]: true,
+                    }));
+                  }}
+                >
+                  + Tambah
+                </button>
+              ) : canHandoverWrite ? (
+                <label className="handover-mode">
+                  <span>Aksi</span>
+                  <select
+                    className="handover-select"
+                    value={getHandoverMode(job.id)}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setHandoverMode(
+                        job.id,
+                        e.target.value as "tambah" | "ubah" | "hapus"
+                      )
+                    }
+                  >
+                    <option value="tambah">Tambah</option>
+                    <option value="ubah">Ubah</option>
+                    <option value="hapus">Hapus</option>
+                  </select>
+                </label>
+              ) : (
+                <span className="step-hint">Hanya lihat</span>
+              )}
+            </div>
+            {canHandoverWrite &&
+              getHandoverMode(job.id) === "tambah" &&
+              (getHandoverLocal(job).length > 0 ||
+                handoverComposeByJob[job.id]) && (
+              <div className="handover-add">
+                <input
+                  className="handover-input"
+                  placeholder="Job Handover"
+                  value={getHandoverDraft(job.id).title}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setHandoverDraftByJob((prev) => ({
+                      ...prev,
+                      [job.id]: {
+                        ...getHandoverDraft(job.id),
+                        title: e.target.value,
+                      },
+                    }))
+                  }
+                />
+                <input
+                  className="handover-input"
+                  placeholder="Note"
+                  value={getHandoverDraft(job.id).note}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setHandoverDraftByJob((prev) => ({
+                      ...prev,
+                      [job.id]: {
+                        ...getHandoverDraft(job.id),
+                        note: e.target.value,
+                      },
+                    }))
+                  }
+                />
+                {getHandoverLocal(job).length === 0 && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => {
+                      setHandoverComposeByJob((prev) => {
+                        const next = { ...prev };
+                        delete next[job.id];
+                        return next;
+                      });
+                      setHandoverDraftByJob((prev) => {
+                        const next = { ...prev };
+                        delete next[job.id];
+                        return next;
+                      });
+                    }}
+                  >
+                    Batal
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !getHandoverDraft(job.id).title.trim()}
+                  onClick={() => addHandover(job)}
+                >
+                  + Tambah
+                </button>
+              </div>
+            )}
+            {canHandoverWrite &&
+              getHandoverLocal(job).length > 0 &&
+              getHandoverMode(job.id) === "ubah" && (
+              <div className="handover-actions">
+                <span className="step-hint">
+                  Edit baris di tabel, lalu Save
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !isHandoverDirty(job)}
+                  onClick={() => saveHandovers(job)}
+                >
+                  Save
+                </button>
+              </div>
+            )}
+            {canHandoverWrite &&
+              getHandoverLocal(job).length > 0 &&
+              getHandoverMode(job.id) === "hapus" && (
+              <div className="handover-actions">
+                <span className="step-hint">
+                  Pilih Hapus pada baris yang ingin dihapus
+                </span>
+              </div>
+            )}
+            {getHandoverLocal(job).length > 0 && (
+            <div className="handover-table-wrap">
+              <table className="handover-table">
+                <thead>
+                  <tr>
+                    <th className="col-no">NO</th>
+                    <th>Job Handover</th>
+                    <th className="col-done">Done</th>
+                    <th>Note</th>
+                    {canHandoverWrite &&
+                      getHandoverMode(job.id) === "hapus" && (
+                        <th className="col-act" />
+                      )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {getHandoverLocal(job).map((h) => {
+                    const canEdit =
+                      canHandoverWrite && getHandoverMode(job.id) === "ubah";
+                    return (
+                      <tr
+                        key={h.key}
+                        className={h.done ? "is-done" : ""}
+                      >
+                        <td className="col-no">{h.order}</td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              className="handover-input"
+                              value={h.title}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setHandoverLocal(job, (rows) =>
+                                  rows.map((r) =>
+                                    r.key === h.key
+                                      ? { ...r, title: e.target.value }
+                                      : r
+                                  )
+                                )
+                              }
+                            />
+                          ) : (
+                            h.title
+                          )}
+                        </td>
+                        <td className="col-done">
+                          {canEdit ? (
+                            <select
+                              className="handover-select"
+                              value={h.done ? "1" : "0"}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setHandoverLocal(job, (rows) =>
+                                  rows.map((r) =>
+                                    r.key === h.key
+                                      ? {
+                                          ...r,
+                                          done: e.target.value === "1",
+                                        }
+                                      : r
+                                  )
+                                )
+                              }
+                            >
+                              <option value="0">No</option>
+                              <option value="1">Yes</option>
+                            </select>
+                          ) : h.done ? (
+                            "Yes"
+                          ) : (
+                            "No"
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              className="handover-input"
+                              placeholder="Note"
+                              value={h.note}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setHandoverLocal(job, (rows) =>
+                                  rows.map((r) =>
+                                    r.key === h.key
+                                      ? { ...r, note: e.target.value }
+                                      : r
+                                  )
+                                )
+                              }
+                            />
+                          ) : (
+                            h.note || "—"
+                          )}
+                        </td>
+                        {canHandoverWrite &&
+                          getHandoverMode(job.id) === "hapus" && (
+                            <td className="col-act">
+                              <button
+                                type="button"
+                                className="btn btn-step"
+                                disabled={busy}
+                                onClick={() =>
+                                  setModal({
+                                    type: "handover-delete",
+                                    job,
+                                    handoverKey: h.key,
+                                    handoverId: h.id,
+                                    order: h.order,
+                                    title: h.title,
+                                  })
+                                }
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            )}
+          </div>
+        )}
+
+        {["in_progress", "paused", "done"].includes(job.status) && (
+          <div className="handover-panel part-loan-panel">
+            <div className="handover-head">
+              <h4>
+                Catatan peminjaman part{" "}
+                <span className="handover-count">
+                  ({getPartLoanLocal(job).length})
+                </span>
+              </h4>
+              {canHandoverWrite &&
+              getPartLoanLocal(job).length === 0 &&
+              !partLoanComposeByJob[job.id] ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => {
+                    setPartLoanMode(job.id, "tambah");
+                    setPartLoanComposeByJob((prev) => ({
+                      ...prev,
+                      [job.id]: true,
+                    }));
+                  }}
+                >
+                  + Tambah
+                </button>
+              ) : canHandoverWrite ? (
+                <label className="handover-mode">
+                  <span>Aksi</span>
+                  <select
+                    className="handover-select"
+                    value={getPartLoanMode(job.id)}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setPartLoanMode(
+                        job.id,
+                        e.target.value as "tambah" | "ubah" | "hapus"
+                      )
+                    }
+                  >
+                    <option value="tambah">Tambah</option>
+                    <option value="ubah">Ubah</option>
+                    <option value="hapus">Hapus</option>
+                  </select>
+                </label>
+              ) : (
+                <span className="step-hint">Hanya lihat</span>
+              )}
+            </div>
+            {canHandoverWrite &&
+              getPartLoanMode(job.id) === "tambah" &&
+              (getPartLoanLocal(job).length > 0 ||
+                partLoanComposeByJob[job.id]) && (
+              <div className="handover-add">
+                <input
+                  className="handover-input"
+                  placeholder="Part yang dipinjam"
+                  value={getPartLoanDraft(job.id).part_name}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setPartLoanDraftByJob((prev) => ({
+                      ...prev,
+                      [job.id]: {
+                        ...getPartLoanDraft(job.id),
+                        part_name: e.target.value,
+                      },
+                    }))
+                  }
+                />
+                <input
+                  className="handover-input"
+                  placeholder="Note"
+                  value={getPartLoanDraft(job.id).note}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setPartLoanDraftByJob((prev) => ({
+                      ...prev,
+                      [job.id]: {
+                        ...getPartLoanDraft(job.id),
+                        note: e.target.value,
+                      },
+                    }))
+                  }
+                />
+                {getPartLoanLocal(job).length === 0 && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => {
+                      setPartLoanComposeByJob((prev) => {
+                        const next = { ...prev };
+                        delete next[job.id];
+                        return next;
+                      });
+                      setPartLoanDraftByJob((prev) => {
+                        const next = { ...prev };
+                        delete next[job.id];
+                        return next;
+                      });
+                    }}
+                  >
+                    Batal
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={
+                    busy || !getPartLoanDraft(job.id).part_name.trim()
+                  }
+                  onClick={() => addPartLoan(job)}
+                >
+                  + Tambah
+                </button>
+              </div>
+            )}
+            {canHandoverWrite &&
+              getPartLoanLocal(job).length > 0 &&
+              getPartLoanMode(job.id) === "ubah" && (
+              <div className="handover-actions">
+                <span className="step-hint">
+                  Edit baris di tabel, lalu Save
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !isPartLoanDirty(job)}
+                  onClick={() => savePartLoans(job)}
+                >
+                  Save
+                </button>
+              </div>
+            )}
+            {canHandoverWrite &&
+              getPartLoanLocal(job).length > 0 &&
+              getPartLoanMode(job.id) === "hapus" && (
+              <div className="handover-actions">
+                <span className="step-hint">
+                  Pilih Hapus pada baris yang ingin dihapus
+                </span>
+              </div>
+            )}
+            {getPartLoanLocal(job).length > 0 && (
+            <div className="handover-table-wrap">
+              <table className="handover-table">
+                <thead>
+                  <tr>
+                    <th className="col-no">NO</th>
+                    <th>Part yang dipinjam</th>
+                    <th className="col-done">Status</th>
+                    <th>Note</th>
+                    {canHandoverWrite &&
+                      getPartLoanMode(job.id) === "hapus" && (
+                        <th className="col-act" />
+                      )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {getPartLoanLocal(job).map((p) => {
+                    const canEdit =
+                      canHandoverWrite && getPartLoanMode(job.id) === "ubah";
+                    return (
+                      <tr
+                        key={p.key}
+                        className={p.status === "closed" ? "is-done" : ""}
+                      >
+                        <td className="col-no">{p.order}</td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              className="handover-input"
+                              value={p.part_name}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setPartLoanLocal(job, (rows) =>
+                                  rows.map((r) =>
+                                    r.key === p.key
+                                      ? { ...r, part_name: e.target.value }
+                                      : r
+                                  )
+                                )
+                              }
+                            />
+                          ) : (
+                            p.part_name
+                          )}
+                        </td>
+                        <td className="col-done">
+                          {canEdit ? (
+                            <select
+                              className="handover-select"
+                              value={p.status}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setPartLoanLocal(job, (rows) =>
+                                  rows.map((r) =>
+                                    r.key === p.key
+                                      ? {
+                                          ...r,
+                                          status: e.target
+                                            .value as PartLoanStatus,
+                                        }
+                                      : r
+                                  )
+                                )
+                              }
+                            >
+                              <option value="open">open</option>
+                              <option value="closed">closed</option>
+                            </select>
+                          ) : (
+                            p.status
+                          )}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <input
+                              className="handover-input"
+                              placeholder="Note"
+                              value={p.note}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setPartLoanLocal(job, (rows) =>
+                                  rows.map((r) =>
+                                    r.key === p.key
+                                      ? { ...r, note: e.target.value }
+                                      : r
+                                  )
+                                )
+                              }
+                            />
+                          ) : (
+                            p.note || "—"
+                          )}
+                        </td>
+                        {canHandoverWrite &&
+                          getPartLoanMode(job.id) === "hapus" && (
+                            <td className="col-act">
+                              <button
+                                type="button"
+                                className="btn btn-step"
+                                disabled={busy}
+                                onClick={() =>
+                                  setModal({
+                                    type: "part-loan-delete",
+                                    job,
+                                    loanKey: p.key,
+                                    loanId: p.id,
+                                    order: p.order,
+                                    part_name: p.part_name,
+                                  })
+                                }
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            )}
+          </div>
+        )}
       </article>
     );
   }
@@ -2069,6 +3176,40 @@ export default function HomePage() {
                     }}
                   >
                     Daftar Hadir
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy || !isLoggedIn}
+                    title={
+                      isLoggedIn
+                        ? "Export Excel job aktif (in_progress / paused)"
+                        : "Login untuk export laporan"
+                    }
+                    onClick={() => {
+                      setManageOpen(false);
+                      exportJobsReport("active");
+                    }}
+                  >
+                    Export Job Aktif
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
+                    disabled={busy || !isLoggedIn}
+                    title={
+                      isLoggedIn
+                        ? "Export Excel job antrian (queued / assigned)"
+                        : "Login untuk export laporan"
+                    }
+                    onClick={() => {
+                      setManageOpen(false);
+                      exportJobsReport("queue");
+                    }}
+                  >
+                    Export Job Antrian
                   </button>
                 </div>
               )}
@@ -2362,6 +3503,36 @@ export default function HomePage() {
             >
               Daftar Hadir
             </button>
+            <button
+              className="btn"
+              disabled={busy || !isLoggedIn}
+              title={
+                isLoggedIn
+                  ? "Export Excel job aktif"
+                  : "Login untuk export laporan"
+              }
+              onClick={() => {
+                setMobileMenuOpen(false);
+                exportJobsReport("active");
+              }}
+            >
+              Export Job Aktif
+            </button>
+            <button
+              className="btn"
+              disabled={busy || !isLoggedIn}
+              title={
+                isLoggedIn
+                  ? "Export Excel job antrian"
+                  : "Login untuk export laporan"
+              }
+              onClick={() => {
+                setMobileMenuOpen(false);
+                exportJobsReport("queue");
+              }}
+            >
+              Export Job Antrian
+            </button>
             {!isLoggedIn && (
               <button
                 className="btn"
@@ -2541,7 +3712,7 @@ export default function HomePage() {
                         <div className="tech" key={t.id}>
                           <div className="name">{t.name}</div>
                           <div className="meta">
-                            {t.skill}
+                            {t.sn}
                             {job ? ` · ${job.title}` : ""}
                           </div>
                           <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -2732,6 +3903,52 @@ export default function HomePage() {
             Database Excel: <code>data/workshop.xlsx</code> (termasuk sheet <code>AuditLog</code> + user di <code>JobEvents</code>) · Template: <code>data/job-templates.json</code>
           </p>
         </>
+      )}
+
+      {modal?.type === "process-alert" && (
+        <div
+          className="modal-backdrop"
+          onClick={
+            modal.phase === "loading" ? undefined : closeModal
+          }
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{modal.title}</h3>
+            {modal.phase === "loading" ? (
+              <div className="process-alert-loading" role="status" aria-live="polite">
+                <span className="spinner" aria-hidden="true" />
+                <p style={{ margin: 0, whiteSpace: "pre-line", textAlign: "center" }}>
+                  {modal.message}
+                </p>
+                <span className="step-hint">Mohon tunggu...</span>
+              </div>
+            ) : (
+              <>
+                <p
+                  style={{
+                    margin: "0 0 16px",
+                    whiteSpace: "pre-line",
+                    color:
+                      modal.phase === "error"
+                        ? "var(--red)"
+                        : "var(--green)",
+                  }}
+                >
+                  {modal.message}
+                </p>
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={closeModal}
+                  >
+                    OK
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {modal?.type === "logout" && (
@@ -3116,11 +4333,9 @@ export default function HomePage() {
                   </p>
                 )}
               <div className="actions">
-                {modal.type === "create" && (
-                  <button className="btn" onClick={closeModal}>
-                    Batal
-                  </button>
-                )}
+                <button className="btn" onClick={closeModal} disabled={busy}>
+                  Batal
+                </button>
                 <button
                   className="btn btn-primary"
                   disabled={
@@ -3202,7 +4417,7 @@ export default function HomePage() {
                           assignTechIds.includes(t.id)) &&
                         (!q ||
                           t.name.toLowerCase().includes(q) ||
-                          t.skill.toLowerCase().includes(q))
+                          t.sn.toLowerCase().includes(q))
                     ) || [];
                   if (selectable.length === 0) {
                     return (
@@ -3224,7 +4439,7 @@ export default function HomePage() {
                         />
                         <span>
                           {t.name}
-                          <span style={{ color: "var(--muted)" }}> — {t.skill}</span>
+                          <span style={{ color: "var(--muted)" }}> — {t.sn}</span>
                           {t.id === assignTechIds[0] ? " · lead" : ""}
                         </span>
                       </label>
@@ -3264,7 +4479,7 @@ export default function HomePage() {
             {busy && <BusyOverlay label="Menyimpan..." />}
             <h3>Ubah status teknisi</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              {modal.tech.name} — {modal.tech.skill}
+              {modal.tech.name} — {modal.tech.sn}
             </p>
             <p style={{ margin: "0 0 16px" }}>
               Ubah status dari{" "}
@@ -3317,7 +4532,7 @@ export default function HomePage() {
                 return (
                   <li key={id}>
                     {tech?.name || id}
-                    {tech?.skill ? ` — ${tech.skill}` : ""}
+                    {tech?.sn ? ` — ${tech.sn}` : ""}
                     {index === 0 ? " · lead" : ""}
                   </li>
                 );
@@ -3609,6 +4824,76 @@ export default function HomePage() {
                 onClick={() => runAction(modal.job.id, "complete")}
               >
                 <BusyLabel busy={busy} idle="Ya, complete" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "handover-delete" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Hapus catatan handover</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus item{" "}
+              <strong>
+                #{modal.order} {modal.title}
+              </strong>
+              ?
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy || !canHandoverWrite}
+                onClick={() =>
+                  removeHandover(
+                    modal.job.id,
+                    modal.handoverKey,
+                    modal.handoverId
+                  )
+                }
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "part-loan-delete" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Hapus peminjaman part</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Hapus item{" "}
+              <strong>
+                #{modal.order} {modal.part_name}
+              </strong>
+              ?
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy || !canHandoverWrite}
+                onClick={() =>
+                  removePartLoan(modal.job.id, modal.loanKey, modal.loanId)
+                }
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>
             </div>
           </div>
@@ -4002,7 +5287,7 @@ export default function HomePage() {
                   <div>
                     <strong>{t.name}</strong>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {t.skill}
+                      {t.sn}
                       {t.phone ? ` · ${t.phone}` : ""}
                       {` · ${t.status}`}
                     </div>
@@ -4072,8 +5357,8 @@ export default function HomePage() {
               <label>
                 SN KPC *
                 <input
-                  value={techForm.skill}
-                  onChange={(e) => setTechForm({ ...techForm, skill: e.target.value })}
+                  value={techForm.sn}
+                  onChange={(e) => setTechForm({ ...techForm, sn: e.target.value })}
                   required
                 />
               </label>
@@ -4134,7 +5419,7 @@ export default function HomePage() {
             <h3>Hapus teknisi</h3>
             {error && <div className="error">{error}</div>}
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              {modal.tech.name} — {modal.tech.skill}
+              {modal.tech.name} — {modal.tech.sn}
             </p>
             <p style={{ margin: "0 0 16px" }}>
               Hapus teknisi ini permanen? Jika masih terpasang di job aktif,
@@ -4607,14 +5892,14 @@ export default function HomePage() {
                       ...attendanceForm,
                       technician_id: id,
                       technician_name: tech?.name || attendanceForm.technician_name,
-                      pernr: tech?.skill || attendanceForm.pernr,
+                      pernr: tech?.sn || attendanceForm.pernr,
                     });
                   }}
                 >
                   <option value="">— Pilih teknisi —</option>
                   {(data?.technicians || []).map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} ({t.skill})
+                      {t.name} ({t.sn})
                     </option>
                   ))}
                 </select>

@@ -85,3 +85,8 @@ export function canAssignJob(level: AccessLevel | undefined): boolean {
 export function canManageJobProgress(level: AccessLevel | undefined): boolean {
   return level === "superuser" || level === "foreman";
 }
+
+/** Add/update/delete catatan handover: hanya foreman. */
+export function canManageHandover(level: AccessLevel | undefined): boolean {
+  return level === "foreman";
+}

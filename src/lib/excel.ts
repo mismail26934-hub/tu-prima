@@ -22,6 +22,9 @@ import type {
   UserLevel,
   AuditActor,
   AuditLogEntry,
+  JobHandover,
+  JobPartLoan,
+  PartLoanStatus,
 } from "./types";
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
@@ -43,6 +46,8 @@ const SHEETS = {
   attendance: "Attendance",
   users: "Users",
   audit: "AuditLog",
+  handovers: "JobHandovers",
+  partLoans: "JobPartLoans",
 } as const;
 
 type Row = Record<string, string | number>;
@@ -145,7 +150,7 @@ function mapTechnician(r: Row): Technician {
   return {
     id: String(r.id || ""),
     name: String(r.name || ""),
-    skill: String(r.skill || ""),
+    sn: String(r.sn || r.skill || ""),
     status: String(r.status || "available") as TechnicianStatus,
     current_job_id: String(r.current_job_id || ""),
     phone: String(r.phone || ""),
@@ -217,6 +222,36 @@ function mapAudit(r: Row): AuditLogEntry {
     entity: String(r.entity || ""),
     entity_id: String(r.entity_id || ""),
     detail: String(r.detail || ""),
+  };
+}
+
+function mapHandover(r: Row): JobHandover {
+  return {
+    id: String(r.id || ""),
+    job_id: String(r.job_id || ""),
+    order: Number(r.order || 0),
+    title: String(r.title || ""),
+    done: String(r.done || "0") === "1" ? "1" : "0",
+    note: String(r.note || ""),
+    user_id: String(r.user_id || ""),
+    user_name: String(r.user_name || ""),
+    updated_at: String(r.updated_at || ""),
+  };
+}
+
+function mapPartLoan(r: Row): JobPartLoan {
+  const raw = String(r.status || "open").trim().toLowerCase();
+  const status: PartLoanStatus = raw === "closed" ? "closed" : "open";
+  return {
+    id: String(r.id || ""),
+    job_id: String(r.job_id || ""),
+    order: Number(r.order || 0),
+    part_name: String(r.part_name || ""),
+    status,
+    note: String(r.note || ""),
+    user_id: String(r.user_id || ""),
+    user_name: String(r.user_name || ""),
+    updated_at: String(r.updated_at || ""),
   };
 }
 
@@ -311,6 +346,14 @@ function stepToRow(s: JobStep): Row {
   return { ...s, order: s.order, duration_sec: s.duration_sec };
 }
 
+function handoverToRow(h: JobHandover): Row {
+  return { ...h, order: h.order };
+}
+
+function partLoanToRow(p: JobPartLoan): Row {
+  return { ...p, order: p.order };
+}
+
 function eventToRow(e: JobEvent): Row {
   return { ...e };
 }
@@ -335,7 +378,7 @@ function unitLabel(u: Unit): string {
   return u.name ? `${u.code} — ${u.name}` : u.code;
 }
 
-const TECH_HEADERS = ["id", "name", "skill", "status", "current_job_id", "phone"];
+const TECH_HEADERS = ["id", "name", "sn", "status", "current_job_id", "phone"];
 const UNIT_HEADERS = ["id", "code", "name", "active"];
 const JOB_HEADERS = [
   "id",
@@ -363,6 +406,28 @@ const STEP_HEADERS = [
   "started_at",
   "completed_at",
   "duration_sec",
+];
+const HANDOVER_HEADERS = [
+  "id",
+  "job_id",
+  "order",
+  "title",
+  "done",
+  "note",
+  "user_id",
+  "user_name",
+  "updated_at",
+];
+const PART_LOAN_HEADERS = [
+  "id",
+  "job_id",
+  "order",
+  "part_name",
+  "status",
+  "note",
+  "user_id",
+  "user_name",
+  "updated_at",
 ];
 const EVENT_HEADERS = [
   "id",
@@ -424,10 +489,39 @@ function readUsers(wb: ExcelJS.Workbook): AppUser[] {
     .filter((u) => u.id && u.username);
 }
 
+/** Rename Technicians.skill → sn in workbook if still on old header. */
+function migrateTechnicianSnColumn(wb: ExcelJS.Workbook): boolean {
+  const ws = getSheet(wb, SHEETS.technicians);
+  const headerRow = ws.getRow(1);
+  let hasSkill = false;
+  let hasSn = false;
+  headerRow.eachCell((cell) => {
+    const h = cellStr(cell.value).trim().toLowerCase();
+    if (h === "skill") hasSkill = true;
+    if (h === "sn") hasSn = true;
+  });
+  if (!hasSkill || hasSn) return false;
+  const techs = readRows(ws).map(mapTechnician).filter((t) => t.id);
+  writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+  return true;
+}
+
 function loadAuditLog(wb: ExcelJS.Workbook): AuditLogEntry[] {
   return readRows(getSheet(wb, SHEETS.audit))
     .map(mapAudit)
     .filter((a) => a.id && a.at);
+}
+
+function loadHandovers(wb: ExcelJS.Workbook): JobHandover[] {
+  return readRows(getSheet(wb, SHEETS.handovers))
+    .map(mapHandover)
+    .filter((h) => h.id && h.job_id);
+}
+
+function loadPartLoans(wb: ExcelJS.Workbook): JobPartLoan[] {
+  return readRows(getSheet(wb, SHEETS.partLoans))
+    .map(mapPartLoan)
+    .filter((p) => p.id && p.job_id);
 }
 
 function actorSlice(actor?: AuditActor | null): Pick<
@@ -549,12 +643,12 @@ function releaseTechsFromJob(techs: Technician[], jobId: string) {
 async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   const now = nowIso();
   const techs: Technician[] = [
-    { id: "T01", name: "Andi Pratama", skill: "Mesin & Rem", status: "busy", current_job_id: "J01", phone: "0812-1111-0001" },
-    { id: "T02", name: "Budi Santoso", skill: "Kelistrikan", status: "busy", current_job_id: "J01", phone: "0812-1111-0002" },
-    { id: "T03", name: "Citra Dewi", skill: "Body & Cat", status: "available", current_job_id: "", phone: "0812-1111-0003" },
-    { id: "T04", name: "Dedi Kurnia", skill: "AC & Cooling", status: "busy", current_job_id: "J02", phone: "0812-1111-0004" },
-    { id: "T05", name: "Eko Wijaya", skill: "General Service", status: "offline", current_job_id: "", phone: "0812-1111-0005" },
-    { id: "T06", name: "Fajar Nugroho", skill: "Mesin Diesel", status: "available", current_job_id: "", phone: "0812-1111-0006" },
+    { id: "T01", name: "Andi Pratama", sn: "SN-1001", status: "busy", current_job_id: "J01", phone: "0812-1111-0001" },
+    { id: "T02", name: "Budi Santoso", sn: "SN-1002", status: "busy", current_job_id: "J01", phone: "0812-1111-0002" },
+    { id: "T03", name: "Citra Dewi", sn: "SN-1003", status: "available", current_job_id: "", phone: "0812-1111-0003" },
+    { id: "T04", name: "Dedi Kurnia", sn: "SN-1004", status: "busy", current_job_id: "J02", phone: "0812-1111-0004" },
+    { id: "T05", name: "Eko Wijaya", sn: "SN-1005", status: "offline", current_job_id: "", phone: "0812-1111-0005" },
+    { id: "T06", name: "Fajar Nugroho", sn: "SN-1006", status: "available", current_job_id: "", phone: "0812-1111-0006" },
   ];
 
   const started1 = new Date(Date.now() - 85 * 60 * 1000).toISOString();
@@ -684,6 +778,8 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   writeSheet(wb, SHEETS.attendance, ATTENDANCE_HEADERS, []);
   writeSheet(wb, SHEETS.users, USER_HEADERS, [userToRow(defaultSeedUser())]);
   writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, []);
+  writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, []);
+  writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, []);
 }
 
 function enrichJob(
@@ -691,7 +787,9 @@ function enrichJob(
   techs: Technician[],
   steps: JobStep[],
   events: JobEvent[],
-  assignees: JobAssignee[] = []
+  assignees: JobAssignee[] = [],
+  handovers: JobHandover[] = [],
+  partLoans: JobPartLoan[] = []
 ): JobWithDetails {
   const jobSteps = steps
     .filter((s) => s.job_id === job.id)
@@ -699,6 +797,12 @@ function enrichJob(
   const jobEvents = events
     .filter((e) => e.job_id === job.id)
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const jobHandovers = handovers
+    .filter((h) => h.job_id === job.id)
+    .sort((a, b) => a.order - b.order || a.updated_at.localeCompare(b.updated_at));
+  const jobPartLoans = partLoans
+    .filter((p) => p.job_id === job.id)
+    .sort((a, b) => a.order - b.order || a.updated_at.localeCompare(b.updated_at));
 
   let jobAssigneeRows = assigneesForJob(assignees, job.id);
   if (jobAssigneeRows.length === 0 && job.technician_id) {
@@ -727,6 +831,8 @@ function enrichJob(
     technicians,
     steps: jobSteps,
     events: jobEvents,
+    handovers: jobHandovers,
+    part_loans: jobPartLoans,
     elapsed_sec: calcElapsedSec(job),
     progress_pct: calcProgressPct(jobSteps),
     current_step,
@@ -742,10 +848,13 @@ export async function getDashboard(): Promise<DashboardData> {
     const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
     const assignees = loadAssignees(wb, jobs);
+    const handovers = loadHandovers(wb);
+    const partLoans = loadPartLoans(wb);
     const hadUnits = readRows(getSheet(wb, SHEETS.units)).length > 0;
     const units = loadUnits(wb, jobs);
     const usersSeeded = ensureUsers(wb);
-    if ((!hadUnits && units.length > 0) || usersSeeded) {
+    const techSnMigrated = migrateTechnicianSnColumn(wb);
+    if ((!hadUnits && units.length > 0) || usersSeeded || techSnMigrated) {
       if (!hadUnits && units.length > 0) {
         writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
         writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
@@ -753,7 +862,13 @@ export async function getDashboard(): Promise<DashboardData> {
       await saveWorkbook(wb);
     }
 
-    const detailed = jobs.map((j) => enrichJob(j, techs, steps, events, assignees));
+    const techsFresh = techSnMigrated
+      ? readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician)
+      : techs;
+
+    const detailed = jobs.map((j) =>
+      enrichJob(j, techsFresh, steps, events, assignees, handovers, partLoans)
+    );
     const today = new Date().toISOString().slice(0, 10);
     const doneToday = detailed.filter(
       (j) => j.status === "done" && j.completed_at.startsWith(today)
@@ -766,7 +881,7 @@ export async function getDashboard(): Promise<DashboardData> {
           );
 
     return {
-      technicians: techs,
+      technicians: techsFresh,
       units,
       jobs: detailed,
       attendance: readRows(getSheet(wb, SHEETS.attendance))
@@ -777,9 +892,9 @@ export async function getDashboard(): Promise<DashboardData> {
           a.technician_name.localeCompare(b.technician_name)
         ),
       summary: {
-        available: techs.filter((t) => t.status === "available").length,
-        busy: techs.filter((t) => t.status === "busy").length,
-        offline: techs.filter((t) => t.status === "offline").length,
+        available: techsFresh.filter((t) => t.status === "available").length,
+        busy: techsFresh.filter((t) => t.status === "busy").length,
+        offline: techsFresh.filter((t) => t.status === "offline").length,
         active_jobs: detailed.filter((j) =>
           ["in_progress", "paused", "assigned"].includes(j.status)
         ).length,
@@ -1017,12 +1132,310 @@ export async function deleteJob(
     steps = steps.filter((s) => s.job_id !== jobId);
     events = events.filter((e) => e.job_id !== jobId);
     assignees = assignees.filter((a) => a.job_id !== jobId);
+    let handovers = loadHandovers(wb);
+    handovers = handovers.filter((h) => h.job_id !== jobId);
+    let partLoans = loadPartLoans(wb);
+    partLoans = partLoans.filter((p) => p.job_id !== jobId);
 
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
     writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
     writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
+    writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    return { ok: true };
+  });
+}
+
+export async function createJobHandover(input: {
+  job_id: string;
+  title: string;
+  note?: string;
+  done?: boolean;
+  actor?: AuditActor | null;
+}): Promise<JobHandover> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const job = jobs.find((j) => j.id === input.job_id);
+    if (!job) throw new Error("Job not found");
+    if (!["in_progress", "paused", "done"].includes(job.status)) {
+      throw new Error(
+        "Handover hanya untuk job in_progress / paused / done"
+      );
+    }
+    const title = input.title.trim();
+    if (!title) throw new Error("Judul handover wajib diisi");
+
+    const handovers = loadHandovers(wb);
+    const audits = loadAuditLog(wb);
+    const forJob = handovers.filter((h) => h.job_id === input.job_id);
+    const order =
+      forJob.reduce((max, h) => Math.max(max, h.order), 0) + 1;
+    const at = nowIso();
+    const row: JobHandover = {
+      id: uuidv4(),
+      job_id: input.job_id,
+      order,
+      title,
+      done: input.done ? "1" : "0",
+      note: (input.note || "").trim(),
+      user_id: input.actor?.user_id || "",
+      user_name: input.actor?.user_name || "",
+      updated_at: at,
+    };
+    handovers.push(row);
+    audits.push(
+      makeAuditEntry({
+        action: "handover_create",
+        entity: "job_handover",
+        entity_id: row.id,
+        detail: `${job.title} · #${order} ${title}`,
+        actor: input.actor,
+        at,
+      })
+    );
+    writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    return row;
+  });
+}
+
+export async function updateJobHandover(
+  handoverId: string,
+  input: {
+    title?: string;
+    note?: string;
+    done?: boolean;
+    actor?: AuditActor | null;
+  }
+): Promise<JobHandover> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const handovers = loadHandovers(wb);
+    const audits = loadAuditLog(wb);
+    const row = handovers.find((h) => h.id === handoverId);
+    if (!row) throw new Error("Handover tidak ditemukan");
+    const job = jobs.find((j) => j.id === row.job_id);
+    if (!job) throw new Error("Job not found");
+    if (!["in_progress", "paused", "done"].includes(job.status)) {
+      throw new Error(
+        "Handover hanya bisa diubah pada job in_progress / paused / done"
+      );
+    }
+
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new Error("Judul handover wajib diisi");
+      row.title = title;
+    }
+    if (input.note !== undefined) row.note = input.note.trim();
+    if (input.done !== undefined) row.done = input.done ? "1" : "0";
+    row.user_id = input.actor?.user_id || row.user_id;
+    row.user_name = input.actor?.user_name || row.user_name;
+    row.updated_at = nowIso();
+
+    audits.push(
+      makeAuditEntry({
+        action: "handover_update",
+        entity: "job_handover",
+        entity_id: row.id,
+        detail: `${job.title} · #${row.order} ${row.title} · done=${row.done === "1" ? "Yes" : "No"}`,
+        actor: input.actor,
+      })
+    );
+    writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    return row;
+  });
+}
+
+export async function deleteJobHandover(
+  handoverId: string,
+  actor?: AuditActor | null
+): Promise<{ ok: true }> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    let handovers = loadHandovers(wb);
+    const audits = loadAuditLog(wb);
+    const row = handovers.find((h) => h.id === handoverId);
+    if (!row) throw new Error("Handover tidak ditemukan");
+    const job = jobs.find((j) => j.id === row.job_id);
+    if (
+      job &&
+      !["in_progress", "paused", "done"].includes(job.status)
+    ) {
+      throw new Error(
+        "Handover hanya bisa dihapus pada job in_progress / paused / done"
+      );
+    }
+
+    handovers = handovers.filter((h) => h.id !== handoverId);
+    audits.push(
+      makeAuditEntry({
+        action: "handover_delete",
+        entity: "job_handover",
+        entity_id: handoverId,
+        detail: `${job?.title || row.job_id} · #${row.order} ${row.title}`,
+        actor,
+      })
+    );
+    writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    return { ok: true };
+  });
+}
+
+export async function createJobPartLoan(input: {
+  job_id: string;
+  part_name: string;
+  note?: string;
+  status?: PartLoanStatus;
+  actor?: AuditActor | null;
+}): Promise<JobPartLoan> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const job = jobs.find((j) => j.id === input.job_id);
+    if (!job) throw new Error("Job not found");
+    if (!["in_progress", "paused", "done"].includes(job.status)) {
+      throw new Error(
+        "Peminjaman part hanya untuk job in_progress / paused / done"
+      );
+    }
+    const part_name = input.part_name.trim();
+    if (!part_name) throw new Error("Nama part wajib diisi");
+
+    const partLoans = loadPartLoans(wb);
+    const audits = loadAuditLog(wb);
+    const forJob = partLoans.filter((p) => p.job_id === input.job_id);
+    const order =
+      forJob.reduce((max, p) => Math.max(max, p.order), 0) + 1;
+    const at = nowIso();
+    const status: PartLoanStatus =
+      input.status === "closed" ? "closed" : "open";
+    const row: JobPartLoan = {
+      id: uuidv4(),
+      job_id: input.job_id,
+      order,
+      part_name,
+      status,
+      note: (input.note || "").trim(),
+      user_id: input.actor?.user_id || "",
+      user_name: input.actor?.user_name || "",
+      updated_at: at,
+    };
+    partLoans.push(row);
+    audits.push(
+      makeAuditEntry({
+        action: "part_loan_create",
+        entity: "job_part_loan",
+        entity_id: row.id,
+        detail: `${job.title} · #${order} ${part_name} · ${status}`,
+        actor: input.actor,
+        at,
+      })
+    );
+    writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    return row;
+  });
+}
+
+export async function updateJobPartLoan(
+  loanId: string,
+  input: {
+    part_name?: string;
+    note?: string;
+    status?: PartLoanStatus;
+    actor?: AuditActor | null;
+  }
+): Promise<JobPartLoan> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const partLoans = loadPartLoans(wb);
+    const audits = loadAuditLog(wb);
+    const row = partLoans.find((p) => p.id === loanId);
+    if (!row) throw new Error("Peminjaman part tidak ditemukan");
+    const job = jobs.find((j) => j.id === row.job_id);
+    if (!job) throw new Error("Job not found");
+    if (!["in_progress", "paused", "done"].includes(job.status)) {
+      throw new Error(
+        "Peminjaman part hanya bisa diubah pada job in_progress / paused / done"
+      );
+    }
+
+    if (input.part_name !== undefined) {
+      const part_name = input.part_name.trim();
+      if (!part_name) throw new Error("Nama part wajib diisi");
+      row.part_name = part_name;
+    }
+    if (input.note !== undefined) row.note = input.note.trim();
+    if (input.status !== undefined) {
+      row.status = input.status === "closed" ? "closed" : "open";
+    }
+    row.user_id = input.actor?.user_id || row.user_id;
+    row.user_name = input.actor?.user_name || row.user_name;
+    row.updated_at = nowIso();
+
+    audits.push(
+      makeAuditEntry({
+        action: "part_loan_update",
+        entity: "job_part_loan",
+        entity_id: row.id,
+        detail: `${job.title} · #${row.order} ${row.part_name} · ${row.status}`,
+        actor: input.actor,
+      })
+    );
+    writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+    await saveWorkbook(wb);
+    return row;
+  });
+}
+
+export async function deleteJobPartLoan(
+  loanId: string,
+  actor?: AuditActor | null
+): Promise<{ ok: true }> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    let partLoans = loadPartLoans(wb);
+    const audits = loadAuditLog(wb);
+    const row = partLoans.find((p) => p.id === loanId);
+    if (!row) throw new Error("Peminjaman part tidak ditemukan");
+    const job = jobs.find((j) => j.id === row.job_id);
+    if (
+      job &&
+      !["in_progress", "paused", "done"].includes(job.status)
+    ) {
+      throw new Error(
+        "Peminjaman part hanya bisa dihapus pada job in_progress / paused / done"
+      );
+    }
+
+    partLoans = partLoans.filter((p) => p.id !== loanId);
+    audits.push(
+      makeAuditEntry({
+        action: "part_loan_delete",
+        entity: "job_part_loan",
+        entity_id: loanId,
+        detail: `${job?.title || row.job_id} · #${row.order} ${row.part_name}`,
+        actor,
+      })
+    );
+    writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
     await saveWorkbook(wb);
     return { ok: true };
@@ -1245,7 +1658,7 @@ export async function setTechnicianStatus(
 
 export async function createTechnician(input: {
   name: string;
-  skill: string;
+  sn: string;
   phone?: string;
   status?: Exclude<TechnicianStatus, "busy">;
 }): Promise<Technician> {
@@ -1253,9 +1666,9 @@ export async function createTechnician(input: {
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const name = input.name.trim();
-    const skill = input.skill.trim();
+    const sn = input.sn.trim();
     const phone = (input.phone || "").trim();
-    if (!name || !skill || !phone) {
+    if (!name || !sn || !phone) {
       throw new Error("nama, SN KPC, dan telepon wajib diisi");
     }
     const status: TechnicianStatus =
@@ -1263,7 +1676,7 @@ export async function createTechnician(input: {
     const tech: Technician = {
       id: `T-${uuidv4().slice(0, 8)}`,
       name,
-      skill,
+      sn,
       status,
       current_job_id: "",
       phone,
@@ -1320,10 +1733,10 @@ export async function importTechniciansFromBuffer(
     };
 
     const cName = col("name", "nama", "name employee", "nama karyawan");
-    const cSkill = col(
-      "skill",
-      "sn kpc",
+    const cSn = col(
       "sn",
+      "sn kpc",
+      "skill",
       "pernr",
       "nik",
       "kpc"
@@ -1331,9 +1744,9 @@ export async function importTechniciansFromBuffer(
     const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
     const cStatus = col("status");
 
-    if (!cName || !cSkill) {
+    if (!cName || !cSn) {
       throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh header "Nama" dan "SN KPC" (atau Pernr/Skill).'
+        'Kolom wajib tidak ditemukan. Butuh header "Nama" dan "SN KPC" (atau sn/pernr).'
       );
     }
 
@@ -1347,27 +1760,27 @@ export async function importTechniciansFromBuffer(
     ws.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
       const name = cellStr(row.getCell(cName).value).trim();
-      const skill = cellStr(row.getCell(cSkill).value).trim();
+      const sn = cellStr(row.getCell(cSn).value).trim();
       const phone = cPhone ? cellStr(row.getCell(cPhone).value).trim() : "";
       const statusRaw = cStatus
         ? cellStr(row.getCell(cStatus).value).trim()
         : "";
-      if (!name && !skill) return;
-      if (!name || !skill) {
+      if (!name && !sn) return;
+      if (!name || !sn) {
         skipped.push(
-          `Baris ${rowNumber}: nama dan SN KPC wajib (${name || "?"} / ${skill || "?"})`
+          `Baris ${rowNumber}: nama dan SN KPC wajib (${name || "?"} / ${sn || "?"})`
         );
         return;
       }
 
       const status = normalizeTechStatus(statusRaw);
       const existing = techs.find(
-        (t) => t.skill.trim().toLowerCase() === skill.toLowerCase()
+        (t) => t.sn.trim().toLowerCase() === sn.toLowerCase()
       );
 
       if (existing) {
         existing.name = name;
-        existing.skill = skill;
+        existing.sn = sn;
         if (phone) existing.phone = phone;
         if (status && existing.status !== "busy") {
           existing.status = status;
@@ -1386,7 +1799,7 @@ export async function importTechniciansFromBuffer(
       techs.push({
         id: `T-${uuidv4().slice(0, 8)}`,
         name,
-        skill,
+        sn,
         phone,
         status: status || "available",
         current_job_id: "",
@@ -1414,7 +1827,7 @@ export async function updateTechnician(
   techId: string,
   input: {
     name: string;
-    skill: string;
+    sn: string;
     phone?: string;
     status?: Exclude<TechnicianStatus, "busy">;
   }
@@ -1425,13 +1838,13 @@ export async function updateTechnician(
     const tech = techs.find((t) => t.id === techId);
     if (!tech) throw new Error("Technician not found");
     const name = input.name.trim();
-    const skill = input.skill.trim();
+    const sn = input.sn.trim();
     const phone = (input.phone ?? tech.phone).trim();
-    if (!name || !skill || !phone) {
+    if (!name || !sn || !phone) {
       throw new Error("nama, SN KPC, dan telepon wajib diisi");
     }
     tech.name = name;
-    tech.skill = skill;
+    tech.sn = sn;
     tech.phone = phone;
     if (input.status === "available" || input.status === "offline") {
       if (tech.status === "busy") {
@@ -1519,6 +1932,8 @@ export async function jobAction(
     const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
     const audits = loadAuditLog(wb);
+    const handovers = loadHandovers(wb);
+    const partLoans = loadPartLoans(wb);
     let assignees = loadAssignees(wb, jobs);
     const actor = payload?.actor || null;
 
@@ -1818,7 +2233,7 @@ export async function jobAction(
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
     writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
     await saveWorkbook(wb);
-    return enrichJob(job, techs, steps, events, assignees);
+    return enrichJob(job, techs, steps, events, assignees, handovers, partLoans);
   });
 }
 
@@ -1936,7 +2351,7 @@ function findTechForAttendance(
 ): Technician | undefined {
   const p = pernr.trim();
   if (p) {
-    const byPernr = techs.find((t) => t.skill.trim() === p);
+    const byPernr = techs.find((t) => t.sn.trim() === p);
     if (byPernr) return byPernr;
   }
   const n = normalizeName(name);
@@ -1972,7 +2387,7 @@ export async function createAttendance(input: {
         : undefined) ||
       findTechForAttendance(techs, input.pernr || "", input.technician_name);
 
-    const pernr = (input.pernr || tech?.skill || "").trim();
+    const pernr = (input.pernr || tech?.sn || "").trim();
     const name = (input.technician_name || tech?.name || "").trim();
     if (!name) throw new Error("Nama teknisi wajib diisi");
 
@@ -2038,7 +2453,7 @@ export async function updateAttendance(
         : undefined) ||
       findTechForAttendance(techs, input.pernr || "", input.technician_name);
 
-    const pernr = (input.pernr || tech?.skill || "").trim();
+    const pernr = (input.pernr || tech?.sn || "").trim();
     const name = (input.technician_name || tech?.name || "").trim();
     if (!name) throw new Error("Nama teknisi wajib diisi");
 
@@ -2182,7 +2597,7 @@ export async function importAttendanceFromBuffer(
       if (existing) {
         existing.technician_id = tech?.id || existing.technician_id;
         existing.technician_name = name || tech?.name || existing.technician_name;
-        existing.pernr = pernr || tech?.skill || existing.pernr;
+        existing.pernr = pernr || tech?.sn || existing.pernr;
         existing.status = status;
         existing.dws = dws;
         existing.check_in = check_in;
@@ -2196,7 +2611,7 @@ export async function importAttendanceFromBuffer(
           date,
           technician_id: tech?.id || "",
           technician_name: name || tech?.name || "",
-          pernr: pernr || tech?.skill || "",
+          pernr: pernr || tech?.sn || "",
           status,
           dws,
           check_in,

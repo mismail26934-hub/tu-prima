@@ -896,6 +896,7 @@ button {
   border-radius: 10px;
   border: 1px solid transparent;
   line-height: 1.15;
+  color: #fff;
 }
 
 .remain-card-label {
@@ -903,7 +904,8 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  opacity: 0.9;
+  opacity: 0.92;
+  color: #fff;
 }
 
 .remain-card-value {
@@ -911,24 +913,165 @@ button {
   font-size: 1.05rem;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.remain-card-pct {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  opacity: 0.95;
 }
 
 .remain-card--green {
   background: color-mix(in srgb, var(--green) 28%, var(--bg-1));
   border-color: color-mix(in srgb, var(--green) 55%, var(--line));
-  color: var(--green);
 }
 
 .remain-card--orange {
   background: color-mix(in srgb, var(--amber) 28%, var(--bg-1));
   border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
-  color: var(--amber);
 }
 
 .remain-card--red {
   background: color-mix(in srgb, var(--red) 28%, var(--bg-1));
   border-color: color-mix(in srgb, var(--red) 55%, var(--line));
-  color: var(--red);
+}
+
+.handover-panel {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-dashed);
+}
+
+.handover-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.handover-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.handover-count {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.handover-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 auto;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.handover-mode .handover-select {
+  width: auto;
+  min-width: 110px;
+}
+
+.handover-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.handover-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.handover-table th,
+.handover-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.handover-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg-1) 70%, transparent);
+}
+
+.handover-table tr:last-child td {
+  border-bottom: none;
+}
+
+.handover-table tr.is-done td {
+  opacity: 0.75;
+}
+
+.handover-table .col-no {
+  width: 44px;
+  text-align: center;
+}
+
+.handover-table .col-done {
+  width: 96px;
+  white-space: nowrap;
+}
+
+.handover-table .col-act {
+  width: 72px;
+  text-align: right;
+}
+
+.handover-empty {
+  color: var(--muted);
+  text-align: center !important;
+  padding: 14px 10px !important;
+}
+
+.handover-input,
+.handover-select {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  color: var(--text);
+  font: inherit;
+}
+
+.handover-select {
+  cursor: pointer;
+}
+
+.handover-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.handover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+@media (max-width: 720px) {
+  .handover-add {
+    grid-template-columns: 1fr;
+  }
 }
 
 .progress {
@@ -1280,6 +1423,16 @@ button {
   color: var(--text);
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.process-alert-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 8px 4px;
+  min-height: 120px;
 }
 
 .spinner {

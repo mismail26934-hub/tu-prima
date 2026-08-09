@@ -9,7 +9,8 @@ export async function POST(req: Request) {
   if (denied) return denied;
   try {
     const body = await req.json();
-    if (!body.name || !body.skill || !body.phone) {
+    const sn = body.sn ?? body.skill;
+    if (!body.name || !sn || !body.phone) {
       return NextResponse.json(
         { error: "nama, SN KPC, dan telepon wajib diisi" },
         { status: 400 }
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     }
     const tech = await createTechnician({
       name: String(body.name),
-      skill: String(body.skill),
+      sn: String(sn),
       phone: String(body.phone),
       status: body.status === "offline" ? "offline" : "available",
     });

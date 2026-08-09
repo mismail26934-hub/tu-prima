@@ -12,7 +12,7 @@ export async function GET() {
   const sheet = workbook.addWorksheet("Teknisi");
   sheet.columns = [
     { header: "Nama", key: "name", width: 28 },
-    { header: "SN KPC", key: "skill", width: 18 },
+    { header: "SN KPC", key: "sn", width: 18 },
     { header: "Telepon", key: "phone", width: 20 },
     { header: "Status", key: "status", width: 16 },
   ];

@@ -30,7 +30,7 @@ import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
 import {
   getJobTemplate,
-  stepNamesFromTemplate,
+  stepsFromTemplate,
 } from "./job-templates";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -195,6 +195,7 @@ function mapStep(r: Row): JobStep {
     started_at: String(r.started_at || ""),
     completed_at: String(r.completed_at || ""),
     duration_sec: Number(r.duration_sec || 0),
+    std_minutes: Number(r.std_minutes || 0),
   };
 }
 
@@ -343,7 +344,12 @@ function jobToRow(j: Job): Row {
 }
 
 function stepToRow(s: JobStep): Row {
-  return { ...s, order: s.order, duration_sec: s.duration_sec };
+  return {
+    ...s,
+    order: s.order,
+    duration_sec: s.duration_sec,
+    std_minutes: Number(s.std_minutes || 0),
+  };
 }
 
 function handoverToRow(h: JobHandover): Row {
@@ -406,6 +412,7 @@ const STEP_HEADERS = [
   "started_at",
   "completed_at",
   "duration_sec",
+  "std_minutes",
 ];
 const HANDOVER_HEADERS = [
   "id",
@@ -504,6 +511,50 @@ function migrateTechnicianSnColumn(wb: ExcelJS.Workbook): boolean {
   const techs = readRows(ws).map(mapTechnician).filter((t) => t.id);
   writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
   return true;
+}
+
+/** Ensure JobSteps.std_minutes column; backfill from template when missing. */
+function migrateJobStepStdMinutes(
+  wb: ExcelJS.Workbook,
+  jobs: Job[],
+  steps: JobStep[]
+): { steps: JobStep[]; changed: boolean } {
+  const ws = getSheet(wb, SHEETS.steps);
+  const headerRow = ws.getRow(1);
+  let hasStd = false;
+  headerRow.eachCell((cell) => {
+    if (cellStr(cell.value).trim().toLowerCase() === "std_minutes") {
+      hasStd = true;
+    }
+  });
+
+  let changed = !hasStd;
+  const next = steps.map((s) => ({
+    ...s,
+    std_minutes: Number(s.std_minutes || 0),
+  }));
+
+  for (const job of jobs) {
+    if (!job.template_id) continue;
+    const tpl = getJobTemplate(job.template_id);
+    if (!tpl?.steps?.length) continue;
+    const tplSteps = tpl.steps.slice().sort((a, b) => a.order - b.order);
+    for (const step of next.filter((s) => s.job_id === job.id)) {
+      if (step.std_minutes > 0) continue;
+      const match =
+        tplSteps.find((t) => t.order === step.order) ||
+        tplSteps[step.order - 1];
+      if (match && Number(match.std_minutes || 0) > 0) {
+        step.std_minutes = Number(match.std_minutes);
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    writeSheet(wb, SHEETS.steps, STEP_HEADERS, next.map(stepToRow));
+  }
+  return { steps: next, changed };
 }
 
 function loadAuditLog(wb: ExcelJS.Workbook): AuditLogEntry[] {
@@ -731,20 +782,20 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   ];
 
   const steps: JobStep[] = [
-    { id: "S01", job_id: "J01", name: "Diagnosis", order: 1, status: "done", started_at: started1, completed_at: new Date(Date.now() - 70 * 60 * 1000).toISOString(), duration_sec: 900 },
-    { id: "S02", job_id: "J01", name: "Bongkar & Ganti Sparepart", order: 2, status: "in_progress", started_at: step2Start, completed_at: "", duration_sec: 0 },
-    { id: "S03", job_id: "J01", name: "Pasang & Test Rem", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S04", job_id: "J01", name: "QC & Serah Terima", order: 4, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S05", job_id: "J02", name: "Cek Tekanan Freon", order: 1, status: "done", started_at: started2, completed_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(), duration_sec: 720 },
-    { id: "S06", job_id: "J02", name: "Isi Freon / Perbaiki Compressor", order: 2, status: "in_progress", started_at: new Date(Date.now() - 18 * 60 * 1000).toISOString(), completed_at: "", duration_sec: 0 },
-    { id: "S07", job_id: "J02", name: "Test Pendinginan", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S08", job_id: "J03", name: "Ganti Oli & Filter", order: 1, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S09", job_id: "J03", name: "Ganti Busi", order: 2, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S10", job_id: "J03", name: "Cek Kelistrikan", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S11", job_id: "J03", name: "QC Final", order: 4, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S12", job_id: "J04", name: "Diagnosis Starter", order: 1, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S13", job_id: "J04", name: "Perbaikan / Ganti", order: 2, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
-    { id: "S14", job_id: "J04", name: "Test Start Engine", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
+    { id: "S01", job_id: "J01", name: "Diagnosis", order: 1, status: "done", started_at: started1, completed_at: new Date(Date.now() - 70 * 60 * 1000).toISOString(), duration_sec: 900, std_minutes: 30 },
+    { id: "S02", job_id: "J01", name: "Bongkar & Ganti Sparepart", order: 2, status: "in_progress", started_at: step2Start, completed_at: "", duration_sec: 0, std_minutes: 60 },
+    { id: "S03", job_id: "J01", name: "Pasang & Test Rem", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 20 },
+    { id: "S04", job_id: "J01", name: "QC & Serah Terima", order: 4, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 10 },
+    { id: "S05", job_id: "J02", name: "Cek Tekanan Freon", order: 1, status: "done", started_at: started2, completed_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(), duration_sec: 720, std_minutes: 20 },
+    { id: "S06", job_id: "J02", name: "Isi Freon / Perbaiki Compressor", order: 2, status: "in_progress", started_at: new Date(Date.now() - 18 * 60 * 1000).toISOString(), completed_at: "", duration_sec: 0, std_minutes: 50 },
+    { id: "S07", job_id: "J02", name: "Test Pendinginan", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 20 },
+    { id: "S08", job_id: "J03", name: "Ganti Oli & Filter", order: 1, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 40 },
+    { id: "S09", job_id: "J03", name: "Ganti Busi", order: 2, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 30 },
+    { id: "S10", job_id: "J03", name: "Cek Kelistrikan", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 40 },
+    { id: "S11", job_id: "J03", name: "QC Final", order: 4, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 40 },
+    { id: "S12", job_id: "J04", name: "Diagnosis Starter", order: 1, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 30 },
+    { id: "S13", job_id: "J04", name: "Perbaikan / Ganti", order: 2, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 50 },
+    { id: "S14", job_id: "J04", name: "Test Start Engine", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 20 },
   ];
 
   const emptyActor = null;
@@ -845,7 +896,7 @@ export async function getDashboard(): Promise<DashboardData> {
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
-    const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
+    let steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
     const assignees = loadAssignees(wb, jobs);
     const handovers = loadHandovers(wb);
@@ -854,7 +905,14 @@ export async function getDashboard(): Promise<DashboardData> {
     const units = loadUnits(wb, jobs);
     const usersSeeded = ensureUsers(wb);
     const techSnMigrated = migrateTechnicianSnColumn(wb);
-    if ((!hadUnits && units.length > 0) || usersSeeded || techSnMigrated) {
+    const stepStdMigrated = migrateJobStepStdMinutes(wb, jobs, steps);
+    steps = stepStdMigrated.steps;
+    if (
+      (!hadUnits && units.length > 0) ||
+      usersSeeded ||
+      techSnMigrated ||
+      stepStdMigrated.changed
+    ) {
       if (!hadUnits && units.length > 0) {
         writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
         writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
@@ -933,13 +991,15 @@ export async function createJob(input: {
       throw new Error("Template job tidak ditemukan");
     }
 
-    const fromTemplateSteps = template ? stepNamesFromTemplate(template) : [];
-    const stepNames =
-      fromTemplateSteps.length > 0
-        ? fromTemplateSteps
-        : input.steps && input.steps.length
-          ? input.steps
-          : ["Diagnosis", "Perbaikan", "Test & QC"];
+    const fromTemplate = template ? stepsFromTemplate(template) : [];
+    const customNames =
+      input.steps && input.steps.length
+        ? input.steps
+        : ["Diagnosis", "Perbaikan", "Test & QC"];
+    const stepDefs =
+      fromTemplate.length > 0
+        ? fromTemplate
+        : customNames.map((name) => ({ name, std_minutes: 0 }));
 
     const estimated =
       template?.std_minutes ||
@@ -966,16 +1026,17 @@ export async function createJob(input: {
     };
     jobs.push(job);
 
-    stepNames.forEach((name, i) => {
+    stepDefs.forEach((def, i) => {
       steps.push({
         id: uuidv4(),
         job_id: id,
-        name,
+        name: def.name,
         order: i + 1,
         status: "pending",
         started_at: "",
         completed_at: "",
         duration_sec: 0,
+        std_minutes: Number(def.std_minutes || 0),
       });
     });
 
@@ -997,7 +1058,7 @@ export async function createJob(input: {
         action: "create",
         entity: "job",
         entity_id: id,
-        detail: `${job.title} · ${job.unit} · ${stepNames.length} steps`,
+        detail: `${job.title} · ${job.unit} · ${stepDefs.length} steps`,
         actor: input.actor,
         at: created_at,
       })
@@ -1053,8 +1114,11 @@ export async function updateJob(
 
     const canRewriteSteps = ["queued", "assigned"].includes(job.status);
     if (canRewriteSteps && input.steps && input.steps.length > 0) {
+      const tpl = job.template_id ? getJobTemplate(job.template_id) : null;
+      const tplSteps = tpl ? stepsFromTemplate(tpl) : [];
       steps = steps.filter((s) => s.job_id !== jobId);
       input.steps.forEach((name, i) => {
+        const fromTpl = tplSteps.find((t) => t.name === name) || tplSteps[i];
         steps.push({
           id: uuidv4(),
           job_id: jobId,
@@ -1064,6 +1128,7 @@ export async function updateJob(
           started_at: "",
           completed_at: "",
           duration_sec: 0,
+          std_minutes: Number(fromTpl?.std_minutes || 0),
         });
       });
     }

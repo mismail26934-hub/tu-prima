@@ -120,10 +120,20 @@ export function downloadJobPdf(job: JobWithDetails): void {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["NO", "Step", "Status", "Durasi"]],
+    head: [["NO", "Step", "STP / Std", "Status", "Durasi"]],
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
+      Number(s.std_minutes || 0) > 0
+        ? (() => {
+            const total = Math.round(Number(s.std_minutes));
+            const h = Math.floor(total / 60);
+            const rem = total % 60;
+            if (rem === 0) return `${h} jam`;
+            if (h <= 0) return `${rem} mnt`;
+            return `${h} jam ${rem} mnt`;
+          })()
+        : "—",
       s.status,
       formatDuration(calcStepElapsedSec(s)),
     ]),

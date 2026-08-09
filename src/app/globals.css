@@ -1165,11 +1165,37 @@ button {
   word-break: break-word;
 }
 
+.steps .step-stp {
+  color: var(--muted);
+  font-size: 0.82em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .steps .step-meta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.step-duration {
+  font-variant-numeric: tabular-nums;
+}
+
+.step-duration--white {
+  color: #fff;
+  font-weight: 600;
+}
+
+.step-duration--orange {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.step-duration--red {
+  color: var(--red);
+  font-weight: 700;
 }
 
 .steps .step-actions {

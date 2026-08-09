@@ -52,9 +52,19 @@ export function getJobTemplate(id: string): JobTemplate | null {
   return templates.find((t) => t.id === id && t.active !== "0") || null;
 }
 
-export function stepNamesFromTemplate(template: JobTemplate): string[] {
+/** Step name + STP minutes from template (sorted by order). */
+export function stepsFromTemplate(
+  template: JobTemplate
+): Array<{ name: string; std_minutes: number }> {
   return template.steps
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((s) => (s.phase ? `${s.phase}: ${s.name}` : s.name));
+    .map((s) => ({
+      name: s.phase ? `${s.phase}: ${s.name}` : s.name,
+      std_minutes: Number(s.std_minutes || 0),
+    }));
+}
+
+export function stepNamesFromTemplate(template: JobTemplate): string[] {
+  return stepsFromTemplate(template).map((s) => s.name);
 }

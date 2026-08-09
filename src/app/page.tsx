@@ -102,6 +102,7 @@ type Modal =
   | { type: "change-password" }
   | { type: "logout" }
   | { type: "settings" }
+  | { type: "export-jobs" }
   | {
       type: "process-alert";
       title: string;
@@ -224,7 +225,34 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
     return () => clearInterval(id);
   }, [step, running]);
   if (step.status === "pending") return <span style={{ color: "var(--muted)" }}>—</span>;
-  return <span>{formatDuration(sec)}</span>;
+
+  const stdSec = Math.max(0, Number(step.std_minutes || 0) * 60);
+  const remainingSec = stdSec - sec;
+  const remainingPct =
+    stdSec > 0 ? (Math.max(0, remainingSec) / stdSec) * 100 : 0;
+
+  // Putih: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime
+  let tone: "white" | "orange" | "red" | null = null;
+  if (stdSec > 0) {
+    if (remainingSec <= 0 || remainingPct <= 20) tone = "red";
+    else if (remainingPct >= 50) tone = "white";
+    else tone = "orange";
+  }
+
+  return (
+    <span
+      className={tone ? `step-duration step-duration--${tone}` : "step-duration"}
+      title={
+        stdSec > 0
+          ? remainingSec >= 0
+            ? `Sisa ${Math.round(remainingPct)}% dari STP ${step.std_minutes} mnt`
+            : `Melebihi STP/Std Hours (${step.std_minutes} mnt)`
+          : undefined
+      }
+    >
+      {formatDuration(sec)}
+    </span>
+  );
 }
 
 function PanelToggleIcon({ collapsed }: { collapsed: boolean }) {
@@ -381,6 +409,17 @@ export default function HomePage() {
   const [modal, setModal] = useState<Modal>(null);
   const [busy, setBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [exportForm, setExportForm] = useState<{
+    scope: "active" | "queue";
+    dateField: "created" | "started" | "completed";
+    dateFrom: string;
+    dateTo: string;
+  }>({
+    scope: "active",
+    dateField: "created",
+    dateFrom: "",
+    dateTo: "",
+  });
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -1242,11 +1281,12 @@ export default function HomePage() {
   }
 
   function formatStdLabel(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    if (h <= 0) return `${m} mnt`;
-    if (m === 0) return `${h} jam`;
-    return `${h} jam ${m} mnt`;
+    const m = Math.max(0, Math.round(Number(minutes) || 0));
+    const h = Math.floor(m / 60);
+    const rem = m % 60;
+    if (rem === 0) return `${h} jam`;
+    if (h <= 0) return `${rem} mnt`;
+    return `${h} jam ${rem} mnt`;
   }
 
   const load = useCallback(async () => {
@@ -1261,11 +1301,35 @@ export default function HomePage() {
     }
   }, []);
 
-  async function exportJobsReport(scope: "active" | "queue") {
+  function openExportJobsModal() {
     if (!isLoggedIn) {
       setError("Silakan login untuk export laporan job");
       return;
     }
+    setExportForm({
+      scope: "active",
+      dateField: "created",
+      dateFrom: "",
+      dateTo: "",
+    });
+    setModal({ type: "export-jobs" });
+  }
+
+  async function exportJobsReport() {
+    if (!isLoggedIn) {
+      setError("Silakan login untuk export laporan job");
+      return;
+    }
+    if (
+      exportForm.dateFrom &&
+      exportForm.dateTo &&
+      exportForm.dateFrom > exportForm.dateTo
+    ) {
+      setError("Tanggal dari tidak boleh lebih besar dari tanggal sampai");
+      return;
+    }
+
+    const scope = exportForm.scope;
     const title =
       scope === "active" ? "Export Job Aktif" : "Export Job Antrian";
     setModal({
@@ -1280,7 +1344,14 @@ export default function HomePage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/reports/jobs?scope=${scope}`, {
+      const params = new URLSearchParams({
+        scope,
+        dateField: exportForm.dateField,
+      });
+      if (exportForm.dateFrom) params.set("from", exportForm.dateFrom);
+      if (exportForm.dateTo) params.set("to", exportForm.dateTo);
+
+      const res = await fetch(`/api/reports/jobs?${params.toString()}`, {
         credentials: "include",
       });
       if (!res.ok) {
@@ -2451,6 +2522,12 @@ export default function HomePage() {
                 <span className="step-name">
                   {s.order}. {s.name}
                   {s.status === "in_progress" ? " (aktif)" : ""}
+                  {Number(s.std_minutes || 0) > 0 && (
+                    <span className="step-stp" title="STP / Std Hours">
+                      {" "}
+                      · STP/Std Hours: {formatStdLabel(Number(s.std_minutes))}
+                    </span>
+                  )}
                 </span>
                 <span className="step-meta">
                   <StepDuration
@@ -3254,32 +3331,15 @@ export default function HomePage() {
                     disabled={busy || !isLoggedIn}
                     title={
                       isLoggedIn
-                        ? "Export Excel job aktif (in_progress / paused)"
+                        ? "Export Excel job aktif / antrian"
                         : "Login untuk export laporan"
                     }
                     onClick={() => {
                       setManageOpen(false);
-                      exportJobsReport("active");
+                      openExportJobsModal();
                     }}
                   >
-                    Export Job Aktif
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy || !isLoggedIn}
-                    title={
-                      isLoggedIn
-                        ? "Export Excel job antrian (queued / assigned)"
-                        : "Login untuk export laporan"
-                    }
-                    onClick={() => {
-                      setManageOpen(false);
-                      exportJobsReport("queue");
-                    }}
-                  >
-                    Export Job Antrian
+                    Export to excel
                   </button>
                 </div>
               )}
@@ -3578,30 +3638,15 @@ export default function HomePage() {
               disabled={busy || !isLoggedIn}
               title={
                 isLoggedIn
-                  ? "Export Excel job aktif"
+                  ? "Export Excel job aktif / antrian"
                   : "Login untuk export laporan"
               }
               onClick={() => {
                 setMobileMenuOpen(false);
-                exportJobsReport("active");
+                openExportJobsModal();
               }}
             >
-              Export Job Aktif
-            </button>
-            <button
-              className="btn"
-              disabled={busy || !isLoggedIn}
-              title={
-                isLoggedIn
-                  ? "Export Excel job antrian"
-                  : "Login untuk export laporan"
-              }
-              onClick={() => {
-                setMobileMenuOpen(false);
-                exportJobsReport("queue");
-              }}
-            >
-              Export Job Antrian
+              Export to excel
             </button>
             {!isLoggedIn && (
               <button
@@ -3973,6 +4018,99 @@ export default function HomePage() {
             Database Excel: <code>data/workshop.xlsx</code> (termasuk sheet <code>AuditLog</code> + user di <code>JobEvents</code>) · Template: <code>data/job-templates.json</code>
           </p>
         </>
+      )}
+
+      {modal?.type === "export-jobs" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Export to excel</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Pilih jenis laporan dan filter tanggal (opsional).
+            </p>
+            <div className="form">
+              <label>
+                Jenis export
+                <select
+                  value={exportForm.scope}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setExportForm((prev) => ({
+                      ...prev,
+                      scope: e.target.value as "active" | "queue",
+                    }))
+                  }
+                >
+                  <option value="active">Export Job Aktif</option>
+                  <option value="queue">Export Job Antrian</option>
+                </select>
+              </label>
+              <label>
+                Filter berdasarkan
+                <select
+                  value={exportForm.dateField}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setExportForm((prev) => ({
+                      ...prev,
+                      dateField: e.target.value as
+                        | "created"
+                        | "started"
+                        | "completed",
+                    }))
+                  }
+                >
+                  <option value="created">Tanggal create job</option>
+                  <option value="started">Tanggal start job</option>
+                  <option value="completed">Tanggal end job</option>
+                </select>
+              </label>
+              <label>
+                Dari tanggal
+                <input
+                  type="date"
+                  value={exportForm.dateFrom}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setExportForm((prev) => ({
+                      ...prev,
+                      dateFrom: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Sampai tanggal
+                <input
+                  type="date"
+                  value={exportForm.dateTo}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setExportForm((prev) => ({
+                      ...prev,
+                      dateTo: e.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <p className="step-hint" style={{ marginTop: 8 }}>
+              Kosongkan tanggal untuk export semua job pada jenis yang dipilih.
+              Filter end job memakai <code>completed_at</code>.
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => exportJobsReport()}
+              >
+                <BusyLabel busy={busy} idle="Export" pending="Mengekspor..." />
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modal?.type === "process-alert" && (

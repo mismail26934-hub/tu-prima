@@ -113,6 +113,8 @@ export interface JobStep {
   started_at: string;
   completed_at: string;
   duration_sec: number;
+  /** Standard time from template STP/Std Hours (minutes). */
+  std_minutes: number;
 }
 
 export interface JobEvent {

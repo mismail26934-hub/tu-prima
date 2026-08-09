@@ -47,7 +47,7 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 - **Catatan handover** pada job aktif: tabel NO / Job Handover / Done / Note
 - **Catatan peminjaman part** pada job aktif: NO / Part yang dipinjam / Status (open|closed) / Note
 - **Print PDF** per job: ringkasan job, teknisi, steps, handover, peminjaman part
-- **Export Excel** (menu Kelola): **Export Job Aktif** / **Export Job Antrian** — file terpisah, 1 sheet detail lengkap per file
+- **Export Excel** (menu Kelola → **Export to excel**): popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), termasuk kolom **stp_std_hours** + STP per step
 
 ### Master data (via menu Kelola)
 
@@ -120,7 +120,8 @@ Sumber Excel asli disalin ke `data/templates/`, lalu dikonversi ke katalog terno
 4. Judul, deskripsi, estimasi menit, dan daftar tahapan terisi otomatis
 5. Pilih **Unit** → Simpan
 
-Estimasi = jumlah `std_minutes` semua step di template (dari Std Hours / STP × 60).
+Estimasi = jumlah `std_minutes` semua step di template (dari Std Hours / STP × 60).  
+Setiap step job menyimpan `std_minutes` dan ditampilkan di kartu sebagai **STP …** (jam/mnt).
 
 ### Komponen yang tersedia (saat ini)
 
@@ -248,7 +249,7 @@ File: **`data/workshop.xlsx`**
 | Units        | id, code, name, active                                                                                              |
 | Jobs         | id, title, unit, unit_id, description, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
 | JobAssignees | job_id, technician_id, is_lead, assigned_at                                                                         |
-| JobSteps     | job_id, name, order, status, started_at, completed_at, duration_sec                                                 |
+| JobSteps     | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                |
 | JobEvents    | timeline + **user_id / user_name / user_level**                                                                     |
 | JobHandovers | catatan serah terima job aktif (order, title, done, note, user)                                                     |
 | JobPartLoans | catatan peminjaman part (order, part_name, status open/closed, note, user)                                          |
@@ -360,7 +361,7 @@ data/
 | PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                          |
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                           |
 | PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                   |
-| GET          | `/api/reports/jobs?scope=active\|queue`                           | Export Excel job aktif / antrian (file terpisah, login)                                                  |
+| GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                  |
 | \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                          |
 | POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                   |
 
@@ -423,6 +424,7 @@ npm start
 - Template time frame diubah → regenerate `data/job-templates.json` (parse ulang Excel sumber), lalu restart / refresh.
 - `data/*.xlsx` biasanya di-ignore git; pastikan backup `workshop.xlsx` dan `AuditLog` jika data produksi penting.
 - Timer & warna sisa estimasi (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
+- Timer per step & warna sisa stp/std hours (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
 - Last git feat/stp/timeframe-handover
 
 ---

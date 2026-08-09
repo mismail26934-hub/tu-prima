@@ -20,7 +20,15 @@ export type JobEventType =
   | "step_completed"
   | "completed"
   | "cancelled"
-  | "updated";
+  | "updated"
+  | "deleted";
+
+/** Who performed a mutation (from NextAuth session). */
+export interface AuditActor {
+  user_id: string;
+  user_name: string;
+  user_level: string;
+}
 
 export interface Technician {
   id: string;
@@ -112,6 +120,22 @@ export interface JobEvent {
   type: JobEventType;
   note: string;
   created_at: string;
+  user_id: string;
+  user_name: string;
+  user_level: string;
+}
+
+/** Append-only audit trail (survives job delete). */
+export interface AuditLogEntry {
+  id: string;
+  at: string;
+  user_id: string;
+  user_name: string;
+  user_level: string;
+  action: string;
+  entity: string;
+  entity_id: string;
+  detail: string;
 }
 
 export interface JobWithDetails extends Job {
@@ -121,7 +145,10 @@ export interface JobWithDetails extends Job {
   events: JobEvent[];
   elapsed_sec: number;
   progress_pct: number;
+  /** First active step (compat). Prefer current_steps for parallel work. */
   current_step?: JobStep | null;
+  /** All steps currently in_progress (may be multiple / parallel). */
+  current_steps: JobStep[];
 }
 
 export type AttendanceStatus = "hadir" | "izin" | "sakit" | "off" | "alpha";

@@ -10,10 +10,24 @@ import type {
   AccessLevel,
   AccessResource,
 } from "@/lib/permissions";
+import type { AuditActor } from "@/lib/types";
 
 export async function getCurrentLevel(): Promise<AccessLevel> {
   const session = await auth();
   return session?.user?.level || "guest";
+}
+
+/** Actor for audit / JobEvents — null if not logged in. */
+export async function getCurrentActor(): Promise<AuditActor | null> {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  return {
+    user_id: String(session.user.id),
+    user_name: String(
+      session.user.name || session.user.email || session.user.id
+    ),
+    user_level: String(session.user.level || "guest"),
+  };
 }
 
 export async function requirePermission(

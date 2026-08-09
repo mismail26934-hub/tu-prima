@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createJob } from "@/lib/excel";
-import { requirePermission } from "@/lib/access";
+import { getCurrentActor, requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    const actor = await getCurrentActor();
     const job = await createJob({
       title: String(body.title),
       unit_id: String(body.unit_id),
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
         ? body.steps.map(String).filter(Boolean)
         : undefined,
       template_id: body.template_id ? String(body.template_id) : undefined,
+      actor,
     });
     return NextResponse.json(job);
   } catch (e) {

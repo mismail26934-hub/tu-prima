@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteJob, updateJob } from "@/lib/excel";
-import { requirePermission } from "@/lib/access";
+import { getCurrentActor, requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,7 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    const actor = await getCurrentActor();
     const job = await updateJob(id, {
       title: String(body.title),
       unit_id: String(body.unit_id),
@@ -29,6 +30,7 @@ export async function PATCH(
       steps: Array.isArray(body.steps)
         ? body.steps.map(String).filter(Boolean)
         : undefined,
+      actor,
     });
     return NextResponse.json(job);
   } catch (e) {
@@ -45,7 +47,8 @@ export async function DELETE(
   if (denied) return denied;
   try {
     const { id } = await ctx.params;
-    const result = await deleteJob(id);
+    const actor = await getCurrentActor();
+    const result = await deleteJob(id, actor);
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Delete failed";

@@ -31,10 +31,12 @@ export function calcElapsedSec(job: Job, at: Date = new Date()): number {
 }
 
 export function calcStepElapsedSec(step: JobStep, at: Date = new Date()): number {
-  if (step.status === "done") return step.duration_sec || 0;
+  const accrued = Math.max(0, step.duration_sec || 0);
+  if (step.status === "done") return accrued;
+  if (step.status !== "in_progress") return accrued;
   const started = parseDate(step.started_at);
-  if (!started || step.status !== "in_progress") return 0;
-  return Math.floor(Math.max(0, (at.getTime() - started.getTime()) / 1000));
+  if (!started) return accrued; // paused segment: timer frozen in duration_sec
+  return Math.floor(accrued + Math.max(0, (at.getTime() - started.getTime()) / 1000));
 }
 
 export function formatDuration(totalSec: number): string {
@@ -48,6 +50,9 @@ export function formatDuration(totalSec: number): string {
 export function calcProgressPct(steps: JobStep[]): number {
   if (!steps.length) return 0;
   const done = steps.filter((s) => s.status === "done").length;
-  const inProgress = steps.some((s) => s.status === "in_progress") ? 0.5 : 0;
-  return Math.min(100, Math.round(((done + inProgress) / steps.length) * 100));
+  const inProgress = steps.filter((s) => s.status === "in_progress").length;
+  return Math.min(
+    100,
+    Math.round(((done + inProgress * 0.5) / steps.length) * 100)
+  );
 }

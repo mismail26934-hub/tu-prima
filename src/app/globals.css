@@ -871,12 +871,64 @@ button {
   flex-shrink: 0;
 }
 
+.job-timer-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .timer {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: 1.6rem;
   letter-spacing: 0.05em;
   color: var(--amber);
   line-height: 1;
+}
+
+.remain-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 118px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  line-height: 1.15;
+}
+
+.remain-card-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+
+.remain-card-value {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.remain-card--green {
+  background: color-mix(in srgb, var(--green) 28%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--green) 55%, var(--line));
+  color: var(--green);
+}
+
+.remain-card--orange {
+  background: color-mix(in srgb, var(--amber) 28%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+  color: var(--amber);
+}
+
+.remain-card--red {
+  background: color-mix(in srgb, var(--red) 28%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--red) 55%, var(--line));
+  color: var(--red);
 }
 
 .progress {
@@ -903,12 +955,86 @@ button {
 
 .steps li {
   display: grid;
-  grid-template-columns: 18px 1fr auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   padding: 6px 0;
   border-top: 1px dashed var(--line-dashed);
   font-size: 0.92rem;
+}
+
+.step-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.step-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+.step-mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-mode {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  min-height: 0;
+  opacity: 0.75;
+}
+
+.btn-mode.is-active {
+  opacity: 1;
+  border-color: var(--amber);
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.step-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.steps .step-name {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.steps .step-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.steps .step-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.btn-step {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  min-height: 0;
+  line-height: 1.2;
+}
+
+.step-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  align-self: center;
 }
 
 .steps .mark {

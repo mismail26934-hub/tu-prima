@@ -42,7 +42,14 @@ type Modal =
   | { type: "delete-job"; job: JobWithDetails }
   | { type: "pause-job"; job: JobWithDetails }
   | { type: "resume-job"; job: JobWithDetails }
-  | { type: "complete-step"; job: JobWithDetails }
+  | { type: "start-job"; job: JobWithDetails }
+  | {
+      type: "start-steps";
+      job: JobWithDetails;
+      steps: JobWithDetails["steps"];
+    }
+  | { type: "start-next-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
+  | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-job"; job: JobWithDetails }
   | { type: "confirm-assign"; job: JobWithDetails; techIds: string[] }
   | { type: "units" }
@@ -132,6 +139,47 @@ function LiveTimer({ job }: { job: JobWithDetails }) {
     return () => clearInterval(id);
   }, [job]);
   return <div className="timer">{formatDuration(sec)}</div>;
+}
+
+/** Remaining vs estimate; card tone from remaining % of estimate. */
+function RemainingTimerCard({ job }: { job: JobWithDetails }) {
+  const [elapsed, setElapsed] = useState(() => calcElapsedSec(job));
+  useEffect(() => {
+    setElapsed(calcElapsedSec(job));
+    if (!["in_progress", "paused"].includes(job.status)) return;
+    const id = setInterval(() => setElapsed(calcElapsedSec(job)), 1000);
+    return () => clearInterval(id);
+  }, [job]);
+
+  const estimateSec = Math.max(0, Number(job.estimated_minutes || 0) * 60);
+  const remainingSec = estimateSec - elapsed;
+  const remainingPct =
+    estimateSec > 0 ? (Math.max(0, remainingSec) / estimateSec) * 100 : 0;
+
+  // Hijau: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime
+  let tone: "green" | "orange" | "red" = "green";
+  if (estimateSec <= 0 || remainingSec <= 0 || remainingPct <= 20) tone = "red";
+  else if (remainingPct >= 50) tone = "green";
+  else tone = "orange"; // 20% < sisa < 50%
+
+  const value =
+    remainingSec >= 0
+      ? formatDuration(remainingSec)
+      : `-${formatDuration(Math.abs(remainingSec))}`;
+
+  return (
+    <div
+      className={`remain-card remain-card--${tone}`}
+      title={
+        estimateSec > 0
+          ? `Sisa ${Math.round(remainingPct)}% dari estimasi ${job.estimated_minutes} mnt`
+          : "Estimasi belum diisi"
+      }
+    >
+      <span className="remain-card-label">Sisa estimasi</span>
+      <span className="remain-card-value">{value}</span>
+    </div>
+  );
 }
 
 function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; running: boolean }) {
@@ -878,6 +926,29 @@ export default function HomePage() {
     null
   );
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  /** Selected pending step ids per job — for parallel batch start. */
+  const [selectedStepsByJob, setSelectedStepsByJob] = useState<
+    Record<string, string[]>
+  >({});
+  /** sequential = auto one-by-one; parallel = checkbox batch start. */
+  const [stepModeByJob, setStepModeByJob] = useState<
+    Record<string, "sequential" | "parallel">
+  >({});
+
+  function getStepMode(jobId: string): "sequential" | "parallel" {
+    return stepModeByJob[jobId] || "sequential";
+  }
+
+  function setStepMode(jobId: string, mode: "sequential" | "parallel") {
+    setStepModeByJob((prev) => ({ ...prev, [jobId]: mode }));
+    if (mode === "sequential") {
+      setSelectedStepsByJob((prev) => {
+        const next = { ...prev };
+        delete next[jobId];
+        return next;
+      });
+    }
+  }
 
   const jobDraft = useJobBoardStore((s) => s.draft);
   const jobQuery = useJobBoardStore((s) => s.query);
@@ -1461,6 +1532,13 @@ export default function HomePage() {
         method: "POST",
         body: JSON.stringify({ action, ...payload }),
       });
+      if (action === "start_steps" || action === "start_step") {
+        setSelectedStepsByJob((prev) => {
+          const next = { ...prev };
+          delete next[jobId];
+          return next;
+        });
+      }
       await load();
       closeModal();
     } catch (e) {
@@ -1468,6 +1546,15 @@ export default function HomePage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleStepSelect(jobId: string, stepId: string, checked: boolean) {
+    setSelectedStepsByJob((prev) => {
+      const cur = new Set(prev[jobId] || []);
+      if (checked) cur.add(stepId);
+      else cur.delete(stepId);
+      return { ...prev, [jobId]: Array.from(cur) };
+    });
   }
 
   async function createJob() {
@@ -1691,7 +1778,10 @@ export default function HomePage() {
                   Resume
                 </button>
               )}
-              <LiveTimer job={jobMap[job.id] || job} />
+              <div className="job-timer-stack">
+                <LiveTimer job={jobMap[job.id] || job} />
+                <RemainingTimerCard job={jobMap[job.id] || job} />
+              </div>
             </div>
           )}
         </div>
@@ -1706,17 +1796,86 @@ export default function HomePage() {
           <span style={{ width: `${job.progress_pct}%` }} />
         </div>
 
+        {["assigned", "in_progress"].includes(job.status) && canJobProgress && (
+          <div className="step-mode-toggle" role="group" aria-label="Mode step">
+            <button
+              type="button"
+              className={`btn btn-mode${getStepMode(job.id) === "sequential" ? " is-active" : ""}`}
+              disabled={busy}
+              onClick={() => setStepMode(job.id, "sequential")}
+            >
+              Berurutan
+            </button>
+            <button
+              type="button"
+              className={`btn btn-mode${getStepMode(job.id) === "parallel" ? " is-active" : ""}`}
+              disabled={busy}
+              onClick={() => setStepMode(job.id, "parallel")}
+            >
+              Parallel
+            </button>
+            <span className="step-hint">
+              {getStepMode(job.id) === "sequential"
+                ? "Satu step aktif; selesai → lanjut otomatis"
+                : "Centang beberapa step → Start terpilih (timer sama)"}
+            </span>
+          </div>
+        )}
+
         <ul className="steps">
-          {job.steps.map((s) => (
-            <li key={s.id}>
-              <span className={`mark ${s.status}`} />
-              <span>
-                {s.order}. {s.name}
-                {s.status === "in_progress" ? " (aktif)" : ""}
-              </span>
-              <StepDuration step={s} running={job.status === "in_progress"} />
-            </li>
-          ))}
+          {job.steps.map((s) => {
+            const parallel = getStepMode(job.id) === "parallel";
+            const selected = (selectedStepsByJob[job.id] || []).includes(s.id);
+            return (
+              <li key={s.id} className={`step-row status-${s.status}`}>
+                {job.status === "in_progress" &&
+                parallel &&
+                s.status === "pending" &&
+                canJobProgress ? (
+                  <label className="step-check" title="Pilih untuk start parallel">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={busy}
+                      onChange={(e) =>
+                        toggleStepSelect(job.id, s.id, e.target.checked)
+                      }
+                    />
+                  </label>
+                ) : (
+                  <span className={`mark ${s.status}`} />
+                )}
+                <span className="step-name">
+                  {s.order}. {s.name}
+                  {s.status === "in_progress" ? " (aktif)" : ""}
+                </span>
+                <span className="step-meta">
+                  <StepDuration
+                    step={s}
+                    running={
+                      job.status === "in_progress" && s.status === "in_progress"
+                    }
+                  />
+                  {job.status === "in_progress" &&
+                    canJobProgress &&
+                    s.status === "in_progress" && (
+                      <span className="step-actions">
+                        <button
+                          className="btn btn-step btn-primary"
+                          disabled={busy}
+                          onClick={() =>
+                            setModal({ type: "complete-step", job, step: s })
+                          }
+                          title="Selesaikan step ini"
+                        >
+                          Selesai
+                        </button>
+                      </span>
+                    )}
+                </span>
+              </li>
+            );
+          })}
         </ul>
 
         <div className="actions">
@@ -1724,7 +1883,7 @@ export default function HomePage() {
             <button
               className="btn btn-primary"
               disabled={busy || !canJobProgress}
-              onClick={() => runAction(job.id, "start")}
+              onClick={() => setModal({ type: "start-job", job })}
               title={
                 canJobProgress
                   ? "Start job"
@@ -1736,18 +1895,46 @@ export default function HomePage() {
           )}
           {job.status === "in_progress" && (
             <div className="actions-spread">
-              <button
-                className="btn"
-                disabled={busy || !canJobProgress || !job.current_step}
-                onClick={() => setModal({ type: "complete-step", job })}
-                title={
-                  canJobProgress
-                    ? "Selesaikan step"
-                    : "Hanya Foreman & Superuser yang dapat menyelesaikan step"
-                }
-              >
-                Selesai step
-              </button>
+              {getStepMode(job.id) === "parallel" ? (
+                <div className="step-batch">
+                  <button
+                    className="btn btn-primary"
+                    disabled={
+                      busy ||
+                      !canJobProgress ||
+                      !(selectedStepsByJob[job.id] || []).length
+                    }
+                    onClick={() => {
+                      const ids = selectedStepsByJob[job.id] || [];
+                      const steps = job.steps.filter((s) => ids.includes(s.id));
+                      if (!steps.length) return;
+                      setModal({ type: "start-steps", job, steps });
+                    }}
+                    title="Start semua step yang dicentang sekaligus"
+                  >
+                    Start terpilih ({(selectedStepsByJob[job.id] || []).length})
+                  </button>
+                </div>
+              ) : (
+                <div className="step-batch">
+                  {!(job.current_steps?.length || job.current_step) &&
+                    job.steps.some((s) => s.status === "pending") && (
+                      <button
+                        className="btn"
+                        disabled={busy || !canJobProgress}
+                        onClick={() => {
+                          const next = job.steps.find(
+                            (s) => s.status === "pending"
+                          );
+                          if (!next) return;
+                          setModal({ type: "start-next-step", job, step: next });
+                        }}
+                      >
+                        Lanjut step berikutnya
+                      </button>
+                    )}
+                </div>
+              )}
               <button
                 className="btn btn-primary"
                 disabled={busy || !canJobProgress}
@@ -2542,7 +2729,7 @@ export default function HomePage() {
           </div>
 
           <p className="db-path">
-            Database Excel: <code>data/workshop.xlsx</code> · Template time frame: <code>data/job-templates.json</code> (Engine / Non Engine)
+            Database Excel: <code>data/workshop.xlsx</code> (termasuk sheet <code>AuditLog</code> + user di <code>JobEvents</code>) · Template: <code>data/job-templates.json</code>
           </p>
         </>
       )}
@@ -3168,6 +3355,137 @@ export default function HomePage() {
         </div>
       )}
 
+      {modal?.type === "start-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Start job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              {getStepMode(modal.job.id) === "sequential" ? (
+                <>
+                  Mulai job dalam mode <strong>Berurutan</strong>? Step pertama
+                  akan otomatis aktif.
+                </>
+              ) : (
+                <>
+                  Mulai job dalam mode <strong>Parallel</strong>? Setelah start,
+                  centang step lalu tekan <strong>Start terpilih</strong>.
+                </>
+              )}
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canJobProgress}
+                onClick={() => {
+                  const mode = getStepMode(modal.job.id);
+                  runAction(modal.job.id, "start", {
+                    step_mode: mode,
+                    auto_start_first: mode === "sequential",
+                  });
+                }}
+              >
+                <BusyLabel busy={busy} idle="Ya, start job" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "start-next-step" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Lanjut step berikutnya</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Start step{" "}
+              <strong>
+                {modal.step.order}. {modal.step.name}
+              </strong>
+              ?
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canJobProgress}
+                onClick={() =>
+                  runAction(modal.job.id, "start_steps", {
+                    step_ids: [modal.step.id],
+                    step_mode: "sequential",
+                  })
+                }
+              >
+                <BusyLabel busy={busy} idle="Ya, start step" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "start-steps" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Start step terpilih</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 8px" }}>
+              Start <strong>{modal.steps.length}</strong> step sekaligus (mode
+              parallel)? Timer semua step mulai pada waktu yang sama.
+            </p>
+            <ul
+              style={{
+                margin: "0 0 16px",
+                paddingLeft: 18,
+                color: "var(--muted)",
+                maxHeight: 180,
+                overflowY: "auto",
+              }}
+            >
+              {modal.steps.map((s) => (
+                <li key={s.id}>
+                  {s.order}. {s.name}
+                </li>
+              ))}
+            </ul>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canJobProgress}
+                onClick={() =>
+                  runAction(modal.job.id, "start_steps", {
+                    step_ids: modal.steps.map((s) => s.id),
+                    step_mode: "parallel",
+                  })
+                }
+              >
+                <BusyLabel
+                  busy={busy}
+                  idle="Ya, start bersamaan"
+                  pending="Memproses..."
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "pause-job" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -3233,13 +3551,18 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Tandai step aktif{" "}
-              {modal.job.current_step ? (
-                <strong>{modal.job.current_step.name}</strong>
-              ) : (
-                "saat ini"
-              )}{" "}
+              Tandai step{" "}
+              <strong>
+                {modal.step.order}. {modal.step.name}
+              </strong>{" "}
               sebagai selesai?
+              {getStepMode(modal.job.id) === "sequential" &&
+                (modal.job.current_steps?.length || 0) <= 1 && (
+                  <>
+                    {" "}
+                    Step berikutnya akan <strong>otomatis dimulai</strong>.
+                  </>
+                )}
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
@@ -3248,7 +3571,14 @@ export default function HomePage() {
               <button
                 className="btn btn-primary"
                 disabled={busy || !canJobProgress}
-                onClick={() => runAction(modal.job.id, "complete_step")}
+                onClick={() => {
+                  const mode = getStepMode(modal.job.id);
+                  runAction(modal.job.id, "complete_step", {
+                    step_id: modal.step.id,
+                    step_mode: mode,
+                    auto_next: mode === "sequential",
+                  });
+                }}
               >
                 <BusyLabel busy={busy} idle="Ya, selesai step" pending="Memproses..." />
               </button>

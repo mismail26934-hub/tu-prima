@@ -20,6 +20,8 @@ import type {
   AppUserPublic,
   DashboardData,
   UserLevel,
+  AuditActor,
+  AuditLogEntry,
 } from "./types";
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
@@ -40,6 +42,7 @@ const SHEETS = {
   events: "JobEvents",
   attendance: "Attendance",
   users: "Users",
+  audit: "AuditLog",
 } as const;
 
 type Row = Record<string, string | number>;
@@ -197,6 +200,23 @@ function mapEvent(r: Row): JobEvent {
     type: String(r.type || "created") as JobEventType,
     note: String(r.note || ""),
     created_at: String(r.created_at || ""),
+    user_id: String(r.user_id || ""),
+    user_name: String(r.user_name || ""),
+    user_level: String(r.user_level || ""),
+  };
+}
+
+function mapAudit(r: Row): AuditLogEntry {
+  return {
+    id: String(r.id || ""),
+    at: String(r.at || ""),
+    user_id: String(r.user_id || ""),
+    user_name: String(r.user_name || ""),
+    user_level: String(r.user_level || ""),
+    action: String(r.action || ""),
+    entity: String(r.entity || ""),
+    entity_id: String(r.entity_id || ""),
+    detail: String(r.detail || ""),
   };
 }
 
@@ -295,6 +315,10 @@ function eventToRow(e: JobEvent): Row {
   return { ...e };
 }
 
+function auditToRow(a: AuditLogEntry): Row {
+  return { ...a };
+}
+
 function assigneeToRow(a: JobAssignee): Row {
   return { ...a };
 }
@@ -340,7 +364,27 @@ const STEP_HEADERS = [
   "completed_at",
   "duration_sec",
 ];
-const EVENT_HEADERS = ["id", "job_id", "type", "note", "created_at"];
+const EVENT_HEADERS = [
+  "id",
+  "job_id",
+  "type",
+  "note",
+  "created_at",
+  "user_id",
+  "user_name",
+  "user_level",
+];
+const AUDIT_HEADERS = [
+  "id",
+  "at",
+  "user_id",
+  "user_name",
+  "user_level",
+  "action",
+  "entity",
+  "entity_id",
+  "detail",
+];
 const ATTENDANCE_HEADERS = [
   "id",
   "date",
@@ -378,6 +422,67 @@ function readUsers(wb: ExcelJS.Workbook): AppUser[] {
   return readRows(getSheet(wb, SHEETS.users))
     .map(mapUser)
     .filter((u) => u.id && u.username);
+}
+
+function loadAuditLog(wb: ExcelJS.Workbook): AuditLogEntry[] {
+  return readRows(getSheet(wb, SHEETS.audit))
+    .map(mapAudit)
+    .filter((a) => a.id && a.at);
+}
+
+function actorSlice(actor?: AuditActor | null): Pick<
+  JobEvent,
+  "user_id" | "user_name" | "user_level"
+> {
+  return {
+    user_id: actor?.user_id || "",
+    user_name: actor?.user_name || "",
+    user_level: actor?.user_level || "",
+  };
+}
+
+function makeJobEvent(
+  jobId: string,
+  type: JobEventType,
+  note: string,
+  actor?: AuditActor | null,
+  at: string = nowIso()
+): JobEvent {
+  return {
+    id: uuidv4(),
+    job_id: jobId,
+    type,
+    note,
+    created_at: at,
+    ...actorSlice(actor),
+  };
+}
+
+function makeAuditEntry(input: {
+  action: string;
+  entity: string;
+  entity_id: string;
+  detail: string;
+  actor?: AuditActor | null;
+  at?: string;
+}): AuditLogEntry {
+  return {
+    id: uuidv4(),
+    at: input.at || nowIso(),
+    user_id: input.actor?.user_id || "",
+    user_name: input.actor?.user_name || "",
+    user_level: input.actor?.user_level || "",
+    action: input.action,
+    entity: input.entity,
+    entity_id: input.entity_id,
+    detail: input.detail,
+  };
+}
+
+function formatActorLabel(actor?: AuditActor | null): string {
+  if (!actor?.user_name && !actor?.user_id) return "";
+  const who = actor.user_name || actor.user_id;
+  return actor.user_level ? `${who} (${actor.user_level})` : who;
 }
 
 /** Ensure JobAssignees exists; migrate from Jobs.technician_id if empty. */
@@ -548,19 +653,20 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
     { id: "S14", job_id: "J04", name: "Test Start Engine", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0 },
   ];
 
+  const emptyActor = null;
   const events: JobEvent[] = [
-    { id: uuidv4(), job_id: "J01", type: "created", note: "Job dibuat", created_at: jobs[0].created_at },
-    { id: uuidv4(), job_id: "J01", type: "assigned", note: "Diassign ke Andi Pratama, Budi Santoso", created_at: jobs[0].created_at },
-    { id: uuidv4(), job_id: "J01", type: "started", note: "Pekerjaan dimulai", created_at: started1 },
-    { id: uuidv4(), job_id: "J01", type: "step_completed", note: "Diagnosis selesai", created_at: steps[0].completed_at },
-    { id: uuidv4(), job_id: "J01", type: "step_started", note: "Bongkar & Ganti Sparepart", created_at: step2Start },
-    { id: uuidv4(), job_id: "J02", type: "created", note: "Job dibuat", created_at: jobs[1].created_at },
-    { id: uuidv4(), job_id: "J02", type: "assigned", note: "Diassign ke Dedi Kurnia", created_at: jobs[1].created_at },
-    { id: uuidv4(), job_id: "J02", type: "started", note: "Pekerjaan dimulai", created_at: started2 },
-    { id: uuidv4(), job_id: "J02", type: "paused", note: "Tunggu sparepart", created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString() },
-    { id: uuidv4(), job_id: "J02", type: "resumed", note: "Lanjut pekerjaan", created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString() },
-    { id: uuidv4(), job_id: "J03", type: "created", note: "Job dibuat", created_at: now },
-    { id: uuidv4(), job_id: "J04", type: "created", note: "Job dibuat", created_at: now },
+    makeJobEvent("J01", "created", "Job dibuat", emptyActor, jobs[0].created_at),
+    makeJobEvent("J01", "assigned", "Diassign ke Andi Pratama, Budi Santoso", emptyActor, jobs[0].created_at),
+    makeJobEvent("J01", "started", "Pekerjaan dimulai", emptyActor, started1),
+    makeJobEvent("J01", "step_completed", "Diagnosis selesai", emptyActor, steps[0].completed_at),
+    makeJobEvent("J01", "step_started", "Bongkar & Ganti Sparepart", emptyActor, step2Start),
+    makeJobEvent("J02", "created", "Job dibuat", emptyActor, jobs[1].created_at),
+    makeJobEvent("J02", "assigned", "Diassign ke Dedi Kurnia", emptyActor, jobs[1].created_at),
+    makeJobEvent("J02", "started", "Pekerjaan dimulai", emptyActor, started2),
+    makeJobEvent("J02", "paused", "Tunggu sparepart", emptyActor, new Date(Date.now() - 25 * 60 * 1000).toISOString()),
+    makeJobEvent("J02", "resumed", "Lanjut pekerjaan", emptyActor, new Date(Date.now() - 20 * 60 * 1000).toISOString()),
+    makeJobEvent("J03", "created", "Job dibuat", emptyActor, now),
+    makeJobEvent("J04", "created", "Job dibuat", emptyActor, now),
   ];
 
   const assignees: JobAssignee[] = [
@@ -577,6 +683,7 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
   writeSheet(wb, SHEETS.attendance, ATTENDANCE_HEADERS, []);
   writeSheet(wb, SHEETS.users, USER_HEADERS, [userToRow(defaultSeedUser())]);
+  writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, []);
 }
 
 function enrichJob(
@@ -612,7 +719,8 @@ function enrichJob(
 
   const technician =
     technicians.find((t) => t.id === job.technician_id) || technicians[0] || null;
-  const current_step = jobSteps.find((s) => s.status === "in_progress") || null;
+  const current_steps = jobSteps.filter((s) => s.status === "in_progress");
+  const current_step = current_steps[0] || null;
   return {
     ...job,
     technician,
@@ -622,6 +730,7 @@ function enrichJob(
     elapsed_sec: calcElapsedSec(job),
     progress_pct: calcProgressPct(jobSteps),
     current_step,
+    current_steps,
   };
 }
 
@@ -689,12 +798,14 @@ export async function createJob(input: {
   estimated_minutes?: number;
   steps?: string[];
   template_id?: string;
+  actor?: AuditActor | null;
 }): Promise<JobWithDetails> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
+    const audits = loadAuditLog(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const units = loadUnits(wb, jobs);
 
@@ -753,19 +864,34 @@ export async function createJob(input: {
       });
     });
 
-    events.push({
-      id: uuidv4(),
-      job_id: id,
-      type: "created",
-      note: template
-        ? `Job dibuat dari template ${template.name}`
-        : "Job dibuat",
-      created_at,
-    });
+    const note = template
+      ? `Job dibuat dari template ${template.name}`
+      : "Job dibuat";
+    const who = formatActorLabel(input.actor);
+    events.push(
+      makeJobEvent(
+        id,
+        "created",
+        who ? `${note} · oleh ${who}` : note,
+        input.actor,
+        created_at
+      )
+    );
+    audits.push(
+      makeAuditEntry({
+        action: "create",
+        entity: "job",
+        entity_id: id,
+        detail: `${job.title} · ${job.unit} · ${stepNames.length} steps`,
+        actor: input.actor,
+        at: created_at,
+      })
+    );
 
     writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, []);
   });
@@ -779,6 +905,7 @@ export async function updateJob(
     description?: string;
     estimated_minutes?: number;
     steps?: string[];
+    actor?: AuditActor | null;
   }
 ): Promise<JobWithDetails> {
   return withDbLock(async () => {
@@ -786,6 +913,7 @@ export async function updateJob(
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     let steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
+    const audits = loadAuditLog(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const assignees = loadAssignees(wb, jobs);
     const units = loadUnits(wb, jobs);
@@ -825,33 +953,64 @@ export async function updateJob(
       });
     }
 
-    events.push({
-      id: uuidv4(),
-      job_id: jobId,
-      type: "updated",
-      note: "Job diubah",
-      created_at: nowIso(),
-    });
+    const at = nowIso();
+    const who = formatActorLabel(input.actor);
+    events.push(
+      makeJobEvent(
+        jobId,
+        "updated",
+        who ? `Job diubah · oleh ${who}` : "Job diubah",
+        input.actor,
+        at
+      )
+    );
+    audits.push(
+      makeAuditEntry({
+        action: "update",
+        entity: "job",
+        entity_id: jobId,
+        detail: `${job.title} · ${job.unit}`,
+        actor: input.actor,
+        at,
+      })
+    );
 
     writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, assignees);
   });
 }
 
-export async function deleteJob(jobId: string): Promise<{ ok: true }> {
+export async function deleteJob(
+  jobId: string,
+  actor?: AuditActor | null
+): Promise<{ ok: true }> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     let jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     let steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     let events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
+    const audits = loadAuditLog(wb);
     let assignees = loadAssignees(wb, jobs);
 
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
+
+    const at = nowIso();
+    audits.push(
+      makeAuditEntry({
+        action: "delete",
+        entity: "job",
+        entity_id: jobId,
+        detail: `${job.title} · ${job.unit} · status ${job.status}`,
+        actor,
+        at,
+      })
+    );
 
     releaseTechsFromJob(techs, jobId);
     jobs = jobs.filter((j) => j.id !== jobId);
@@ -864,6 +1023,7 @@ export async function deleteJob(jobId: string): Promise<{ ok: true }> {
     writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
     await saveWorkbook(wb);
     return { ok: true };
   });
@@ -1330,6 +1490,8 @@ type JobAction =
   | "start"
   | "pause"
   | "resume"
+  | "start_step"
+  | "start_steps"
   | "complete_step"
   | "complete"
   | "cancel";
@@ -1340,7 +1502,14 @@ export async function jobAction(
   payload?: {
     technician_id?: string;
     technician_ids?: string[];
+    step_id?: string;
+    step_ids?: string[];
+    /** sequential: auto-start first / next step. parallel: manual checkbox batch. */
+    step_mode?: "sequential" | "parallel";
+    auto_start_first?: boolean;
+    auto_next?: boolean;
     note?: string;
+    actor?: AuditActor | null;
   }
 ): Promise<JobWithDetails> {
   return withDbLock(async () => {
@@ -1349,13 +1518,29 @@ export async function jobAction(
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
     const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
+    const audits = loadAuditLog(wb);
     let assignees = loadAssignees(wb, jobs);
+    const actor = payload?.actor || null;
 
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
 
     const pushEvent = (type: JobEventType, note: string) => {
-      events.push({ id: uuidv4(), job_id: jobId, type, note, created_at: nowIso() });
+      const who = formatActorLabel(actor);
+      const stamped = who ? `${note} · oleh ${who}` : note;
+      events.push(makeJobEvent(jobId, type, stamped, actor));
+    };
+
+    const pushAudit = (auditAction: string, detail: string) => {
+      audits.push(
+        makeAuditEntry({
+          action: auditAction,
+          entity: "job",
+          entity_id: jobId,
+          detail,
+          actor,
+        })
+      );
     };
 
     const jobSteps = () =>
@@ -1448,17 +1633,39 @@ export async function jobAction(
       job.status = "in_progress";
       job.started_at = nowIso();
       job.paused_at = "";
-      const first = jobSteps().find((s) => s.status === "pending");
-      if (first) {
-        first.status = "in_progress";
-        first.started_at = nowIso();
-        pushEvent("step_started", first.name);
+      const autoFirst =
+        payload?.auto_start_first === true ||
+        (payload?.step_mode === "sequential" &&
+          payload?.auto_start_first !== false);
+      if (autoFirst) {
+        const first = jobSteps().find((s) => s.status === "pending");
+        if (first) {
+          first.status = "in_progress";
+          first.started_at = nowIso();
+          pushEvent("step_started", first.name);
+        }
       }
-      pushEvent("started", payload?.note || "Pekerjaan dimulai");
+      pushEvent(
+        "started",
+        payload?.note ||
+          (autoFirst
+            ? "Pekerjaan dimulai (mode berurutan)"
+            : "Pekerjaan dimulai (mode parallel)")
+      );
     }
 
     if (action === "pause") {
       if (job.status !== "in_progress") throw new Error("Hanya job in_progress yang bisa di-pause");
+      const pauseNow = Date.now();
+      jobSteps().forEach((s) => {
+        if (s.status === "in_progress" && s.started_at) {
+          const started = new Date(s.started_at).getTime();
+          s.duration_sec =
+            Math.max(0, s.duration_sec || 0) +
+            Math.max(0, Math.floor((pauseNow - started) / 1000));
+          s.started_at = "";
+        }
+      });
       job.status = "paused";
       job.paused_at = nowIso();
       pushEvent("paused", payload?.note || "Job dipause");
@@ -1471,27 +1678,86 @@ export async function jobAction(
       job.total_paused_sec = (job.total_paused_sec || 0) + extra;
       job.paused_at = "";
       job.status = "in_progress";
+      const resumeAt = nowIso();
+      jobSteps().forEach((s) => {
+        if (s.status === "in_progress" && !s.started_at) {
+          s.started_at = resumeAt;
+        }
+      });
       pushEvent("resumed", payload?.note || "Job dilanjutkan");
+    }
+
+    if (action === "start_step" || action === "start_steps") {
+      if (job.status !== "in_progress") {
+        throw new Error("Job harus in_progress untuk start step");
+      }
+      const ids = Array.from(
+        new Set(
+          (
+            payload?.step_ids?.length
+              ? payload.step_ids
+              : payload?.step_id
+                ? [payload.step_id]
+                : []
+          )
+            .map(String)
+            .filter(Boolean)
+        )
+      );
+      if (ids.length === 0) throw new Error("Pilih minimal satu step");
+      const startedAt = nowIso();
+      const startedNames: string[] = [];
+      for (const stepId of ids) {
+        const step = jobSteps().find((s) => s.id === stepId);
+        if (!step) throw new Error(`Step tidak ditemukan: ${stepId}`);
+        if (step.status !== "pending") {
+          throw new Error(`Step "${step.name}" bukan pending`);
+        }
+        step.status = "in_progress";
+        step.started_at = startedAt;
+        step.completed_at = "";
+        startedNames.push(step.name);
+      }
+      pushEvent(
+        "step_started",
+        startedNames.length === 1
+          ? startedNames[0]
+          : `Parallel start (${startedNames.length}): ${startedNames.join(", ")}`
+      );
     }
 
     if (action === "complete_step") {
       if (job.status !== "in_progress") throw new Error("Job harus in_progress");
-      const current = jobSteps().find((s) => s.status === "in_progress");
-      if (!current) throw new Error("Tidak ada step aktif");
+      const stepId = String(payload?.step_id || "");
+      const current = stepId
+        ? jobSteps().find((s) => s.id === stepId)
+        : jobSteps().find((s) => s.status === "in_progress");
+      if (!current) throw new Error("Step tidak ditemukan");
+      if (current.status !== "in_progress") {
+        throw new Error("Hanya step aktif yang bisa diselesaikan");
+      }
+      const now = Date.now();
+      if (current.started_at) {
+        current.duration_sec =
+          Math.max(0, current.duration_sec || 0) +
+          Math.max(0, Math.floor((now - new Date(current.started_at).getTime()) / 1000));
+      }
       current.status = "done";
       current.completed_at = nowIso();
-      if (current.started_at) {
-        current.duration_sec = Math.max(
-          0,
-          Math.floor((Date.now() - new Date(current.started_at).getTime()) / 1000)
-        );
-      }
+      current.started_at = current.started_at || current.completed_at;
       pushEvent("step_completed", current.name);
-      const next = jobSteps().find((s) => s.status === "pending");
-      if (next) {
-        next.status = "in_progress";
-        next.started_at = nowIso();
-        pushEvent("step_started", next.name);
+
+      const stillActive = jobSteps().some((s) => s.status === "in_progress");
+      const wantAutoNext =
+        payload?.auto_next === true ||
+        (payload?.step_mode === "sequential" && payload?.auto_next !== false);
+      if (wantAutoNext && !stillActive) {
+        const next = jobSteps().find((s) => s.status === "pending");
+        if (next) {
+          next.status = "in_progress";
+          next.started_at = nowIso();
+          pushEvent("step_started", next.name);
+        }
       }
     }
 
@@ -1507,13 +1773,16 @@ export async function jobAction(
         job.total_paused_sec = (job.total_paused_sec || 0) + extra;
         job.paused_at = "";
       }
+      const now = Date.now();
       jobSteps().forEach((s) => {
         if (s.status !== "done") {
           if (s.status === "in_progress" && s.started_at) {
-            s.duration_sec = Math.max(
-              0,
-              Math.floor((Date.now() - new Date(s.started_at).getTime()) / 1000)
-            );
+            s.duration_sec =
+              Math.max(0, s.duration_sec || 0) +
+              Math.max(
+                0,
+                Math.floor((now - new Date(s.started_at).getTime()) / 1000)
+              );
           }
           s.status = "done";
           s.completed_at = s.completed_at || nowIso();
@@ -1535,11 +1804,19 @@ export async function jobAction(
       pushEvent("cancelled", payload?.note || "Job dibatalkan");
     }
 
+    pushAudit(
+      action,
+      `${job.title} · ${job.unit} · status ${job.status}${
+        payload?.note ? ` · ${payload.note}` : ""
+      }`
+    );
+
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
     writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
     writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
     writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
     writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+    writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, assignees);
   });

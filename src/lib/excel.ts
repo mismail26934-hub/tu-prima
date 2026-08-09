@@ -38,6 +38,11 @@ import {
   listCompletedJobDetails,
   takeCompletedJobFromArchive,
 } from "./job-completed-archive";
+import {
+  archiveCancelledJob,
+  listCancelledJobDetails,
+  takeCancelledJobFromArchive,
+} from "./job-cancelled-archive";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "workshop.xlsx");
@@ -934,6 +939,7 @@ export async function getDashboard(): Promise<DashboardData> {
       enrichJob(j, techsFresh, steps, events, assignees, handovers, partLoans)
     );
     const completedJobs = await listCompletedJobDetails(techsFresh);
+    const cancelledJobs = await listCancelledJobDetails(techsFresh);
     const today = new Date().toISOString().slice(0, 10);
     const doneToday = completedJobs.filter((j) =>
       (j.completed_at || "").startsWith(today)
@@ -951,6 +957,7 @@ export async function getDashboard(): Promise<DashboardData> {
       units,
       jobs: detailed,
       completed_jobs: completedJobs,
+      cancelled_jobs: cancelledJobs,
       attendance: readRows(getSheet(wb, SHEETS.attendance))
         .map(mapAttendance)
         .filter((a) => a.id && a.date)
@@ -968,6 +975,7 @@ export async function getDashboard(): Promise<DashboardData> {
         queued_jobs: detailed.filter((j) => j.status === "queued").length,
         done_today: doneToday.length,
         completed_jobs: completedJobs.length,
+        cancelled_jobs: cancelledJobs.length,
         avg_duration_sec: avg,
       },
     };
@@ -2043,15 +2051,12 @@ export async function jobAction(
       );
     };
 
-    /** Restore completed job from archive → paused. */
+    /** Restore completed/cancelled job from archive (or legacy live done/cancelled). */
     if (action === "reopen") {
       const live = jobs.find((j) => j.id === jobId);
-      if (live && live.status === "done") {
-        // Legacy done still in workshop
-        live.status = "paused";
-        live.completed_at = "";
-        live.paused_at = nowIso();
-        const ordered = steps
+
+      const activateLastStep = (jobStepsList: typeof steps) => {
+        const ordered = jobStepsList
           .filter((s) => s.job_id === jobId)
           .sort((a, b) => a.order - b.order);
         const hasActive = ordered.some((s) => s.status === "in_progress");
@@ -2063,8 +2068,10 @@ export async function jobAction(
             last.completed_at = "";
           }
         }
-        const jobAssignees = assigneesForJob(assignees, jobId);
-        for (const a of jobAssignees) {
+      };
+
+      const rebindTechs = (rows: typeof assignees) => {
+        for (const a of rows.filter((x) => x.job_id === jobId)) {
           const tech = techs.find((t) => t.id === a.technician_id);
           if (!tech) continue;
           if (tech.status === "available" || !tech.current_job_id) {
@@ -2072,8 +2079,28 @@ export async function jobAction(
             tech.current_job_id = jobId;
           }
         }
+      };
+
+      if (live && (live.status === "done" || live.status === "cancelled")) {
+        if (live.started_at || live.status === "done") {
+          live.status = "paused";
+          live.completed_at = "";
+          live.paused_at = nowIso();
+          activateLastStep(steps);
+          rebindTechs(assignees);
+        } else if (assigneesForJob(assignees, jobId).length > 0) {
+          live.status = "assigned";
+          live.completed_at = "";
+          live.paused_at = "";
+          rebindTechs(assignees);
+        } else {
+          live.status = "queued";
+          live.completed_at = "";
+          live.paused_at = "";
+        }
         const who = formatActorLabel(actor);
-        const note = payload?.note || "Job dibuka kembali (status paused)";
+        const note =
+          payload?.note || `Job dibuka kembali (status ${live.status})`;
         events.push(
           makeJobEvent(
             jobId,
@@ -2082,7 +2109,10 @@ export async function jobAction(
             actor
           )
         );
-        pushAudit("reopen", `${live.title} · ${live.unit} · status paused`);
+        pushAudit(
+          "reopen",
+          `${live.title} · ${live.unit} · status ${live.status}`
+        );
         writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
         writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
         writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
@@ -2094,30 +2124,50 @@ export async function jobAction(
       }
 
       if (live) {
-        throw new Error("Hanya job completed yang bisa dibuka kembali");
+        throw new Error(
+          "Hanya job completed/cancelled yang bisa dibuka kembali"
+        );
       }
 
-      const snap = await takeCompletedJobFromArchive(jobId);
+      let source = "completed-jobs.xlsx";
+      let snap = await takeCompletedJobFromArchive(jobId);
       if (!snap) {
-        throw new Error("Job tidak ditemukan di archive completed-jobs");
+        snap = await takeCancelledJobFromArchive(jobId);
+        source = "cancelled-jobs.xlsx";
+      }
+      if (!snap) {
+        throw new Error(
+          "Job tidak ditemukan di archive completed-jobs / cancelled-jobs"
+        );
       }
 
-      const restored: Job = {
-        ...snap.job,
-        status: "paused",
-        completed_at: "",
-        paused_at: nowIso(),
-      };
+      const restored: Job = { ...snap.job };
       const restoredSteps = snap.steps.map((s) => ({ ...s }));
-      const ordered = restoredSteps.sort((a, b) => a.order - b.order);
-      const hasActive = ordered.some((s) => s.status === "in_progress");
-      if (!hasActive && ordered.length > 0) {
-        const last = ordered[ordered.length - 1];
-        if (last.status === "done") {
-          last.status = "in_progress";
-          last.started_at = "";
-          last.completed_at = "";
+      const usePaused =
+        source === "completed-jobs.xlsx" || Boolean(restored.started_at);
+
+      if (usePaused) {
+        restored.status = "paused";
+        restored.completed_at = "";
+        restored.paused_at = nowIso();
+        const ordered = restoredSteps.sort((a, b) => a.order - b.order);
+        const hasActive = ordered.some((s) => s.status === "in_progress");
+        if (!hasActive && ordered.length > 0) {
+          const last = ordered[ordered.length - 1];
+          if (last.status === "done") {
+            last.status = "in_progress";
+            last.started_at = "";
+            last.completed_at = "";
+          }
         }
+      } else if (snap.assignees.length > 0) {
+        restored.status = "assigned";
+        restored.completed_at = "";
+        restored.paused_at = "";
+      } else {
+        restored.status = "queued";
+        restored.completed_at = "";
+        restored.paused_at = "";
       }
 
       jobs.push(restored);
@@ -2127,18 +2177,21 @@ export async function jobAction(
       handovers.push(...snap.handovers);
       partLoans.push(...snap.part_loans);
 
-      for (const a of snap.assignees) {
-        const tech = techs.find((t) => t.id === a.technician_id);
-        if (!tech) continue;
-        if (tech.status === "available" || !tech.current_job_id) {
-          tech.status = "busy";
-          tech.current_job_id = jobId;
+      if (restored.status === "paused" || restored.status === "assigned") {
+        for (const a of snap.assignees) {
+          const tech = techs.find((t) => t.id === a.technician_id);
+          if (!tech) continue;
+          if (tech.status === "available" || !tech.current_job_id) {
+            tech.status = "busy";
+            tech.current_job_id = jobId;
+          }
         }
       }
 
       const who = formatActorLabel(actor);
       const note =
-        payload?.note || "Job dibuka kembali dari archive (status paused)";
+        payload?.note ||
+        `Job dibuka kembali dari ${source} (status ${restored.status})`;
       events.push(
         makeJobEvent(
           jobId,
@@ -2149,7 +2202,7 @@ export async function jobAction(
       );
       pushAudit(
         "reopen",
-        `${restored.title} · ${restored.unit} · restored from completed-jobs.xlsx`
+        `${restored.title} · ${restored.unit} · restored from ${source}`
       );
 
       writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
@@ -2494,6 +2547,60 @@ export async function jobAction(
       job.completed_at = nowIso();
       releaseTechsFromJob(techs, job.id);
       pushEvent("cancelled", payload?.note || "Job dibatalkan");
+
+      const archivedAt = nowIso();
+      const jobStepsSnap = steps.filter((s) => s.job_id === jobId);
+      const jobEventsSnap = events.filter((e) => e.job_id === jobId);
+      const jobAssigneesSnap = assignees.filter((a) => a.job_id === jobId);
+      const jobHandoversSnap = handovers.filter((h) => h.job_id === jobId);
+      const jobPartLoansSnap = partLoans.filter((p) => p.job_id === jobId);
+
+      await archiveCancelledJob({
+        job: { ...job },
+        steps: jobStepsSnap.map((s) => ({ ...s })),
+        events: jobEventsSnap.map((e) => ({ ...e })),
+        assignees: jobAssigneesSnap.map((a) => ({ ...a })),
+        handovers: jobHandoversSnap.map((h) => ({ ...h })),
+        part_loans: jobPartLoansSnap.map((p) => ({ ...p })),
+        technicians: techs,
+        actor,
+        archived_at: archivedAt,
+      });
+
+      pushAudit(
+        "cancel",
+        `${job.title} · ${job.unit} · archived to cancelled-jobs.xlsx`
+      );
+
+      jobs = jobs.filter((j) => j.id !== jobId);
+      steps = steps.filter((s) => s.job_id !== jobId);
+      events = events.filter((e) => e.job_id !== jobId);
+      assignees = assignees.filter((a) => a.job_id !== jobId);
+      handovers = handovers.filter((h) => h.job_id !== jobId);
+      partLoans = partLoans.filter((p) => p.job_id !== jobId);
+
+      writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+      writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+      writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
+      writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
+      writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
+      writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, handovers.map(handoverToRow));
+      writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, partLoans.map(partLoanToRow));
+      writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, audits.map(auditToRow));
+      await saveWorkbook(wb);
+
+      return {
+        ...enrichJob(
+          job,
+          techs,
+          jobStepsSnap,
+          jobEventsSnap,
+          jobAssigneesSnap,
+          jobHandoversSnap,
+          jobPartLoansSnap
+        ),
+        from_archive: true,
+      };
     }
 
     pushAudit(

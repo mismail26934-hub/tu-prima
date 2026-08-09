@@ -13,16 +13,17 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 3. [Template time frame (Engine / Non Engine)](#template-time-frame-engine--non-engine)
 4. [Mode step: Berurutan vs Parallel](#mode-step-berurutan-vs-parallel)
 5. [Timer & sisa estimasi](#timer--sisa-estimasi)
-6. [Catatan handover](#catatan-handover-job-aktif)
-7. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
-8. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
-9. [Struktur data Excel](#struktur-data-excel)
-10. [Template JSON](#template-json)
-11. [Autentikasi & hak akses](#autentikasi--hak-akses)
-12. [Struktur folder](#struktur-folder)
-13. [API ringkas](#api-ringkas)
-14. [Menjalankan project](#menjalankan-project)
-15. [Catatan operasional](#catatan-operasional)
+6. [Archive Excel (complete / cancel / hapus)](#archive-excel-complete--cancel--hapus)
+7. [Catatan handover](#catatan-handover-job-aktif)
+8. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
+9. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
+10. [Struktur data Excel](#struktur-data-excel)
+11. [Template JSON](#template-json)
+12. [Autentikasi & hak akses](#autentikasi--hak-akses)
+13. [Struktur folder](#struktur-folder)
+14. [API ringkas](#api-ringkas)
+15. [Menjalankan project](#menjalankan-project)
+16. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -39,17 +40,22 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 
 ### Job
 
-- **CRUD job**: buat, edit, hapus (backup ke `data/deleted-jobs.xlsx`), cancel
+- **CRUD job**: buat, edit, hapus (backup ke `deleted-jobs.xlsx`), cancel (pindah ke `cancelled-jobs.xlsx`)
 - Buat job dari **template time frame** (Component Engine / Non Engine) atau **custom**
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
-- Start, pause, resume, complete step, complete job (pindah ke `completed-jobs.xlsx`)
-- **Buka kembali** job completed dari archive → `paused` (hanya **superuser**)
-- Filter board **Job completed** (data dari `completed-jobs.xlsx`)
+- Start, pause, resume, complete step
+- **Complete job** → pindah penuh ke `completed-jobs.xlsx` (keluar dari `workshop.xlsx`)
+- **Buka kembali** (hanya **superuser**):
+  - dari **Job completed** → restore → `paused`
+  - dari **Job cancelled** → restore → `paused` / `assigned` / `queued`
+- Filter board: All / Job aktif / Antrian / **Job completed** / **Job cancelled**
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
-- **Catatan handover** pada job aktif: tabel NO / Job Handover / Done / Note
-- **Catatan peminjaman part** pada job aktif: NO / Part yang dipinjam / Status (open|closed) / Note
-- **Print PDF** per job: ringkasan job, teknisi, steps, handover, peminjaman part
-- **Export Excel** (menu Kelola → **Export to excel**): popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), termasuk kolom **stp_std_hours** + STP per step
+- Setiap step menampilkan **STP/Std Hours** (`std_minutes` dari template)
+- Estimasi di kartu: `Est. N mnt / H jam M mnt · Progress P%` (di bawah deskripsi job)
+- **Catatan handover** + loading tambah/ubah/hapus (foreman write)
+- **Catatan peminjaman part** + loading tambah/ubah/hapus (foreman write)
+- **Print PDF** per job (modal loading/success/error)
+- **Export to excel** (menu Kelola): satu menu → popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), kolom **stp_std_hours** + STP per step
 
 ### Master data (via menu Kelola)
 
@@ -83,19 +89,20 @@ Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 5. Start job
 6. Kerjakan step (berurutan ATAU parallel)
 7. Pause / Resume bila perlu
-8. Complete job (atau Cancel / Hapus)
+8. Complete job → arsip `completed-jobs.xlsx` (atau Cancel → `cancelled-jobs.xlsx` / Hapus → `deleted-jobs.xlsx`)
+9. Superuser dapat **Buka kembali** job completed/cancelled dari archive
 ```
 
 ### Status job
 
-| Status        | Arti                                       |
-| ------------- | ------------------------------------------ |
-| `queued`      | Baru dibuat, belum di-assign / belum start |
-| `assigned`    | Sudah punya teknisi, siap di-start         |
-| `in_progress` | Sedang dikerjakan                          |
-| `paused`      | Di-pause (timer job & step di-freeze)      |
-| `done`        | Selesai                                    |
-| `cancelled`   | Dibatalkan                                 |
+| Status        | Arti                                       | Penyimpanan runtime                          |
+| ------------- | ------------------------------------------ | -------------------------------------------- |
+| `queued`      | Baru dibuat, belum di-assign / belum start | `workshop.xlsx`                              |
+| `assigned`    | Sudah punya teknisi, siap di-start         | `workshop.xlsx`                              |
+| `in_progress` | Sedang dikerjakan                          | `workshop.xlsx`                              |
+| `paused`      | Di-pause (timer job & step di-freeze)      | `workshop.xlsx`                              |
+| `done`        | Selesai                                    | **`completed-jobs.xlsx`** (setelah Complete) |
+| `cancelled`   | Dibatalkan                                 | **`cancelled-jobs.xlsx`** (setelah Cancel)   |
 
 ### Status step
 
@@ -159,22 +166,47 @@ Semua aksi progress memakai **modal konfirmasi**.
 
 ## Timer & sisa estimasi
 
-| Elemen        | Rumus                                                |
-| ------------- | ---------------------------------------------------- |
-| Timer job     | Wall-clock sejak `started_at`, dikurangi total pause |
-| Timer step    | Independen per step (`duration_sec` + segmen aktif)  |
-| Sisa estimasi | `estimated_minutes × 60 − elapsed`                   |
+| Elemen           | Rumus                                                |
+| ---------------- | ---------------------------------------------------- |
+| Timer job        | Wall-clock sejak `started_at`, dikurangi total pause |
+| Timer step       | Independen per step (`duration_sec` + segmen aktif)  |
+| Sisa estimasi    | `estimated_minutes × 60 − elapsed` + **% tersisa**   |
+| STP/Std Hours    | `std_minutes` per step (dari template); format `H jam` atau `H jam M mnt` |
 
-### Warna kartu sisa estimasi
+### Warna kartu sisa estimasi (teks putih)
 
-| Sisa dari estimasi  | Warna                      |
-| ------------------- | -------------------------- |
-| **≥ 50%**           | Hijau — aman               |
-| **> 20% dan < 50%** | Oranye — mulai ketat       |
-| **≤ 20%**           | Merah — mendesak           |
-| **≤ 0 (overtime)**  | Merah — tampil `-HH:MM:SS` |
+| Sisa dari estimasi  | Latar kartu |
+| ------------------- | ----------- |
+| **≥ 50%**           | Hijau       |
+| **> 20% dan < 50%** | Oranye      |
+| **≤ 20% / overtime**| Merah       |
 
-Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `duration_sec`).
+### Warna timer per step (vs STP)
+
+| Sisa dari STP step  | Warna timer |
+| ------------------- | ----------- |
+| **≥ 50%**           | Putih       |
+| **> 20% dan < 50%** | Oranye      |
+| **≤ 20% / overtime**| Merah       |
+
+Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `duration_sec`).  
+Reopen/complete **tidak mereset** `started_at` — timer akumulatif tetap dari start awal.
+
+---
+
+## Archive Excel (complete / cancel / hapus)
+
+Job aktif & antrian tetap di **`workshop.xlsx`**. Complete / cancel / hapus memakai file archive terpisah (append):
+
+| Aksi       | File                    | Efek pada workshop              | Lihat di UI              | Restore (superuser)                          |
+| ---------- | ----------------------- | ------------------------------- | ------------------------ | -------------------------------------------- |
+| Complete   | `completed-jobs.xlsx`   | Dihapus dari workshop           | Filter **Job completed** | → `paused`                                   |
+| Cancel     | `cancelled-jobs.xlsx`   | Dihapus dari workshop           | Filter **Job cancelled** | → `paused` / `assigned` / `queued`           |
+| Hapus      | `deleted-jobs.xlsx`     | Dihapus; audit tetap            | — (arsip manual)         | Tidak (hanya backup)                         |
+
+Setiap baris archive menyimpan meta `archived_at` / `deleted_at` + user pelaku, plus sheet turunan (steps, events, assignees, handovers, part loans).
+
+Modul: `src/lib/job-completed-archive.ts`, `job-cancelled-archive.ts`, `job-delete-archive.ts`.
 
 ---
 
@@ -190,7 +222,9 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** 
   - **Tambah** — field + tombol `+ Tambah` (langsung simpan)
   - **Ubah** — tabel editable + tombol **Save**
   - **Hapus** — tombol Hapus per baris
-- **Add / update / delete hanya foreman**; level lain hanya lihat read-only (termasuk pada job `done`)
+- Saat proses: **overlay loading** + spinner di tombol (Menambah… / Menyimpan… / Menghapus…)
+- **Add / update / delete hanya foreman**; level lain hanya lihat read-only
+- Pada job dari archive (`from_archive`), catatan **read-only**
 - Tersimpan di sheet **JobHandovers**; aksi tercatat di **AuditLog**
 
 API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[handoverId]`
@@ -205,10 +239,10 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan peminjaman 
 | --- | ------------------ | ------------- | -------- |
 | 1   | Seal kit           | open / closed | Opsional |
 
-- Pola UI sama handover: aksi **Tambah / Ubah / Hapus**
+- Pola UI sama handover: aksi **Tambah / Ubah / Hapus** + loading overlay
 - Status default **open** saat tambah; ubah ke **closed** lewat mode Ubah
 - Judul menampilkan jumlah, mis. `Catatan peminjaman part (2)`
-- Write hanya **foreman** (juga pada job `done`); level lain read-only
+- Write hanya **foreman**; archive completed/cancelled = read-only
 - Tersimpan di sheet **JobPartLoans** + **AuditLog**
 
 API: `POST /api/jobs/[id]/part-loans` · `PATCH|DELETE /api/jobs/[id]/part-loans/[loanId]`
@@ -265,19 +299,17 @@ File: **`data/workshop.xlsx`**
 
 ```text
 data/
-  workshop.xlsx          ← database runtime
+  workshop.xlsx          ← database runtime (aktif, antrian, master, audit)
   completed-jobs.xlsx    ← job setelah Complete (pindah penuh)
-  deleted-jobs.xlsx      ← archive otomatis saat job dihapus
+  cancelled-jobs.xlsx    ← job setelah Cancel (pindah penuh)
+  deleted-jobs.xlsx      ← backup saat Hapus
   job-templates.json     ← katalog template Engine / Non Engine
   templates/             ← file Excel time frame sumber
     TIME FRAME ENGINE RECONDITION.xlsx
     TIME FRAME NON ENGINE RECONDITION (TRANSMISI).xlsx
 ```
 
-- **Complete** → snapshot ke `completed-jobs.xlsx`, hapus dari `workshop.xlsx`. Filter **Job completed** membaca file ini. **Buka kembali** (superuser) restore → `paused`.
-- **Hapus** → snapshot ke `deleted-jobs.xlsx`.
-
-Saat job dihapus, snapshot lengkap di-append ke `deleted-jobs.xlsx` (sheet DeletedJobs / …) beserta `deleted_at` dan user yang menghapus.
+Detail perilaku archive: lihat [Archive Excel](#archive-excel-complete--cancel--hapus).
 
 Struktur ringkas template:
 
@@ -328,7 +360,7 @@ Catatan:
 - `guest` & `teknisi` tidak mendapat data Unit di dashboard.
 - Minimal satu `superuser` aktif harus tersisa.
 - **Handover write** (add/update/delete) hanya `foreman`; level lain tetap bisa melihat tabel read-only.
-- **Reopen** job `done` → `paused` hanya `superuser`.
+- **Reopen** (completed/cancelled dari archive) hanya `superuser`.
 
 ---
 
@@ -339,11 +371,16 @@ src/
   app/
     page.tsx              ← dashboard utama (board, modal, job UI)
     login/page.tsx
-    api/                  ← REST routes (jobs, units, technicians, …)
+    api/                  ← REST routes (jobs, units, technicians, reports, …)
     globals.css
   auth.ts / auth.config.ts
   lib/
     excel.ts              ← baca/tulis Excel + jobAction + audit
+    job-completed-archive.ts
+    job-cancelled-archive.ts
+    job-delete-archive.ts
+    job-excel-report.ts   ← export Job Aktif / Antrian
+    job-pdf.ts
     job-templates.ts      ← katalog time frame
     access.ts / permissions.ts
     duration.ts           ← timer & progress
@@ -352,6 +389,9 @@ src/
 middleware.ts             ← proteksi route + guest boleh /
 data/
   workshop.xlsx
+  completed-jobs.xlsx
+  cancelled-jobs.xlsx
+  deleted-jobs.xlsx
   job-templates.json
   templates/
 ```
@@ -428,14 +468,22 @@ npm start
 
 ## Catatan operasional
 
-- Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan `workshop.xlsx` di Excel saat app sedang menulis.
+- Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan file `data/*.xlsx` di Excel saat app sedang menulis.
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
 - Jangan jalankan dua `next dev` bersamaan di port berbeda pada project yang sama.
 - Template time frame diubah → regenerate `data/job-templates.json` (parse ulang Excel sumber), lalu restart / refresh.
-- `data/*.xlsx` biasanya di-ignore git; pastikan backup `workshop.xlsx`, `completed-jobs.xlsx`, `deleted-jobs.xlsx`, dan `AuditLog` jika data produksi penting.
-- Timer & warna sisa estimasi (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
-- Timer per step & warna sisa stp/std hours (≥50% hijau, 20–50% oranye, ≤20%/overtime merah)
-- Last git feat/stp/timeframe-handover
+- `data/*.xlsx` biasanya di-ignore git; backup `workshop.xlsx`, `completed-jobs.xlsx`, `cancelled-jobs.xlsx`, `deleted-jobs.xlsx` jika data penting.
+- Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
+
+### Ringkasan perubahan UI/data terkini
+
+- Kartu sisa estimasi: teks putih + persen tersisa
+- STP/Std Hours per step (UI, PDF, export Excel)
+- Timer step berwarna menurut sisa STP (putih / oranye / merah)
+- Status + Est/Progress ditampilkan di bawah deskripsi job
+- Export digabung jadi **Export to excel** + filter tanggal
+- Complete / Cancel / Hapus memakai archive Excel terpisah; reopen completed & cancelled (superuser)
+- Loading overlay pada tambah/ubah/hapus handover & part loan
 
 ---
 

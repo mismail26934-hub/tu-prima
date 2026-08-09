@@ -967,7 +967,7 @@ export default function HomePage() {
     "all" | TechnicianStatus
   >("all");
   const [jobSectionFilter, setJobSectionFilter] = useState<
-    "all" | "active" | "queue" | "done"
+    "all" | "active" | "queue" | "done" | "cancelled"
   >("all");
 
   const JOB_PAGE_SIZE = 10;
@@ -1827,10 +1827,7 @@ export default function HomePage() {
     [data, matchJob]
   );
   const historyJobs = useMemo(
-    () =>
-      (data?.jobs || []).filter(
-        (j) => j.status === "cancelled" && matchJob(j)
-      ),
+    () => (data?.cancelled_jobs || []).filter((j) => matchJob(j)),
     [data, matchJob]
   );
 
@@ -2655,12 +2652,13 @@ export default function HomePage() {
               Complete job
             </button>
           )}
-          {job.status === "done" && canJobReopen && (
+          {(job.status === "done" || job.status === "cancelled") &&
+            canJobReopen && (
             <button
               className="btn"
               disabled={busy}
               onClick={() => setModal({ type: "reopen-job", job })}
-              title="Buka kembali dari archive → paused (Superuser)"
+              title="Buka kembali dari archive (Superuser)"
             >
               Buka kembali
             </button>
@@ -3904,7 +3902,12 @@ export default function HomePage() {
                     value={jobSectionFilter}
                     onChange={(e) =>
                       setJobSectionFilter(
-                        e.target.value as "all" | "active" | "queue" | "done"
+                        e.target.value as
+                          | "all"
+                          | "active"
+                          | "queue"
+                          | "done"
+                          | "cancelled"
                       )
                     }
                     aria-label="Filter section job"
@@ -3913,6 +3916,7 @@ export default function HomePage() {
                     <option value="active">Job aktif</option>
                     <option value="queue">Antrian</option>
                     <option value="done">Job completed</option>
+                    <option value="cancelled">Job cancelled</option>
                   </select>
                 </label>
                 <button
@@ -3933,7 +3937,9 @@ export default function HomePage() {
                       ? "Antrian"
                       : jobSectionFilter === "done"
                         ? "Job completed"
-                        : "Job aktif & progress"}
+                        : jobSectionFilter === "cancelled"
+                          ? "Job cancelled"
+                          : "Job aktif & progress"}
                 </h2>
                 <div className="panel-search-row">
                   <input
@@ -4003,20 +4009,12 @@ export default function HomePage() {
               {(jobSectionFilter === "all" || jobSectionFilter === "done") && (
                 <>
                   {jobSectionFilter === "all" ? (
-                    <>
-                      {completedJobs.length > 0 && (
-                        <>
-                          <h2 style={{ marginTop: 22 }}>Job completed</h2>
-                          {completedJobs.map(renderJob)}
-                        </>
-                      )}
-                      {historyJobs.length > 0 && (
-                        <>
-                          <h2 style={{ marginTop: 22 }}>Dibatalkan</h2>
-                          {historyJobs.map(renderJob)}
-                        </>
-                      )}
-                    </>
+                    completedJobs.length > 0 && (
+                      <>
+                        <h2 style={{ marginTop: 22 }}>Job completed</h2>
+                        {completedJobs.map(renderJob)}
+                      </>
+                    )
                   ) : (
                     <>
                       {completedJobs.length === 0 && (
@@ -4031,14 +4029,41 @@ export default function HomePage() {
                   )}
                 </>
               )}
+
+              {(jobSectionFilter === "all" ||
+                jobSectionFilter === "cancelled") && (
+                <>
+                  {jobSectionFilter === "all" ? (
+                    historyJobs.length > 0 && (
+                      <>
+                        <h2 style={{ marginTop: 22 }}>Job cancelled</h2>
+                        {historyJobs.map(renderJob)}
+                      </>
+                    )
+                  ) : (
+                    <>
+                      {historyJobs.length === 0 && (
+                        <p style={{ color: "var(--muted)" }}>
+                          {jobQuery
+                            ? "Tidak ada job cancelled yang cocok."
+                            : "Belum ada job di cancelled-jobs.xlsx."}
+                        </p>
+                      )}
+                      {historyJobs.map(renderJob)}
+                    </>
+                  )}
+                </>
+              )}
             </section>
             )}
           </div>
 
           <p className="db-path">
             Database Excel: <code>data/workshop.xlsx</code> · Archive:{" "}
-            <code>data/completed-jobs.xlsx</code> / <code>data/deleted-jobs.xlsx</code>{" "}
-            · Template: <code>data/job-templates.json</code>
+            <code>data/completed-jobs.xlsx</code> /{" "}
+            <code>data/cancelled-jobs.xlsx</code> /{" "}
+            <code>data/deleted-jobs.xlsx</code> · Template:{" "}
+            <code>data/job-templates.json</code>
           </p>
         </>
       )}
@@ -5071,9 +5096,17 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Buka kembali job dari <code>completed-jobs.xlsx</code>? Job
-              dikembalikan ke database aktif dengan status{" "}
-              <strong>paused</strong>.
+              Buka kembali job dari archive (
+              {modal.job.status === "cancelled"
+                ? "cancelled-jobs.xlsx"
+                : "completed-jobs.xlsx"}
+              )? Job dikembalikan ke database aktif
+              {modal.job.status === "done" || modal.job.started_at
+                ? " dengan status paused"
+                : modal.job.technicians?.length
+                  ? " dengan status assigned"
+                  : " dengan status queued"}
+              .
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
@@ -5190,7 +5223,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Batalkan job ini? Status menjadi <strong>cancelled</strong>.
+              Batalkan job ini? Data dipindah ke{" "}
+              <code>data/cancelled-jobs.xlsx</code> dan dihapus dari database
+              aktif.
               Teknisi yang terpasang akan dilepas.
             </p>
             <div className="actions">

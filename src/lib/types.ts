@@ -235,6 +235,8 @@ export interface DashboardData {
   jobs: JobWithDetails[];
   /** Jobs archived after complete (from completed-jobs.xlsx). */
   completed_jobs: JobWithDetails[];
+  /** Jobs archived after cancel (from cancelled-jobs.xlsx). */
+  cancelled_jobs: JobWithDetails[];
   attendance: Attendance[];
   summary: {
     available: number;
@@ -244,6 +246,7 @@ export interface DashboardData {
     queued_jobs: number;
     done_today: number;
     completed_jobs: number;
+    cancelled_jobs: number;
     avg_duration_sec: number;
   };
 }

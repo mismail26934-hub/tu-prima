@@ -112,6 +112,7 @@ button {
   width: 100%;
   margin: 0 auto;
   padding: 28px 20px 48px;
+  padding-top: calc(12px + var(--topbar-height, 5.5rem));
   box-sizing: border-box;
   min-width: 0;
 }
@@ -152,6 +153,7 @@ button {
 @media (max-width: 720px) {
   .app {
     padding: 20px max(16px, 4vw) 40px;
+    padding-top: calc(8px + var(--topbar-height, 5.5rem));
   }
 }
 
@@ -160,19 +162,39 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 28px;
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 110;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
   background: transparent;
-  padding-top: 8px;
-  padding-bottom: 12px;
-  transition: background 0.2s ease;
+  padding: 8px max(20px, calc((100% - 1280px) / 2 + 20px)) 12px;
+  border-bottom: 1px solid transparent;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    backdrop-filter 0.25s ease,
+    -webkit-backdrop-filter 0.25s ease;
   animation: rise 0.5s ease both;
 }
 
 .topbar.is-scrolled {
-  background: var(--page-bg);
+  background: color-mix(in srgb, var(--page-bg) 72%, transparent);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  border-bottom-color: color-mix(in srgb, var(--line) 40%, transparent);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--brand-shadow) 35%, transparent);
+}
+
+@supports not (background: color-mix(in srgb, white 50%, transparent)) {
+  .topbar.is-scrolled {
+    background: var(--page-bg);
+  }
 }
 
 .brand {
@@ -668,9 +690,18 @@ button {
   .topbar {
     align-items: flex-start;
     gap: 10px;
-    padding-top: 4px;
-    margin-bottom: 16px;
+    padding: 4px max(16px, 4vw) 10px;
     min-width: 0;
+  }
+
+  .topbar.is-scrolled {
+    background: color-mix(in srgb, var(--page-bg) 78%, transparent);
+  }
+
+  html.menu-open .topbar.is-scrolled {
+    background: color-mix(in srgb, var(--page-bg) 85%, transparent);
+    backdrop-filter: blur(16px) saturate(1.35);
+    -webkit-backdrop-filter: blur(16px) saturate(1.35);
   }
 
   .topbar > div:first-child {
@@ -787,7 +818,6 @@ button {
 
   html.menu-open .topbar {
     z-index: 10020;
-    background: transparent;
   }
 
   html.menu-open .top-actions {

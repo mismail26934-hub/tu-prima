@@ -549,7 +549,12 @@ export default function HomePage() {
     const el = topbarRef.current;
     if (!el) return;
     const sync = () => {
+      const height = Math.ceil(el.getBoundingClientRect().height);
       const bottom = Math.ceil(el.getBoundingClientRect().bottom);
+      document.documentElement.style.setProperty(
+        "--topbar-height",
+        `${height}px`
+      );
       document.documentElement.style.setProperty(
         "--topbar-offset",
         `${bottom + 8}px`

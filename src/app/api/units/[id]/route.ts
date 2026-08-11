@@ -13,15 +13,16 @@ export async function PATCH(
   try {
     const { id } = await ctx.params;
     const body = await req.json();
-    if (!body.code || !body.name) {
+    if (!body.code || !body.name || !body.serial_number) {
       return NextResponse.json(
-        { error: "code dan name wajib diisi" },
+        { error: "code, name, dan serial_number wajib diisi" },
         { status: 400 }
       );
     }
     const unit = await updateUnit(id, {
       code: String(body.code),
       name: String(body.name),
+      serial_number: String(body.serial_number),
       active: body.active != null ? String(body.active) : undefined,
     });
     return NextResponse.json(unit);

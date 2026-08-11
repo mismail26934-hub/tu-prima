@@ -14,10 +14,11 @@ export async function GET() {
   sheet.columns = [
     { header: "Nomor unit", key: "code", width: 20 },
     { header: "Model", key: "name", width: 28 },
+    { header: "Serial number", key: "serial_number", width: 22 },
     { header: "Status", key: "status", width: 16 },
   ];
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:C1";
+  sheet.autoFilter = "A1:D1";
   sheet.getRow(1).font = { bold: true, color: { argb: "FF111827" } };
   sheet.getRow(1).fill = {
     type: "pattern",
@@ -25,9 +26,10 @@ export async function GET() {
     fgColor: { argb: "FFF59E0B" },
   };
   sheet.getColumn("A").numFmt = "@";
+  sheet.getColumn("C").numFmt = "@";
 
   for (let row = 2; row <= 501; row += 1) {
-    sheet.getCell(`C${row}`).dataValidation = {
+    sheet.getCell(`D${row}`).dataValidation = {
       type: "list",
       allowBlank: true,
       formulae: ['"aktif,nonaktif"'],
@@ -48,6 +50,10 @@ export async function GET() {
       rule: "Wajib dan unik. Jika sudah ada, data unit tersebut akan diperbarui.",
     },
     { column: "Model", rule: "Wajib. Model atau tipe unit." },
+    {
+      column: "Serial number",
+      rule: "Wajib. Nomor seri unit.",
+    },
     {
       column: "Status",
       rule: "Opsional: aktif atau nonaktif. Jika kosong, unit baru menjadi aktif.",

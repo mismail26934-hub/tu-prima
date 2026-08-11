@@ -460,7 +460,12 @@ export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [unitForm, setUnitForm] = useState({ code: "", name: "", active: "1" });
+  const [unitForm, setUnitForm] = useState({
+    code: "",
+    name: "",
+    serial_number: "",
+    active: "1",
+  });
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
   const [unitImportMsg, setUnitImportMsg] = useState("");
@@ -604,12 +609,17 @@ export default function HomePage() {
   }, [mobileMenuOpen]);
 
   function openUnitCreate() {
-    setUnitForm({ code: "", name: "", active: "1" });
+    setUnitForm({ code: "", name: "", serial_number: "", active: "1" });
     setModal({ type: "unit-form", mode: "create" });
   }
 
   function openUnitEdit(unit: Unit) {
-    setUnitForm({ code: unit.code, name: unit.name, active: unit.active });
+    setUnitForm({
+      code: unit.code,
+      name: unit.name,
+      serial_number: unit.serial_number || "",
+      active: unit.active,
+    });
     setModal({ type: "unit-form", mode: "edit", unit });
   }
 
@@ -621,7 +631,11 @@ export default function HomePage() {
       if (modal.mode === "create") {
         await api("/api/units", {
           method: "POST",
-          body: JSON.stringify({ code: unitForm.code, name: unitForm.name }),
+          body: JSON.stringify({
+            code: unitForm.code,
+            name: unitForm.name,
+            serial_number: unitForm.serial_number,
+          }),
         });
       } else if (modal.unit) {
         await api(`/api/units/${modal.unit.id}`, {
@@ -1677,7 +1691,8 @@ export default function HomePage() {
     return units.filter(
       (u) =>
         u.code.toLowerCase().includes(q) ||
-        u.name.toLowerCase().includes(q)
+        u.name.toLowerCase().includes(q) ||
+        (u.serial_number || "").toLowerCase().includes(q)
     );
   }, [data?.units, unitQuery]);
 
@@ -5550,7 +5565,7 @@ export default function HomePage() {
             <h3>Master Unit</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Data unit dipilih saat buat/edit job. Upload Excel untuk mass input
-              — header: Nomor unit, Model, Status (opsional).
+              — header: Nomor unit, Model, Serial number, Status (opsional).
             </p>
             {error && <div className="error">{error}</div>}
             {unitImportMsg && (
@@ -5597,7 +5612,7 @@ export default function HomePage() {
                     applyUnitSearch();
                   }
                 }}
-                placeholder="Cari nomor unit atau model..."
+                placeholder="Cari nomor unit, model, atau serial number..."
                 aria-label="Cari unit"
                 autoFocus
               />
@@ -5641,6 +5656,7 @@ export default function HomePage() {
                     <strong>{u.code}</strong>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
                       {u.name}
+                      {u.serial_number ? ` · SN ${u.serial_number}` : ""}
                       {u.active !== "1" ? " · nonaktif" : ""}
                     </div>
                   </div>
@@ -5703,6 +5719,7 @@ export default function HomePage() {
                   value={unitForm.code}
                   onChange={(e) => setUnitForm({ ...unitForm, code: e.target.value })}
                   placeholder="Mis. E448"
+                  required
                 />
               </label>
               <label>
@@ -5711,6 +5728,18 @@ export default function HomePage() {
                   value={unitForm.name}
                   onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })}
                   placeholder="Mis. D10T"
+                  required
+                />
+              </label>
+              <label>
+                Serial number
+                <input
+                  value={unitForm.serial_number}
+                  onChange={(e) =>
+                    setUnitForm({ ...unitForm, serial_number: e.target.value })
+                  }
+                  placeholder="Mis. CAT-123456"
+                  required
                 />
               </label>
               {modal.mode === "edit" && (
@@ -5733,7 +5762,12 @@ export default function HomePage() {
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={busy || !unitForm.code || !unitForm.name}
+                  disabled={
+                    busy ||
+                    !unitForm.code ||
+                    !unitForm.name ||
+                    !unitForm.serial_number
+                  }
                   onClick={saveUnit}
                 >
                   <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />

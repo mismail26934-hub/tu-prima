@@ -200,6 +200,7 @@ function mapUnit(r: Row): Unit {
     id: String(r.id || ""),
     code: String(r.code || ""),
     name: String(r.name || ""),
+    serial_number: String(r.serial_number || ""),
     active: String(r.active || "1") === "0" ? "0" : "1",
   };
 }
@@ -404,7 +405,7 @@ function unitLabel(u: Unit): string {
 }
 
 const TECH_HEADERS = ["id", "name", "sn", "status", "current_job_id", "phone"];
-const UNIT_HEADERS = ["id", "code", "name", "active"];
+const UNIT_HEADERS = ["id", "code", "name", "serial_number", "active"];
 const JOB_HEADERS = [
   "id",
   "title",
@@ -529,6 +530,22 @@ function migrateTechnicianSnColumn(wb: ExcelJS.Workbook): boolean {
   if (!hasSkill || hasSn) return false;
   const techs = readRows(ws).map(mapTechnician).filter((t) => t.id);
   writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+  return true;
+}
+
+/** Ensure Units.serial_number column exists in workbook. */
+function migrateUnitSerialNumberColumn(wb: ExcelJS.Workbook): boolean {
+  const ws = getSheet(wb, SHEETS.units);
+  const headerRow = ws.getRow(1);
+  let hasSerial = false;
+  headerRow.eachCell((cell) => {
+    const h = cellStr(cell.value).trim().toLowerCase();
+    if (h === "serial_number") hasSerial = true;
+  });
+  if (hasSerial) return false;
+  const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+  const units = loadUnits(wb, jobs);
+  writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
   return true;
 }
 
@@ -723,6 +740,7 @@ function loadUnits(wb: ExcelJS.Workbook, jobs: Job[]): Unit[] {
         id,
         code: label.split(/\s+/)[0] || label,
         name: label,
+        serial_number: "",
         active: "1",
       });
       if (!j.unit_id) j.unit_id = id;
@@ -755,11 +773,11 @@ async function createSeedWorkbook(wb: ExcelJS.Workbook) {
   const step2Start = new Date(Date.now() - 40 * 60 * 1000).toISOString();
 
   const units: Unit[] = [
-    { id: "U01", code: "AVZ-1234", name: "Avanza B 1234 ABC", active: "1" },
-    { id: "U02", code: "INV-5678", name: "Innova D 5678 XYZ", active: "1" },
-    { id: "U03", code: "XEN-9012", name: "Xenia F 9012 LMN", active: "1" },
-    { id: "U04", code: "FRT-4455", name: "Fortuner B 4455 QRS", active: "1" },
-    { id: "U05", code: "E448", name: "GOH Unit Rental", active: "1" },
+    { id: "U01", code: "AVZ-1234", name: "Avanza B 1234 ABC", serial_number: "SN-AVZ-1234", active: "1" },
+    { id: "U02", code: "INV-5678", name: "Innova D 5678 XYZ", serial_number: "SN-INV-5678", active: "1" },
+    { id: "U03", code: "XEN-9012", name: "Xenia F 9012 LMN", serial_number: "SN-XEN-9012", active: "1" },
+    { id: "U04", code: "FRT-4455", name: "Fortuner B 4455 QRS", serial_number: "SN-FRT-4455", active: "1" },
+    { id: "U05", code: "E448", name: "GOH Unit Rental", serial_number: "SN-E448", active: "1" },
   ];
 
   const jobs: Job[] = [
@@ -953,12 +971,14 @@ export async function getDashboard(): Promise<DashboardData> {
     const units = loadUnits(wb, jobs);
     const usersSeeded = ensureUsers(wb);
     const techSnMigrated = migrateTechnicianSnColumn(wb);
+    const unitSerialMigrated = migrateUnitSerialNumberColumn(wb);
     const stepStdMigrated = migrateJobStepStdMinutes(wb, jobs, steps);
     steps = stepStdMigrated.steps;
     if (
       (!hadUnits && units.length > 0) ||
       usersSeeded ||
       techSnMigrated ||
+      unitSerialMigrated ||
       stepStdMigrated.changed
     ) {
       if (!hadUnits && units.length > 0) {
@@ -1723,6 +1743,7 @@ export async function deleteJobPartLoan(
 export async function createUnit(input: {
   code: string;
   name: string;
+  serial_number: string;
 }): Promise<Unit> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
@@ -1730,11 +1751,20 @@ export async function createUnit(input: {
     const units = loadUnits(wb, jobs);
     const code = input.code.trim().toUpperCase();
     const name = input.name.trim();
-    if (!code || !name) throw new Error("code dan name wajib diisi");
+    const serial_number = input.serial_number.trim();
+    if (!code || !name || !serial_number) {
+      throw new Error("code, name, dan serial_number wajib diisi");
+    }
     if (units.some((u) => u.code.toUpperCase() === code)) {
       throw new Error("Nomor unit sudah dipakai");
     }
-    const unit: Unit = { id: `U-${uuidv4().slice(0, 8)}`, code, name, active: "1" };
+    const unit: Unit = {
+      id: `U-${uuidv4().slice(0, 8)}`,
+      code,
+      name,
+      serial_number,
+      active: "1",
+    };
     units.push(unit);
     writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
     await saveWorkbook(wb);
@@ -1744,7 +1774,7 @@ export async function createUnit(input: {
 
 export async function updateUnit(
   unitId: string,
-  input: { code: string; name: string; active?: string }
+  input: { code: string; name: string; serial_number: string; active?: string }
 ): Promise<Unit> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
@@ -1754,12 +1784,16 @@ export async function updateUnit(
     if (!unit) throw new Error("Unit not found");
     const code = input.code.trim().toUpperCase();
     const name = input.name.trim();
-    if (!code || !name) throw new Error("code dan name wajib diisi");
+    const serial_number = input.serial_number.trim();
+    if (!code || !name || !serial_number) {
+      throw new Error("code, name, dan serial_number wajib diisi");
+    }
     if (units.some((u) => u.id !== unitId && u.code.toUpperCase() === code)) {
       throw new Error("Nomor unit sudah dipakai");
     }
     unit.code = code;
     unit.name = name;
+    unit.serial_number = serial_number;
     if (input.active === "0" || input.active === "1") unit.active = input.active;
 
     // Refresh denormalized label on jobs that use this unit
@@ -1837,10 +1871,19 @@ export async function importUnitsFromBuffer(
 
     const cCode = col("nomor unit", "no unit", "no. unit", "code", "kode", "unit");
     const cName = col("model", "name", "nama", "nama unit");
+    const cSerial = col(
+      "serial number",
+      "serial_number",
+      "serialnumber",
+      "nomor seri",
+      "no seri",
+      "no. seri",
+      "sn"
+    );
     const cStatus = col("status", "active", "aktif");
-    if (!cCode || !cName) {
+    if (!cCode || !cName || !cSerial) {
       throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh header "Nomor unit" dan "Model".'
+        'Kolom wajib tidak ditemukan. Butuh header "Nomor unit", "Model", dan "Serial number".'
       );
     }
 
@@ -1856,13 +1899,14 @@ export async function importUnitsFromBuffer(
       if (rowNumber === 1) return;
       const code = cellStr(row.getCell(cCode).value).trim().toUpperCase();
       const name = cellStr(row.getCell(cName).value).trim();
+      const serial_number = cellStr(row.getCell(cSerial).value).trim();
       const statusRaw = cStatus
         ? cellStr(row.getCell(cStatus).value).trim()
         : "";
-      if (!code && !name && !statusRaw) return;
-      if (!code || !name) {
+      if (!code && !name && !serial_number && !statusRaw) return;
+      if (!code || !name || !serial_number) {
         skipped.push(
-          `Baris ${rowNumber}: nomor unit dan model wajib (${code || "?"} / ${name || "?"})`
+          `Baris ${rowNumber}: nomor unit, model, dan serial number wajib (${code || "?"} / ${name || "?"} / ${serial_number || "?"})`
         );
         return;
       }
@@ -1878,6 +1922,7 @@ export async function importUnitsFromBuffer(
       const existing = units.find((unit) => unit.code.toUpperCase() === code);
       if (existing) {
         existing.name = name;
+        existing.serial_number = serial_number;
         if (active) existing.active = active;
         const label = unitLabel(existing);
         jobs.forEach((job) => {
@@ -1892,6 +1937,7 @@ export async function importUnitsFromBuffer(
         id: `U-${uuidv4().slice(0, 8)}`,
         code,
         name,
+        serial_number,
         active: active || "1",
       });
       imported += 1;

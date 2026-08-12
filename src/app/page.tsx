@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { signOut, useSession } from "next-auth/react";
 import type {
   AppUserPublic,
@@ -33,6 +34,8 @@ import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
 import { useJobBoardStore } from "@/store/jobBoardStore";
 import { useT } from "@/i18n/useT";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
+import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 
 type Modal =
   | null
@@ -249,11 +252,11 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
   const remainingPct =
     stdSec > 0 ? (Math.max(0, remainingSec) / stdSec) * 100 : 0;
 
-  // Putih: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime
-  let tone: "white" | "orange" | "red" | null = null;
+  // Hijau: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime
+  let tone: "green" | "orange" | "red" | null = null;
   if (stdSec > 0) {
     if (remainingSec <= 0 || remainingPct <= 20) tone = "red";
-    else if (remainingPct >= 50) tone = "white";
+    else if (remainingPct >= 50) tone = "green";
     else tone = "orange";
   }
 
@@ -504,6 +507,9 @@ export default function HomePage() {
   const topbarRef = useRef<HTMLElement>(null);
   const manageRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<HTMLDivElement>(null);
+  const [topbarScrolled, setTopbarScrolled] = useState(false);
+  const [topbarHeightPx, setTopbarHeightPx] = useState(0);
+  const [glassPortalReady, setGlassPortalReady] = useState(false);
 
   useEffect(() => {
     if (!manageOpen) return;
@@ -556,6 +562,10 @@ export default function HomePage() {
   }, [modal]);
 
   useEffect(() => {
+    setGlassPortalReady(true);
+  }, []);
+
+  useEffect(() => {
     const el = topbarRef.current;
     if (!el) return;
     const sync = () => {
@@ -566,6 +576,7 @@ export default function HomePage() {
         document.documentElement.scrollTop ||
         document.body.scrollTop ||
         0;
+      const scrolled = scrollY > 4;
       document.documentElement.style.setProperty(
         "--topbar-height",
         `${height}px`
@@ -574,7 +585,9 @@ export default function HomePage() {
         "--topbar-offset",
         `${bottom + 8}px`
       );
-      el.classList.toggle("is-scrolled", scrollY > 4);
+      el.classList.toggle("is-scrolled", scrolled);
+      setTopbarScrolled(scrolled);
+      setTopbarHeightPx(height);
     };
     sync();
     const ro = new ResizeObserver(sync);
@@ -2462,8 +2475,10 @@ export default function HomePage() {
     const canHandoverWrite =
       canManageHandover(userLevel) && !job.from_archive;
     const jobMap = Object.fromEntries((data?.jobs || []).map((j) => [j.id, j]));
+    const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
     return (
-      <article className="job" key={job.id}>
+      <article className="job" key={job.id} id={`job-${job.id}`}>
+        <SliderActiveStepScroll job={job} />
         <div className="job-head">
           <div>
             <div className="job-title-row">
@@ -2545,38 +2560,38 @@ export default function HomePage() {
           </div>
           {["in_progress", "paused", "done"].includes(job.status) && (
             <div className="job-timer-wrap">
-              {job.status === "in_progress" && (
-                <button
-                  className="btn"
-                  style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                  disabled={busy || !canJobProgress}
-                  onClick={() => setModal({ type: "pause-job", job })}
-                  title={
-                    canJobProgress
-                      ? "Pause job"
-                      : "Hanya Foreman & Superuser yang dapat pause job"
-                  }
-                >
-                  Pause
-                </button>
-              )}
-              {job.status === "paused" && (
-                <button
-                  className="btn btn-primary"
-                  style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                  disabled={busy || !canJobProgress}
-                  onClick={() => setModal({ type: "resume-job", job })}
-                  title={
-                    canJobProgress
-                      ? "Resume job"
-                      : "Hanya Foreman & Superuser yang dapat resume job"
-                  }
-                >
-                  Resume
-                </button>
-              )}
-              <div className="job-timer-stack">
-                <LiveTimer job={jobMap[job.id] || job} />
+              <LiveTimer job={jobMap[job.id] || job} />
+              <div className="job-timer-remain-row">
+                {job.status === "in_progress" && (
+                  <button
+                    className="btn job-timer-action"
+                    style={{ padding: "6px 10px", fontSize: "0.82rem" }}
+                    disabled={busy || !canJobProgress}
+                    onClick={() => setModal({ type: "pause-job", job })}
+                    title={
+                      canJobProgress
+                        ? "Pause job"
+                        : "Hanya Foreman & Superuser yang dapat pause job"
+                    }
+                  >
+                    Pause
+                  </button>
+                )}
+                {job.status === "paused" && (
+                  <button
+                    className="btn btn-primary job-timer-action"
+                    style={{ padding: "6px 10px", fontSize: "0.82rem" }}
+                    disabled={busy || !canJobProgress}
+                    onClick={() => setModal({ type: "resume-job", job })}
+                    title={
+                      canJobProgress
+                        ? "Resume job"
+                        : "Hanya Foreman & Superuser yang dapat resume job"
+                    }
+                  >
+                    Resume
+                  </button>
+                )}
                 <RemainingTimerCard job={jobMap[job.id] || job} />
               </div>
             </div>
@@ -2584,14 +2599,12 @@ export default function HomePage() {
         </div>
 
         {job.description && (
-          <p style={{ color: "var(--muted)", margin: "10px 0 0", fontSize: "0.92rem" }}>
-            {job.description}
-          </p>
+          <p className="job-description">{job.description}</p>
         )}
 
-        <div style={{ marginTop: job.description ? 6 : 10 }}>
+        <div className="job-status-row" style={{ marginTop: job.description ? 6 : 10 }}>
           <StatusPill status={job.status} />
-          <span style={{ color: "var(--muted)", marginLeft: 10, fontSize: "0.85rem" }}>
+          <span className="job-status-meta">
             {t("job.est")} {job.estimated_minutes} {t("common.minutes")} /{" "}
             {Math.floor(Number(job.estimated_minutes || 0) / 60)} {t("common.hours")}{" "}
             {Number(job.estimated_minutes || 0) % 60} {t("common.minutes")} ·{" "}
@@ -2634,7 +2647,13 @@ export default function HomePage() {
             const parallel = getStepMode(job.id) === "parallel";
             const selected = (selectedStepsByJob[job.id] || []).includes(s.id);
             return (
-              <li key={s.id} className={`step-row status-${s.status}`}>
+              <li
+                key={s.id}
+                id={
+                  s.id === activeStepId ? `job-step-active-${job.id}` : undefined
+                }
+                className={`step-row status-${s.status}`}
+              >
                 {job.status === "in_progress" &&
                 parallel &&
                 s.status === "pending" &&
@@ -3367,7 +3386,21 @@ export default function HomePage() {
   }
 
   return (
-    <main className="app">
+    <>
+      {glassPortalReady &&
+        topbarScrolled &&
+        createPortal(
+          <div
+            className="topbar-glass"
+            aria-hidden="true"
+            style={
+              topbarHeightPx > 0
+                ? { height: `${topbarHeightPx}px` }
+                : undefined
+            }
+          />,
+          document.body
+        )}
       <header className="topbar" ref={topbarRef}>
         <div>
           <div className="brand">
@@ -3857,6 +3890,7 @@ export default function HomePage() {
         </>
       )}
 
+      <main className="app">
       {loggingOut && (
         <div className="page-loading" role="status" aria-live="polite">
           <span className="spinner" aria-hidden="true" />
@@ -4111,51 +4145,58 @@ export default function HomePage() {
                   <PanelToggleIcon collapsed={false} />
                 </button>
               </div>
-              <div className="panel-head">
-                <h2>
-                  {jobSectionFilter === "active"
-                    ? t("panel.activeJobsProgress")
-                    : jobSectionFilter === "queue"
-                      ? t("job.section.queue")
-                      : jobSectionFilter === "done"
-                        ? t("job.section.done")
-                        : jobSectionFilter === "cancelled"
-                          ? t("job.section.cancelled")
-                          : t("panel.activeJobsProgress")}
-                </h2>
-                <div className="panel-search-row">
-                  <input
-                    className="panel-search"
-                    type="search"
-                    value={jobDraft}
-                    onChange={(e) => setJobDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        applyJobSearch();
-                      }
-                    }}
-                    placeholder="Cari job, unit, teknisi..."
-                    aria-label="Cari job"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={applyJobSearch}
-                  >
-                    Cari
-                  </button>
-                  {jobQuery && (
+              <ActiveJobSlider jobs={activeJobs} renderJob={renderJob}>
+                <div className="panel-head">
+                  <div className="panel-head-title-row">
+                    <h2>
+                      {jobSectionFilter === "active"
+                        ? t("panel.activeJobsProgress")
+                        : jobSectionFilter === "queue"
+                          ? t("job.section.queue")
+                          : jobSectionFilter === "done"
+                            ? t("job.section.done")
+                            : jobSectionFilter === "cancelled"
+                              ? t("job.section.cancelled")
+                              : t("panel.activeJobsProgress")}
+                    </h2>
+                    {(jobSectionFilter === "all" ||
+                      jobSectionFilter === "active") && (
+                      <ActiveJobSliderToggle />
+                    )}
+                  </div>
+                  <div className="panel-search-row">
+                    <input
+                      className="panel-search"
+                      type="search"
+                      value={jobDraft}
+                      onChange={(e) => setJobDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyJobSearch();
+                        }
+                      }}
+                      placeholder="Cari job, unit, teknisi..."
+                      aria-label="Cari job"
+                    />
                     <button
                       type="button"
-                      className="btn"
-                      onClick={clearJobSearch}
+                      className="btn btn-primary"
+                      onClick={applyJobSearch}
                     >
-                      Reset
+                      Cari
                     </button>
-                  )}
+                    {jobQuery && (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={clearJobSearch}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
               {(jobSectionFilter === "all" || jobSectionFilter === "active") && (
                 <>
                   {activeJobs.length === 0 && (
@@ -4236,6 +4277,7 @@ export default function HomePage() {
                   )}
                 </>
               )}
+              </ActiveJobSlider>
             </section>
             )}
           </div>
@@ -6733,5 +6775,6 @@ export default function HomePage() {
         </div>
       )}
     </main>
+    </>
   );
 }

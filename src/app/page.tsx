@@ -85,6 +85,13 @@ type Modal =
       unit?: Unit;
     }
   | { type: "delete-unit"; unit: Unit }
+  | { type: "templates" }
+  | {
+      type: "template-form";
+      mode: "create" | "edit";
+      template?: JobTemplate;
+    }
+  | { type: "delete-template"; template: JobTemplate }
   | { type: "techs" }
   | {
       type: "tech-form";
@@ -304,6 +311,52 @@ function BusyOverlay({ label = "Memproses..." }: { label?: string }) {
   );
 }
 
+function ShimmerBlock({ className = "" }: { className?: string }) {
+  return <span className={`shimmer-block ${className}`.trim()} aria-hidden="true" />;
+}
+
+function DashboardShimmer({ label }: { label: string }) {
+  return (
+    <div className="dashboard-shimmer" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{label}</span>
+      <div className="summary-wrap" aria-hidden="true">
+        {[0, 1].map((group) => (
+          <section key={group} className="summary-group">
+            <ShimmerBlock className="shimmer-block--title" />
+            <div className="summary">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="stat shimmer-stat">
+                  <ShimmerBlock className="shimmer-block--label" />
+                  <ShimmerBlock className="shimmer-block--value" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+      <div className="grid" aria-hidden="true">
+        {[0, 1].map((panel) => (
+          <section key={panel} className="panel shimmer-panel">
+            <div className="shimmer-panel-head">
+              <ShimmerBlock className="shimmer-block--heading" />
+              <ShimmerBlock className="shimmer-block--search" />
+            </div>
+            <div className="shimmer-list">
+              {[0, 1, 2, 3, 4].map((row) => (
+                <div key={row} className="shimmer-card">
+                  <ShimmerBlock className="shimmer-block--line shimmer-block--line-lg" />
+                  <ShimmerBlock className="shimmer-block--line" />
+                  <ShimmerBlock className="shimmer-block--line shimmer-block--line-sm" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function BusyLabel({
   busy,
   idle,
@@ -424,6 +477,10 @@ export default function HomePage() {
   const canUnitCreate = canAccess(userLevel, "unit", "create");
   const canUnitUpdate = canAccess(userLevel, "unit", "update");
   const canUnitDelete = canAccess(userLevel, "unit", "delete");
+  const canTemplateRead = canAccess(userLevel, "template", "read");
+  const canTemplateCreate = canAccess(userLevel, "template", "create");
+  const canTemplateUpdate = canAccess(userLevel, "template", "update");
+  const canTemplateDelete = canAccess(userLevel, "template", "delete");
   const canAttendanceCreate = canAccess(userLevel, "attendance", "create");
   const canAttendanceUpdate = canAccess(userLevel, "attendance", "update");
   const canAttendanceDelete = canAccess(userLevel, "attendance", "delete");
@@ -477,6 +534,33 @@ export default function HomePage() {
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
   const [unitImportMsg, setUnitImportMsg] = useState("");
+  const [masterTemplates, setMasterTemplates] = useState<JobTemplate[]>([]);
+  const [templateForm, setTemplateForm] = useState<{
+    category: JobTemplateCategory;
+    name: string;
+    active: string;
+    steps: Array<{
+      id?: string;
+      phase: string;
+      name: string;
+      order: number;
+      man_power: number;
+      std_minutes: number;
+    }>;
+  }>({
+    category: "engine",
+    name: "",
+    active: "1",
+    steps: [{ phase: "", name: "", order: 1, man_power: 1, std_minutes: 60 }],
+  });
+  const [templateCloneId, setTemplateCloneId] = useState("");
+  const [templateDraft, setTemplateDraft] = useState("");
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<
+    "" | JobTemplateCategory
+  >("");
+  const [templateMasterPage, setTemplateMasterPage] = useState(1);
+  const [templateImportMsg, setTemplateImportMsg] = useState("");
   const [techForm, setTechForm] = useState({
     name: "",
     sn: "",
@@ -711,6 +795,257 @@ export default function HomePage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import unit gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadMasterTemplates() {
+    if (!canTemplateRead) {
+      setMasterTemplates([]);
+      return;
+    }
+    try {
+      const res = await api<{ templates: JobTemplate[] }>(
+        "/api/job-templates?include_inactive=1"
+      );
+      setMasterTemplates(res.templates || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal load template");
+      setMasterTemplates([]);
+    }
+  }
+
+  function openTemplatesMaster() {
+    setTemplateDraft("");
+    setTemplateQuery("");
+    setTemplateCategoryFilter("");
+    setTemplateMasterPage(1);
+    setTemplateImportMsg("");
+    setError("");
+    setModal({ type: "templates" });
+    void loadMasterTemplates();
+  }
+
+  function blankTemplateSteps() {
+    return [{ phase: "", name: "", order: 1, man_power: 1, std_minutes: 60 }];
+  }
+
+  function openTemplateCreate() {
+    setTemplateCloneId("");
+    setTemplateForm({
+      category: "engine",
+      name: "",
+      active: "1",
+      steps: blankTemplateSteps(),
+    });
+    setModal({ type: "template-form", mode: "create" });
+  }
+
+  function openTemplateEdit(template: JobTemplate) {
+    setTemplateCloneId("");
+    setTemplateForm({
+      category: template.category,
+      name: template.name,
+      active: template.active || "1",
+      steps: (template.steps || [])
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((s) => ({
+          id: s.id,
+          phase: s.phase || "",
+          name: s.name,
+          order: s.order,
+          man_power: Number(s.man_power) || 0,
+          std_minutes: Number(s.std_minutes) || 0,
+        })),
+    });
+    setModal({ type: "template-form", mode: "edit", template });
+  }
+
+  async function applyTemplateClone(sourceId: string) {
+    setTemplateCloneId(sourceId);
+    if (!sourceId) {
+      setTemplateForm((prev) => ({ ...prev, steps: blankTemplateSteps() }));
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const tpl = await api<JobTemplate>(
+        `/api/job-templates?id=${encodeURIComponent(sourceId)}&include_inactive=1`
+      );
+      setTemplateForm((prev) => ({
+        ...prev,
+        category: tpl.category,
+        name: prev.name || `${tpl.name} (copy)`,
+        steps: (tpl.steps || [])
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((s, i) => ({
+            phase: s.phase || "",
+            name: s.name,
+            order: i + 1,
+            man_power: Number(s.man_power) || 0,
+            std_minutes: Number(s.std_minutes) || 0,
+          })),
+      }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal salin template");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTemplate() {
+    if (modal?.type !== "template-form") return;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        category: templateForm.category,
+        name: templateForm.name,
+        active: templateForm.active,
+        steps: templateForm.steps.map((s, i) => ({
+          id: s.id,
+          phase: s.phase,
+          name: s.name,
+          order: s.order || i + 1,
+          man_power: s.man_power,
+          std_minutes: s.std_minutes,
+        })),
+      };
+      if (modal.mode === "create") {
+        await api("/api/job-templates", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      } else if (modal.template) {
+        await api(`/api/job-templates/${modal.template.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      }
+      setModal({ type: "templates" });
+      await loadMasterTemplates();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan template");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteTemplate() {
+    if (modal?.type !== "delete-template") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/job-templates/${modal.template.id}`, { method: "DELETE" });
+      setModal({ type: "templates" });
+      await loadMasterTemplates();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal nonaktifkan template");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importTemplatesFile(file: File) {
+    setBusy(true);
+    setError("");
+    setTemplateImportMsg("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await api<{
+        imported: number;
+        updated: number;
+        skipped: string[];
+      }>("/api/job-templates/import", { method: "POST", body: formData });
+      setTemplateImportMsg(
+        `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
+          (result.skipped.length
+            ? ` · ${result.skipped.length} baris dilewati`
+            : "")
+      );
+      await loadMasterTemplates();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import template gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadTemplateUploadExcel() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/job-templates/template", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || `Gagal unduh template (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "template-upload-job-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal unduh template Excel");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadTemplatesDataExcel(opts?: {
+    id?: string;
+    category?: "" | JobTemplateCategory;
+  }) {
+    setBusy(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (opts?.id) params.set("id", opts.id);
+      else if (opts?.category) params.set("category", opts.category);
+      const qs = params.toString();
+      const res = await fetch(
+        `/api/job-templates/download${qs ? `?${qs}` : ""}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || `Gagal unduh Excel (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const matched = disposition.match(/filename="([^"]+)"/i);
+      const filename =
+        matched?.[1] ||
+        (opts?.id
+          ? `job-template-${opts.id}.xlsx`
+          : opts?.category
+            ? `job-templates-${opts.category}.xlsx`
+            : "job-templates.xlsx");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal unduh Excel data template");
     } finally {
       setBusy(false);
     }
@@ -1694,6 +2029,14 @@ export default function HomePage() {
       setUnitQuery("");
       setUnitMasterPage(1);
     }
+    if (modal?.type !== "templates") {
+      setTemplateDraft("");
+      setTemplateQuery("");
+      setTemplateCategoryFilter("");
+      setTemplateMasterPage(1);
+      setTemplateCloneId("");
+      setTemplateImportMsg("");
+    }
     if (modal?.type !== "techs") {
       setMasterTechDraft("");
       setMasterTechQuery("");
@@ -1748,6 +2091,64 @@ export default function HomePage() {
   function clearUnitSearch() {
     setUnitDraft("");
     setUnitQuery("");
+  }
+
+  const filteredMasterTemplates = useMemo(() => {
+    const q = templateQuery.trim().toLowerCase();
+    return masterTemplates.filter((tpl) => {
+      if (templateCategoryFilter && tpl.category !== templateCategoryFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        tpl.name.toLowerCase().includes(q) ||
+        tpl.id.toLowerCase().includes(q) ||
+        tpl.category.toLowerCase().includes(q)
+      );
+    });
+  }, [masterTemplates, templateQuery, templateCategoryFilter]);
+
+  useEffect(() => {
+    setTemplateMasterPage(1);
+  }, [templateQuery, templateCategoryFilter]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredMasterTemplates.length / MASTER_PAGE_SIZE)
+    );
+    setTemplateMasterPage((p) => (p > totalPages ? totalPages : p));
+  }, [filteredMasterTemplates.length]);
+
+  const templateMasterTotalPages = Math.max(
+    1,
+    Math.ceil(filteredMasterTemplates.length / MASTER_PAGE_SIZE)
+  );
+  const templateMasterPageSafe = Math.min(
+    templateMasterPage,
+    templateMasterTotalPages
+  );
+  const pagedMasterTemplates = filteredMasterTemplates.slice(
+    (templateMasterPageSafe - 1) * MASTER_PAGE_SIZE,
+    templateMasterPageSafe * MASTER_PAGE_SIZE
+  );
+
+  const templateFormStdMinutes = useMemo(
+    () =>
+      templateForm.steps.reduce(
+        (sum, s) => sum + Math.max(0, Number(s.std_minutes) || 0),
+        0
+      ),
+    [templateForm.steps]
+  );
+
+  function applyTemplateSearch() {
+    setTemplateQuery(templateDraft.trim());
+  }
+
+  function clearTemplateSearch() {
+    setTemplateDraft("");
+    setTemplateQuery("");
   }
 
   const filteredMasterTechs = useMemo(() => {
@@ -3495,6 +3896,18 @@ export default function HomePage() {
                     type="button"
                     role="menuitem"
                     className="nav-manage-item"
+                    disabled={busy || !canTemplateRead}
+                    onClick={() => {
+                      setManageOpen(false);
+                      openTemplatesMaster();
+                    }}
+                  >
+                    {t("nav.templatesMaster")}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="nav-manage-item"
                     disabled={busy}
                     onClick={() => {
                       setManageOpen(false);
@@ -3838,6 +4251,16 @@ export default function HomePage() {
             </button>
             <button
               className="btn"
+              disabled={busy || !canTemplateRead}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openTemplatesMaster();
+              }}
+            >
+              {t("nav.templatesMaster")}
+            </button>
+            <button
+              className="btn"
               disabled={busy}
               onClick={() => {
                 setMobileMenuOpen(false);
@@ -3901,7 +4324,7 @@ export default function HomePage() {
       {error && <div className="error">{error}</div>}
 
       {loading || !data ? (
-        <p style={{ color: "var(--muted)" }}>{t("loading.dashboard")}</p>
+        <DashboardShimmer label={t("loading.dashboard")} />
       ) : (
         <>
           <div className="summary-wrap">
@@ -5855,6 +6278,497 @@ export default function HomePage() {
                 onClick={confirmDeleteUnit}
               >
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "templates" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div
+            className="modal"
+            style={{ width: "min(720px, 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {busy && <BusyOverlay />}
+            <h3>Master Template</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              Katalog time frame Component Engine / Non Engine.{" "}
+              <strong>Unduh Excel (data)</strong> = export isi katalog.{" "}
+              <strong>Unduh blank upload</strong> = file kosong untuk mass
+              upload. Hapus = nonaktif (job lama tetap menyimpan template_id).
+            </p>
+            {error && <div className="error">{error}</div>}
+            {templateImportMsg && (
+              <p style={{ color: "var(--green)", marginTop: 0 }}>
+                {templateImportMsg}
+              </p>
+            )}
+            {(canTemplateRead || canTemplateCreate) && (
+              <div className="form" style={{ marginBottom: 12 }}>
+                <div className="actions" style={{ marginTop: 0, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy || masterTemplates.length === 0}
+                    title="Export semua / filter jenis ke Excel"
+                    onClick={() =>
+                      void downloadTemplatesDataExcel({
+                        category: templateCategoryFilter || undefined,
+                      })
+                    }
+                  >
+                    Unduh Excel (data)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    title="File kosong untuk mass upload"
+                    onClick={() => void downloadTemplateUploadExcel()}
+                  >
+                    Unduh blank upload
+                  </button>
+                </div>
+                {canTemplateCreate && (
+                  <label>
+                    Mass upload Excel (.xlsx)
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      disabled={busy}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) importTemplatesFile(file);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+            <div
+              className="panel-search-row"
+              style={{ justifyContent: "stretch", marginBottom: 12, flexWrap: "wrap" }}
+            >
+              <select
+                value={templateCategoryFilter}
+                onChange={(e) =>
+                  setTemplateCategoryFilter(
+                    e.target.value as "" | JobTemplateCategory
+                  )
+                }
+                aria-label="Filter jenis komponen"
+                style={{ minWidth: 180 }}
+              >
+                <option value="">Semua jenis</option>
+                <option value="engine">Component Engine</option>
+                <option value="non_engine">
+                  Component Non Engine (Transmisi)
+                </option>
+              </select>
+              <input
+                className="panel-search"
+                style={{ maxWidth: "none", flex: 1 }}
+                type="search"
+                value={templateDraft}
+                onChange={(e) => setTemplateDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyTemplateSearch();
+                  }
+                }}
+                placeholder="Cari nama atau id template..."
+                aria-label="Cari template"
+                autoFocus
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={applyTemplateSearch}
+              >
+                Cari
+              </button>
+              {(templateQuery || templateCategoryFilter) && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    clearTemplateSearch();
+                    setTemplateCategoryFilter("");
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="check-list" style={{ maxHeight: 320, marginBottom: 12 }}>
+              {masterTemplates.length === 0 && (
+                <span style={{ color: "var(--muted)" }}>
+                  Belum ada template.
+                </span>
+              )}
+              {masterTemplates.length > 0 &&
+                filteredMasterTemplates.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    Tidak ada template yang cocok.
+                  </span>
+                )}
+              {pagedMasterTemplates.map((tpl) => (
+                <div
+                  key={tpl.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom: "1px dashed var(--line-dashed)",
+                  }}
+                >
+                  <div>
+                    <strong>{tpl.name}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                      {tpl.category === "engine"
+                        ? "Component Engine"
+                        : "Component Non Engine (Transmisi)"}
+                      {" · "}
+                      {tpl.steps.length} step · {formatStdLabel(tpl.std_minutes)}
+                      {tpl.active !== "1" ? " · nonaktif" : ""}
+                    </div>
+                  </div>
+                  <div className="actions" style={{ marginTop: 0, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy}
+                      title="Unduh Excel data template ini"
+                      onClick={() =>
+                        void downloadTemplatesDataExcel({ id: tpl.id })
+                      }
+                    >
+                      Excel
+                    </button>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={busy || !canTemplateUpdate}
+                      onClick={() => openTemplateEdit(tpl)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={
+                        busy || !canTemplateDelete || tpl.active === "0"
+                      }
+                      onClick={() =>
+                        setModal({ type: "delete-template", template: tpl })
+                      }
+                    >
+                      Nonaktif
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {filteredMasterTemplates.length > MASTER_PAGE_SIZE && (
+              <Pager
+                page={templateMasterPageSafe}
+                totalPages={templateMasterTotalPages}
+                onChange={setTemplateMasterPage}
+              />
+            )}
+            <div className="actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canTemplateCreate}
+                onClick={openTemplateCreate}
+              >
+                + Template baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "template-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "templates" })}
+        >
+          <div
+            className="modal"
+            style={{ width: "min(820px, 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>
+              {modal.mode === "create" ? "Template baru" : "Edit template"}
+            </h3>
+            {error && <div className="error">{error}</div>}
+            <div className="form">
+              <label>
+                Jenis komponen
+                <select
+                  value={templateForm.category}
+                  onChange={(e) =>
+                    setTemplateForm({
+                      ...templateForm,
+                      category: e.target.value as JobTemplateCategory,
+                    })
+                  }
+                >
+                  <option value="engine">Component Engine</option>
+                  <option value="non_engine">
+                    Component Non Engine (Transmisi)
+                  </option>
+                </select>
+              </label>
+              <label>
+                Nama komponen
+                <input
+                  value={templateForm.name}
+                  onChange={(e) =>
+                    setTemplateForm({ ...templateForm, name: e.target.value })
+                  }
+                  placeholder="Mis. Engine 3306"
+                  required
+                />
+              </label>
+              {modal.mode === "edit" && (
+                <label>
+                  Status
+                  <select
+                    value={templateForm.active}
+                    onChange={(e) =>
+                      setTemplateForm({
+                        ...templateForm,
+                        active: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="1">aktif</option>
+                    <option value="0">nonaktif</option>
+                  </select>
+                </label>
+              )}
+              {modal.mode === "create" && (
+                <label>
+                  Salin langkah dari
+                  <select
+                    value={templateCloneId}
+                    onChange={(e) => applyTemplateClone(e.target.value)}
+                    disabled={busy}
+                  >
+                    <option value="">— Kosong / manual —</option>
+                    {masterTemplates
+                      .filter((t) => t.active === "1")
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.steps.length} step)
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+              <p style={{ color: "var(--muted)", margin: "0 0 8px" }}>
+                Total estimasi: <strong>{formatStdLabel(templateFormStdMinutes)}</strong>
+                {" · "}
+                {templateForm.steps.length} step
+              </p>
+              <div
+                className="check-list"
+                style={{ maxHeight: 280, marginBottom: 8 }}
+              >
+                {templateForm.steps.map((step, index) => (
+                  <div
+                    key={step.id || `new-${index}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1.4fr 64px 72px 72px auto",
+                      gap: 6,
+                      alignItems: "end",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <label style={{ margin: 0 }}>
+                      Phase
+                      <input
+                        value={step.phase}
+                        onChange={(e) => {
+                          const steps = [...templateForm.steps];
+                          steps[index] = { ...step, phase: e.target.value };
+                          setTemplateForm({ ...templateForm, steps });
+                        }}
+                        placeholder="Receive"
+                      />
+                    </label>
+                    <label style={{ margin: 0 }}>
+                      Nama step
+                      <input
+                        value={step.name}
+                        onChange={(e) => {
+                          const steps = [...templateForm.steps];
+                          steps[index] = { ...step, name: e.target.value };
+                          setTemplateForm({ ...templateForm, steps });
+                        }}
+                        placeholder="Unpacking"
+                        required
+                      />
+                    </label>
+                    <label style={{ margin: 0 }}>
+                      Order
+                      <input
+                        type="number"
+                        min={1}
+                        value={step.order}
+                        onChange={(e) => {
+                          const steps = [...templateForm.steps];
+                          steps[index] = {
+                            ...step,
+                            order: Number(e.target.value) || index + 1,
+                          };
+                          setTemplateForm({ ...templateForm, steps });
+                        }}
+                      />
+                    </label>
+                    <label style={{ margin: 0 }}>
+                      MP
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={step.man_power}
+                        onChange={(e) => {
+                          const steps = [...templateForm.steps];
+                          steps[index] = {
+                            ...step,
+                            man_power: Number(e.target.value) || 0,
+                          };
+                          setTemplateForm({ ...templateForm, steps });
+                        }}
+                      />
+                    </label>
+                    <label style={{ margin: 0 }}>
+                      Mnt
+                      <input
+                        type="number"
+                        min={0}
+                        value={step.std_minutes}
+                        onChange={(e) => {
+                          const steps = [...templateForm.steps];
+                          steps[index] = {
+                            ...step,
+                            std_minutes: Number(e.target.value) || 0,
+                          };
+                          setTemplateForm({ ...templateForm, steps });
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      disabled={templateForm.steps.length <= 1}
+                      onClick={() => {
+                        const steps = templateForm.steps
+                          .filter((_, i) => i !== index)
+                          .map((s, i) => ({ ...s, order: i + 1 }));
+                        setTemplateForm({ ...templateForm, steps });
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() =>
+                  setTemplateForm({
+                    ...templateForm,
+                    steps: [
+                      ...templateForm.steps,
+                      {
+                        phase: "",
+                        name: "",
+                        order: templateForm.steps.length + 1,
+                        man_power: 1,
+                        std_minutes: 60,
+                      },
+                    ],
+                  })
+                }
+              >
+                + Tambah step
+              </button>
+              <div className="actions">
+                <button
+                  className="btn"
+                  onClick={() => setModal({ type: "templates" })}
+                >
+                  Batal
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    busy ||
+                    !templateForm.name.trim() ||
+                    templateForm.steps.every((s) => !s.name.trim())
+                  }
+                  onClick={saveTemplate}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-template" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "templates" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menonaktifkan..." />}
+            <h3>Nonaktifkan template</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.template.name}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              Template akan disembunyikan dari pilihan buat job baru. Job yang
+              sudah memakai template ini tidak berubah. Aktifkan lagi lewat Edit
+              jika perlu.
+            </p>
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => setModal({ type: "templates" })}
+              >
+                Kembali
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={confirmDeleteTemplate}
+              >
+                <BusyLabel
+                  busy={busy}
+                  idle="Ya, nonaktifkan"
+                  pending="Menonaktifkan..."
+                />
               </button>
             </div>
           </div>

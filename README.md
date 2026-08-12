@@ -63,6 +63,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 
 - **Unit** — CRUD + import Excel + unduh template
 - **Teknisi** — CRUD + import Excel + unduh template
+- **Template** — CRUD time frame Engine / Non Engine + unduh template Excel + mass upload
 - **Users** — CRUD akun login (level, aktif)
 - **Daftar hadir** — CRUD + import Excel
 
@@ -148,7 +149,7 @@ Setiap step job menyimpan `std_minutes` dan ditampilkan di kartu sebagai **STP �
 
 **Non Engine (Transmisi):** 24H/M, 16M, 740, 777, 16H/G, 785/789, D10T/R
 
-API: `GET /api/job-templates?category=engine|non_engine` · `GET /api/job-templates?id=...`
+API: `GET /api/job-templates?category=engine|non_engine` · `GET /api/job-templates?id=...` · `GET /api/job-templates?include_inactive=1` (master) · `POST /api/job-templates` · `PATCH|DELETE /api/job-templates/[id]` · `GET /api/job-templates/template` (blank upload) · `POST /api/job-templates/import` · `GET /api/job-templates/download` (export xlsx)
 
 ---
 
@@ -369,15 +370,15 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 
 **CRUD** = Create/Read/Update/Delete · **R** = Read · **—** = tidak ada
 
-| Level     | Job  | User | Teknisi | Unit | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
-| --------- | ---- | ---- | ------- | ---- | ------------ | ------ | -------------------------------- | -------------- | ------ |
-| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD         | Ya     | Ya                               | —              | Ya     |
-| inputer   | CRUD | R    | R       | CRUD | R            | —      | —                                | —              | —      |
-| teknisi   | R    | R    | R       | —    | R            | —      | —                                | —              | —      |
-| foreman   | CRUD | R    | R       | CRUD | R            | Ya     | Ya                               | Ya             | —      |
-| spv       | CRUD | R    | R       | CRUD | R            | —      | —                                | —              | —      |
-| hrd       | R    | R    | R       | R    | CRUD         | —      | —                                | —              | —      |
-| guest     | R    | R    | R       | —    | R            | —      | —                                | —              | —      |
+| Level     | Job  | User | Teknisi | Unit | Template | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
+| --------- | ---- | ---- | ------- | ---- | -------- | ------------ | ------ | -------------------------------- | -------------- | ------ |
+| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD     | CRUD         | Ya     | Ya                               | —              | Ya     |
+| inputer   | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
+| teknisi   | R    | R    | R       | —    | R        | R            | —      | —                                | —              | —      |
+| foreman   | CRUD | R    | R       | CRUD | CRUD     | R            | Ya     | Ya                               | Ya             | —      |
+| spv       | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
+| hrd       | R    | R    | R       | R    | R        | CRUD         | —      | —                                | —              | —      |
+| guest     | R    | R    | R       | —    | —        | R            | —      | —                                | —              | —      |
 
 Catatan:
 
@@ -407,7 +408,8 @@ src/
     job-change-backup.ts  ← backup-jobs.xlsx ChangeLog + helpers
     job-excel-report.ts   ← export Job Aktif / Antrian
     job-pdf.ts
-    job-templates.ts      ← katalog time frame
+    job-templates.ts      ← katalog time frame (CRUD + cache)
+    job-template-excel.ts ← export Excel Master Template
     access.ts / permissions.ts
     duration.ts           ← timer & progress
     types.ts
@@ -431,7 +433,12 @@ data/
 | Method       | Path                                                              | Keterangan                                                                                               |
 | ------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | GET          | `/api/dashboard`                                                  | Snapshot board                                                                                           |
-| GET          | `/api/job-templates`                                              | List / detail template                                                                                   |
+| GET          | `/api/job-templates`                                              | List / detail template (`include_inactive=1` untuk master)                                               |
+| POST         | `/api/job-templates`                                              | Buat template time frame                                                                                 |
+| PATCH/DELETE | `/api/job-templates/[id]`                                         | Update / soft-delete (nonaktif) template                                                                 |
+| GET          | `/api/job-templates/template`                                     | Unduh blank Excel untuk mass upload                                                                      |
+| POST         | `/api/job-templates/import`                                       | Mass upload template (sheet Templates + Steps)                                                           |
+| GET          | `/api/job-templates/download`                                     | Export katalog Excel (opsional `id` / `category`)                                                        |
 | POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, actor audit)                                                                  |
 | PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                       |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel`, `reopen` |
@@ -501,7 +508,8 @@ npm start
 - Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan file `data/*.xlsx` di Excel saat app sedang menulis.
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
 - Jangan jalankan dua `next dev` bersamaan di port berbeda pada project yang sama.
-- Template time frame diubah → regenerate `data/job-templates.json` (parse ulang Excel sumber), lalu restart / refresh.
+- Template time frame diubah lewat **Kelola → Master Template** (tersimpan ke `data/job-templates.json`). Job yang sudah dibuat tidak otomatis ikut berubah.
+- Alternatif: edit sumber Excel di `data/templates/` lalu regenerate katalog bila ada skrip parse; restart / refresh setelah ubah file.
 - `data/*.xlsx` biasanya di-ignore git; backup `workshop.xlsx`, `completed-jobs.xlsx`, `cancelled-jobs.xlsx`, `deleted-jobs.xlsx` jika data penting.
 - Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
 

@@ -1,5 +1,5 @@
 :root,
-[data-theme="dark"] {
+[data-theme='dark'] {
   --bg-0: #12151a;
   --bg-1: #1a1f27;
   --bg-2: #232a34;
@@ -30,9 +30,19 @@
   --glow-green: #3dba7a66;
   --glow-amber: #e8a31766;
   --glow-pulse: #e8a31755;
+  --topbar-glass-bg: color-mix(in srgb, var(--bg-deep) 92%, transparent);
+  --topbar-glass-bg-strong: color-mix(in srgb, var(--bg-deep) 96%, transparent);
+  --topbar-glass-border: color-mix(in srgb, var(--line) 55%, transparent);
+  --topbar-glass-shadow: 0 10px 32px color-mix(in srgb, #000 55%, transparent);
+  --remain-green-bg: #1f7a4a;
+  --remain-green-border: #4fd48a;
+  --remain-orange-bg: #9a6a0c;
+  --remain-orange-border: #f0b020;
+  --remain-red-bg: #a8382c;
+  --remain-red-border: #f07a6a;
 }
 
-[data-theme="light"] {
+[data-theme='light'] {
   --bg-0: #ffffff;
   --bg-1: #ffffff;
   --bg-2: #fff8f0;
@@ -63,6 +73,15 @@
   --glow-green: #1b5e2044;
   --glow-amber: #e6510044;
   --glow-pulse: #e6510055;
+  --topbar-glass-bg: color-mix(in srgb, var(--amber-dim) 88%, transparent);
+  --topbar-glass-bg-strong: color-mix(
+    in srgb,
+    var(--amber-dim) 94%,
+    transparent
+  );
+  --topbar-glass-border: color-mix(in srgb, var(--line) 65%, transparent);
+  --topbar-glass-shadow: 0 10px 28px
+    color-mix(in srgb, #3e2723 35%, transparent);
 }
 
 * {
@@ -82,17 +101,23 @@ body {
   padding: 0;
   min-height: 100%;
   color: var(--text);
-  font-family: var(--font-body), "Segoe UI", sans-serif;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
   background:
-    radial-gradient(1200px 600px at 10% -10%, var(--glow-1) 0%, transparent 55%),
+    radial-gradient(
+      1200px 600px at 10% -10%,
+      var(--glow-1) 0%,
+      transparent 55%
+    ),
     radial-gradient(900px 500px at 100% 0%, var(--glow-2) 0%, transparent 50%),
     linear-gradient(180deg, var(--bg-0), var(--bg-deep) 100%);
-  transition: background 0.25s ease, color 0.2s ease;
+  transition:
+    background 0.25s ease,
+    color 0.2s ease;
   overflow-x: hidden;
 }
 
-html[data-theme="light"],
-html[data-theme="light"] body {
+html[data-theme='light'],
+html[data-theme='light'] body {
   background: var(--page-bg, #ff9800);
 }
 
@@ -184,16 +209,18 @@ button {
 }
 
 .topbar.is-scrolled {
-  background: color-mix(in srgb, var(--page-bg) 72%, transparent);
-  backdrop-filter: blur(16px) saturate(1.35);
-  -webkit-backdrop-filter: blur(16px) saturate(1.35);
-  border-bottom-color: color-mix(in srgb, var(--line) 40%, transparent);
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--brand-shadow) 35%, transparent);
+  background: var(--topbar-glass-bg);
+  backdrop-filter: blur(20px) saturate(1.65);
+  -webkit-backdrop-filter: blur(20px) saturate(1.65);
+  border-bottom-color: var(--topbar-glass-border);
+  box-shadow: var(--topbar-glass-shadow);
 }
 
 @supports not (background: color-mix(in srgb, white 50%, transparent)) {
   .topbar.is-scrolled {
-    background: var(--page-bg);
+    background: var(--bg-deep);
+    backdrop-filter: blur(20px) saturate(1.65);
+    -webkit-backdrop-filter: blur(20px) saturate(1.65);
   }
 }
 
@@ -216,7 +243,7 @@ button {
   max-width: min(560px, 90vw);
   line-height: 1.3;
   text-transform: none;
-  font-family: var(--font-body), "Segoe UI", sans-serif;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
   font-weight: 600;
 }
 
@@ -420,7 +447,10 @@ button {
   color: var(--text);
   border-radius: 8px;
   padding: 10px 14px;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .btn:hover {
@@ -695,13 +725,17 @@ button {
   }
 
   .topbar.is-scrolled {
-    background: color-mix(in srgb, var(--page-bg) 78%, transparent);
+    background: var(--topbar-glass-bg);
+    backdrop-filter: blur(20px) saturate(1.65);
+    -webkit-backdrop-filter: blur(20px) saturate(1.65);
+    border-bottom-color: var(--topbar-glass-border);
+    box-shadow: var(--topbar-glass-shadow);
   }
 
   html.menu-open .topbar.is-scrolled {
-    background: color-mix(in srgb, var(--page-bg) 85%, transparent);
-    backdrop-filter: blur(16px) saturate(1.35);
-    -webkit-backdrop-filter: blur(16px) saturate(1.35);
+    background: var(--topbar-glass-bg-strong);
+    backdrop-filter: blur(20px) saturate(1.65);
+    -webkit-backdrop-filter: blur(20px) saturate(1.65);
   }
 
   .topbar > div:first-child {
@@ -973,15 +1007,35 @@ button {
   background: var(--steel);
 }
 
-.dot.available { background: var(--green); box-shadow: 0 0 8px var(--glow-green); }
-.dot.busy { background: var(--amber); box-shadow: 0 0 8px var(--glow-amber); }
-.dot.offline { background: var(--steel); }
-.dot.in_progress { background: var(--amber); }
-.dot.paused { background: var(--blue); }
-.dot.queued { background: var(--steel); }
-.dot.assigned { background: var(--blue); }
-.dot.done { background: var(--green); }
-.dot.cancelled { background: var(--red); }
+.dot.available {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--glow-green);
+}
+.dot.busy {
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--glow-amber);
+}
+.dot.offline {
+  background: var(--steel);
+}
+.dot.in_progress {
+  background: var(--amber);
+}
+.dot.paused {
+  background: var(--blue);
+}
+.dot.queued {
+  background: var(--steel);
+}
+.dot.assigned {
+  background: var(--blue);
+}
+.dot.done {
+  background: var(--green);
+}
+.dot.cancelled {
+  background: var(--red);
+}
 
 .job {
   border: 1px solid var(--line);
@@ -1049,6 +1103,11 @@ button {
   border: 1px solid transparent;
   line-height: 1.15;
   color: #fff;
+  opacity: 1;
+  isolation: isolate;
+  transform: translateZ(0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .remain-card-label {
@@ -1077,18 +1136,44 @@ button {
 }
 
 .remain-card--green {
-  background: color-mix(in srgb, var(--green) 28%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--green) 55%, var(--line));
+  background-color: var(--remain-green-bg);
+  border-color: var(--remain-green-border);
 }
 
 .remain-card--orange {
-  background: color-mix(in srgb, var(--amber) 28%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+  background-color: var(--remain-orange-bg);
+  border-color: var(--remain-orange-border);
 }
 
 .remain-card--red {
-  background: color-mix(in srgb, var(--red) 28%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--red) 55%, var(--line));
+  background-color: var(--remain-red-bg);
+  border-color: var(--remain-red-border);
+}
+
+.remain-card--pulse {
+  transform-origin: center right;
+  animation: remain-card-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .remain-card--pulse {
+    animation: none;
+  }
+}
+
+[data-theme='light'] .remain-card--green {
+  background: var(--green);
+  border-color: #2e7d32;
+}
+
+[data-theme='light'] .remain-card--orange {
+  background: var(--amber-dim);
+  border-color: var(--amber-border);
+}
+
+[data-theme='light'] .remain-card--red {
+  background: var(--red);
+  border-color: var(--danger-border);
 }
 
 .handover-panel {
@@ -1434,7 +1519,7 @@ button {
   padding: 10px 12px;
 }
 
-.form input[type="checkbox"] {
+.form input[type='checkbox'] {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
@@ -1727,11 +1812,30 @@ html.modal-open .topbar {
 }
 
 @keyframes fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--glow-pulse); }
-  50% { box-shadow: 0 0 0 6px transparent; }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--glow-pulse);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+@keyframes remain-card-pulse {
+  0%,
+  100% {
+    transform: translateZ(0) scale(1);
+  }
+  50% {
+    transform: translateZ(0) scale(1.06);
+  }
 }

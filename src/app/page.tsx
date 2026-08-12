@@ -206,9 +206,14 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
         ? `${remainingPct.toFixed(1)}%`
         : "0.0%";
 
+  const shouldPulse =
+    job.status !== "done" &&
+    job.status !== "cancelled" &&
+    tone !== "green";
+
   return (
     <div
-      className={`remain-card remain-card--${tone}`}
+      className={`remain-card remain-card--${tone}${shouldPulse ? " remain-card--pulse" : ""}`}
       title={
         estimateSec > 0
           ? t("job.remainTitleTip", {
@@ -556,6 +561,11 @@ export default function HomePage() {
     const sync = () => {
       const height = Math.ceil(el.getBoundingClientRect().height);
       const bottom = Math.ceil(el.getBoundingClientRect().bottom);
+      const scrollY =
+        window.scrollY ||
+        document.documentElement.scrollTop ||
+        document.body.scrollTop ||
+        0;
       document.documentElement.style.setProperty(
         "--topbar-height",
         `${height}px`
@@ -564,7 +574,7 @@ export default function HomePage() {
         "--topbar-offset",
         `${bottom + 8}px`
       );
-      el.classList.toggle("is-scrolled", window.scrollY > 8);
+      el.classList.toggle("is-scrolled", scrollY > 4);
     };
     sync();
     const ro = new ResizeObserver(sync);

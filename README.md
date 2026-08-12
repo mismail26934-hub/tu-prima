@@ -2,7 +2,7 @@
 
 Aplikasi monitoring job workshop / recondition mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
 
-Stack: **Next.js 15 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript**
+Stack: **Next.js 16 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript**
 
 ---
 

@@ -32,6 +32,7 @@ import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
 import { useJobBoardStore } from "@/store/jobBoardStore";
 import { useT } from "@/i18n/useT";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { OfflineSyncChip } from "@/components/OfflineSyncChip";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -535,7 +536,6 @@ export default function HomePage() {
   const {
     data,
     error: dashboardError,
-    isLoading,
     refetch: refetchDashboard,
   } = useDashboard();
   const {
@@ -3857,12 +3857,32 @@ export default function HomePage() {
                 </div>
               )}
             </div>
+            <OfflineSyncChip
+              onRefresh={() => void refetchDashboard()}
+              refreshBusy={busy}
+            />
             <button
-              className="btn"
+              className="btn btn-icon"
               disabled={busy}
+              type="button"
               onClick={() => void refetchDashboard()}
+              aria-label={t("nav.refresh")}
+              title={t("nav.refresh")}
             >
-              {t("nav.refresh")}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 12a9 9 0 1 1-2.1-5.7" />
+                <path d="M21 3v6h-6" />
+              </svg>
             </button>
             <div className="nav-session">
               {isLoggedIn ? (
@@ -3970,6 +3990,10 @@ export default function HomePage() {
           </div>
 
           <div className="top-actions-mobile">
+            <OfflineSyncChip
+              onRefresh={() => void refetchDashboard()}
+              refreshBusy={busy}
+            />
             <button
               className="btn btn-primary"
               disabled={busy || !canJobCreate}
@@ -4231,7 +4255,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {(error || dashboardError) && (
+      {(error || (dashboardError && !data)) && (
         <div className="error">
           {error ||
             (dashboardError instanceof Error
@@ -4240,18 +4264,8 @@ export default function HomePage() {
         </div>
       )}
 
-      {isLoading && !data ? (
+      {!data ? (
         <DashboardShimmer label={t("loading.dashboard")} />
-      ) : !data ? (
-        <div className="empty-state" style={{ padding: "24px 0" }}>
-          <button
-            className="btn btn-primary"
-            type="button"
-            onClick={() => void refetchDashboard()}
-          >
-            {t("nav.refresh")}
-          </button>
-        </div>
       ) : (
         <>
           <div className="summary-wrap">

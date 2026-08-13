@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, Source_Sans_3 } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -18,30 +18,18 @@ export const metadata: Metadata = {
   title: "TU-PRIMA — Progress Report & Inspection for Mechanic Allocation",
   description:
     "Progress Report & Inspection for Mechanic Allocation — monitoring teknisi, progress job, dan durasi kerja",
+  manifest: "/manifest.webmanifest",
 };
 
-const themeInitScript = `
-(function() {
-  try {
-    var stored = localStorage.getItem('tus-theme');
-    var theme = stored === 'light' || stored === 'dark'
-      ? stored
-      : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    document.documentElement.setAttribute('data-theme', theme);
-  } catch (e) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  }
-})();
-`;
+export const viewport: Viewport = {
+  themeColor: "#12151a",
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
       <body className={`${display.variable} ${body.variable}`}>
         <Providers>{children}</Providers>
       </body>

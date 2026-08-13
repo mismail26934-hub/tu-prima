@@ -17,6 +17,7 @@ export async function POST(req: Request) {
       );
     }
     const tech = await createTechnician({
+      id: body.id ? String(body.id) : undefined,
       name: String(body.name),
       sn: String(sn),
       phone: String(body.phone),

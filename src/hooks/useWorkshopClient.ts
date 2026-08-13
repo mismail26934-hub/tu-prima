@@ -1,38 +1,35 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import type { DashboardData, JobStatus, JobTemplate } from "@/lib/types";
-
-function optimisticJobStatus(
-  data: DashboardData,
-  jobId: string,
-  action: string
-): DashboardData {
-  let status: JobStatus | null = null;
-  if (action === "pause") status = "paused";
-  else if (action === "resume" || action === "start") status = "in_progress";
-  if (!status) return data;
-  return {
-    ...data,
-    jobs: data.jobs.map((job) =>
-      job.id === jobId ? { ...job, status } : job
-    ),
-  };
-}
+import {
+  applyOptimisticMutation,
+  prepareJobActionBody,
+} from "@/lib/offline/optimistic";
+import { isBrowserOnline } from "@/lib/offline/network";
+import { shouldHoldServerRefresh } from "@/lib/offline/sync";
+import type { DashboardData, JobTemplate } from "@/lib/types";
 
 export function useWorkshopClient() {
   const queryClient = useQueryClient();
 
   return {
     queryClient,
-    invalidateDashboard: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
-    invalidateTemplates: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.templates.all }),
-    invalidateUsers: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.users }),
-    invalidateBackups: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.backups.all }),
+    invalidateDashboard: () => {
+      if (shouldHoldServerRefresh()) return Promise.resolve();
+      return queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+    invalidateTemplates: () => {
+      if (shouldHoldServerRefresh()) return Promise.resolve();
+      return queryClient.invalidateQueries({ queryKey: queryKeys.templates.all });
+    },
+    invalidateUsers: () => {
+      if (shouldHoldServerRefresh()) return Promise.resolve();
+      return queryClient.invalidateQueries({ queryKey: queryKeys.users });
+    },
+    invalidateBackups: () => {
+      if (shouldHoldServerRefresh()) return Promise.resolve();
+      return queryClient.invalidateQueries({ queryKey: queryKeys.backups.all });
+    },
     fetchTemplate: (id: string, includeInactive = false) =>
       queryClient.fetchQuery({
         queryKey: queryKeys.templates.detail(id, includeInactive),
@@ -63,25 +60,28 @@ export function useJobActionMutation() {
         method: "POST",
         body: JSON.stringify({ action, ...payload }),
       }),
-    onMutate: async ({ jobId, action }) => {
+    onMutate: async ({ jobId, action, payload }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.dashboard });
       const previous = queryClient.getQueryData<DashboardData>(
         queryKeys.dashboard
       );
-      if (previous) {
-        queryClient.setQueryData(
-          queryKeys.dashboard,
-          optimisticJobStatus(previous, jobId, action)
-        );
-      }
+      const url = `/api/jobs/${jobId}/action`;
+      const body = prepareJobActionBody(queryClient, url, "POST", {
+        action,
+        ...(payload || {}),
+      });
+      applyOptimisticMutation(queryClient, "POST", url, JSON.stringify(body));
       return { previous };
     },
     onError: (_error, _vars, context) => {
+      if (!isBrowserOnline()) return;
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.dashboard, context.previous);
       }
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+    onSettled: () => {
+      if (shouldHoldServerRefresh()) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
   });
 }

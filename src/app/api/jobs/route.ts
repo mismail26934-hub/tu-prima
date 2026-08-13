@@ -17,6 +17,7 @@ export async function POST(req: Request) {
     }
     const actor = await getCurrentActor();
     const job = await createJob({
+      id: body.id ? String(body.id) : undefined,
       title: String(body.title),
       unit_id: String(body.unit_id),
       description: body.description ? String(body.description) : "",
@@ -24,7 +25,20 @@ export async function POST(req: Request) {
         ? Number(body.estimated_minutes)
         : 60,
       steps: Array.isArray(body.steps)
-        ? body.steps.map(String).filter(Boolean)
+        ? body.steps.map((step: unknown) => {
+            if (typeof step === "string") return step;
+            if (step && typeof step === "object" && "name" in step) {
+              const row = step as { id?: string; name: string; std_minutes?: number };
+              return {
+                id: row.id ? String(row.id) : undefined,
+                name: String(row.name),
+                std_minutes: Number(row.std_minutes || 0) || 0,
+              };
+            }
+            return "";
+          }).filter((step: string | { name: string }) =>
+            typeof step === "string" ? Boolean(step) : Boolean(step.name)
+          )
         : undefined,
       template_id: body.template_id ? String(body.template_id) : undefined,
       actor,

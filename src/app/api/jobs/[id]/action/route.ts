@@ -80,6 +80,25 @@ export async function POST(
       auto_next:
         typeof body.auto_next === "boolean" ? body.auto_next : undefined,
       note: body.note,
+      duration_sec:
+        typeof body.duration_sec === "number" ? Number(body.duration_sec) : undefined,
+      completed_at: body.completed_at ? String(body.completed_at) : undefined,
+      started_at: body.started_at ? String(body.started_at) : undefined,
+      paused_at: body.paused_at ? String(body.paused_at) : undefined,
+      total_paused_sec:
+        typeof body.total_paused_sec === "number"
+          ? Number(body.total_paused_sec)
+          : undefined,
+      resumed_at: body.resumed_at ? String(body.resumed_at) : undefined,
+      step_snapshots: Array.isArray(body.step_snapshots)
+        ? body.step_snapshots.map(
+            (row: { id?: string; duration_sec?: number; started_at?: string }) => ({
+              id: String(row.id || ""),
+              duration_sec: Number(row.duration_sec || 0),
+              started_at: row.started_at != null ? String(row.started_at) : undefined,
+            })
+          )
+        : undefined,
       actor,
     });
     return NextResponse.json(job);

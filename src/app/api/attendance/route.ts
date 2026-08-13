@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       );
     }
     const row = await createAttendance({
+      id: body.id ? String(body.id) : undefined,
       date: String(body.date),
       technician_id: body.technician_id ? String(body.technician_id) : "",
       technician_name: String(body.technician_name),

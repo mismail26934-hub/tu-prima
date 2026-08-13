@@ -18,6 +18,7 @@ export async function POST(
     const body = await req.json();
     const actor = await getCurrentActor();
     const row = await createJobHandover({
+      id: body.id ? String(body.id) : undefined,
       job_id: id,
       title: String(body.title || ""),
       note: body.note != null ? String(body.note) : "",

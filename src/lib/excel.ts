@@ -1039,12 +1039,44 @@ export async function getDashboard(): Promise<DashboardData> {
   });
 }
 
+type JobStepCreateInput =
+  | string
+  | {
+      id?: string;
+      name: string;
+      std_minutes?: number;
+    };
+
+function normalizeJobStepInputs(
+  raw?: JobStepCreateInput[]
+): Array<{ id?: string; name: string; std_minutes: number }> {
+  if (!raw?.length) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === "string") {
+        const name = item.trim();
+        return name ? { name, std_minutes: 0 } : null;
+      }
+      const name = String(item?.name || "").trim();
+      if (!name) return null;
+      return {
+        id: item.id ? String(item.id).trim() : undefined,
+        name,
+        std_minutes: Number(item.std_minutes || 0) || 0,
+      };
+    })
+    .filter((row): row is { id?: string; name: string; std_minutes: number } =>
+      Boolean(row)
+    );
+}
+
 export async function createJob(input: {
+  id?: string;
   title: string;
   unit_id: string;
   description?: string;
   estimated_minutes?: number;
-  steps?: string[];
+  steps?: JobStepCreateInput[];
   template_id?: string;
   actor?: AuditActor | null;
 }): Promise<JobWithDetails> {
@@ -1056,6 +1088,25 @@ export async function createJob(input: {
     const audits = loadAuditLog(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const units = loadUnits(wb, jobs);
+    const assignees = loadAssignees(wb, jobs);
+    const handovers = loadHandovers(wb);
+    const partLoans = loadPartLoans(wb);
+
+    const requestedId = String(input.id || "").trim();
+    if (requestedId) {
+      const existing = jobs.find((j) => j.id === requestedId);
+      if (existing) {
+        return enrichJob(
+          existing,
+          techs,
+          steps,
+          events,
+          assignees,
+          handovers,
+          partLoans
+        );
+      }
+    }
 
     const unit = units.find((u) => u.id === input.unit_id && u.active === "1");
     if (!unit) throw new Error("Unit tidak ditemukan / nonaktif");
@@ -1066,22 +1117,30 @@ export async function createJob(input: {
       throw new Error("Template job tidak ditemukan");
     }
 
+    const clientSteps = normalizeJobStepInputs(input.steps);
     const fromTemplate = template ? stepsFromTemplate(template) : [];
-    const customNames =
-      input.steps && input.steps.length
-        ? input.steps
-        : ["Diagnosis", "Perbaikan", "Test & QC"];
     const stepDefs =
-      fromTemplate.length > 0
-        ? fromTemplate
-        : customNames.map((name) => ({ name, std_minutes: 0 }));
+      clientSteps.length > 0
+        ? clientSteps.map((step, i) => ({
+            id: step.id,
+            name: step.name,
+            std_minutes: step.std_minutes || fromTemplate[i]?.std_minutes || 0,
+          }))
+        : fromTemplate.length > 0
+          ? fromTemplate
+          : ["Diagnosis", "Perbaikan", "Test & QC"].map((name) => ({
+              name,
+              std_minutes: 0,
+            }));
 
     const estimated =
       template?.std_minutes ||
       input.estimated_minutes ||
       60;
 
-    const id = `J${String(jobs.length + 1).padStart(2, "0")}-${uuidv4().slice(0, 4)}`;
+    const id =
+      requestedId ||
+      `J${String(jobs.length + 1).padStart(2, "0")}-${uuidv4().slice(0, 4)}`;
     const created_at = nowIso();
     const job: Job = {
       id,
@@ -1103,7 +1162,10 @@ export async function createJob(input: {
 
     stepDefs.forEach((def, i) => {
       steps.push({
-        id: uuidv4(),
+        id:
+          "id" in def && typeof def.id === "string" && def.id
+            ? def.id
+            : uuidv4(),
         job_id: id,
         name: def.name,
         order: i + 1,
@@ -1383,6 +1445,7 @@ export async function deleteJob(
 }
 
 export async function createJobHandover(input: {
+  id?: string;
   job_id: string;
   title: string;
   note?: string;
@@ -1404,12 +1467,17 @@ export async function createJobHandover(input: {
 
     const handovers = loadHandovers(wb);
     const audits = loadAuditLog(wb);
+    const requestedId = String(input.id || "").trim();
+    if (requestedId) {
+      const existing = handovers.find((h) => h.id === requestedId);
+      if (existing) return existing;
+    }
     const forJob = handovers.filter((h) => h.job_id === input.job_id);
     const order =
       forJob.reduce((max, h) => Math.max(max, h.order), 0) + 1;
     const at = nowIso();
     const row: JobHandover = {
-      id: uuidv4(),
+      id: requestedId || uuidv4(),
       job_id: input.job_id,
       order,
       title,
@@ -1560,6 +1628,7 @@ export async function deleteJobHandover(
 }
 
 export async function createJobPartLoan(input: {
+  id?: string;
   job_id: string;
   part_name: string;
   note?: string;
@@ -1581,6 +1650,11 @@ export async function createJobPartLoan(input: {
 
     const partLoans = loadPartLoans(wb);
     const audits = loadAuditLog(wb);
+    const requestedId = String(input.id || "").trim();
+    if (requestedId) {
+      const existing = partLoans.find((p) => p.id === requestedId);
+      if (existing) return existing;
+    }
     const forJob = partLoans.filter((p) => p.job_id === input.job_id);
     const order =
       forJob.reduce((max, p) => Math.max(max, p.order), 0) + 1;
@@ -1588,7 +1662,7 @@ export async function createJobPartLoan(input: {
     const status: PartLoanStatus =
       input.status === "closed" ? "closed" : "open";
     const row: JobPartLoan = {
-      id: uuidv4(),
+      id: requestedId || uuidv4(),
       job_id: input.job_id,
       order,
       part_name,
@@ -1741,6 +1815,7 @@ export async function deleteJobPartLoan(
 }
 
 export async function createUnit(input: {
+  id?: string;
   code: string;
   name: string;
   serial_number: string;
@@ -1749,6 +1824,11 @@ export async function createUnit(input: {
     const wb = await loadWorkbook();
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const units = loadUnits(wb, jobs);
+    const requestedId = String(input.id || "").trim();
+    if (requestedId) {
+      const existing = units.find((u) => u.id === requestedId);
+      if (existing) return existing;
+    }
     const code = input.code.trim().toUpperCase();
     const name = input.name.trim();
     const serial_number = input.serial_number.trim();
@@ -1759,7 +1839,7 @@ export async function createUnit(input: {
       throw new Error("Nomor unit sudah dipakai");
     }
     const unit: Unit = {
-      id: `U-${uuidv4().slice(0, 8)}`,
+      id: requestedId || `U-${uuidv4().slice(0, 8)}`,
       code,
       name,
       serial_number,
@@ -1981,6 +2061,7 @@ export async function setTechnicianStatus(
 }
 
 export async function createTechnician(input: {
+  id?: string;
   name: string;
   sn: string;
   phone?: string;
@@ -1989,6 +2070,11 @@ export async function createTechnician(input: {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const requestedId = String(input.id || "").trim();
+    if (requestedId) {
+      const existing = techs.find((t) => t.id === requestedId);
+      if (existing) return existing;
+    }
     const name = input.name.trim();
     const sn = input.sn.trim();
     const phone = (input.phone || "").trim();
@@ -1998,7 +2084,7 @@ export async function createTechnician(input: {
     const status: TechnicianStatus =
       input.status === "offline" ? "offline" : "available";
     const tech: Technician = {
-      id: `T-${uuidv4().slice(0, 8)}`,
+      id: requestedId || `T-${uuidv4().slice(0, 8)}`,
       name,
       sn,
       status,
@@ -2248,6 +2334,18 @@ export async function jobAction(
     auto_next?: boolean;
     note?: string;
     actor?: AuditActor | null;
+    /** Frozen client clock (offline complete/pause) so sync does not recount from Date.now(). */
+    duration_sec?: number;
+    completed_at?: string;
+    started_at?: string;
+    paused_at?: string;
+    total_paused_sec?: number;
+    resumed_at?: string;
+    step_snapshots?: Array<{
+      id: string;
+      duration_sec: number;
+      started_at?: string;
+    }>;
   }
 ): Promise<JobWithDetails> {
   return withDbLock(async () => {
@@ -2580,9 +2678,18 @@ export async function jobAction(
 
     if (action === "pause") {
       if (job.status !== "in_progress") throw new Error("Hanya job in_progress yang bisa di-pause");
+      const snapshots = payload?.step_snapshots || [];
+      const byId = new Map(snapshots.map((s) => [s.id, s]));
       const pauseNow = Date.now();
       jobSteps().forEach((s) => {
-        if (s.status === "in_progress" && s.started_at) {
+        if (s.status !== "in_progress") return;
+        const snap = byId.get(s.id);
+        if (snap && Number.isFinite(snap.duration_sec)) {
+          s.duration_sec = Math.max(0, Math.floor(snap.duration_sec));
+          s.started_at = snap.started_at != null ? String(snap.started_at) : "";
+          return;
+        }
+        if (s.started_at) {
           const started = new Date(s.started_at).getTime();
           s.duration_sec =
             Math.max(0, s.duration_sec || 0) +
@@ -2591,18 +2698,25 @@ export async function jobAction(
         }
       });
       job.status = "paused";
-      job.paused_at = nowIso();
+      job.paused_at = payload?.paused_at || nowIso();
       pushEvent("paused", payload?.note || "Job dipause");
     }
 
     if (action === "resume") {
       if (job.status !== "paused") throw new Error("Hanya job paused yang bisa di-resume");
-      const pausedAt = job.paused_at ? new Date(job.paused_at).getTime() : Date.now();
-      const extra = Math.max(0, Math.floor((Date.now() - pausedAt) / 1000));
-      job.total_paused_sec = (job.total_paused_sec || 0) + extra;
+      if (
+        typeof payload?.total_paused_sec === "number" &&
+        Number.isFinite(payload.total_paused_sec)
+      ) {
+        job.total_paused_sec = Math.max(0, Math.floor(payload.total_paused_sec));
+      } else {
+        const pausedAt = job.paused_at ? new Date(job.paused_at).getTime() : Date.now();
+        const extra = Math.max(0, Math.floor((Date.now() - pausedAt) / 1000));
+        job.total_paused_sec = (job.total_paused_sec || 0) + extra;
+      }
       job.paused_at = "";
       job.status = "in_progress";
-      const resumeAt = nowIso();
+      const resumeAt = payload?.resumed_at || nowIso();
       jobSteps().forEach((s) => {
         if (s.status === "in_progress" && !s.started_at) {
           s.started_at = resumeAt;
@@ -2661,14 +2775,20 @@ export async function jobAction(
         throw new Error("Hanya step aktif yang bisa diselesaikan");
       }
       const now = Date.now();
-      if (current.started_at) {
+      if (
+        typeof payload?.duration_sec === "number" &&
+        Number.isFinite(payload.duration_sec)
+      ) {
+        current.duration_sec = Math.max(0, Math.floor(payload.duration_sec));
+      } else if (current.started_at) {
         current.duration_sec =
           Math.max(0, current.duration_sec || 0) +
           Math.max(0, Math.floor((now - new Date(current.started_at).getTime()) / 1000));
       }
       current.status = "done";
-      current.completed_at = nowIso();
-      current.started_at = current.started_at || current.completed_at;
+      current.completed_at = payload?.completed_at || nowIso();
+      current.started_at =
+        payload?.started_at || current.started_at || current.completed_at;
       pushEvent("step_completed", current.name);
 
       const stillActive = jobSteps().some((s) => s.status === "in_progress");
@@ -2698,9 +2818,14 @@ export async function jobAction(
         job.paused_at = "";
       }
       const now = Date.now();
+      const snapshots = payload?.step_snapshots || [];
+      const byId = new Map(snapshots.map((s) => [s.id, s]));
       jobSteps().forEach((s) => {
         if (s.status !== "done") {
-          if (s.status === "in_progress" && s.started_at) {
+          const snap = byId.get(s.id);
+          if (snap && Number.isFinite(snap.duration_sec)) {
+            s.duration_sec = Math.max(0, Math.floor(snap.duration_sec));
+          } else if (s.status === "in_progress" && s.started_at) {
             s.duration_sec =
               Math.max(0, s.duration_sec || 0) +
               Math.max(
@@ -2709,11 +2834,11 @@ export async function jobAction(
               );
           }
           s.status = "done";
-          s.completed_at = s.completed_at || nowIso();
+          s.completed_at = s.completed_at || payload?.completed_at || nowIso();
         }
       });
       job.status = "done";
-      job.completed_at = nowIso();
+      job.completed_at = payload?.completed_at || nowIso();
       releaseTechsFromJob(techs, job.id);
       pushEvent("completed", payload?.note || "Job selesai");
 
@@ -3166,6 +3291,7 @@ function findTechForAttendance(
 }
 
 export async function createAttendance(input: {
+  id?: string;
   date: string;
   technician_id?: string;
   technician_name: string;
@@ -3181,6 +3307,11 @@ export async function createAttendance(input: {
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const rows = loadAttendance(wb);
+    const requestedId = String(input.id || "").trim();
+    if (requestedId) {
+      const existing = rows.find((a) => a.id === requestedId);
+      if (existing) return existing;
+    }
     const date = normalizeAttendanceDate(input.date);
     if (!date) throw new Error("Tanggal wajib diisi");
     const status = input.status;
@@ -3207,7 +3338,7 @@ export async function createAttendance(input: {
     if (dup) throw new Error("Data hadir untuk teknisi & tanggal ini sudah ada");
 
     const row: Attendance = {
-      id: `A-${uuidv4().slice(0, 8)}`,
+      id: requestedId || `A-${uuidv4().slice(0, 8)}`,
       date,
       technician_id: tech?.id || "",
       technician_name: name,

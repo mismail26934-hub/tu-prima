@@ -2,7 +2,7 @@
 
 Aplikasi monitoring job workshop / recondition mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
 
-Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript**
+Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript · PWA / IndexedDB (offline)**
 
 ---
 
@@ -23,7 +23,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 13. [Struktur folder](#struktur-folder)
 14. [API ringkas](#api-ringkas)
 15. [Menjalankan project](#menjalankan-project)
-16. [Catatan operasional](#catatan-operasional)
+16. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
+17. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -38,6 +39,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 - Toggle **Light / Dark** mode (tersimpan di browser)
 - Toggle bahasa **ID / EN** (tersimpan di browser)
 - Panel teknisi / job bisa disembunyikan (preferensi lokal)
+- **Mode offline**: CRUD tetap jalan jika server/jaringan mati (salinan lokal + antrian sync)
 
 ### Job
 
@@ -76,6 +78,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 ### State UI
 
 - **Server state** (dashboard, master data, mutasi): **TanStack Query** (`src/hooks/`, cache + poll 8s hanya saat tab aktif)
+- **Offline**: cache dashboard/template di IndexedDB + outbox mutasi (`src/lib/offline/`)
 - Form Assign, Job, board filter: **Zustand** (`src/store/`) — UI only
 - Bahasa UI: **Zustand** `localeStore` + kamus `src/i18n/messages.ts` (default `id`)
 
@@ -420,11 +423,15 @@ src/
     types.ts
     api.ts                ← fetch helper + error JSON
     query-keys.ts         ← factory key TanStack Query
-  hooks/                  ← useDashboard, master queries, job action + invalidate
+    offline/              ← outbox IndexedDB, optimistic cache, sync saat online
+  hooks/                  ← useDashboard, master queries, job action + invalidate, useOfflineStatus
   store/                  ← Zustand (job form, assign, board, locale)
   i18n/                   ← kamus ID/EN + useT()
-  components/LanguageToggle.tsx
+  components/             ← LanguageToggle, OfflineSyncChip, ServiceWorkerRegister
 middleware.ts             ← proteksi route + guest boleh /
+public/
+  sw.js                   ← service worker (app shell + session GET; API data tidak di-cache)
+  manifest.webmanifest
 data/
   workshop.xlsx
   completed-jobs.xlsx
@@ -511,6 +518,53 @@ npm start
 
 ---
 
+## Mode offline (CRUD tanpa server)
+
+App tetap bisa **create / update / delete** (dan aksi progress) meski server atau jaringan mati. Excel di server **tidak berubah** sampai perangkat online lagi dan antrian terkirim.
+
+### Syarat
+
+1. User **sudah buka app + login** saat server masih hidup (sekali cukup).
+2. Browser menyimpan: UI (service worker `public/sw.js`), session (10 jam), snapshot dashboard/template (IndexedDB).
+3. Buka kembali app dari URL yang sama (LAN / localhost). Kalau belum pernah dibuka, shell & data belum ada → tidak bisa.
+
+### Alur
+
+```text
+Online  → UI ↔ /api/* ↔ workshop.xlsx
+Offline → UI → cache IndexedDB + outbox (antrian mutasi)
+Online kembali → flush outbox berurutan → Excel + audit/backup → refresh board
+```
+
+- Chip di topbar: **Offline · N** / **N** pending / error (klik → popover **Coba sync** + Refresh).
+- Poll 8 detik **berhenti** saat `navigator.onLine === false`. Item sync gagal (4xx) ditandai di chip merah; item berikutnya menunggu sampai di-retry.
+
+### Yang bisa offline
+
+| Bisa di-antrian | Tetap online-only |
+| --- | --- |
+| CRUD job, start/pause/resume/step, assign, complete, cancel, reopen | Login baru & ganti password |
+| Handover & peminjaman part | Import Excel / unduh template / export laporan |
+| CRUD unit, teknisi, daftar hadir, template | Master **Users** (ada password) |
+| | Backup / Undo |
+
+Create memakai **ID dari client** (`J-…`, `S-…`, `H-…`, …) agar retry sync tidak dobel. Server **idempotent**: ID yang sama dikembalikan apa adanya.
+
+### Konflik
+
+- Sumber kebenaran setelah sync tetap **Excel di server**.
+- Dua orang edit job yang sama saat offline → yang **terakhir flush** yang menang (last-write-wins).
+- AuditLog / `backup-jobs.xlsx` tercatat **saat sync sukses**, bukan saat klik offline.
+
+### File terkait
+
+- `src/lib/offline/` — outbox, persist helper, optimistic cache, sync
+- `src/lib/api.ts` — gagal jaringan → antri + update board lokal
+- `public/sw.js` + `public/manifest.webmanifest` — app shell PWA
+- IndexedDB: `tu-prima-offline` (outbox) + `tu-prima-query` (cache TanStack)
+
+---
+
 ## Catatan operasional
 
 - Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan file `data/*.xlsx` di Excel saat app sedang menulis.
@@ -520,7 +574,9 @@ npm start
 - Alternatif: edit sumber Excel di `data/templates/` lalu regenerate katalog bila ada skrip parse; restart / refresh setelah ubah file.
 - `data/*.xlsx` biasanya di-ignore git; backup `workshop.xlsx`, `completed-jobs.xlsx`, `cancelled-jobs.xlsx`, `deleted-jobs.xlsx` jika data penting.
 - Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
-- Board di-poll setiap **8 detik** lewat TanStack Query, **hanya jika tab aktif** (`refetchIntervalInBackground: false`) agar Excel tidak di-hit saat window di belakang. Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server.
+- Board di-poll setiap **8 detik** lewat TanStack Query, **hanya jika tab aktif** (`refetchIntervalInBackground: false`) agar Excel tidak di-hit saat window di belakang. Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll **mati** saat browser offline.
+- Offline CRUD: buka + login sekali saat server hidup agar SW/cache terisi. Perubahan lokal ngantri di IndexedDB sampai server nyala. Jangan andalkan login baru atau import Excel saat offline.
+- Service worker hanya cache app shell + `/api/auth/session`. **GET `/api/dashboard` tidak di-cache**, supaya assign/CRUD offline tidak ditimpa data lama. Poll/invalidate juga ditahan selama masih ada antrian outbox. Jika UI aneh setelah deploy: DevTools → Application → Service Workers → Unregister, lalu hard refresh.
 
 ### Ringkasan perubahan UI/data terkini
 
@@ -532,6 +588,7 @@ npm start
 - Export digabung jadi **Export to excel** + filter tanggal
 - Complete / Cancel / Hapus memakai archive Excel terpisah; reopen completed & cancelled (superuser)
 - Loading overlay pada tambah/ubah/hapus handover & part loan
+- **Offline CRUD**: persist TanStack Query + outbox mutasi + PWA; create job/handover/unit memakai ID client yang idempotent di server
 
 ---
 

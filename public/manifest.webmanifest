@@ -1,0 +1,11 @@
+{
+  "name": "TU-PRIMA",
+  "short_name": "TU-PRIMA",
+  "description": "Progress Report & Inspection for Mechanic Allocation",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#12151a",
+  "theme_color": "#12151a",
+  "lang": "id"
+}

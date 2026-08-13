@@ -22,6 +22,7 @@ export async function POST(
     const status: PartLoanStatus =
       rawStatus === "closed" ? "closed" : "open";
     const row = await createJobPartLoan({
+      id: body.id ? String(body.id) : undefined,
       job_id: id,
       part_name: String(body.part_name || ""),
       note: body.note != null ? String(body.note) : "",

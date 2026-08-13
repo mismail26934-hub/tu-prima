@@ -183,6 +183,21 @@ const id = {
   "common.hours": "jam",
   "common.minutes": "mnt",
   "common.remainingPct": "tersisa",
+
+  "offline.bannerOffline":
+    "Mode offline — data dari salinan lokal. Login & sync butuh server.",
+  "offline.bannerOfflinePending":
+    "Mode offline — {count} perubahan menunggu sync ke Excel.",
+  "offline.bannerPending": "{count} perubahan menunggu sync ke server.",
+  "offline.bannerSyncing": "Menyinkronkan {count} perubahan ke Excel…",
+  "offline.bannerError": "Sync gagal: {error}",
+  "offline.retry": "Coba sync",
+  "offline.syncing": "Sync…",
+  "offline.chipOffline": "Offline",
+  "offline.chipPending": "{count}",
+  "offline.chipOfflinePending": "Offline · {count}",
+  "offline.chipSyncing": "Sync {count}…",
+  "offline.popoverTitle": "Sinkronisasi",
 } as const;
 
 const en: Record<MessageKey, string> = {
@@ -366,6 +381,21 @@ const en: Record<MessageKey, string> = {
   "common.hours": "h",
   "common.minutes": "min",
   "common.remainingPct": "remaining",
+
+  "offline.bannerOffline":
+    "Offline mode — showing the local copy. Login and sync need the server.",
+  "offline.bannerOfflinePending":
+    "Offline mode — {count} change(s) waiting to sync to Excel.",
+  "offline.bannerPending": "{count} change(s) waiting to sync to the server.",
+  "offline.bannerSyncing": "Syncing {count} change(s) to Excel…",
+  "offline.bannerError": "Sync failed: {error}",
+  "offline.retry": "Retry sync",
+  "offline.syncing": "Syncing…",
+  "offline.chipOffline": "Offline",
+  "offline.chipPending": "{count}",
+  "offline.chipOfflinePending": "Offline · {count}",
+  "offline.chipSyncing": "Sync {count}…",
+  "offline.popoverTitle": "Sync",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

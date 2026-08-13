@@ -9,9 +9,12 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@tanstack/query-async-storage-persister": "^5.101.4",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-query-devtools": "^5.101.4",
+    "@tanstack/react-query-persist-client": "^5.101.4",
     "exceljs": "^4.4.0",
+    "idb-keyval": "^6.3.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "next": "16.3.0",

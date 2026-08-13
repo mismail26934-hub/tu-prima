@@ -16,6 +16,7 @@ export async function POST(req: Request) {
       );
     }
     const unit = await createUnit({
+      id: body.id ? String(body.id) : undefined,
       code: String(body.code),
       name: String(body.name),
       serial_number: String(body.serial_number),

@@ -249,7 +249,9 @@ export function createJobTemplate(input: JobTemplateWriteInput): JobTemplate {
   const existingIds = new Set(catalog.templates.map((t) => t.id));
   let id = String(input.id || "").trim();
   if (id) {
-    if (existingIds.has(id)) throw new Error(`Template id sudah ada: ${id}`);
+    if (existingIds.has(id)) {
+      return getJobTemplate(id, { includeInactive: true })!;
+    }
   } else {
     id = makeTemplateId(category, name, existingIds);
   }

@@ -16,6 +16,7 @@ import type {
   TechnicianStatus,
   Unit,
   UserLevel,
+  DashboardData,
 } from "@/lib/types";
 import { USER_LEVELS } from "@/lib/types";
 import {
@@ -41,6 +42,10 @@ import { api } from "@/lib/api";
 import { useDashboard } from "@/hooks/useDashboard";
 import { shouldHoldServerRefresh } from "@/lib/offline/sync";
 import { writeCachedSession } from "@/lib/offline/session-cache";
+import {
+  readBoardSnapshot,
+  writeBoardSnapshot,
+} from "@/lib/offline/board-snapshot";
 import {
   useJobBackups,
   useMasterTemplates,
@@ -538,12 +543,19 @@ export default function HomePage() {
 
   const persistRestoring = useIsRestoring();
   const {
-    data,
+    data: queryData,
     error: dashboardError,
-    isError: dashboardIsError,
     isFetching: dashboardFetching,
     refetch: refetchDashboard,
   } = useDashboard();
+  const [snapDash, setSnapDash] = useState<DashboardData | undefined>();
+  useEffect(() => {
+    setSnapDash(readBoardSnapshot()?.dashboard);
+  }, []);
+  useEffect(() => {
+    if (queryData) writeBoardSnapshot({ dashboard: queryData });
+  }, [queryData]);
+  const data = queryData ?? snapDash;
   const refreshDashboard = useCallback(() => {
     if (shouldHoldServerRefresh()) return;
     void refetchDashboard();
@@ -4270,11 +4282,15 @@ export default function HomePage() {
         </div>
       )}
 
-      {!data && persistRestoring ? (
-        <DashboardShimmer label={t("loading.dashboard")} />
-      ) : !data && dashboardFetching ? (
-        <DashboardShimmer label={t("loading.dashboard")} />
-      ) : data ? (
+      {!data ? (
+        persistRestoring || dashboardFetching ? (
+          <DashboardShimmer label={t("loading.dashboard")} />
+        ) : (
+          <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>
+            {t("offline.noLocalData")}
+          </p>
+        )
+      ) : (
         <>
           <div className="summary-wrap">
             <section className="summary-group">
@@ -4654,10 +4670,6 @@ export default function HomePage() {
             )}
           </div>
         </>
-      ) : (
-        <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>
-          {t("offline.noLocalData")}
-        </p>
       )}
 
       {modal?.type === "export-jobs" && (

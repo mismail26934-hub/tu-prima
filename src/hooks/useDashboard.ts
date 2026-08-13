@@ -13,7 +13,7 @@ async function loadDashboard(): Promise<DashboardData> {
   }
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 4000);
+  const timer = setTimeout(() => ctrl.abort(), 2000);
   try {
     const data = await api<DashboardData>("/api/dashboard", {
       signal: ctrl.signal,

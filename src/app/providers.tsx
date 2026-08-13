@@ -89,7 +89,6 @@ export function Providers({ children }: { children: ReactNode }) {
   const [offlineSession, setOfflineSession] = useState<
     SessionProviderProps["session"]
   >(undefined);
-  const [cacheReady, setCacheReady] = useState(false);
 
   useEffect(() => {
     bindQueryClient(queryClient);
@@ -105,7 +104,6 @@ export function Providers({ children }: { children: ReactNode }) {
       setOfflineSession(cached as SessionProviderProps["session"]);
     }
     startOutboxSync();
-    setCacheReady(true);
   }, [queryClient]);
 
   return (
@@ -151,7 +149,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <ServiceWorkerRegister />
         <SessionCache />
         <BoardSnapshotSync />
-        {cacheReady ? children : null}
+        {children}
         {process.env.NODE_ENV === "development" ? (
           <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
         ) : null}

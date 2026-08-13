@@ -2,6 +2,7 @@ export const queryKeys = {
   dashboard: ["dashboard"] as const,
   templates: {
     all: ["job-templates"] as const,
+    catalog: ["job-templates", "catalog"] as const,
     master: ["job-templates", "master"] as const,
     byCategory: (category: string) =>
       ["job-templates", "category", category] as const,

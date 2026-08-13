@@ -4,6 +4,16 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** Prefer a client-sent ISO timestamp; otherwise fallback (usually now). */
+export function clientTimeIso(value: unknown, fallback?: string): string {
+  const raw = String(value || "").trim();
+  if (raw) {
+    const t = Date.parse(raw);
+    if (Number.isFinite(t)) return new Date(t).toISOString();
+  }
+  return fallback || nowIso();
+}
+
 export function parseDate(value: string | undefined | null): Date | null {
   if (!value) return null;
   const d = new Date(value);

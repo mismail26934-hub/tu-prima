@@ -156,7 +156,7 @@ Setiap step job menyimpan `std_minutes` dan ditampilkan di kartu sebagai **STP �
 **GOH:** 16M/16G/16H, 24H/24M, OHT 785, OHT 789, D10T/D10R, ADT 740  
 (sumber: `data/templates/Time Frame GOH.xlsx`)
 
-API: `GET /api/job-templates?category=engine|non_engine|goh` · `GET /api/job-templates?id=...` · `GET /api/job-templates?include_inactive=1` (master) · `POST /api/job-templates` · `PATCH|DELETE /api/job-templates/[id]` · `GET /api/job-templates/template` (blank upload) · `POST /api/job-templates/import` · `GET /api/job-templates/download` (export xlsx)
+API: `GET /api/job-templates?full=1` (katalog + steps) · `GET /api/job-templates?category=engine|non_engine|goh` · `GET /api/job-templates?id=...` · `GET /api/job-templates?include_inactive=1` (master) · `POST /api/job-templates` · `PATCH|DELETE /api/job-templates/[id]` · `GET /api/job-templates/template` (blank upload) · `POST /api/job-templates/import` · `GET /api/job-templates/download` (export xlsx)
 
 ---
 
@@ -207,8 +207,9 @@ Semua aksi progress memakai **modal konfirmasi**.
 | **> 20% dan < 50%** | Oranye      |
 | **≤ 20% / overtime**| Merah       |
 
-Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `duration_sec`).  
+Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `duration_sec`).
 Reopen/complete **tidak mereset** `started_at` — timer akumulatif tetap dari start awal.
+Sync offline memakai `started_at` / `next_started_at` dari client, bukan jam server saat flush (supaya timer step tidak reset ke 00:00:00).
 
 ---
 
@@ -448,7 +449,7 @@ data/
 | Method       | Path                                                              | Keterangan                                                                                               |
 | ------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | GET          | `/api/dashboard`                                                  | Snapshot board                                                                                           |
-| GET          | `/api/job-templates`                                              | List / detail template (`include_inactive=1` untuk master)                                               |
+| GET          | `/api/job-templates`                                              | List / detail template (`full=1` katalog + steps; `include_inactive=1` master)                          |
 | POST         | `/api/job-templates`                                              | Buat template time frame                                                                                 |
 | PATCH/DELETE | `/api/job-templates/[id]`                                         | Update / soft-delete (nonaktif) template                                                                 |
 | GET          | `/api/job-templates/template`                                     | Unduh blank Excel untuk mass upload                                                                      |
@@ -544,9 +545,9 @@ Online kembali → flush outbox berurutan → Excel + audit/backup → refresh b
 | Bisa di-antrian | Tetap online-only |
 | --- | --- |
 | CRUD job, start/pause/resume/step, assign, complete, cancel, reopen | Login baru & ganti password |
-| Handover & peminjaman part | Import Excel / unduh template / export laporan |
-| CRUD unit, teknisi, daftar hadir, template | Master **Users** (ada password) |
-| | Backup / Undo |
+| Job baru dari **template** (katalog di-cache saat online) | Import Excel / unduh template / export laporan |
+| Handover & peminjaman part | Master **Users** (ada password) |
+| CRUD unit, teknisi, daftar hadir, template | Backup / Undo |
 
 Create memakai **ID dari client** (`J-…`, `S-…`, `H-…`, …) agar retry sync tidak dobel. Server **idempotent**: ID yang sama dikembalikan apa adanya.
 

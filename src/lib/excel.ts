@@ -27,7 +27,7 @@ import type {
   PartLoanStatus,
 } from "./types";
 import { USER_LEVELS } from "./types";
-import { calcElapsedSec, calcProgressPct, nowIso } from "./duration";
+import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
 import {
   appendJobChangeBackup,
   getJobChangeBackup,
@@ -2338,6 +2338,8 @@ export async function jobAction(
     duration_sec?: number;
     completed_at?: string;
     started_at?: string;
+    /** When sequential auto-next starts the following step (client clock). */
+    next_started_at?: string;
     paused_at?: string;
     total_paused_sec?: number;
     resumed_at?: string;
@@ -2653,7 +2655,8 @@ export async function jobAction(
       });
       if (!job.technician_id) job.technician_id = assigneeIds[0];
       job.status = "in_progress";
-      job.started_at = nowIso();
+      const startedAt = clientTimeIso(payload?.started_at);
+      job.started_at = startedAt;
       job.paused_at = "";
       const autoFirst =
         payload?.auto_start_first === true ||
@@ -2663,7 +2666,7 @@ export async function jobAction(
         const first = jobSteps().find((s) => s.status === "pending");
         if (first) {
           first.status = "in_progress";
-          first.started_at = nowIso();
+          first.started_at = startedAt;
           pushEvent("step_started", first.name);
         }
       }
@@ -2743,7 +2746,7 @@ export async function jobAction(
         )
       );
       if (ids.length === 0) throw new Error("Pilih minimal satu step");
-      const startedAt = nowIso();
+      const startedAt = clientTimeIso(payload?.started_at);
       const startedNames: string[] = [];
       for (const stepId of ids) {
         const step = jobSteps().find((s) => s.id === stepId);
@@ -2799,7 +2802,10 @@ export async function jobAction(
         const next = jobSteps().find((s) => s.status === "pending");
         if (next) {
           next.status = "in_progress";
-          next.started_at = nowIso();
+          next.started_at = clientTimeIso(
+            payload?.next_started_at || payload?.completed_at,
+            current.completed_at
+          );
           pushEvent("step_started", next.name);
         }
       }

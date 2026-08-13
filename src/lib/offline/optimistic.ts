@@ -123,10 +123,16 @@ function findJob(data: DashboardData, jobId: string) {
   );
 }
 
-function findTemplate(qc: QueryClient, id: string): JobTemplate | undefined {
+export function findTemplate(
+  qc: QueryClient,
+  id: string
+): JobTemplate | undefined {
   return (
     qc.getQueryData<JobTemplate>(queryKeys.templates.detail(id, false)) ||
     qc.getQueryData<JobTemplate>(queryKeys.templates.detail(id, true)) ||
+    qc
+      .getQueryData<{ templates: JobTemplate[] }>(queryKeys.templates.catalog)
+      ?.templates.find((t) => t.id === id) ||
     qc
       .getQueryData<{ templates: JobTemplate[] }>(queryKeys.templates.master)
       ?.templates.find((t) => t.id === id)
@@ -236,14 +242,18 @@ function applyJobAction(
   }
 
   if (action === "start" || action === "resume") {
-    const resumeAt = String(body.resumed_at || nowIso());
+    const clockAt = String(
+      action === "resume"
+        ? body.resumed_at || nowIso()
+        : body.started_at || nowIso()
+    );
     return {
       ...mapJob(data, jobId, (j) => {
         const extraPause =
           action === "resume" && j.paused_at
             ? Math.max(
                 0,
-                Math.floor((Date.parse(resumeAt) - Date.parse(j.paused_at)) / 1000) ||
+                Math.floor((Date.parse(clockAt) - Date.parse(j.paused_at)) / 1000) ||
                   0
               )
             : 0;
@@ -256,14 +266,14 @@ function applyJobAction(
         return {
         ...j,
         status: "in_progress",
-        started_at: j.started_at || resumeAt,
+        started_at: j.started_at || clockAt,
         paused_at: "",
         total_paused_sec: totalPaused,
         steps:
           action === "resume"
             ? j.steps.map((s) =>
                 s.status === "in_progress" && !s.started_at
-                  ? { ...s, started_at: resumeAt }
+                  ? { ...s, started_at: clockAt }
                   : s
               )
             : action === "start" &&
@@ -271,7 +281,7 @@ function applyJobAction(
                 j.steps.every((s) => s.status === "pending")
               ? j.steps.map((s, i) =>
                   i === 0
-                    ? { ...s, status: "in_progress", started_at: nowIso() }
+                    ? { ...s, status: "in_progress", started_at: clockAt }
                     : s
                 )
               : j.steps,
@@ -318,7 +328,7 @@ function applyJobAction(
             : []
       ).filter(Boolean)
     );
-    const at = nowIso();
+    const at = String(body.started_at || nowIso());
     return mapJob(data, jobId, (j) => ({
       ...j,
       status: j.status === "assigned" || j.status === "queued" ? "in_progress" : j.status,
@@ -337,6 +347,7 @@ function applyJobAction(
       body.auto_next === true ||
       (body.step_mode === "sequential" && body.auto_next !== false);
     const at = String(body.completed_at || nowIso());
+    const nextAt = String(body.next_started_at || at);
     return mapJob(data, jobId, (j) => {
       const steps = j.steps.map((s) => {
         if (s.id !== stepId) return s;
@@ -356,7 +367,7 @@ function applyJobAction(
         const next = steps.find((s) => s.status === "pending");
         if (next && !steps.some((s) => s.status === "in_progress")) {
           next.status = "in_progress";
-          next.started_at = at;
+          next.started_at = nextAt;
         }
       }
       return { ...j, steps };
@@ -487,13 +498,11 @@ function patchTemplates(
   qc: QueryClient,
   updater: (list: JobTemplate[]) => JobTemplate[]
 ) {
-  const current = qc.getQueryData<{ templates: JobTemplate[] }>(
-    queryKeys.templates.master
-  );
-  if (!current) return;
-  qc.setQueryData(queryKeys.templates.master, {
-    templates: updater(current.templates),
-  });
+  for (const key of [queryKeys.templates.catalog, queryKeys.templates.master]) {
+    const current = qc.getQueryData<{ templates: JobTemplate[] }>(key);
+    if (!current) continue;
+    qc.setQueryData(key, { templates: updater(current.templates) });
+  }
 }
 
 
@@ -516,14 +525,23 @@ export function prepareJobActionBody(
   if (action === "complete_step") {
     const step = job.steps.find((s) => s.id === String(body.step_id || ""));
     if (!step) return body;
+    const completedAt = String(body.completed_at || atIso);
     return {
       ...body,
-      completed_at: String(body.completed_at || atIso),
+      completed_at: completedAt,
       started_at: String(body.started_at || step.started_at || atIso),
+      next_started_at: String(body.next_started_at || completedAt),
       duration_sec:
         typeof body.duration_sec === "number"
           ? Math.max(0, Math.floor(body.duration_sec))
           : freezeStepDuration(step, at),
+    };
+  }
+
+  if (action === "start" || action === "start_step" || action === "start_steps") {
+    return {
+      ...body,
+      started_at: String(body.started_at || atIso),
     };
   }
 

@@ -93,9 +93,12 @@ export function Providers({ children }: { children: ReactNode }) {
       persistOptions={{
         persister,
         maxAge: MAX_AGE_MS,
+        buster: "catalog-v1",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
+            if (query.state.status !== "success") return false;
             const key = query.queryKey[0];
+            if (query.queryKey[1] === "category") return false;
             return (
               key === "dashboard" ||
               key === "job-templates" ||

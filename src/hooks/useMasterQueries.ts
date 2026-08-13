@@ -20,19 +20,33 @@ export function useMasterTemplates(enabled: boolean) {
   });
 }
 
-export function useTemplateSummaries(
-  category: string | undefined,
-  enabled: boolean
-) {
+export function useTemplateCatalog() {
   return useQuery({
-    queryKey: queryKeys.templates.byCategory(category || ""),
+    queryKey: queryKeys.templates.catalog,
     queryFn: () =>
-      api<{ templates: JobTemplateSummary[] }>(
-        `/api/job-templates?category=${encodeURIComponent(category || "")}`
-      ),
-    enabled: enabled && Boolean(category),
+      api<{ templates: JobTemplate[] }>("/api/job-templates?full=1"),
     staleTime: 30_000,
   });
+}
+
+export function useTemplateSummaries(category: string | undefined) {
+  const catalog = useTemplateCatalog();
+  const templates: JobTemplateSummary[] = (catalog.data?.templates || [])
+    .filter((t) => t.active !== "0")
+    .filter((t) => Boolean(category) && t.category === category)
+    .map((t) => ({
+      id: t.id,
+      category: t.category,
+      name: t.name,
+      std_minutes: t.std_minutes,
+      step_count: t.steps?.length ?? 0,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    data: { templates },
+    isFetching: catalog.isFetching && !catalog.data,
+  };
 }
 
 export function useUsers(enabled: boolean) {

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import {
   applyOptimisticMutation,
+  findTemplate,
   prepareJobActionBody,
 } from "@/lib/offline/optimistic";
 import { isBrowserOnline } from "@/lib/offline/network";
@@ -30,8 +31,12 @@ export function useWorkshopClient() {
       if (shouldHoldServerRefresh()) return Promise.resolve();
       return queryClient.invalidateQueries({ queryKey: queryKeys.backups.all });
     },
-    fetchTemplate: (id: string, includeInactive = false) =>
-      queryClient.fetchQuery({
+    fetchTemplate: (id: string, includeInactive = false) => {
+      const cached = findTemplate(queryClient, id);
+      if (cached && (includeInactive || cached.active !== "0")) {
+        return Promise.resolve(cached);
+      }
+      return queryClient.fetchQuery({
         queryKey: queryKeys.templates.detail(id, includeInactive),
         queryFn: () =>
           api<JobTemplate>(
@@ -39,7 +44,8 @@ export function useWorkshopClient() {
               includeInactive ? "&include_inactive=1" : ""
             }`
           ),
-      }),
+      });
+    },
   };
 }
 

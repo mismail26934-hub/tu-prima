@@ -562,10 +562,7 @@ export default function HomePage() {
     backupsModalOpen && userLevel === "superuser"
   );
   const { data: templateSummariesRes, isFetching: templatesLoading } =
-    useTemplateSummaries(
-      formCategory || undefined,
-      modal?.type === "create" && formMode === "template"
-    );
+    useTemplateSummaries(formCategory || undefined);
   const templateSummaries = templateSummariesRes?.templates || [];
   const [templateForm, setTemplateForm] = useState<{
     category: JobTemplateCategory;
@@ -3711,7 +3708,13 @@ export default function HomePage() {
       <header className="topbar" ref={topbarRef}>
         <div>
           <div className="brand">
-            TU-PRIMA
+            <div className="brand-row">
+              TU-PRIMA
+              <OfflineSyncChip
+                onRefresh={() => void refetchDashboard()}
+                refreshBusy={busy}
+              />
+            </div>
             <span>{t("brand.tagline")}</span>
           </div>
         </div>
@@ -3857,10 +3860,6 @@ export default function HomePage() {
                 </div>
               )}
             </div>
-            <OfflineSyncChip
-              onRefresh={() => void refetchDashboard()}
-              refreshBusy={busy}
-            />
             <button
               className="btn btn-icon"
               disabled={busy}
@@ -3990,10 +3989,6 @@ export default function HomePage() {
           </div>
 
           <div className="top-actions-mobile">
-            <OfflineSyncChip
-              onRefresh={() => void refetchDashboard()}
-              refreshBusy={busy}
-            />
             <button
               className="btn btn-primary"
               disabled={busy || !canJobCreate}

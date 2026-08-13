@@ -43,6 +43,10 @@ export async function GET(req: Request) {
     });
   }
 
+  if (searchParams.get("full") === "1") {
+    return NextResponse.json({ templates: listJobTemplatesFull(valid) });
+  }
+
   return NextResponse.json({ templates: listJobTemplates(valid) });
 }
 

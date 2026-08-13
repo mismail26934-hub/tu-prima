@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx server.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "tsx server.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
@@ -21,7 +21,9 @@
     "next-auth": "^5.0.0-beta.32",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "tsx": "^4.19.0",
     "uuid": "^11.0.3",
+    "ws": "^8.21.3",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -30,7 +32,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@types/uuid": "^10.0.0",
-    "tsx": "^4.19.0",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.7.0"
   },
   "overrides": {

@@ -2,7 +2,7 @@
 
 Aplikasi monitoring job workshop / recondition mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
 
-Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript · PWA / IndexedDB (offline)**
+Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript · PWA / IndexedDB (offline) · WebSocket**
 
 ---
 
@@ -24,7 +24,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 14. [API ringkas](#api-ringkas)
 15. [Menjalankan project](#menjalankan-project)
 16. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
-17. [Catatan operasional](#catatan-operasional)
+17. [Realtime WebSocket](#realtime-websocket)
+18. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -77,7 +78,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 
 ### State UI
 
-- **Server state** (dashboard, master data, mutasi): **TanStack Query** (`src/hooks/`, cache + poll 8s hanya saat tab aktif)
+- **Server state** (dashboard, master data, mutasi): **TanStack Query** (`src/hooks/`, cache + poll 8s fallback; ping WebSocket saat Excel berubah)
 - **Offline**: cache dashboard/template di IndexedDB + outbox mutasi (`src/lib/offline/`)
 - Form Assign, Job, board filter: **Zustand** (`src/store/`) — UI only
 - Bahasa UI: **Zustand** `localeStore` + kamus `src/i18n/messages.ts` (default `id`)
@@ -402,6 +403,7 @@ Catatan:
 ## Struktur folder
 
 ```text
+server.ts                 ← custom Node server (Next + WebSocket /ws)
 src/
   app/
     page.tsx              ← dashboard utama (board, modal, job UI)
@@ -410,7 +412,7 @@ src/
     globals.css
   auth.ts / auth.config.ts
   lib/
-    excel.ts              ← baca/tulis Excel + jobAction + audit
+    excel.ts              ← baca/tulis Excel + jobAction + audit + ping WS
     job-completed-archive.ts
     job-cancelled-archive.ts
     job-delete-archive.ts
@@ -425,11 +427,12 @@ src/
     api.ts                ← fetch helper + error JSON
     query-keys.ts         ← factory key TanStack Query
     offline/              ← outbox IndexedDB, optimistic cache, sync saat online
+    realtime/hub.ts       ← set koneksi WS + broadcast ping
   hooks/                  ← useDashboard, master queries, job action + invalidate, useOfflineStatus
   store/                  ← Zustand (job form, assign, board, locale)
   i18n/                   ← kamus ID/EN + useT()
-  components/             ← LanguageToggle, OfflineSyncChip, ServiceWorkerRegister
-middleware.ts             ← proteksi route + guest boleh /
+  components/             ← LanguageToggle, OfflineSyncChip, ServiceWorkerRegister, RealtimeBridge
+middleware.ts             ← proteksi route + guest boleh / (kecuali /ws)
 public/
   sw.js                   ← service worker (app shell + session GET; API data tidak di-cache)
   manifest.webmanifest
@@ -500,7 +503,8 @@ APP_PASSWORD=admin123
 npm run dev
 ```
 
-Buka [http://localhost:3000](http://localhost:3000) (atau port lain jika 3000 terpakai).
+Buka [http://localhost:3000](http://localhost:3000) (atau port lain jika 3000 terpakai).  
+Script ini menjalankan **custom server** (`server.ts`): HTTP Next + WebSocket `ws://host:port/ws` (bukan `next dev` murni). Hentikan proses lama (`Ctrl+C`) sebelum ganti script.
 
 ### 4. Seed Excel (opsional)
 
@@ -567,22 +571,50 @@ Create memakai **ID dari client** (`J-…`, `S-…`, `H-…`, …) agar retry sy
 
 ---
 
+## Realtime WebSocket
+
+User lain melihat perubahan board **tanpa menunggu poll 8 detik**. Koneksi TCP tetap terbuka (full-duplex); server hanya mengirim **ping kecil**, bukan payload board.
+
+### Alur
+
+```text
+Browser A  →  POST /api/...  →  saveWorkbook / saveCatalog
+                                   ↓
+                         broadcast { type: "dashboard-changed" }
+                                   ↓
+Browser B  ←  WebSocket /ws  ←  invalidate + refetch GET /api/dashboard
+```
+
+- Hub in-memory: `src/lib/realtime/hub.ts` (satu proses Node — `npm run dev` / `npm start` lewat `server.ts`).
+- Client: `RealtimeBridge` subscribe `ws(s)://<host>/ws`. Pesan `dashboard-changed` → invalidate dashboard + katalog template.
+- **Tidak refetch** jika offline atau outbox masih pending (`shouldHoldServerRefresh`) — supaya SW/Excel lama tidak menimpa CRUD lokal.
+- Poll 8 detik tetap jalan sebagai **cadangan** (tab aktif, online, outbox kosong).
+- Excel tetap sumber kebenaran. WS tidak mengganti REST/outbox.
+
+### Syarat
+
+- Server harus `tsx server.ts` (`npm run dev` / `npm start` setelah `npm run build`). `next start` murni **tidak** punya `/ws`.
+- Beberapa tab / PC di LAN yang sama: buka URL host yang sama (mis. `http://192.168.x.x:3000`).
+- Offline: socket putus; reconnect otomatis saat `online`.
+
+---
+
 ## Catatan operasional
 
 - Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan file `data/*.xlsx` di Excel saat app sedang menulis.
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
-- Jangan jalankan dua `next dev` bersamaan di port berbeda pada project yang sama.
+- Jangan jalankan dua server (`tsx server.ts` / sisa `next dev`) bersamaan di port berbeda pada project yang sama.
 - Template time frame diubah lewat **Kelola → Master Template** (tersimpan ke `data/job-templates.json`). Job yang sudah dibuat tidak otomatis ikut berubah.
 - Alternatif: edit sumber Excel di `data/templates/` lalu regenerate katalog bila ada skrip parse; restart / refresh setelah ubah file.
 - `data/*.xlsx` biasanya di-ignore git; backup `workshop.xlsx`, `completed-jobs.xlsx`, `cancelled-jobs.xlsx`, `deleted-jobs.xlsx` jika data penting.
 - Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
-- Board di-poll setiap **8 detik** lewat TanStack Query, **hanya jika tab aktif** (`refetchIntervalInBackground: false`) agar Excel tidak di-hit saat window di belakang. Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll **mati** saat browser offline.
+- Perubahan Excel/template memicu ping WebSocket `{ type: "dashboard-changed" }` ke klien lain (refetch board). Poll 8 detik lewat TanStack Query tetap cadangan, **hanya jika tab aktif** (`refetchIntervalInBackground: false`). Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll + WS **mati / ditahan** saat browser offline atau outbox pending.
 - Offline CRUD: buka + login sekali saat server hidup agar SW/cache terisi. Perubahan lokal ngantri di IndexedDB sampai server nyala. Jangan andalkan login baru atau import Excel saat offline.
 - Service worker hanya cache app shell + `/api/auth/session`. **GET `/api/dashboard` tidak di-cache**, supaya assign/CRUD offline tidak ditimpa data lama. Poll/invalidate juga ditahan selama masih ada antrian outbox. Jika UI aneh setelah deploy: DevTools → Application → Service Workers → Unregister, lalu hard refresh.
 
 ### Ringkasan perubahan UI/data terkini
 
-- **TanStack Query**: cache dashboard + master data; poll 8s hanya tab aktif; optimistic start/pause/resume
+- **TanStack Query**: cache dashboard + master data; poll 8s cadangan + ping WebSocket realtime; optimistic start/pause/resume
 - Kartu sisa estimasi: teks putih + persen tersisa
 - STP/Std Hours per step (UI, PDF, export Excel)
 - Timer step berwarna menurut sisa STP (putih / oranye / merah)

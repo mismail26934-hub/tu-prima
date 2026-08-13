@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { broadcastDashboardChanged } from "./realtime/hub";
 import type {
   JobTemplate,
   JobTemplateCategory,
@@ -74,6 +75,7 @@ function saveCatalog(catalog: CatalogFile) {
   fs.writeFileSync(CATALOG_PATH, JSON.stringify(catalog, null, 2) + "\n", "utf8");
   cache = catalog;
   cacheMtimeMs = catalogMtimeMs();
+  broadcastDashboardChanged();
 }
 
 function slugify(value: string): string {

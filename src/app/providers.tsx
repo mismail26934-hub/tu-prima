@@ -16,6 +16,7 @@ import type { DashboardData, JobTemplate } from "@/lib/types";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { SessionCache } from "@/components/SessionCache";
 import { BoardSnapshotSync } from "@/components/BoardSnapshotSync";
+import { RealtimeBridge } from "@/components/RealtimeBridge";
 
 const CACHE_KEY = "tu-prima-query";
 const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
@@ -149,6 +150,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <ServiceWorkerRegister />
         <SessionCache />
         <BoardSnapshotSync />
+        <RealtimeBridge />
         {children}
         {process.env.NODE_ENV === "development" ? (
           <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />

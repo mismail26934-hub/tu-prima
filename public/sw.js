@@ -1,4 +1,4 @@
-const CACHE = "tu-prima-shell-v3";
+const CACHE = "tu-prima-shell-v4";
 const SHELL = ["/", "/login", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -37,6 +37,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname === "/ws") return;
 
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request, "/"));

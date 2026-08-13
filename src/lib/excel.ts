@@ -28,6 +28,7 @@ import type {
 } from "./types";
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
+import { broadcastDashboardChanged } from "./realtime/hub";
 import {
   appendJobChangeBackup,
   getJobChangeBackup,
@@ -121,6 +122,7 @@ async function atomicWrite(wb: ExcelJS.Workbook) {
 
 async function saveWorkbook(wb: ExcelJS.Workbook) {
   await atomicWrite(wb);
+  broadcastDashboardChanged();
 }
 
 function getSheet(wb: ExcelJS.Workbook, name: string): ExcelJS.Worksheet {

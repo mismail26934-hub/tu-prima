@@ -2,7 +2,7 @@
 
 Aplikasi monitoring job workshop / recondition mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
 
-Stack: **Next.js 16 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript**
+Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript**
 
 ---
 
@@ -75,7 +75,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · ExcelJS · Zustand · TypeScript*
 
 ### State UI
 
-- Form Assign, Job, board filter: **Zustand** (`src/store/`)
+- **Server state** (dashboard, master data, mutasi): **TanStack Query** (`src/hooks/`, cache + poll 8s hanya saat tab aktif)
+- Form Assign, Job, board filter: **Zustand** (`src/store/`) — UI only
 - Bahasa UI: **Zustand** `localeStore` + kamus `src/i18n/messages.ts` (default `id`)
 
 ### Bahasa (ID / EN)
@@ -417,6 +418,9 @@ src/
     access.ts / permissions.ts
     duration.ts           ← timer & progress
     types.ts
+    api.ts                ← fetch helper + error JSON
+    query-keys.ts         ← factory key TanStack Query
+  hooks/                  ← useDashboard, master queries, job action + invalidate
   store/                  ← Zustand (job form, assign, board, locale)
   i18n/                   ← kamus ID/EN + useT()
   components/LanguageToggle.tsx
@@ -516,9 +520,11 @@ npm start
 - Alternatif: edit sumber Excel di `data/templates/` lalu regenerate katalog bila ada skrip parse; restart / refresh setelah ubah file.
 - `data/*.xlsx` biasanya di-ignore git; backup `workshop.xlsx`, `completed-jobs.xlsx`, `cancelled-jobs.xlsx`, `deleted-jobs.xlsx` jika data penting.
 - Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
+- Board di-poll setiap **8 detik** lewat TanStack Query, **hanya jika tab aktif** (`refetchIntervalInBackground: false`) agar Excel tidak di-hit saat window di belakang. Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server.
 
 ### Ringkasan perubahan UI/data terkini
 
+- **TanStack Query**: cache dashboard + master data; poll 8s hanya tab aktif; optimistic start/pause/resume
 - Kartu sisa estimasi: teks putih + persen tersisa
 - STP/Std Hours per step (UI, PDF, export Excel)
 - Timer step berwarna menurut sisa STP (putih / oranye / merah)

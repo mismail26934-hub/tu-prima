@@ -230,6 +230,19 @@ export interface AppUser {
 /** User payload without password (for API / UI). */
 export type AppUserPublic = Omit<AppUser, "password">;
 
+/** Row from backup-jobs.xlsx ChangeLog (superuser undo). */
+export interface JobChangeBackup {
+  id: string;
+  at: string;
+  user_name: string;
+  user_level: string;
+  action: string;
+  entity: string;
+  job_id: string;
+  summary: string;
+  undone: string;
+}
+
 export interface DashboardData {
   technicians: Technician[];
   units: Unit[];

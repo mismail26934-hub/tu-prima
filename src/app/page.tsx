@@ -7,10 +7,8 @@ import type {
   AppUserPublic,
   Attendance,
   AttendanceStatus,
-  DashboardData,
   JobTemplate,
   JobTemplateCategory,
-  JobTemplateSummary,
   JobWithDetails,
   PartLoanStatus,
   Technician,
@@ -37,6 +35,18 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { api } from "@/lib/api";
+import { useDashboard } from "@/hooks/useDashboard";
+import {
+  useJobBackups,
+  useMasterTemplates,
+  useTemplateSummaries,
+  useUsers,
+} from "@/hooks/useMasterQueries";
+import {
+  useJobActionMutation,
+  useWorkshopClient,
+} from "@/hooks/useWorkshopClient";
 
 type Modal =
   | null
@@ -145,22 +155,6 @@ function writeBoolFlag(key: string, value: boolean) {
   } catch {
     /* ignore */
   }
-}
-
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers || {});
-  const isForm =
-    typeof FormData !== "undefined" && init?.body instanceof FormData;
-  if (!isForm && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  const res = await fetch(url, {
-    ...init,
-    headers,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data as T;
 }
 
 function jobTemplateCategoryLabel(category: JobTemplateCategory | string): string {
@@ -497,9 +491,7 @@ export default function HomePage() {
     if (parts.length <= 1) return displayName;
     return parts.map((part) => part[0]?.toUpperCase() || "").join("");
   })();
-  const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<Modal>(null);
   const [busy, setBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -514,19 +506,6 @@ export default function HomePage() {
     dateFrom: "",
     dateTo: "",
   });
-  const [jobBackups, setJobBackups] = useState<
-    Array<{
-      id: string;
-      at: string;
-      user_name: string;
-      user_level: string;
-      action: string;
-      entity: string;
-      job_id: string;
-      summary: string;
-      undone: string;
-    }>
-  >([]);
   const [jobBackupsIncludeUndone, setJobBackupsIncludeUndone] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -541,7 +520,53 @@ export default function HomePage() {
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
   const [unitImportMsg, setUnitImportMsg] = useState("");
-  const [masterTemplates, setMasterTemplates] = useState<JobTemplate[]>([]);
+  const templatesModalOpen =
+    modal?.type === "templates" ||
+    modal?.type === "template-form" ||
+    modal?.type === "delete-template";
+  const usersModalOpen =
+    modal?.type === "users" ||
+    modal?.type === "user-form" ||
+    modal?.type === "delete-user";
+  const backupsModalOpen = modal?.type === "job-backups";
+  const formMode = useJobFormStore((s) => s.form.mode);
+  const formCategory = useJobFormStore((s) => s.form.category);
+
+  const {
+    data,
+    error: dashboardError,
+    isLoading,
+    refetch: refetchDashboard,
+  } = useDashboard();
+  const {
+    invalidateDashboard,
+    invalidateTemplates,
+    invalidateUsers,
+    invalidateBackups,
+    fetchTemplate,
+  } = useWorkshopClient();
+  const jobActionMutation = useJobActionMutation();
+  const { data: masterTemplatesRes, isLoading: templatesMasterLoading } =
+    useMasterTemplates(canTemplateRead && templatesModalOpen);
+  const masterTemplates = masterTemplatesRes?.templates || [];
+  const { data: appUsers = [], isLoading: usersLoading } = useUsers(
+    usersModalOpen && userLevel === "superuser"
+  );
+  const {
+    data: jobBackups = [],
+    isLoading: backupsLoading,
+    isFetching: backupsFetching,
+    refetch: refetchBackups,
+  } = useJobBackups(
+    jobBackupsIncludeUndone,
+    backupsModalOpen && userLevel === "superuser"
+  );
+  const { data: templateSummariesRes, isFetching: templatesLoading } =
+    useTemplateSummaries(
+      formCategory || undefined,
+      modal?.type === "create" && formMode === "template"
+    );
+  const templateSummaries = templateSummariesRes?.templates || [];
   const [templateForm, setTemplateForm] = useState<{
     category: JobTemplateCategory;
     name: string;
@@ -577,7 +602,6 @@ export default function HomePage() {
   const [masterTechDraft, setMasterTechDraft] = useState("");
   const [masterTechQuery, setMasterTechQuery] = useState("");
   const [techImportMsg, setTechImportMsg] = useState("");
-  const [appUsers, setAppUsers] = useState<AppUserPublic[]>([]);
   const [userForm, setUserForm] = useState({
     username: "",
     password: "",
@@ -758,7 +782,7 @@ export default function HomePage() {
         });
       }
       setModal({ type: "units" });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan unit");
     } finally {
@@ -773,7 +797,7 @@ export default function HomePage() {
     try {
       await api(`/api/units/${modal.unit.id}`, { method: "DELETE" });
       setModal({ type: "units" });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus unit");
     } finally {
@@ -799,27 +823,11 @@ export default function HomePage() {
             ? ` · ${result.skipped.length} baris dilewati`
             : "")
       );
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import unit gagal");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function loadMasterTemplates() {
-    if (!canTemplateRead) {
-      setMasterTemplates([]);
-      return;
-    }
-    try {
-      const res = await api<{ templates: JobTemplate[] }>(
-        "/api/job-templates?include_inactive=1"
-      );
-      setMasterTemplates(res.templates || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal load template");
-      setMasterTemplates([]);
     }
   }
 
@@ -831,7 +839,6 @@ export default function HomePage() {
     setTemplateImportMsg("");
     setError("");
     setModal({ type: "templates" });
-    void loadMasterTemplates();
   }
 
   function blankTemplateSteps() {
@@ -879,9 +886,7 @@ export default function HomePage() {
     setBusy(true);
     setError("");
     try {
-      const tpl = await api<JobTemplate>(
-        `/api/job-templates?id=${encodeURIComponent(sourceId)}&include_inactive=1`
-      );
+      const tpl = await fetchTemplate(sourceId, true);
       setTemplateForm((prev) => ({
         ...prev,
         category: tpl.category,
@@ -934,7 +939,7 @@ export default function HomePage() {
         });
       }
       setModal({ type: "templates" });
-      await loadMasterTemplates();
+      await invalidateTemplates();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan template");
     } finally {
@@ -949,7 +954,7 @@ export default function HomePage() {
     try {
       await api(`/api/job-templates/${modal.template.id}`, { method: "DELETE" });
       setModal({ type: "templates" });
-      await loadMasterTemplates();
+      await invalidateTemplates();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal nonaktifkan template");
     } finally {
@@ -975,7 +980,7 @@ export default function HomePage() {
             ? ` · ${result.skipped.length} baris dilewati`
             : "")
       );
-      await loadMasterTemplates();
+      await invalidateTemplates();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import template gagal");
     } finally {
@@ -1097,7 +1102,7 @@ export default function HomePage() {
         });
       }
       setModal({ type: "techs" });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan teknisi");
     } finally {
@@ -1112,7 +1117,7 @@ export default function HomePage() {
     try {
       await api(`/api/technicians/${modal.tech.id}`, { method: "DELETE" });
       setModal({ type: "techs" });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus teknisi");
     } finally {
@@ -1138,7 +1143,7 @@ export default function HomePage() {
             ? ` · ${result.skipped.length} baris dilewati`
             : "")
       );
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import teknisi gagal");
     } finally {
@@ -1146,12 +1151,7 @@ export default function HomePage() {
     }
   }
 
-  async function loadUsers() {
-    const users = await api<AppUserPublic[]>("/api/users");
-    setAppUsers(users);
-  }
-
-  async function openUsersMaster() {
+  function openUsersMaster() {
     if (userLevel !== "superuser") {
       setError("Master User hanya untuk superuser");
       return;
@@ -1159,15 +1159,7 @@ export default function HomePage() {
     setError("");
     setMasterUserDraft("");
     setMasterUserQuery("");
-    setBusy(true);
-    try {
-      await loadUsers();
-      setModal({ type: "users" });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat user");
-    } finally {
-      setBusy(false);
-    }
+    setModal({ type: "users" });
   }
 
   function openUserCreate() {
@@ -1222,7 +1214,7 @@ export default function HomePage() {
           }),
         });
       }
-      await loadUsers();
+      await invalidateUsers();
       setModal({ type: "users" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan user");
@@ -1237,7 +1229,7 @@ export default function HomePage() {
     setError("");
     try {
       await api(`/api/users/${modal.user.id}`, { method: "DELETE" });
-      await loadUsers();
+      await invalidateUsers();
       setModal({ type: "users" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus user");
@@ -1302,7 +1294,7 @@ export default function HomePage() {
         });
       }
       setModal({ type: "attendance" });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan daftar hadir");
     } finally {
@@ -1317,7 +1309,7 @@ export default function HomePage() {
     try {
       await api(`/api/attendance/${modal.row.id}`, { method: "DELETE" });
       setModal({ type: "attendance" });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus daftar hadir");
     } finally {
@@ -1349,7 +1341,7 @@ export default function HomePage() {
             ? ` · ${result.unmatched.length} tidak match teknisi`
             : "")
       );
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import gagal");
     } finally {
@@ -1416,13 +1408,9 @@ export default function HomePage() {
     absence: "",
     note: "",
   });
-  const [templateSummaries, setTemplateSummaries] = useState<
-    JobTemplateSummary[]
-  >([]);
   const [templatePreview, setTemplatePreview] = useState<JobTemplate | null>(
     null
   );
-  const [templatesLoading, setTemplatesLoading] = useState(false);
   /** Selected pending step ids per job — for parallel batch start. */
   const [selectedStepsByJob, setSelectedStepsByJob] = useState<
     Record<string, string[]>
@@ -1591,7 +1579,6 @@ export default function HomePage() {
     if (!canJobCreate) return;
     resetForm();
     setTemplatePreview(null);
-    setTemplateSummaries([]);
     setModal({ type: "create" });
   }
 
@@ -1645,33 +1632,6 @@ export default function HomePage() {
       ? Boolean(form.template_id)
       : !canEditJobSteps || parseSteps(form.steps).length > 0);
 
-  useEffect(() => {
-    if (modal?.type !== "create" || form.mode !== "template" || !form.category) {
-      if (!form.category) setTemplateSummaries([]);
-      return;
-    }
-    let cancelled = false;
-    setTemplatesLoading(true);
-    api<{ templates: JobTemplateSummary[] }>(
-      `/api/job-templates?category=${form.category}`
-    )
-      .then((res) => {
-        if (!cancelled) setTemplateSummaries(res.templates || []);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setTemplateSummaries([]);
-          setError(e instanceof Error ? e.message : "Gagal load template");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setTemplatesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [modal?.type, form.mode, form.category]);
-
   async function applyJobTemplate(templateId: string) {
     if (!templateId) {
       setTemplatePreview(null);
@@ -1683,9 +1643,7 @@ export default function HomePage() {
       return;
     }
     try {
-      const tpl = await api<JobTemplate>(
-        `/api/job-templates?id=${encodeURIComponent(templateId)}`
-      );
+      const tpl = await fetchTemplate(templateId);
       setTemplatePreview(tpl);
       const stepLines = tpl.steps
         .slice()
@@ -1715,18 +1673,6 @@ export default function HomePage() {
     return `${h} ${hours} ${rem} ${mins}`;
   }
 
-  const load = useCallback(async () => {
-    try {
-      const d = await api<DashboardData>("/api/dashboard");
-      setData(d);
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal load data");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   function openExportJobsModal() {
     if (!isLoggedIn) {
       setError("Silakan login untuk export laporan job");
@@ -1741,61 +1687,25 @@ export default function HomePage() {
     setModal({ type: "export-jobs" });
   }
 
-  async function loadJobBackups(includeUndone = jobBackupsIncludeUndone) {
-    const params = new URLSearchParams({
-      limit: "80",
-      includeUndone: includeUndone ? "1" : "0",
-    });
-    const res = await fetch(`/api/backups/jobs?${params}`, {
-      credentials: "include",
-    });
-    const body = (await res.json().catch(() => null)) as {
-      items?: typeof jobBackups;
-      error?: string;
-    } | null;
-    if (!res.ok) {
-      throw new Error(body?.error || `Gagal load backup (${res.status})`);
-    }
-    setJobBackups(body?.items || []);
-  }
-
-  async function openJobBackupsModal() {
+  function openJobBackupsModal() {
     if (userLevel !== "superuser") {
       setError("Backup / Undo hanya untuk superuser");
       return;
     }
-    setBusy(true);
     setError("");
-    try {
-      await loadJobBackups(false);
-      setJobBackupsIncludeUndone(false);
-      setModal({ type: "job-backups" });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal load backup");
-    } finally {
-      setBusy(false);
-    }
+    setJobBackupsIncludeUndone(false);
+    setModal({ type: "job-backups" });
   }
 
   async function undoJobBackup(id: string) {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/backups/jobs", {
+      await api("/api/backups/jobs", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      const body = (await res.json().catch(() => null)) as {
-        error?: string;
-        summary?: string;
-      } | null;
-      if (!res.ok) {
-        throw new Error(body?.error || `Gagal undo (${res.status})`);
-      }
-      await loadJobBackups(jobBackupsIncludeUndone);
-      await load();
+      await Promise.all([invalidateBackups(), invalidateDashboard()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal undo");
     } finally {
@@ -1944,12 +1854,6 @@ export default function HomePage() {
       return next;
     });
   }
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 8000);
-    return () => clearInterval(id);
-  }, [load]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -2417,10 +2321,7 @@ export default function HomePage() {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/jobs/${jobId}/action`, {
-        method: "POST",
-        body: JSON.stringify({ action, ...payload }),
-      });
+      await jobActionMutation.mutateAsync({ jobId, action, payload });
       if (action === "start_steps" || action === "start_step") {
         setSelectedStepsByJob((prev) => {
           const next = { ...prev };
@@ -2428,7 +2329,6 @@ export default function HomePage() {
           return next;
         });
       }
-      await load();
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Aksi gagal");
@@ -2517,7 +2417,7 @@ export default function HomePage() {
         delete next[job.id];
         return next;
       });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal tambah handover");
     } finally {
@@ -2561,7 +2461,7 @@ export default function HomePage() {
         delete next[job.id];
         return next;
       });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan handover");
     } finally {
@@ -2598,7 +2498,7 @@ export default function HomePage() {
             .map((r, i) => ({ ...r, order: i + 1 })),
         };
       });
-      await load();
+      await invalidateDashboard();
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus handover");
@@ -2684,7 +2584,7 @@ export default function HomePage() {
         delete next[job.id];
         return next;
       });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal tambah peminjaman part");
     } finally {
@@ -2728,7 +2628,7 @@ export default function HomePage() {
         delete next[job.id];
         return next;
       });
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan peminjaman part");
     } finally {
@@ -2769,7 +2669,7 @@ export default function HomePage() {
             .map((r, i) => ({ ...r, order: i + 1 })),
         };
       });
-      await load();
+      await invalidateDashboard();
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus peminjaman part");
@@ -2797,9 +2697,8 @@ export default function HomePage() {
       });
       resetForm();
       setTemplatePreview(null);
-      setTemplateSummaries([]);
       closeModal();
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal buat job");
     } finally {
@@ -2824,7 +2723,7 @@ export default function HomePage() {
         }),
       });
       closeModal();
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal update job");
     } finally {
@@ -2840,7 +2739,7 @@ export default function HomePage() {
     try {
       await api(`/api/jobs/${job.id}`, { method: "DELETE" });
       closeModal();
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus job");
     } finally {
@@ -2864,7 +2763,7 @@ export default function HomePage() {
         body: JSON.stringify({ status: nextStatus }),
       });
       closeModal();
-      await load();
+      await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal update teknisi");
     } finally {
@@ -3958,7 +3857,11 @@ export default function HomePage() {
                 </div>
               )}
             </div>
-            <button className="btn" disabled={busy} onClick={() => load()}>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => void refetchDashboard()}
+            >
               {t("nav.refresh")}
             </button>
             <div className="nav-session">
@@ -4078,7 +3981,7 @@ export default function HomePage() {
               className="btn btn-icon"
               type="button"
               disabled={busy}
-              onClick={() => load()}
+              onClick={() => void refetchDashboard()}
               aria-label={t("nav.refresh")}
               title={t("nav.refresh")}
             >
@@ -4328,10 +4231,27 @@ export default function HomePage() {
         </div>
       )}
 
-      {error && <div className="error">{error}</div>}
+      {(error || dashboardError) && (
+        <div className="error">
+          {error ||
+            (dashboardError instanceof Error
+              ? dashboardError.message
+              : "Gagal load data")}
+        </div>
+      )}
 
-      {loading || !data ? (
+      {isLoading && !data ? (
         <DashboardShimmer label={t("loading.dashboard")} />
+      ) : !data ? (
+        <div className="empty-state" style={{ padding: "24px 0" }}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={() => void refetchDashboard()}
+          >
+            {t("nav.refresh")}
+          </button>
+        </div>
       ) : (
         <>
           <div className="summary-wrap">
@@ -4816,7 +4736,9 @@ export default function HomePage() {
             className="modal modal-wide"
             onClick={(e) => e.stopPropagation()}
           >
-            {busy && <BusyOverlay label="Memuat backup..." />}
+            {(busy || backupsLoading) && (
+              <BusyOverlay label={busy ? "Memproses..." : "Memuat backup..."} />
+            )}
             <h3>Backup perubahan job</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Snapshot tersimpan di <code>data/backup-jobs.xlsx</code>. Undo
@@ -4834,15 +4756,9 @@ export default function HomePage() {
               <input
                 type="checkbox"
                 checked={jobBackupsIncludeUndone}
-                disabled={busy}
+                disabled={busy || backupsFetching}
                 onChange={(e) => {
-                  const next = e.target.checked;
-                  setJobBackupsIncludeUndone(next);
-                  void loadJobBackups(next).catch((err) =>
-                    setError(
-                      err instanceof Error ? err.message : "Gagal load backup"
-                    )
-                  );
+                  setJobBackupsIncludeUndone(e.target.checked);
                 }}
               />
               Tampilkan yang sudah di-undo
@@ -4910,14 +4826,8 @@ export default function HomePage() {
             <div className="actions">
               <button
                 className="btn"
-                disabled={busy}
-                onClick={() =>
-                  void loadJobBackups(jobBackupsIncludeUndone).catch((err) =>
-                    setError(
-                      err instanceof Error ? err.message : "Gagal load backup"
-                    )
-                  )
-                }
+                disabled={busy || backupsFetching}
+                onClick={() => void refetchBackups()}
               >
                 Refresh
               </button>
@@ -6301,7 +6211,7 @@ export default function HomePage() {
             style={{ width: "min(720px, 100%)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {busy && <BusyOverlay />}
+            {(busy || templatesMasterLoading) && <BusyOverlay />}
             <h3>Master Template</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Katalog time frame Component Engine / Non Engine / GOH.{" "}
@@ -7041,7 +6951,7 @@ export default function HomePage() {
       {modal?.type === "users" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
-            {busy && <BusyOverlay />}
+            {(busy || usersLoading) && <BusyOverlay />}
             <h3>Master User</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Kelola akun login (tersimpan di sheet Users pada Excel).

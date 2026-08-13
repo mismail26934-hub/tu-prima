@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useIsRestoring } from "@tanstack/react-query";
 import { signOut, useSession } from "next-auth/react";
 import type {
   AppUserPublic,
@@ -38,6 +39,8 @@ import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { api } from "@/lib/api";
 import { useDashboard } from "@/hooks/useDashboard";
+import { shouldHoldServerRefresh } from "@/lib/offline/sync";
+import { writeCachedSession } from "@/lib/offline/session-cache";
 import {
   useJobBackups,
   useMasterTemplates,
@@ -533,11 +536,18 @@ export default function HomePage() {
   const formMode = useJobFormStore((s) => s.form.mode);
   const formCategory = useJobFormStore((s) => s.form.category);
 
+  const persistRestoring = useIsRestoring();
   const {
     data,
     error: dashboardError,
+    isError: dashboardIsError,
+    isFetching: dashboardFetching,
     refetch: refetchDashboard,
   } = useDashboard();
+  const refreshDashboard = useCallback(() => {
+    if (shouldHoldServerRefresh()) return;
+    void refetchDashboard();
+  }, [refetchDashboard]);
   const {
     invalidateDashboard,
     invalidateTemplates,
@@ -1915,6 +1925,7 @@ export default function HomePage() {
   async function handleLogout() {
     setLoggingOut(true);
     setBusy(true);
+    writeCachedSession(null);
     try {
       await signOut({ callbackUrl: "/login" });
     } catch {
@@ -3711,7 +3722,7 @@ export default function HomePage() {
             <div className="brand-row">
               TU-PRIMA
               <OfflineSyncChip
-                onRefresh={() => void refetchDashboard()}
+                onRefresh={refreshDashboard}
                 refreshBusy={busy}
               />
             </div>
@@ -3864,7 +3875,7 @@ export default function HomePage() {
               className="btn btn-icon"
               disabled={busy}
               type="button"
-              onClick={() => void refetchDashboard()}
+              onClick={refreshDashboard}
               aria-label={t("nav.refresh")}
               title={t("nav.refresh")}
             >
@@ -4000,7 +4011,7 @@ export default function HomePage() {
               className="btn btn-icon"
               type="button"
               disabled={busy}
-              onClick={() => void refetchDashboard()}
+              onClick={refreshDashboard}
               aria-label={t("nav.refresh")}
               title={t("nav.refresh")}
             >
@@ -4259,9 +4270,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {!data ? (
+      {!data && persistRestoring ? (
         <DashboardShimmer label={t("loading.dashboard")} />
-      ) : (
+      ) : !data && dashboardFetching ? (
+        <DashboardShimmer label={t("loading.dashboard")} />
+      ) : data ? (
         <>
           <div className="summary-wrap">
             <section className="summary-group">
@@ -4641,6 +4654,10 @@ export default function HomePage() {
             )}
           </div>
         </>
+      ) : (
+        <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>
+          {t("offline.noLocalData")}
+        </p>
       )}
 
       {modal?.type === "export-jobs" && (

@@ -86,7 +86,7 @@ export function OfflineSyncChip({
             <button
               className="btn"
               type="button"
-              disabled={refreshBusy}
+              disabled={refreshBusy || !online}
               onClick={() => {
                 onRefresh?.();
                 setOpen(false);

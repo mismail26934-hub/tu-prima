@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { shouldHoldServerRefresh } from "@/lib/offline/sync";
+import { isBrowserOnline } from "@/lib/offline/network";
+import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snapshot";
 import type {
   AppUserPublic,
   JobChangeBackup,
@@ -23,9 +26,32 @@ export function useMasterTemplates(enabled: boolean) {
 export function useTemplateCatalog() {
   return useQuery({
     queryKey: queryKeys.templates.catalog,
-    queryFn: () =>
-      api<{ templates: JobTemplate[] }>("/api/job-templates?full=1"),
+    queryFn: async () => {
+      const snap = readBoardSnapshot()?.templates;
+      if (snap && (shouldHoldServerRefresh() || !isBrowserOnline())) {
+        return snap;
+      }
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      try {
+        const data = await api<{ templates: JobTemplate[] }>(
+          "/api/job-templates?full=1",
+          { signal: ctrl.signal }
+        );
+        writeBoardSnapshot({ templates: data });
+        return data;
+      } catch (error) {
+        if (snap) return snap;
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
     staleTime: 30_000,
+    refetchOnWindowFocus: () => !shouldHoldServerRefresh(),
+    refetchOnReconnect: () => !shouldHoldServerRefresh(),
+    refetchOnMount: () => !shouldHoldServerRefresh(),
+    retry: false,
   });
 }
 

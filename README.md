@@ -528,6 +528,7 @@ App tetap bisa **create / update / delete** (dan aksi progress) meski server ata
 1. User **sudah buka app + login** saat server masih hidup (sekali cukup).
 2. Browser menyimpan: UI (service worker `public/sw.js`), session (10 jam), snapshot dashboard/template (IndexedDB).
 3. Buka kembali app dari URL yang sama (LAN / localhost). Kalau belum pernah dibuka, shell & data belum ada → tidak bisa.
+4. F5 / ikon Refresh saat offline restore board dari snapshot (localStorage + IndexedDB). Refresh ke server hanya saat online dan outbox kosong.
 
 ### Alur
 

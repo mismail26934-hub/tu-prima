@@ -198,6 +198,8 @@ const id = {
   "offline.chipOfflinePending": "Offline · {count}",
   "offline.chipSyncing": "Sync {count}…",
   "offline.popoverTitle": "Sinkronisasi",
+  "offline.noLocalData":
+    "Belum ada salinan lokal. Buka aplikasi sekali saat server hidup, lalu bisa dipakai offline.",
 } as const;
 
 const en: Record<MessageKey, string> = {
@@ -396,6 +398,8 @@ const en: Record<MessageKey, string> = {
   "offline.chipOfflinePending": "Offline · {count}",
   "offline.chipSyncing": "Sync {count}…",
   "offline.popoverTitle": "Sync",
+  "offline.noLocalData":
+    "No local copy yet. Open the app once while the server is up, then it can be used offline.",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = {

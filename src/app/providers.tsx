@@ -8,10 +8,14 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { del, get, set } from "idb-keyval";
 import { bindQueryClient } from "@/lib/offline/query-bridge";
-import { startOutboxSync } from "@/lib/offline/sync";
+import { startOutboxSync, shouldHoldServerRefresh } from "@/lib/offline/sync";
 import { readCachedSession } from "@/lib/offline/session-cache";
+import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snapshot";
+import { queryKeys } from "@/lib/query-keys";
+import type { DashboardData, JobTemplate } from "@/lib/types";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { SessionCache } from "@/components/SessionCache";
+import { BoardSnapshotSync } from "@/components/BoardSnapshotSync";
 
 const CACHE_KEY = "tu-prima-query";
 const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
@@ -28,9 +32,10 @@ function makeQueryClient() {
       queries: {
         staleTime: 5_000,
         gcTime: MAX_AGE_MS,
-        refetchOnWindowFocus: true,
-        refetchOnReconnect: true,
-        retry: 1,
+        refetchOnWindowFocus: () => !shouldHoldServerRefresh(),
+        refetchOnReconnect: () => !shouldHoldServerRefresh(),
+        refetchOnMount: () => !shouldHoldServerRefresh(),
+        retry: (count) => (!shouldHoldServerRefresh() && count < 1),
         networkMode: "offlineFirst",
       },
       mutations: {
@@ -44,7 +49,15 @@ function makeQueryClient() {
 const idbStorage = {
   getItem: async (key: string) => {
     const value = await get(key);
-    return typeof value === "string" ? value : null;
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object") {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   },
   setItem: (key: string, value: string) => set(key, value),
   removeItem: (key: string) => del(key),
@@ -64,6 +77,7 @@ function getPersister() {
     browserPersister = createAsyncStoragePersister({
       storage: idbStorage,
       key: CACHE_KEY,
+      throttleTime: 100,
     });
   }
   return browserPersister;
@@ -75,21 +89,42 @@ export function Providers({ children }: { children: ReactNode }) {
   const [offlineSession, setOfflineSession] = useState<
     SessionProviderProps["session"]
   >(undefined);
+  const [cacheReady, setCacheReady] = useState(false);
 
   useEffect(() => {
     bindQueryClient(queryClient);
-    startOutboxSync();
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = readCachedSession();
-      if (cached?.user) {
-        setOfflineSession(cached as SessionProviderProps["session"]);
-      }
+    const snap = readBoardSnapshot();
+    if (snap?.dashboard) {
+      queryClient.setQueryData(queryKeys.dashboard, snap.dashboard);
     }
+    if (snap?.templates) {
+      queryClient.setQueryData(queryKeys.templates.catalog, snap.templates);
+    }
+    const cached = readCachedSession();
+    if (cached?.user) {
+      setOfflineSession(cached as SessionProviderProps["session"]);
+    }
+    startOutboxSync();
+    setCacheReady(true);
   }, [queryClient]);
 
   return (
     <PersistQueryClientProvider
       client={queryClient}
+      onSuccess={() => {
+        const dashboard = queryClient.getQueryData<DashboardData>(
+          queryKeys.dashboard
+        );
+        const templates = queryClient.getQueryData<{ templates: JobTemplate[] }>(
+          queryKeys.templates.catalog
+        );
+        if (dashboard || templates) {
+          writeBoardSnapshot({
+            dashboard,
+            templates,
+          });
+        }
+      }}
       persistOptions={{
         persister,
         maxAge: MAX_AGE_MS,
@@ -115,7 +150,8 @@ export function Providers({ children }: { children: ReactNode }) {
       >
         <ServiceWorkerRegister />
         <SessionCache />
-        {children}
+        <BoardSnapshotSync />
+        {cacheReady ? children : null}
         {process.env.NODE_ENV === "development" ? (
           <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
         ) : null}

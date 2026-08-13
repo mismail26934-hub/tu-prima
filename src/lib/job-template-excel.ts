@@ -111,10 +111,10 @@ export async function buildJobTemplateUploadTemplate(): Promise<ExcelJS.Workbook
     meta.getCell(`B${row}`).dataValidation = {
       type: "list",
       allowBlank: true,
-      formulae: ['"engine,non_engine"'],
+      formulae: ['"engine,non_engine,goh"'],
       showErrorMessage: true,
       errorTitle: "Category tidak valid",
-      error: "Pilih engine atau non_engine.",
+      error: "Pilih engine, non_engine, atau goh.",
     };
     meta.getCell(`D${row}`).dataValidation = {
       type: "list",
@@ -181,7 +181,7 @@ function addPetunjukSheet(workbook: ExcelJS.Workbook, forUpload: boolean) {
         },
         {
           topic: "Templates.category",
-          note: "Wajib: engine atau non_engine.",
+          note: "Wajib: engine, non_engine, atau goh.",
         },
         {
           topic: "Templates.name",
@@ -219,7 +219,7 @@ function addPetunjukSheet(workbook: ExcelJS.Workbook, forUpload: boolean) {
         },
         {
           topic: "category",
-          note: "engine = Component Engine; non_engine = Component Non Engine (Transmisi).",
+          note: "engine = Component Engine; non_engine = Component Non Engine (Transmisi); goh = GOH.",
         },
         {
           topic: "std_minutes",
@@ -298,6 +298,9 @@ function parseCategory(raw: string): JobTemplateCategory | null {
     v === "ne"
   ) {
     return "non_engine";
+  }
+  if (v === "goh" || v === "general overhaul" || v === "time frame goh") {
+    return "goh";
   }
   return null;
 }

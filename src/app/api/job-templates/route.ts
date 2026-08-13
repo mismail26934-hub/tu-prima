@@ -33,7 +33,9 @@ export async function GET(req: Request) {
 
   const category = searchParams.get("category") as JobTemplateCategory | null;
   const valid =
-    category === "engine" || category === "non_engine" ? category : undefined;
+    category === "engine" || category === "non_engine" || category === "goh"
+      ? category
+      : undefined;
 
   if (includeInactive) {
     return NextResponse.json({

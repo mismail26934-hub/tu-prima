@@ -33,15 +33,29 @@ export type JobTemplateWriteInput = {
 };
 
 let cache: CatalogFile | null = null;
+let cacheMtimeMs = -1;
 
 export function clearJobTemplateCache() {
   cache = null;
+  cacheMtimeMs = -1;
+}
+
+function catalogMtimeMs(): number {
+  try {
+    if (!fs.existsSync(CATALOG_PATH)) return -1;
+    return fs.statSync(CATALOG_PATH).mtimeMs;
+  } catch {
+    return -1;
+  }
 }
 
 function loadCatalog(): CatalogFile {
-  if (cache) return cache;
+  const mtimeMs = catalogMtimeMs();
+  if (cache && cacheMtimeMs === mtimeMs && mtimeMs >= 0) return cache;
+
   if (!fs.existsSync(CATALOG_PATH)) {
     cache = { version: 1, templates: [] };
+    cacheMtimeMs = -1;
     return cache;
   }
   const raw = fs.readFileSync(CATALOG_PATH, "utf8");
@@ -50,6 +64,7 @@ function loadCatalog(): CatalogFile {
     version: parsed.version || 1,
     templates: Array.isArray(parsed.templates) ? parsed.templates : [],
   };
+  cacheMtimeMs = mtimeMs;
   return cache;
 }
 
@@ -58,6 +73,7 @@ function saveCatalog(catalog: CatalogFile) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(CATALOG_PATH, JSON.stringify(catalog, null, 2) + "\n", "utf8");
   cache = catalog;
+  cacheMtimeMs = catalogMtimeMs();
 }
 
 function slugify(value: string): string {
@@ -70,7 +86,9 @@ function slugify(value: string): string {
 }
 
 function categoryPrefix(category: JobTemplateCategory): string {
-  return category === "engine" ? "eng" : "ne";
+  if (category === "engine") return "eng";
+  if (category === "goh") return "goh";
+  return "ne";
 }
 
 function makeTemplateId(
@@ -218,8 +236,8 @@ export function stepNamesFromTemplate(template: JobTemplate): string[] {
 }
 
 function assertCategory(value: unknown): JobTemplateCategory {
-  if (value === "engine" || value === "non_engine") return value;
-  throw new Error("category harus engine atau non_engine");
+  if (value === "engine" || value === "non_engine" || value === "goh") return value;
+  throw new Error("category harus engine, non_engine, atau goh");
 }
 
 export function createJobTemplate(input: JobTemplateWriteInput): JobTemplate {

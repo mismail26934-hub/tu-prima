@@ -49,7 +49,7 @@ export interface Unit {
   active: string; // "1" | "0"
 }
 
-export type JobTemplateCategory = "engine" | "non_engine";
+export type JobTemplateCategory = "engine" | "non_engine" | "goh";
 
 /** Master catalog entry (from data/job-templates.json). */
 export interface JobTemplateStep {

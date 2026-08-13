@@ -1550,6 +1550,111 @@ html[data-theme="light"].menu-open .topbar-glass {
   accent-color: var(--amber);
 }
 
+.searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.searchable-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-0);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.searchable-select-trigger .is-placeholder {
+  color: var(--muted);
+}
+
+.searchable-select.is-disabled .searchable-select-trigger {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.searchable-select-caret {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.searchable-select-panel {
+  display: grid;
+  gap: 6px;
+}
+
+.searchable-select-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-0);
+  border: 1px solid var(--amber-border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  outline: none;
+}
+
+.searchable-select-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.searchable-select-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.searchable-select-option.is-active,
+.searchable-select-option:hover {
+  background: color-mix(in srgb, var(--amber-dim) 35%, var(--bg-0));
+}
+
+.searchable-select-option.is-selected {
+  font-weight: 600;
+}
+
+.searchable-select-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 10px;
+}
+
 .check-list {
   display: grid;
   gap: 8px;

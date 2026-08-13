@@ -24,7 +24,9 @@ export async function GET(req: Request) {
   const id = searchParams.get("id");
   const category = searchParams.get("category") as JobTemplateCategory | null;
   const valid =
-    category === "engine" || category === "non_engine" ? category : undefined;
+    category === "engine" || category === "non_engine" || category === "goh"
+      ? category
+      : undefined;
   const includeInactive = searchParams.get("include_inactive") !== "0";
 
   const templates = id

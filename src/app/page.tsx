@@ -36,6 +36,7 @@ import { useT } from "@/i18n/useT";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 type Modal =
   | null
@@ -160,6 +161,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data as T;
+}
+
+function jobTemplateCategoryLabel(category: JobTemplateCategory | string): string {
+  if (category === "engine") return "Component Engine";
+  if (category === "goh") return "GOH";
+  return "Component Non Engine (Transmisi)";
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -5173,7 +5180,7 @@ export default function HomePage() {
                   {form.mode === "template" && (
                     <>
                       <label>
-                        Jenis komponen *
+                        Jenis Template *
                         <select
                           value={form.category}
                           onChange={(e) => {
@@ -5192,33 +5199,34 @@ export default function HomePage() {
                           }}
                           required
                         >
-                          <option value="">— Pilih jenis —</option>
+                          <option value="">Pilih Template</option>
                           <option value="engine">Component Engine</option>
                           <option value="non_engine">
                             Component Non Engine (Transmisi)
                           </option>
+                          <option value="goh">GOH</option>
                         </select>
                       </label>
                       <label>
-                        Template komponen *
-                        <select
+                        Template Komponen/GOH Unit *
+                        <SearchableSelect
                           value={form.template_id}
                           disabled={!form.category || templatesLoading}
-                          onChange={(e) => applyJobTemplate(e.target.value)}
                           required
-                        >
-                          <option value="">
-                            {templatesLoading
+                          placeholder={
+                            templatesLoading
                               ? "Memuat template..."
-                              : "— Pilih komponen —"}
-                          </option>
-                          {templateSummaries.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} · {t.step_count} step ·{" "}
-                              {formatStdLabel(t.std_minutes)}
-                            </option>
-                          ))}
-                        </select>
+                              : "Pilih Komponen / Unit"
+                          }
+                          emptyMessage="Tidak ada template yang cocok"
+                          aria-label="Template Komponen/GOH Unit"
+                          options={templateSummaries.map((t) => ({
+                            value: t.id,
+                            label: `${t.name} · ${t.step_count} step · ${formatStdLabel(t.std_minutes)}`,
+                            searchText: `${t.name} ${t.id}`,
+                          }))}
+                          onChange={(next) => void applyJobTemplate(next)}
+                        />
                       </label>
                     </>
                   )}
@@ -5234,25 +5242,27 @@ export default function HomePage() {
               </label>
               <label>
                 Unit *
-                <select
+                <SearchableSelect
                   value={form.unit_id}
-                  onChange={(e) => setForm({ unit_id: e.target.value })}
                   required
-                >
-                  <option value="">— Pilih unit —</option>
-                  {(data?.units || [])
+                  placeholder="Pilih Komponen / Unit"
+                  emptyMessage="Tidak ada unit yang cocok"
+                  aria-label="Unit"
+                  options={(data?.units || [])
                     .filter(
                       (u) =>
                         u.active === "1" ||
                         (modal.type === "edit" && u.id === form.unit_id)
                     )
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.code} — {u.name}
-                        {u.active !== "1" ? " (nonaktif)" : ""}
-                      </option>
-                    ))}
-                </select>
+                    .map((u) => ({
+                      value: u.id,
+                      label: `${u.code} — ${u.name}${
+                        u.active !== "1" ? " (nonaktif)" : ""
+                      }`,
+                      searchText: `${u.code} ${u.name} ${u.serial_number || ""}`,
+                    }))}
+                  onChange={(next) => setForm({ unit_id: next })}
+                />
               </label>
               <label>
                 Deskripsi *
@@ -6294,7 +6304,7 @@ export default function HomePage() {
             {busy && <BusyOverlay />}
             <h3>Master Template</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Katalog time frame Component Engine / Non Engine.{" "}
+              Katalog time frame Component Engine / Non Engine / GOH.{" "}
               <strong>Unduh Excel (data)</strong> = export isi katalog.{" "}
               <strong>Unduh blank upload</strong> = file kosong untuk mass
               upload. Hapus = nonaktif (job lama tetap menyimpan template_id).
@@ -6367,6 +6377,7 @@ export default function HomePage() {
                 <option value="non_engine">
                   Component Non Engine (Transmisi)
                 </option>
+                <option value="goh">GOH</option>
               </select>
               <input
                 className="panel-search"
@@ -6431,9 +6442,7 @@ export default function HomePage() {
                   <div>
                     <strong>{tpl.name}</strong>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {tpl.category === "engine"
-                        ? "Component Engine"
-                        : "Component Non Engine (Transmisi)"}
+                      {jobTemplateCategoryLabel(tpl.category)}
                       {" · "}
                       {tpl.steps.length} step · {formatStdLabel(tpl.std_minutes)}
                       {tpl.active !== "1" ? " · nonaktif" : ""}
@@ -6516,7 +6525,7 @@ export default function HomePage() {
             {error && <div className="error">{error}</div>}
             <div className="form">
               <label>
-                Jenis komponen
+                Jenis Template
                 <select
                   value={templateForm.category}
                   onChange={(e) =>
@@ -6530,6 +6539,7 @@ export default function HomePage() {
                   <option value="non_engine">
                     Component Non Engine (Transmisi)
                   </option>
+                  <option value="goh">GOH</option>
                 </select>
               </label>
               <label>

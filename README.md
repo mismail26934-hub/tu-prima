@@ -135,8 +135,8 @@ Sumber Excel asli disalin ke `data/templates/`, lalu dikonversi ke katalog terno
 ### Cara buat job dari template
 
 1. **+ Job baru** → Mode: _Dari time frame_
-2. Pilih **Component Engine** atau **Component Non Engine (Transmisi)**
-3. Pilih komponen (contoh: Engine 3306, Transmission 16H,G)
+2. Pilih **Component Engine**, **Component Non Engine (Transmisi)**, atau **GOH**
+3. Pilih komponen (contoh: Engine 3306, Transmission 16H,G, GOH OHT 785)
 4. Judul, deskripsi, estimasi menit, dan daftar tahapan terisi otomatis
 5. Pilih **Unit** → Simpan
 
@@ -149,7 +149,10 @@ Setiap step job menyimpan `std_minutes` dan ditampilkan di kartu sebagai **STP �
 
 **Non Engine (Transmisi):** 24H/M, 16M, 740, 777, 16H/G, 785/789, D10T/R
 
-API: `GET /api/job-templates?category=engine|non_engine` · `GET /api/job-templates?id=...` · `GET /api/job-templates?include_inactive=1` (master) · `POST /api/job-templates` · `PATCH|DELETE /api/job-templates/[id]` · `GET /api/job-templates/template` (blank upload) · `POST /api/job-templates/import` · `GET /api/job-templates/download` (export xlsx)
+**GOH:** 16M/16G/16H, 24H/24M, OHT 785, OHT 789, D10T/D10R, ADT 740  
+(sumber: `data/templates/Time Frame GOH.xlsx`)
+
+API: `GET /api/job-templates?category=engine|non_engine|goh` · `GET /api/job-templates?id=...` · `GET /api/job-templates?include_inactive=1` (master) · `POST /api/job-templates` · `PATCH|DELETE /api/job-templates/[id]` · `GET /api/job-templates/template` (blank upload) · `POST /api/job-templates/import` · `GET /api/job-templates/download` (export xlsx)
 
 ---
 
@@ -333,6 +336,7 @@ data/
   templates/             ← file Excel time frame sumber
     TIME FRAME ENGINE RECONDITION.xlsx
     TIME FRAME NON ENGINE RECONDITION (TRANSMISI).xlsx
+    Time Frame GOH.xlsx
 ```
 
 Detail perilaku archive: lihat [Archive Excel](#archive-excel-complete--cancel--hapus).

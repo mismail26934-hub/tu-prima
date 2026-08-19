@@ -44,10 +44,10 @@ export async function GET() {
     { header: "Ketentuan", key: "rule", width: 72 },
   ];
   guide.addRows([
-    { column: "Nama", rule: "Wajib. Nama lengkap teknisi." },
+    { column: "Nama", rule: "Wajib. Nama lengkap teknisi. Alias: Nama Karyawan." },
     {
       column: "SN",
-      rule: "Wajib dan unik. Jika sudah ada, data teknisi tersebut akan diperbarui.",
+      rule: "Wajib dan unik (= No. ID Badge / Pernr). Jika sudah ada, data teknisi tersebut akan diperbarui. Alias: No. ID Badge, Pernr, NIK.",
     },
     {
       column: "Telepon",

@@ -1155,6 +1155,7 @@ export default function HomePage() {
         imported: number;
         updated: number;
         skipped: string[];
+        unmatched?: string[];
       }>("/api/technicians/import", { method: "POST", body: fd });
       setTechImportMsg(
         `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
@@ -1352,17 +1353,75 @@ export default function HomePage() {
         updated: number;
         unmatched: string[];
         date: string;
+        tech_available?: number;
+        tech_offline?: number;
       }>("/api/attendance/import", { method: "POST", body: fd });
       if (result.date) setAttendanceDateFilter(result.date);
       setAttendanceImportMsg(
         `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
           (result.unmatched.length
             ? ` · ${result.unmatched.length} tidak match teknisi`
+            : "") +
+          (typeof result.tech_offline === "number"
+            ? ` · status: ${result.tech_available ?? 0} available, ${result.tech_offline} offline`
             : "")
       );
       await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncMealsPresence(opts?: { file?: File }) {
+    setBusy(true);
+    setError("");
+    setAttendanceImportMsg("");
+    try {
+      let result: {
+        available: number;
+        offline: number;
+        busy_skipped: number;
+        badge_count: number;
+        unmatched_badges: string[];
+        attendance_upserted: number;
+        date: string;
+        sheet_used?: string;
+        rule?: string;
+      };
+      if (opts?.file) {
+        const fd = new FormData();
+        fd.append("file", opts.file);
+        if (attendanceDateFilter) fd.append("date", attendanceDateFilter);
+        result = await api("/api/attendance/sync-sharepoint", {
+          method: "POST",
+          body: fd,
+        });
+      } else {
+        result = await api("/api/attendance/sync-sharepoint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: attendanceDateFilter || undefined,
+          }),
+        });
+      }
+      if (result.date) setAttendanceDateFilter(result.date);
+      setAttendanceImportMsg(
+        `Meals/presence OK: ${result.available} available, ${result.offline} offline` +
+          (result.busy_skipped ? ` · ${result.busy_skipped} busy di-skip` : "") +
+          ` · ${result.badge_count} badge di Excel` +
+          (result.unmatched_badges?.length
+            ? ` · ${result.unmatched_badges.length} badge belum ada di master`
+            : "") +
+          (result.sheet_used ? ` · sheet: ${result.sheet_used}` : "")
+      );
+      await invalidateDashboard();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Sync meals / kehadiran gagal"
+      );
     } finally {
       setBusy(false);
     }
@@ -6744,7 +6803,9 @@ export default function HomePage() {
             <h3>Master Teknisi</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               Kelola data teknisi (nama, SN, telepon, status). Upload Excel
-              untuk mass input — header: Nama, SN, Telepon, Status (opsional).
+              untuk mass input — header: Nama, SN / No. ID Badge, Telepon.
+              Sync Meals Request (available/offline) ada di{" "}
+              <strong>Daftar Hadir</strong>.
             </p>
             {error && <div className="error">{error}</div>}
             {techImportMsg && (
@@ -7234,8 +7295,10 @@ export default function HomePage() {
             {busy && <BusyOverlay />}
             <h3>Daftar Hadir</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Upload Excel daftar hadir (Pernr / Name Employee) lalu kelola
-              data. Match teknisi via SN = Pernr.
+              Absensi / <strong>Meals Request</strong> dibanding master teknisi
+              (No. ID Badge = SN). Ada di meals/hadir →{" "}
+              <strong>available</strong>; tidak ada → <strong>offline</strong>{" "}
+              (status busy tidak diubah).
             </p>
             {error && <div className="error">{error}</div>}
             {attendanceImportMsg && (
@@ -7243,10 +7306,12 @@ export default function HomePage() {
                 {attendanceImportMsg}
               </p>
             )}
-            {canAttendanceCreate && (
+            {(canAttendanceCreate || canTechUpdate) && (
             <div className="form" style={{ marginBottom: 12 }}>
+              {canAttendanceCreate && (
+              <>
               <label>
-                Upload Excel (.xlsx)
+                Upload absensi Excel (.xlsx)
                 <input
                   type="file"
                   accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -7266,9 +7331,44 @@ export default function HomePage() {
                   onChange={(e) => setAttendanceSyncTech(e.target.checked)}
                 />
                 <span>
-                  Sync status teknisi (hadir → available, lainnya → offline)
+                  Sync status teknisi (hadir → available; tidak hadir / tidak di
+                  file → offline)
                 </span>
               </label>
+              </>
+              )}
+              {canTechUpdate && (
+              <>
+              <div className="actions" style={{ marginTop: 8, flexWrap: "wrap", gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy}
+                  onClick={() => void syncMealsPresence()}
+                  title="Unduh Meals Request via Microsoft Graph lalu set available/offline"
+                >
+                  Sync Meals SharePoint
+                </button>
+              </div>
+              <label>
+                Atau upload Meals Request (.xlsx) untuk presence
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void syncMealsPresence({ file });
+                  }}
+                />
+              </label>
+              <p style={{ color: "var(--muted)", fontSize: 12, margin: 0 }}>
+                Graph: set AZURE_* + SHAREPOINT_MEALS_EXCEL_URL. Tanpa Entra,
+                unduh file / pakai Power Automate lalu upload di sini.
+              </p>
+              </>
+              )}
             </div>
             )}
             <div

@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import type mysql from "mysql2/promise";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -6,16 +7,10 @@ dotenv.config();
 import { closePool, ensureSchema, getPool } from "../src/db/mysql-workbook";
 import { hashPassword, isBcryptHash } from "../src/lib/password";
 
-type UserRow = {
-  id: string;
-  username: string;
-  password_hash: string;
-};
-
 async function main() {
   await ensureSchema();
   const pool = getPool();
-  const [rows] = await pool.query<UserRow[]>(
+  const [rows] = await pool.query<mysql.RowDataPacket[]>(
     "SELECT id, username, password_hash FROM users ORDER BY username"
   );
 

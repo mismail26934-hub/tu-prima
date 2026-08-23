@@ -1,8 +1,8 @@
 # TU-PRIMA — Progress Report & Inspection for Mechanic Allocation
 
-Aplikasi monitoring job workshop / recondition mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
+Aplikasi monitoring job workshop / recondition mekanik dengan **MySQL/MariaDB sebagai database** (migrasi dari Excel).
 
-Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript · PWA / IndexedDB (offline) · WebSocket**
+Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · ExcelJS (import/export saja) · Zustand · TypeScript · PWA / IndexedDB (offline) · WebSocket**
 
 ---
 
@@ -25,7 +25,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 15. [Menjalankan project](#menjalankan-project)
 16. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
 17. [Realtime WebSocket](#realtime-websocket)
-18. [Catatan operasional](#catatan-operasional)
+18. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
+19. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -68,7 +69,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zust
 - **Teknisi** — CRUD + import Excel + unduh template
 - **Template** — CRUD time frame Engine / Non Engine + unduh template Excel + mass upload
 - **Users** — CRUD akun login (level, aktif)
-- **Daftar hadir** — CRUD + import Excel
+- **Daftar hadir** — CRUD + import Excel absensi; **Sync Meals Request** (SharePoint Graph atau upload) untuk set **available / offline** pada board teknisi
 
 ### Akun
 
@@ -185,28 +186,28 @@ Semua aksi progress memakai **modal konfirmasi**.
 
 ## Timer & sisa estimasi
 
-| Elemen           | Rumus                                                |
-| ---------------- | ---------------------------------------------------- |
-| Timer job        | Wall-clock sejak `started_at`, dikurangi total pause |
-| Timer step       | Independen per step (`duration_sec` + segmen aktif)  |
-| Sisa estimasi    | `estimated_minutes × 60 − elapsed` + **% tersisa**   |
-| STP/Std Hours    | `std_minutes` per step (dari template); format `H jam` atau `H jam M mnt` |
+| Elemen        | Rumus                                                                     |
+| ------------- | ------------------------------------------------------------------------- |
+| Timer job     | Wall-clock sejak `started_at`, dikurangi total pause                      |
+| Timer step    | Independen per step (`duration_sec` + segmen aktif)                       |
+| Sisa estimasi | `estimated_minutes × 60 − elapsed` + **% tersisa**                        |
+| STP/Std Hours | `std_minutes` per step (dari template); format `H jam` atau `H jam M mnt` |
 
 ### Warna kartu sisa estimasi (teks putih)
 
-| Sisa dari estimasi  | Latar kartu |
-| ------------------- | ----------- |
-| **≥ 50%**           | Hijau       |
-| **> 20% dan < 50%** | Oranye      |
-| **≤ 20% / overtime**| Merah       |
+| Sisa dari estimasi   | Latar kartu |
+| -------------------- | ----------- |
+| **≥ 50%**            | Hijau       |
+| **> 20% dan < 50%**  | Oranye      |
+| **≤ 20% / overtime** | Merah       |
 
 ### Warna timer per step (vs STP)
 
-| Sisa dari STP step  | Warna timer |
-| ------------------- | ----------- |
-| **≥ 50%**           | Putih       |
-| **> 20% dan < 50%** | Oranye      |
-| **≤ 20% / overtime**| Merah       |
+| Sisa dari STP step   | Warna timer |
+| -------------------- | ----------- |
+| **≥ 50%**            | Putih       |
+| **> 20% dan < 50%**  | Oranye      |
+| **≤ 20% / overtime** | Merah       |
 
 Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `duration_sec`).
 Reopen/complete **tidak mereset** `started_at` — timer akumulatif tetap dari start awal.
@@ -218,11 +219,11 @@ Sync offline memakai `started_at` / `next_started_at` dari client, bukan jam ser
 
 Job aktif & antrian tetap di **`workshop.xlsx`**. Complete / cancel / hapus memakai file archive terpisah (append):
 
-| Aksi       | File                    | Efek pada workshop              | Lihat di UI              | Restore (superuser)                          |
-| ---------- | ----------------------- | ------------------------------- | ------------------------ | -------------------------------------------- |
-| Complete   | `completed-jobs.xlsx`   | Dihapus dari workshop           | Filter **Job completed** | → `paused`                                   |
-| Cancel     | `cancelled-jobs.xlsx`   | Dihapus dari workshop           | Filter **Job cancelled** | → `paused` / `assigned` / `queued`           |
-| Hapus      | `deleted-jobs.xlsx`     | Dihapus; audit tetap            | — (arsip manual)         | Tidak (hanya backup)                         |
+| Aksi     | File                  | Efek pada workshop    | Lihat di UI              | Restore (superuser)                |
+| -------- | --------------------- | --------------------- | ------------------------ | ---------------------------------- |
+| Complete | `completed-jobs.xlsx` | Dihapus dari workshop | Filter **Job completed** | → `paused`                         |
+| Cancel   | `cancelled-jobs.xlsx` | Dihapus dari workshop | Filter **Job cancelled** | → `paused` / `assigned` / `queued` |
+| Hapus    | `deleted-jobs.xlsx`   | Dihapus; audit tetap  | — (arsip manual)         | Tidak (hanya backup)               |
 
 Setiap baris archive menyimpan meta `archived_at` / `deleted_at` + user pelaku, plus sheet turunan (steps, events, assignees, handovers, part loans).
 
@@ -283,13 +284,13 @@ Jenis event: `created`, `updated`, `assigned`, `started`, `paused`, `resumed`, `
 
 Tetap ada **meski job dihapus**.
 
-| Kolom                                  | Isi                                                                                                   |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `at`                                   | timestamp                                                                                             |
-| `user_id` / `user_name` / `user_level` | pelaku                                                                                                |
+| Kolom                                  | Isi                                                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `at`                                   | timestamp                                                                                                     |
+| `user_id` / `user_name` / `user_level` | pelaku                                                                                                        |
 | `action`                               | create, update, delete, assign, start, pause, resume, start_steps, complete_step, complete, cancel, reopen, … |
-| `entity` / `entity_id`                 | biasanya `job` + id job                                                                               |
-| `detail`                               | ringkasan (judul, unit, status, catatan)                                                              |
+| `entity` / `entity_id`                 | biasanya `job` + id job                                                                                       |
+| `detail`                               | ringkasan (judul, unit, status, catatan)                                                                      |
 
 Tercakup: create/update/delete job, assign/ubah teknisi, start/pause/resume/step/complete/cancel/reopen.
 
@@ -297,11 +298,11 @@ Tercakup: create/update/delete job, assign/ubah teknisi, start/pause/resume/step
 
 Setiap create / update / delete job, assign, start/pause/resume/step/complete/cancel, handover, dan part loan menyimpan **snapshot JSON sebelum & sesudah** di sheet `ChangeLog` file terpisah `data/backup-jobs.xlsx`.
 
-| Kolom | Isi |
-|-------|-----|
+| Kolom                        | Isi                                               |
+| ---------------------------- | ------------------------------------------------- |
 | `before_json` / `after_json` | Snapshot data (job bundle / handover / part loan) |
-| `user_*` | Pelaku |
-| `undone` | `1` jika sudah di-undo |
+| `user_*`                     | Pelaku                                            |
+| `undone`                     | `1` jika sudah di-undo                            |
 
 - UI: menu **Kelola → Backup / Undo** (**superuser** saja)
 - API: `GET/POST /api/backups/jobs` (**superuser** saja)
@@ -315,7 +316,7 @@ File: **`data/workshop.xlsx`**
 
 | Sheet        | Isi utama                                                                                                           |
 | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Technicians  | id, name, **sn** (SN), status, current_job_id, phone                                                            |
+| Technicians  | id, name, **sn** (SN), status, current_job_id, phone                                                                |
 | Units        | id, code, name, active                                                                                              |
 | Jobs         | id, title, unit, unit_id, description, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
 | JobAssignees | job_id, technician_id, is_lead, assigned_at                                                                         |
@@ -449,27 +450,29 @@ data/
 
 ## API ringkas
 
-| Method       | Path                                                              | Keterangan                                                                                               |
-| ------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| GET          | `/api/dashboard`                                                  | Snapshot board                                                                                           |
-| GET          | `/api/job-templates`                                              | List / detail template (`full=1` katalog + steps; `include_inactive=1` master)                          |
-| POST         | `/api/job-templates`                                              | Buat template time frame                                                                                 |
-| PATCH/DELETE | `/api/job-templates/[id]`                                         | Update / soft-delete (nonaktif) template                                                                 |
-| GET          | `/api/job-templates/template`                                     | Unduh blank Excel untuk mass upload                                                                      |
-| POST         | `/api/job-templates/import`                                       | Mass upload template (sheet Templates + Steps)                                                           |
-| GET          | `/api/job-templates/download`                                     | Export katalog Excel (opsional `id` / `category`)                                                        |
-| POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, actor audit)                                                                  |
-| PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                       |
+| Method       | Path                                                              | Keterangan                                                                                                         |
+| ------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| GET          | `/api/dashboard`                                                  | Snapshot board                                                                                                     |
+| GET          | `/api/job-templates`                                              | List / detail template (`full=1` katalog + steps; `include_inactive=1` master)                                     |
+| POST         | `/api/job-templates`                                              | Buat template time frame                                                                                           |
+| PATCH/DELETE | `/api/job-templates/[id]`                                         | Update / soft-delete (nonaktif) template                                                                           |
+| GET          | `/api/job-templates/template`                                     | Unduh blank Excel untuk mass upload                                                                                |
+| POST         | `/api/job-templates/import`                                       | Mass upload template (sheet Templates + Steps)                                                                     |
+| GET          | `/api/job-templates/download`                                     | Export katalog Excel (opsional `id` / `category`)                                                                  |
+| POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, actor audit)                                                                            |
+| PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                                 |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel`, `reopen` |
-| POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                  |
-| PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                          |
-| POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                           |
-| PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                   |
-| GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                  |
-| GET          | `/api/backups/jobs`                                               | List ChangeLog `backup-jobs.xlsx` (**superuser**)                                                       |
-| POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                               |
-| \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                          |
-| POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                   |
+| POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                            |
+| PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                                    |
+| POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                                     |
+| PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                             |
+| GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                            |
+| GET          | `/api/backups/jobs`                                               | List ChangeLog `backup-jobs.xlsx` (**superuser**)                                                                  |
+| POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                                          |
+| \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                                    |
+| POST         | `/api/attendance/sync-sharepoint`                                 | Meals Request → presence: No. ID Badge = SN; ada → available, tidak ada → offline (upload file atau Graph)         |
+| POST         | `/api/technicians/sync-sharepoint`                                | _Deprecated_ — sama presence sync; UI di **Daftar Hadir**                                                          |
+| POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                             |
 
 Payload progress penting:
 
@@ -487,32 +490,43 @@ Payload progress penting:
 npm install
 ```
 
+Pastikan **MySQL atau MariaDB** berjalan lokal (tanpa Docker), lalu buat database (otomatis saat app start / migrasi).
+
 ### 2. Environment
 
-Salin `.env.example` → `.env.local`:
+Di `.env.local`:
 
 ```env
 AUTH_SECRET=ganti-dengan-string-panjang-acak
+DATABASE_URL=mysql://root@127.0.0.1:3306/tu_prima
 APP_USERNAME=admin
 APP_PASSWORD=admin123
 ```
 
-### 3. Dev server
+### 3. Database schema
+
+Schema otomatis dibuat saat pertama kali `npm run dev` atau:
+
+```bash
+npm run db:ensure
+```
+
+Tabel: `users`, `technicians`, `units`, `jobs`, `job_steps`, dll. (lihat `src/db/README.md`).
+
+Backup MariaDB:
+
+```bash
+mysqldump -u root tu_prima > backup-tu_prima.sql
+```
+
+### 4. Dev server
 
 ```bash
 npm run dev
 ```
 
-Buka [http://localhost:3000](http://localhost:3000) (atau port lain jika 3000 terpakai).  
-Script ini menjalankan **custom server** (`server.ts`): HTTP Next + WebSocket `ws://host:port/ws` (bukan `next dev` murni). Hentikan proses lama (`Ctrl+C`) sebelum ganti script.
-
-### 4. Seed Excel (opsional)
-
-```bash
-npm run seed
-```
-
-File Excel dibuat otomatis di `data/workshop.xlsx` saat pertama diakses jika belum ada.
+Buka [http://localhost:3000](http://localhost:3000).  
+Script ini menjalankan **custom server** (`server.ts`): HTTP Next + WebSocket `ws://host:port/ws`.
 
 ### 5. Production
 
@@ -525,7 +539,7 @@ npm start
 
 ## Mode offline (CRUD tanpa server)
 
-App tetap bisa **create / update / delete** (dan aksi progress) meski server atau jaringan mati. Excel di server **tidak berubah** sampai perangkat online lagi dan antrian terkirim.
+App tetap bisa **create / update / delete** (dan aksi progress) meski server atau jaringan mati. Database MySQL di server **tidak berubah** sampai perangkat online lagi dan antrian terkirim.
 
 ### Syarat
 
@@ -537,9 +551,9 @@ App tetap bisa **create / update / delete** (dan aksi progress) meski server ata
 ### Alur
 
 ```text
-Online  → UI ↔ /api/* ↔ workshop.xlsx
+Online  → UI ↔ /api/* ↔ MariaDB (tu_prima)
 Offline → UI → cache IndexedDB + outbox (antrian mutasi)
-Online kembali → flush outbox berurutan → Excel + audit/backup → refresh board
+Online kembali → flush outbox berurutan → MySQL + audit/backup → refresh board
 ```
 
 - Chip di topbar: **Offline · N** / **N** pending / error (klik → popover **Coba sync** + Refresh).
@@ -547,12 +561,12 @@ Online kembali → flush outbox berurutan → Excel + audit/backup → refresh b
 
 ### Yang bisa offline
 
-| Bisa di-antrian | Tetap online-only |
-| --- | --- |
-| CRUD job, start/pause/resume/step, assign, complete, cancel, reopen | Login baru & ganti password |
-| Job baru dari **template** (katalog di-cache saat online) | Import Excel / unduh template / export laporan |
-| Handover & peminjaman part | Master **Users** (ada password) |
-| CRUD unit, teknisi, daftar hadir, template | Backup / Undo |
+| Bisa di-antrian                                                     | Tetap online-only                              |
+| ------------------------------------------------------------------- | ---------------------------------------------- |
+| CRUD job, start/pause/resume/step, assign, complete, cancel, reopen | Login baru & ganti password                    |
+| Job baru dari **template** (katalog di-cache saat online)           | Import Excel / unduh template / export laporan |
+| Handover & peminjaman part                                          | Master **Users** (ada password)                |
+| CRUD unit, teknisi, daftar hadir, template                          | Backup / Undo                                  |
 
 Create memakai **ID dari client** (`J-…`, `S-…`, `H-…`, …) agar retry sync tidak dobel. Server **idempotent**: ID yang sama dikembalikan apa adanya.
 
@@ -599,6 +613,57 @@ Browser B  ←  WebSocket /ws  ←  invalidate + refetch GET /api/dashboard
 
 ---
 
+---
+
+## Kehadiran Meals Request → status teknisi
+
+Meals Request SharePoint (SHESangatta) **bukan** sumber master teknisi. Master Teknisi tetap diisi manual / mass upload. Meals (atau absensi) dipakai untuk **membandingkan kehadiran** dengan master:
+
+```text
+Master Teknisi (SN)  ×  Meals Request (No. ID Badge)
+        │
+        ├─ Badge/SN ada di meals     → status available  (+ baris Attendance hadir)
+        ├─ Badge/SN tidak ada        → status offline
+        └─ Teknisi busy (sedang job) → tidak diubah
+```
+
+Kunci match: **No. ID Badge = SN / Pernr**.
+
+### Cara pakai (UI)
+
+Menu **Kelola → Daftar Hadir**:
+
+1. **Sync Meals SharePoint** — unduh Excel via Microsoft Graph (butuh `AZURE_*` + `SHAREPOINT_MEALS_EXCEL_URL`), atau
+2. **Upload Meals Request (.xlsx)** — hasil unduhan manual / Power Automate / Power Query, atau
+3. **Upload absensi** biasa + centang sync status (hadir → available; tidak di file / tidak hadir → offline)
+
+### Environment
+
+```env
+AZURE_TENANT_ID=
+AZURE_CLIENT_ID=
+AZURE_CLIENT_SECRET=
+SHAREPOINT_MEALS_EXCEL_URL=https://tmtgroup.sharepoint.com/:x:/t/SHESangatta/...
+```
+
+App Entra: permission application `Files.Read.All` atau `Sites.Read.All` + **admin consent**.  
+Tanpa Entra: pakai Power Automate (salin file ke folder) lalu **upload** di Daftar Hadir.
+
+Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
+
+### Catatan file Meals Request
+
+- Kolom wajib: **No. ID Badge**, idealnya juga **Nama Karyawan**
+- Sheet sumber lebih baik **Formula** (tab shift sering hanya `FILTER` dari Formula)
+- Parser membaca semua sheet yang punya header badge; mengutamakan sheet bernama Formula
+
+### API
+
+- `POST /api/attendance/sync-sharepoint` — JSON `{}` / `{ "date": "YYYY-MM-DD" }` (Graph) atau `multipart` field `file` (+ opsional `date`)
+- `POST /api/attendance/import` + `sync_tech_status=1` — absensi klasik; teknisi yang tidak muncul sebagai hadir di file juga di-set **offline**
+
+---
+
 ## Catatan operasional
 
 - Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan file `data/*.xlsx` di Excel saat app sedang menulis.
@@ -610,6 +675,7 @@ Browser B  ←  WebSocket /ws  ←  invalidate + refetch GET /api/dashboard
 - Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
 - Perubahan Excel/template memicu ping WebSocket `{ type: "dashboard-changed" }` ke klien lain (refetch board). Poll 8 detik lewat TanStack Query tetap cadangan, **hanya jika tab aktif** (`refetchIntervalInBackground: false`). Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll + WS **mati / ditahan** saat browser offline atau outbox pending.
 - Offline CRUD: buka + login sekali saat server hidup agar SW/cache terisi. Perubahan lokal ngantri di IndexedDB sampai server nyala. Jangan andalkan login baru atau import Excel saat offline.
+- **Meals / kehadiran → board**: lihat [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi). Sync ada di **Daftar Hadir**, bukan Master Teknisi.
 - Service worker hanya cache app shell + `/api/auth/session`. **GET `/api/dashboard` tidak di-cache**, supaya assign/CRUD offline tidak ditimpa data lama. Poll/invalidate juga ditahan selama masih ada antrian outbox. Jika UI aneh setelah deploy: DevTools → Application → Service Workers → Unregister, lalu hard refresh.
 
 ### Ringkasan perubahan UI/data terkini

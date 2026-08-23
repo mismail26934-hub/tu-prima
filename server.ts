@@ -2,10 +2,15 @@ import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
 import { WebSocketServer } from "ws";
+import dotenv from "dotenv";
 import {
   realtimeAdd,
   realtimeRemove,
 } from "./src/lib/realtime/hub";
+import { ensureSchema } from "./src/db/mysql-workbook";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
@@ -15,6 +20,7 @@ const port = Number(process.env.PORT || 3000);
 const app = next({ dev, hostname, port });
 
 async function main() {
+  await ensureSchema();
   await app.prepare();
   const handle = app.getRequestHandler();
   const upgrade = app.getUpgradeHandler();

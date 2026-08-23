@@ -49,24 +49,28 @@ export function useWorkshopClient() {
   };
 }
 
+type JobActionVars = {
+  jobId: string;
+  action: string;
+  payload?: Record<string, unknown>;
+  /** Filled in onMutate so mutationFn sends the same freeze (avoids 2× timer). */
+  __preparedBody?: Record<string, unknown>;
+};
+
 export function useJobActionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      jobId,
-      action,
-      payload,
-    }: {
-      jobId: string;
-      action: string;
-      payload?: Record<string, unknown>;
-    }) =>
-      api(`/api/jobs/${jobId}/action`, {
+    mutationFn: (vars: JobActionVars) => {
+      const { jobId, action, payload, __preparedBody } = vars;
+      const body = __preparedBody || { action, ...(payload || {}) };
+      return api(`/api/jobs/${jobId}/action`, {
         method: "POST",
-        body: JSON.stringify({ action, ...payload }),
-      }),
-    onMutate: async ({ jobId, action, payload }) => {
+        body: JSON.stringify(body),
+      });
+    },
+    onMutate: async (vars) => {
+      const { jobId, action, payload } = vars;
       await queryClient.cancelQueries({ queryKey: queryKeys.dashboard });
       const previous = queryClient.getQueryData<DashboardData>(
         queryKeys.dashboard
@@ -76,6 +80,9 @@ export function useJobActionMutation() {
         action,
         ...(payload || {}),
       });
+      // Reuse this body in mutationFn/api — second prepare after optimistic
+      // complete_step would otherwise double duration_sec.
+      vars.__preparedBody = body;
       applyOptimisticMutation(queryClient, "POST", url, JSON.stringify(body));
       return { previous };
     },

@@ -1,6 +1,13 @@
-import path from "path";
-import fs from "fs";
-import ExcelJS from "exceljs";
+import {
+  loadArchiveWb,
+  saveArchiveWb,
+  readArchiveRows,
+  writeArchiveSheet,
+  appendArchiveSheet,
+  type ArchiveRow,
+  type MysqlWorkbook,
+  type MysqlSheet,
+} from "@/db/archive-store";
 import type {
   AuditActor,
   Job,
@@ -14,8 +21,9 @@ import type {
 } from "@/lib/types";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-export const COMPLETED_JOBS_PATH = path.join(DATA_DIR, "completed-jobs.xlsx");
+/** Logical archive name in MySQL (was Excel file). */
+export const COMPLETED_JOBS_PATH = "mysql://completed";
+const ARCHIVE_DB = "completed";
 
 const META = [
   "archived_at",
@@ -113,7 +121,7 @@ const PART_LOAN_HEADERS = [
   "updated_at",
 ];
 
-type Row = Record<string, string | number>;
+type Row = ArchiveRow;
 
 export type CompletedJobBundle = {
   job: Job;
@@ -125,77 +133,43 @@ export type CompletedJobBundle = {
   archived_at: string;
 };
 
-function cellStr(v: ExcelJS.CellValue | undefined): string {
-  if (v == null) return "";
-  if (typeof v === "object" && "text" in v) return String(v.text ?? "");
-  if (typeof v === "object" && "result" in v) return String(v.result ?? "");
-  return String(v);
-}
 
-function readRows(ws: ExcelJS.Worksheet): Row[] {
-  const headerRow = ws.getRow(1);
-  const headers: string[] = [];
-  headerRow.eachCell((cell, col) => {
-    headers[col] = cellStr(cell.value).trim();
-  });
-  const rows: Row[] = [];
-  ws.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const obj: Row = {};
-    let empty = true;
-    headers.forEach((h, col) => {
-      if (!h) return;
-      const str = cellStr(row.getCell(col).value);
-      if (str !== "") empty = false;
-      obj[h] = str;
-    });
-    if (!empty) rows.push(obj);
-  });
-  return rows;
+
+
+
+
+
+
+
+function readRows(ws: MysqlSheet): Row[] {
+  return readArchiveRows(ws);
 }
 
 function writeSheet(
-  wb: ExcelJS.Workbook,
+  wb: MysqlWorkbook,
   name: string,
   headers: string[],
   rows: Row[]
 ) {
-  const existing = wb.getWorksheet(name);
-  if (existing) wb.removeWorksheet(existing.id);
-  const ws = wb.addWorksheet(name);
-  ws.addRow(headers);
-  rows.forEach((r) => {
-    ws.addRow(headers.map((h) => (r[h] == null ? "" : r[h])));
-  });
-  ws.getRow(1).font = { bold: true };
+  writeArchiveSheet(wb, name, headers, rows);
 }
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+async function loadArchiveWorkbook(): Promise<MysqlWorkbook> {
+  return loadArchiveWb(ARCHIVE_DB);
 }
 
-async function loadArchiveWorkbook(): Promise<ExcelJS.Workbook> {
-  ensureDataDir();
-  const wb = new ExcelJS.Workbook();
-  if (fs.existsSync(COMPLETED_JOBS_PATH)) {
-    await wb.xlsx.readFile(COMPLETED_JOBS_PATH);
-  }
-  return wb;
+async function saveArchiveWorkbook(wb: MysqlWorkbook) {
+  await saveArchiveWb(wb);
 }
 
-async function saveArchiveWorkbook(wb: ExcelJS.Workbook) {
-  ensureDataDir();
-  const tmp = `${COMPLETED_JOBS_PATH}.${process.pid}.tmp`;
-  await wb.xlsx.writeFile(tmp);
-  try {
-    if (fs.existsSync(COMPLETED_JOBS_PATH)) fs.unlinkSync(COMPLETED_JOBS_PATH);
-    fs.renameSync(tmp, COMPLETED_JOBS_PATH);
-  } catch {
-    fs.copyFileSync(tmp, COMPLETED_JOBS_PATH);
-    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
-  }
+function appendSheet(
+  wb: MysqlWorkbook,
+  name: string,
+  headers: string[],
+  newRows: Row[]
+) {
+  appendArchiveSheet(wb, name, headers, newRows);
 }
-
 function metaFields(
   archived_at: string,
   actor?: AuditActor | null
@@ -208,16 +182,6 @@ function metaFields(
   };
 }
 
-function appendSheet(
-  wb: ExcelJS.Workbook,
-  name: string,
-  headers: string[],
-  newRows: Row[]
-) {
-  const ws = wb.getWorksheet(name);
-  const existing = ws ? readRows(ws) : [];
-  writeSheet(wb, name, headers, [...existing, ...newRows]);
-}
 
 function mapJobRow(r: Row): Job {
   return {
@@ -445,7 +409,7 @@ export async function archiveCompletedJob(input: {
   await saveArchiveWorkbook(wb);
 }
 
-function readAllBundles(wb: ExcelJS.Workbook): CompletedJobBundle[] {
+function readAllBundles(wb: MysqlWorkbook): CompletedJobBundle[] {
   const jobRows = wb.getWorksheet(SHEETS.jobs)
     ? readRows(wb.getWorksheet(SHEETS.jobs)!)
     : [];
@@ -499,7 +463,6 @@ function readAllBundles(wb: ExcelJS.Workbook): CompletedJobBundle[] {
 export async function listCompletedJobDetails(
   liveTechs: Technician[] = []
 ): Promise<JobWithDetails[]> {
-  if (!fs.existsSync(COMPLETED_JOBS_PATH)) return [];
   const wb = await loadArchiveWorkbook();
   const bundles = readAllBundles(wb);
   const techById = new Map(liveTechs.map((t) => [t.id, t]));
@@ -544,7 +507,6 @@ export async function listCompletedJobDetails(
 export async function takeCompletedJobFromArchive(
   jobId: string
 ): Promise<CompletedJobBundle | null> {
-  if (!fs.existsSync(COMPLETED_JOBS_PATH)) return null;
   const wb = await loadArchiveWorkbook();
   const bundles = readAllBundles(wb);
   const found = bundles.find((b) => b.job.id === jobId);

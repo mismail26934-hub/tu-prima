@@ -52,6 +52,7 @@ export function canQueueMutation(
   if (path.startsWith("/api/backups")) return false;
   if (path.startsWith("/api/users")) return false;
   if (path.includes("/import")) return false;
+  if (path.includes("/sync-sharepoint")) return false;
   if (path.endsWith("/download") || path.endsWith("/template")) return false;
   return true;
 }

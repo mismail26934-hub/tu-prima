@@ -24,6 +24,9 @@ function nowIso() {
 
 function freezeStepDuration(step: JobStep, at: Date = new Date()): number {
   const accrued = Math.max(0, Number(step.duration_sec || 0));
+  // Already finalized (e.g. optimistic complete_step before a second prepare).
+  // Re-adding (now - started_at) would double the timer.
+  if (step.status === "done") return accrued;
   if (!step.started_at) return accrued;
   const started = Date.parse(step.started_at);
   if (!Number.isFinite(started)) return accrued;
@@ -359,7 +362,9 @@ function applyJobAction(
           ...s,
           status: "done" as const,
           completed_at: at,
-          started_at: s.started_at || String(body.started_at || at),
+          // Keep original start for history/payload; duration_sec is final.
+          // freezeStepDuration ignores started_at when status === "done".
+          started_at: String(body.started_at || s.started_at || at),
           duration_sec: duration,
         };
       });
@@ -526,15 +531,21 @@ export function prepareJobActionBody(
     const step = job.steps.find((s) => s.id === String(body.step_id || ""));
     if (!step) return body;
     const completedAt = String(body.completed_at || atIso);
+    // Prefer existing body.duration_sec (first prepare). If cache already
+    // marked the step done (second prepare after onMutate), keep duration_sec
+    // — do not freeze again or the online timer doubles.
+    const durationSec =
+      typeof body.duration_sec === "number"
+        ? Math.max(0, Math.floor(body.duration_sec))
+        : step.status === "done"
+          ? Math.max(0, Math.floor(Number(step.duration_sec || 0)))
+          : freezeStepDuration(step, at);
     return {
       ...body,
       completed_at: completedAt,
       started_at: String(body.started_at || step.started_at || atIso),
       next_started_at: String(body.next_started_at || completedAt),
-      duration_sec:
-        typeof body.duration_sec === "number"
-          ? Math.max(0, Math.floor(body.duration_sec))
-          : freezeStepDuration(step, at),
+      duration_sec: durationSec,
     };
   }
 

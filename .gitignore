@@ -2,6 +2,7 @@ node_modules
 .next
 #data/*.xlsx
 !.gitkeep
+!data/templates/**
 .env
 .env.local
 .env*.local

@@ -67,6 +67,12 @@ import {
   useJobActionMutation,
   useWorkshopClient,
 } from "@/hooks/useWorkshopClient";
+import {
+  useActiveJobsSlider,
+  useAssignTechnicianPool,
+  useJobsList,
+  useTechniciansList,
+} from "@/hooks/useBoardLists";
 
 type Modal =
   | null
@@ -1521,7 +1527,7 @@ export default function HomePage() {
   const applyTechSearch = useTechnicianBoardStore((s) => s.applySearch);
   const clearTechSearch = useTechnicianBoardStore((s) => s.clearSearch);
 
-  const TECH_PAGE_SIZE = 10;
+  const TECH_PAGE_SIZE = 5;
   const [techPage, setTechPage] = useState<Record<TechnicianStatus, number>>({
     available: 1,
     busy: 1,
@@ -1534,8 +1540,11 @@ export default function HomePage() {
   const jobOwnershipFilter = useDashboardFiltersStore((s) => s.jobOwnershipFilter);
   const setJobOwnershipFilter = useDashboardFiltersStore((s) => s.setJobOwnershipFilter);
 
-  const JOB_PAGE_SIZE = 10;
+  const JOB_PAGE_SIZE = 5;
   const [activeJobPage, setActiveJobPage] = useState(1);
+  const [queueJobPage, setQueueJobPage] = useState(1);
+  const [completedJobPage, setCompletedJobPage] = useState(1);
+  const [cancelledJobPage, setCancelledJobPage] = useState(1);
 
   const MASTER_PAGE_SIZE = 10;
   const [unitMasterPage, setUnitMasterPage] = useState(1);
@@ -2097,10 +2106,66 @@ export default function HomePage() {
     }
   }
 
-  const availableTechs = useMemo(
-    () => data?.technicians.filter((t) => t.status === "available") || [],
-    [data]
+  const assignPoolQuery = useAssignTechnicianPool(
+    assignQuery,
+    isLoggedIn &&
+      (canJobAssign ||
+        modal?.type === "assign" ||
+        modal?.type === "confirm-assign")
   );
+  const availableTechs = useMemo(
+    () => assignPoolQuery.data?.items || [],
+    [assignPoolQuery.data]
+  );
+
+  const assignTechLookup = useMemo(() => {
+    const map = new Map<string, Technician>();
+    for (const t of assignPoolQuery.data?.items || []) map.set(t.id, t);
+    if (modal?.type === "assign" || modal?.type === "confirm-assign") {
+      for (const t of modal.job.technicians || []) {
+        if (!map.has(t.id)) map.set(t.id, t);
+      }
+    }
+    return map;
+  }, [assignPoolQuery.data, modal]);
+
+  const assignSelectableTechs = useMemo(() => {
+    const q = assignQuery.trim().toLowerCase();
+    const jobId =
+      modal?.type === "assign" || modal?.type === "confirm-assign"
+        ? modal.job.id
+        : null;
+    return [...assignTechLookup.values()].filter(
+      (t) =>
+        (t.status === "available" ||
+          t.current_job_id === jobId ||
+          assignTechIds.includes(t.id)) &&
+        (!q ||
+          t.name.toLowerCase().includes(q) ||
+          t.sn.toLowerCase().includes(q))
+    );
+  }, [assignTechLookup, assignQuery, assignTechIds, modal]);
+
+  const attendanceTechListQuery = useTechniciansList({
+    status: "all",
+    page: 1,
+    limit: 500,
+    enabled:
+      modal?.type === "attendance" || modal?.type === "attendance-form",
+  });
+  const attendanceTechnicians = attendanceTechListQuery.data?.items || [];
+
+  const masterTechListQuery = useTechniciansList({
+    status: "all",
+    page: masterTechPage,
+    limit: MASTER_PAGE_SIZE,
+    q: masterTechQuery,
+    enabled: modal?.type === "techs",
+  });
+  const pagedMasterTechs = masterTechListQuery.data?.items || [];
+  const masterTechTotal = masterTechListQuery.data?.total ?? 0;
+  const masterTechTotalPages = masterTechListQuery.data?.totalPages ?? 1;
+  const masterTechPageSafe = Math.min(masterTechPage, masterTechTotalPages);
 
   useEffect(() => {
     if (modal?.type !== "units") {
@@ -2230,48 +2295,19 @@ export default function HomePage() {
     setTemplateQuery("");
   }
 
-  const filteredMasterTechs = useMemo(() => {
-    const techs = data?.technicians || [];
-    const q = masterTechQuery.trim().toLowerCase();
-    if (!q) return techs;
-    return techs.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.sn.toLowerCase().includes(q) ||
-        (t.phone || "").toLowerCase().includes(q)
-    );
-  }, [data?.technicians, masterTechQuery]);
-
-  useEffect(() => {
-    setMasterTechPage(1);
-  }, [masterTechQuery]);
-
-  useEffect(() => {
-    const totalPages = Math.max(
-      1,
-      Math.ceil(filteredMasterTechs.length / MASTER_PAGE_SIZE)
-    );
-    setMasterTechPage((p) => (p > totalPages ? totalPages : p));
-  }, [filteredMasterTechs.length]);
-
-  const masterTechTotalPages = Math.max(
-    1,
-    Math.ceil(filteredMasterTechs.length / MASTER_PAGE_SIZE)
-  );
-  const masterTechPageSafe = Math.min(masterTechPage, masterTechTotalPages);
-  const pagedMasterTechs = filteredMasterTechs.slice(
-    (masterTechPageSafe - 1) * MASTER_PAGE_SIZE,
-    masterTechPageSafe * MASTER_PAGE_SIZE
-  );
-
   function applyMasterTechSearch() {
     setMasterTechQuery(masterTechDraft.trim());
+    setMasterTechPage(1);
   }
 
   function clearMasterTechSearch() {
     setMasterTechDraft("");
     setMasterTechQuery("");
   }
+
+  useEffect(() => {
+    setMasterTechPage(1);
+  }, [masterTechQuery]);
 
   const filteredMasterUsers = useMemo(() => {
     const q = masterUserQuery.trim().toLowerCase();
@@ -2377,130 +2413,127 @@ export default function HomePage() {
     techForm.sn.trim().length > 0 &&
     techForm.phone.trim().length > 0;
 
-  const techGroups = useMemo(() => {
-    const groups: Record<TechnicianStatus, Technician[]> = {
-      available: [],
-      busy: [],
-      offline: [],
-    };
-    const q = techQuery.toLowerCase();
-    data?.technicians.forEach((t) => {
-      if (
-        q &&
-        !t.name.toLowerCase().includes(q) &&
-        !t.sn.toLowerCase().includes(q)
-      ) {
-        return;
-      }
-      groups[t.status].push(t);
-    });
-    return groups;
-  }, [data, techQuery]);
+  const techAvailableQuery = useTechniciansList({
+    status: "available",
+    page: techPage.available,
+    limit: TECH_PAGE_SIZE,
+    q: techQuery,
+    enabled:
+      isLoggedIn &&
+      (techStatusFilter === "all" || techStatusFilter === "available"),
+  });
+  const techBusyQuery = useTechniciansList({
+    status: "busy",
+    page: techPage.busy,
+    limit: TECH_PAGE_SIZE,
+    q: techQuery,
+    enabled:
+      isLoggedIn && (techStatusFilter === "all" || techStatusFilter === "busy"),
+  });
+  const techOfflineQuery = useTechniciansList({
+    status: "offline",
+    page: techPage.offline,
+    limit: TECH_PAGE_SIZE,
+    q: techQuery,
+    enabled:
+      isLoggedIn &&
+      (techStatusFilter === "all" || techStatusFilter === "offline"),
+  });
+
+  const techQueries: Record<
+    TechnicianStatus,
+    ReturnType<typeof useTechniciansList>
+  > = {
+    available: techAvailableQuery,
+    busy: techBusyQuery,
+    offline: techOfflineQuery,
+  };
 
   useEffect(() => {
     setTechPage({ available: 1, busy: 1, offline: 1 });
-  }, [techQuery]);
-
-  useEffect(() => {
-    setTechPage((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      (["available", "busy", "offline"] as TechnicianStatus[]).forEach((status) => {
-        const totalPages = Math.max(
-          1,
-          Math.ceil(techGroups[status].length / TECH_PAGE_SIZE)
-        );
-        if (next[status] > totalPages) {
-          next[status] = totalPages;
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [techGroups]);
-
-  const matchJob = useCallback(
-    (j: JobWithDetails) => {
-      const q = jobQuery.toLowerCase();
-      if (!q) return true;
-      const techNames = (j.technicians || [])
-        .map((t) => t.name)
-        .join(" ")
-        .toLowerCase();
-      return (
-        j.title.toLowerCase().includes(q) ||
-        j.unit.toLowerCase().includes(q) ||
-        j.description.toLowerCase().includes(q) ||
-        j.status.toLowerCase().includes(q) ||
-        techNames.includes(q) ||
-        (j.technician?.name || "").toLowerCase().includes(q)
-      );
-    },
-    [jobQuery]
-  );
-
-  const matchJobOwnership = useCallback(
-    (j: JobWithDetails) => {
-      if (!userId || jobOwnershipFilter === "all") return true;
-      if (jobOwnershipFilter === "mine") {
-        return j.assigned_by_user_id === userId;
-      }
-      return j.delegated_to_user_id === userId;
-    },
-    [userId, jobOwnershipFilter]
-  );
-
-  const jobListFiltered = useCallback(
-    (j: JobWithDetails) => matchJob(j) && matchJobOwnership(j),
-    [matchJob, matchJobOwnership]
-  );
+  }, [techQuery, techStatusFilter]);
 
   const jobListHasFilter = Boolean(jobQuery) || jobOwnershipFilter !== "all";
 
-  const activeJobs = useMemo(
-    () =>
-      (data?.jobs || []).filter(
-        (j) =>
-          ["in_progress", "paused", "assigned"].includes(j.status) &&
-          jobListFiltered(j)
-      ),
-    [data, jobListFiltered]
-  );
-  const queuedJobs = useMemo(
-    () =>
-      (data?.jobs || []).filter(
-        (j) => j.status === "queued" && jobListFiltered(j)
-      ),
-    [data, jobListFiltered]
-  );
-  const historyJobs = useMemo(
-    () => (data?.cancelled_jobs || []).filter((j) => jobListFiltered(j)),
-    [data, jobListFiltered]
-  );
+  const showActiveJobs =
+    jobSectionFilter === "all" || jobSectionFilter === "active";
+  const showQueueJobs =
+    jobSectionFilter === "all" || jobSectionFilter === "queue";
+  const showDoneJobs =
+    jobSectionFilter === "all" || jobSectionFilter === "done";
+  const showCancelledJobs =
+    jobSectionFilter === "all" || jobSectionFilter === "cancelled";
 
-  const completedJobs = useMemo(
-    () => (data?.completed_jobs || []).filter((j) => jobListFiltered(j)),
-    [data, jobListFiltered]
-  );
+  const activeJobsQuery = useJobsList({
+    section: "active",
+    page: activeJobPage,
+    limit: JOB_PAGE_SIZE,
+    q: jobQuery,
+    ownership: jobOwnershipFilter,
+    enabled: isLoggedIn && showActiveJobs,
+  });
+  const queueJobsQuery = useJobsList({
+    section: "queue",
+    page: queueJobPage,
+    limit: JOB_PAGE_SIZE,
+    q: jobQuery,
+    ownership: jobOwnershipFilter,
+    enabled: isLoggedIn && showQueueJobs,
+  });
+  const completedJobsQuery = useJobsList({
+    section: "done",
+    page: completedJobPage,
+    limit: JOB_PAGE_SIZE,
+    q: jobQuery,
+    ownership: jobOwnershipFilter,
+    enabled: isLoggedIn && showDoneJobs,
+  });
+  const cancelledJobsQuery = useJobsList({
+    section: "cancelled",
+    page: cancelledJobPage,
+    limit: JOB_PAGE_SIZE,
+    q: jobQuery,
+    ownership: jobOwnershipFilter,
+    enabled: isLoggedIn && showCancelledJobs,
+  });
+  const sliderJobsQuery = useActiveJobsSlider({
+    q: jobQuery,
+    ownership: jobOwnershipFilter,
+    enabled: isLoggedIn && showActiveJobs,
+  });
+
+  const activeJobs = activeJobsQuery.data?.items || [];
+  const queuedJobs = queueJobsQuery.data?.items || [];
+  const completedJobs = completedJobsQuery.data?.items || [];
+  const historyJobs = cancelledJobsQuery.data?.items || [];
+  const sliderJobs = sliderJobsQuery.data?.items || activeJobs;
+
+  const activeJobTotalPages = activeJobsQuery.data?.totalPages ?? 1;
+  const activeJobPageSafe = Math.min(activeJobPage, activeJobTotalPages);
+  const queueJobTotalPages = queueJobsQuery.data?.totalPages ?? 1;
+  const queueJobPageSafe = Math.min(queueJobPage, queueJobTotalPages);
+  const completedJobTotalPages = completedJobsQuery.data?.totalPages ?? 1;
+  const completedJobPageSafe = Math.min(completedJobPage, completedJobTotalPages);
+  const cancelledJobTotalPages = cancelledJobsQuery.data?.totalPages ?? 1;
+  const cancelledJobPageSafe = Math.min(cancelledJobPage, cancelledJobTotalPages);
+
+  const jobMap = useMemo(() => {
+    const merged = [
+      ...activeJobs,
+      ...queuedJobs,
+      ...sliderJobs,
+      ...completedJobs,
+      ...historyJobs,
+    ];
+    return Object.fromEntries(merged.map((j) => [j.id, j]));
+  }, [activeJobs, queuedJobs, sliderJobs, completedJobs, historyJobs]);
 
   useEffect(() => {
     setActiveJobPage(1);
+    setQueueJobPage(1);
+    setCompletedJobPage(1);
+    setCancelledJobPage(1);
   }, [jobQuery, jobSectionFilter, jobOwnershipFilter]);
-
-  useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(activeJobs.length / JOB_PAGE_SIZE));
-    setActiveJobPage((p) => (p > totalPages ? totalPages : p));
-  }, [activeJobs.length]);
-
-  const activeJobTotalPages = Math.max(
-    1,
-    Math.ceil(activeJobs.length / JOB_PAGE_SIZE)
-  );
-  const activeJobPageSafe = Math.min(activeJobPage, activeJobTotalPages);
-  const pagedActiveJobs = activeJobs.slice(
-    (activeJobPageSafe - 1) * JOB_PAGE_SIZE,
-    activeJobPageSafe * JOB_PAGE_SIZE
-  );
 
   async function runAction(
     jobId: string,
@@ -2673,7 +2706,7 @@ export default function HomePage() {
         const rows = prev[jobId];
         if (!rows) {
           if (!handoverId) return prev;
-          const job = data?.jobs.find((j) => j.id === jobId);
+          const job = jobMap[jobId];
           if (!job) return prev;
           return {
             ...prev,
@@ -2844,7 +2877,7 @@ export default function HomePage() {
         const rows = prev[jobId];
         if (!rows) {
           if (!loanId) return prev;
-          const job = data?.jobs.find((j) => j.id === jobId);
+          const job = jobMap[jobId];
           if (!job) return prev;
           return {
             ...prev,
@@ -2973,7 +3006,7 @@ export default function HomePage() {
     const progressOk = canProgressForJob(job);
     const handoverOk = canHandoverForJob(job);
     const delegateOk = canDelegateForJob(job);
-    const jobMap = Object.fromEntries((data?.jobs || []).map((j) => [j.id, j]));
+    const jobMapLocal = jobMap;
     const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
     return (
       <article className="job" key={job.id} id={`job-${job.id}`}>
@@ -3083,7 +3116,7 @@ export default function HomePage() {
           </div>
           {["in_progress", "paused", "done"].includes(job.status) && (
             <div className="job-timer-wrap">
-              <LiveTimer job={jobMap[job.id] || job} />
+              <LiveTimer job={jobMapLocal[job.id] || job} />
               <div className="job-timer-remain-row">
                 {job.status === "in_progress" && (
                   <button
@@ -3115,7 +3148,7 @@ export default function HomePage() {
                     Resume
                   </button>
                 )}
-                <RemainingTimerCard job={jobMap[job.id] || job} />
+                <RemainingTimerCard job={jobMapLocal[job.id] || job} />
               </div>
             </div>
           )}
@@ -4620,24 +4653,26 @@ export default function HomePage() {
                     ? (["available", "busy", "offline"] as TechnicianStatus[])
                     : [techStatusFilter]
                 ).map((status) => {
-                  const list = techGroups[status];
-                  const totalPages = Math.max(1, Math.ceil(list.length / TECH_PAGE_SIZE));
+                  const query = techQueries[status];
+                  const pageItems = query.data?.items || [];
+                  const total = query.data?.total ?? 0;
+                  const totalPages = query.data?.totalPages ?? 1;
                   const page = Math.min(techPage[status], totalPages);
-                  const start = (page - 1) * TECH_PAGE_SIZE;
-                  const pageItems = list.slice(start, start + TECH_PAGE_SIZE);
                   return (
                   <div className="tech-col" key={status}>
                     <h3>
-                      {status} ({list.length})
+                      {status} ({total})
                     </h3>
+                    {query.isLoading && pageItems.length === 0 && (
+                      <div className="meta">Memuat...</div>
+                    )}
                     {pageItems.map((t) => {
-                      const job = data.jobs.find((j) => j.id === t.current_job_id);
                       return (
                         <div className="tech" key={t.id}>
                           <div className="name">{t.name}</div>
                           <div className="meta">
                             {t.sn}
-                            {job ? ` · ${job.title}` : ""}
+                            {t.current_job_title ? ` · ${t.current_job_title}` : ""}
                           </div>
                           <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <StatusPill status={t.status} />
@@ -4655,12 +4690,12 @@ export default function HomePage() {
                         </div>
                       );
                     })}
-                    {list.length === 0 && (
+                    {!query.isLoading && pageItems.length === 0 && (
                       <div className="meta">
                         {techQuery ? "Tidak cocok" : "Tidak ada"}
                       </div>
                     )}
-                    {list.length > TECH_PAGE_SIZE && (
+                    {totalPages > 1 && (
                       <Pager
                         page={page}
                         totalPages={totalPages}
@@ -4742,7 +4777,7 @@ export default function HomePage() {
                   <PanelToggleIcon collapsed={false} />
                 </button>
               </div>
-              <ActiveJobSlider jobs={activeJobs} renderJob={renderJob}>
+              <ActiveJobSlider jobs={sliderJobs} renderJob={renderJob}>
                 <div className="panel-head">
                   <div className="panel-head-title-row">
                     <h2>
@@ -4796,13 +4831,16 @@ export default function HomePage() {
                 </div>
               {(jobSectionFilter === "all" || jobSectionFilter === "active") && (
                 <>
-                  {activeJobs.length === 0 && (
+                  {activeJobsQuery.isLoading && activeJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>Memuat...</p>
+                  )}
+                  {!activeJobsQuery.isLoading && activeJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
                       {jobListHasFilter ? t("panel.activeNoMatch") : t("panel.activeEmpty")}
                     </p>
                   )}
-                  {pagedActiveJobs.map(renderJob)}
-                  {activeJobs.length > JOB_PAGE_SIZE && (
+                  {activeJobs.map(renderJob)}
+                  {activeJobTotalPages > 1 && (
                     <Pager
                       page={activeJobPageSafe}
                       totalPages={activeJobTotalPages}
@@ -4817,35 +4855,47 @@ export default function HomePage() {
                   {jobSectionFilter === "all" && (
                     <h2 style={{ marginTop: 22 }}>{t("job.section.queue")}</h2>
                   )}
-                  {queuedJobs.length === 0 && (
+                  {queueJobsQuery.isLoading && queuedJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>Memuat...</p>
+                  )}
+                  {!queueJobsQuery.isLoading && queuedJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
                       {jobListHasFilter ? t("panel.queueNoMatch") : t("panel.queueEmpty")}
                     </p>
                   )}
                   {queuedJobs.map(renderJob)}
+                  {queueJobTotalPages > 1 && (
+                    <Pager
+                      page={queueJobPageSafe}
+                      totalPages={queueJobTotalPages}
+                      onChange={setQueueJobPage}
+                    />
+                  )}
                 </>
               )}
 
               {(jobSectionFilter === "all" || jobSectionFilter === "done") && (
                 <>
-                  {jobSectionFilter === "all" ? (
-                    completedJobs.length > 0 && (
-                      <>
-                        <h2 style={{ marginTop: 22 }}>{t("job.section.done")}</h2>
-                        {completedJobs.map(renderJob)}
-                      </>
-                    )
-                  ) : (
-                    <>
-                      {completedJobs.length === 0 && (
-                        <p style={{ color: "var(--muted)" }}>
-                          {jobListHasFilter
-                            ? t("panel.doneNoMatch")
-                            : t("panel.doneEmptyArchive")}
-                        </p>
-                      )}
-                      {completedJobs.map(renderJob)}
-                    </>
+                  {jobSectionFilter === "all" && (
+                    <h2 style={{ marginTop: 22 }}>{t("job.section.done")}</h2>
+                  )}
+                  {completedJobsQuery.isLoading && completedJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>Memuat...</p>
+                  )}
+                  {!completedJobsQuery.isLoading && completedJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>
+                      {jobListHasFilter
+                        ? t("panel.doneNoMatch")
+                        : t("panel.doneEmptyArchive")}
+                    </p>
+                  )}
+                  {completedJobs.map(renderJob)}
+                  {completedJobTotalPages > 1 && (
+                    <Pager
+                      page={completedJobPageSafe}
+                      totalPages={completedJobTotalPages}
+                      onChange={setCompletedJobPage}
+                    />
                   )}
                 </>
               )}
@@ -4853,24 +4903,26 @@ export default function HomePage() {
               {(jobSectionFilter === "all" ||
                 jobSectionFilter === "cancelled") && (
                 <>
-                  {jobSectionFilter === "all" ? (
-                    historyJobs.length > 0 && (
-                      <>
-                        <h2 style={{ marginTop: 22 }}>{t("job.section.cancelled")}</h2>
-                        {historyJobs.map(renderJob)}
-                      </>
-                    )
-                  ) : (
-                    <>
-                      {historyJobs.length === 0 && (
-                        <p style={{ color: "var(--muted)" }}>
-                          {jobListHasFilter
-                            ? t("panel.cancelledNoMatch")
-                            : t("panel.cancelledEmptyArchive")}
-                        </p>
-                      )}
-                      {historyJobs.map(renderJob)}
-                    </>
+                  {jobSectionFilter === "all" && (
+                    <h2 style={{ marginTop: 22 }}>{t("job.section.cancelled")}</h2>
+                  )}
+                  {cancelledJobsQuery.isLoading && historyJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>Memuat...</p>
+                  )}
+                  {!cancelledJobsQuery.isLoading && historyJobs.length === 0 && (
+                    <p style={{ color: "var(--muted)" }}>
+                      {jobListHasFilter
+                        ? t("panel.cancelledNoMatch")
+                        : t("panel.cancelledEmptyArchive")}
+                    </p>
+                  )}
+                  {historyJobs.map(renderJob)}
+                  {cancelledJobTotalPages > 1 && (
+                    <Pager
+                      page={cancelledJobPageSafe}
+                      totalPages={cancelledJobTotalPages}
+                      onChange={setCancelledJobPage}
+                    />
                   )}
                 </>
               )}
@@ -5592,45 +5644,33 @@ export default function HomePage() {
                 </div>
               </label>
               <div className="check-list">
-                {(() => {
-                  const q = assignQuery.toLowerCase();
-                  const selectable =
-                    data?.technicians.filter(
-                      (t) =>
-                        (t.status === "available" ||
-                          t.current_job_id === modal.job.id ||
-                          assignTechIds.includes(t.id)) &&
-                        (!q ||
-                          t.name.toLowerCase().includes(q) ||
-                          t.sn.toLowerCase().includes(q))
-                    ) || [];
-                  if (selectable.length === 0) {
-                    return (
-                      <span style={{ color: "var(--muted)" }}>
-                        {q
-                          ? "Tidak ada teknisi yang cocok"
-                          : "Tidak ada teknisi available"}
+                {assignPoolQuery.isLoading && assignSelectableTechs.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>Memuat...</span>
+                )}
+                {!assignPoolQuery.isLoading && assignSelectableTechs.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    {assignQuery
+                      ? "Tidak ada teknisi yang cocok"
+                      : "Tidak ada teknisi available"}
+                  </span>
+                )}
+                {assignSelectableTechs.map((t) => {
+                  const checked = assignTechIds.includes(t.id);
+                  return (
+                    <label className="check-item" key={t.id}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAssignTech(t.id)}
+                      />
+                      <span>
+                        {t.name}
+                        <span style={{ color: "var(--muted)" }}> — {t.sn}</span>
+                        {t.id === assignTechIds[0] ? " · lead" : ""}
                       </span>
-                    );
-                  }
-                  return selectable.map((t) => {
-                    const checked = assignTechIds.includes(t.id);
-                    return (
-                      <label className="check-item" key={t.id}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAssignTech(t.id)}
-                        />
-                        <span>
-                          {t.name}
-                          <span style={{ color: "var(--muted)" }}> — {t.sn}</span>
-                          {t.id === assignTechIds[0] ? " · lead" : ""}
-                        </span>
-                      </label>
-                    );
-                  });
-                })()}
+                    </label>
+                  );
+                })}
               </div>
               <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
                 Teknisi pertama yang dicentang menjadi lead. Dipilih: {assignTechIds.length}
@@ -5713,7 +5753,7 @@ export default function HomePage() {
             </p>
             <ul style={{ margin: "0 0 16px", paddingLeft: 18, color: "var(--muted)" }}>
               {modal.techIds.map((id, index) => {
-                const tech = data?.technicians.find((t) => t.id === id);
+                const tech = assignTechLookup.get(id);
                 return (
                   <li key={id}>
                     {tech?.name || id}
@@ -7079,10 +7119,10 @@ export default function HomePage() {
               )}
             </div>
             <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
-              {(data?.technicians || []).length === 0 && (
+              {masterTechTotal === 0 && !masterTechListQuery.isLoading && (
                 <span style={{ color: "var(--muted)" }}>Belum ada teknisi.</span>
               )}
-              {(data?.technicians || []).length > 0 && filteredMasterTechs.length === 0 && (
+              {masterTechTotal > 0 && pagedMasterTechs.length === 0 && !masterTechListQuery.isLoading && (
                 <span style={{ color: "var(--muted)" }}>Tidak ada teknisi yang cocok.</span>
               )}
               {pagedMasterTechs.map((t) => (
@@ -7126,7 +7166,7 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-            {filteredMasterTechs.length > MASTER_PAGE_SIZE && (
+            {masterTechTotalPages > 1 && (
               <Pager
                 page={masterTechPageSafe}
                 totalPages={masterTechTotalPages}
@@ -7739,7 +7779,7 @@ export default function HomePage() {
                   value={attendanceForm.technician_id}
                   onChange={(e) => {
                     const id = e.target.value;
-                    const tech = (data?.technicians || []).find((t) => t.id === id);
+                    const tech = attendanceTechnicians.find((t) => t.id === id);
                     setAttendanceForm({
                       ...attendanceForm,
                       technician_id: id,
@@ -7749,7 +7789,7 @@ export default function HomePage() {
                   }}
                 >
                   <option value="">— Pilih teknisi —</option>
-                  {(data?.technicians || []).map((t) => (
+                  {attendanceTechnicians.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} ({t.sn})
                     </option>

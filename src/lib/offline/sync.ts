@@ -118,6 +118,7 @@ export async function flushOutbox(): Promise<{ flushed: number; error?: string }
       const qc = getQueryClient();
       if (qc) {
         await qc.invalidateQueries({ queryKey: queryKeys.dashboard });
+        await qc.invalidateQueries({ queryKey: queryKeys.board.all });
         await qc.invalidateQueries({ queryKey: queryKeys.templates.all });
       }
     }

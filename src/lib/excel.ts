@@ -26,6 +26,7 @@ import type {
 } from "./types";
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
+import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
 import {
   appendJobChangeBackup,
@@ -1152,30 +1153,20 @@ export async function getDashboard(): Promise<DashboardData> {
     const techsFresh = techSnMigrated
       ? readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician)
       : techs;
+    void techsFresh;
+    void events;
+    void assignees;
+    void handovers;
+    void partLoans;
 
-    const detailed = jobs.map((j) =>
-      enrichJob(j, techsFresh, steps, events, assignees, handovers, partLoans)
-    );
-    const completedJobs = await listCompletedJobDetails(techsFresh);
-    const cancelledJobs = await listCancelledJobDetails(techsFresh);
-    const today = new Date().toISOString().slice(0, 10);
-    const doneToday = completedJobs.filter((j) =>
-      (j.completed_at || "").startsWith(today)
-    );
-    const avg =
-      doneToday.length === 0
-        ? 0
-        : Math.round(
-            doneToday.reduce((sum, j) => sum + j.elapsed_sec, 0) /
-              doneToday.length
-          );
+    const summary = await fetchDashboardSummary();
 
     return {
-      technicians: techsFresh,
+      technicians: [],
       units,
-      jobs: detailed,
-      completed_jobs: completedJobs,
-      cancelled_jobs: cancelledJobs,
+      jobs: [],
+      completed_jobs: [],
+      cancelled_jobs: [],
       attendance: readRows(getSheet(wb, SHEETS.attendance))
         .map(mapAttendance)
         .filter((a) => a.id && a.date)
@@ -1183,19 +1174,7 @@ export async function getDashboard(): Promise<DashboardData> {
           b.date.localeCompare(a.date) ||
           a.technician_name.localeCompare(b.technician_name)
         ),
-      summary: {
-        available: techsFresh.filter((t) => t.status === "available").length,
-        busy: techsFresh.filter((t) => t.status === "busy").length,
-        offline: techsFresh.filter((t) => t.status === "offline").length,
-        active_jobs: detailed.filter((j) =>
-          ["in_progress", "paused", "assigned"].includes(j.status)
-        ).length,
-        queued_jobs: detailed.filter((j) => j.status === "queued").length,
-        done_today: doneToday.length,
-        completed_jobs: completedJobs.length,
-        cancelled_jobs: cancelledJobs.length,
-        avg_duration_sec: avg,
-      },
+      summary,
     };
   });
 }

@@ -17,7 +17,10 @@ export function useWorkshopClient() {
     queryClient,
     invalidateDashboard: () => {
       if (shouldHoldServerRefresh()) return Promise.resolve();
-      return queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.board.all }),
+      ]);
     },
     invalidateTemplates: () => {
       if (shouldHoldServerRefresh()) return Promise.resolve();

@@ -1,5 +1,24 @@
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
+  board: {
+    all: ["board"] as const,
+    jobs: (
+      section: string,
+      page: number,
+      limit: number,
+      q: string,
+      ownership: string
+    ) => ["board", "jobs", section, page, limit, q, ownership] as const,
+    jobSlider: (q: string, ownership: string) =>
+      ["board", "jobs", "active", "slider", q, ownership] as const,
+    technicians: (
+      status: string,
+      page: number,
+      limit: number,
+      q: string
+    ) => ["board", "technicians", status, page, limit, q] as const,
+    assignPool: (q: string) => ["board", "technicians", "assign", q] as const,
+  },
   templates: {
     all: ["job-templates"] as const,
     catalog: ["job-templates", "catalog"] as const,

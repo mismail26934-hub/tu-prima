@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS technicians (
   sn             VARCHAR(64)  NOT NULL DEFAULT '',
   status         VARCHAR(32)  NOT NULL DEFAULT 'offline',
   current_job_id VARCHAR(64)  NOT NULL DEFAULT '',
-  phone          VARCHAR(64)  NOT NULL DEFAULT ''
+  phone          VARCHAR(64)  NOT NULL DEFAULT '',
+  KEY idx_technicians_status_name (status, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS units (
@@ -65,7 +66,11 @@ CREATE TABLE IF NOT EXISTS jobs (
   delegated_at VARCHAR(64) NOT NULL DEFAULT '',
   delegated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
   KEY idx_jobs_scope (job_scope),
-  KEY idx_jobs_status (status)
+  KEY idx_jobs_status (status),
+  KEY idx_jobs_list (job_scope, status, created_at, id),
+  KEY idx_jobs_scope_created (job_scope, created_at, id),
+  KEY idx_jobs_assigned_by (assigned_by_user_id, job_scope),
+  KEY idx_jobs_delegated_to (delegated_to_user_id, job_scope)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS job_assignees (
@@ -76,7 +81,8 @@ CREATE TABLE IF NOT EXISTS job_assignees (
   technician_sn   VARCHAR(64) NOT NULL DEFAULT '',
   assigned_at     VARCHAR(64) NOT NULL DEFAULT '',
   is_lead         TINYINT(1)  NOT NULL DEFAULT 0,
-  KEY idx_job_assignees_job (job_id)
+  KEY idx_job_assignees_job (job_id),
+  KEY idx_job_assignees_technician (technician_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS job_steps (

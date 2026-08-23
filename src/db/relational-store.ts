@@ -1118,4 +1118,28 @@ export async function ensureRelationalSchema() {
       `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ${col} ${type} NOT NULL DEFAULT ''`
     );
   }
+  await ensureListIndexes(p);
+}
+
+async function ensureListIndexes(p: mysql.Pool) {
+  const indexes: Array<{ table: string; name: string; columns: string }> = [
+    { table: "jobs", name: "idx_jobs_list", columns: "job_scope, status, created_at, id" },
+    { table: "jobs", name: "idx_jobs_scope_created", columns: "job_scope, created_at, id" },
+    { table: "jobs", name: "idx_jobs_assigned_by", columns: "assigned_by_user_id, job_scope" },
+    { table: "jobs", name: "idx_jobs_delegated_to", columns: "delegated_to_user_id, job_scope" },
+    { table: "technicians", name: "idx_technicians_status_name", columns: "status, name" },
+    { table: "job_assignees", name: "idx_job_assignees_technician", columns: "technician_id" },
+  ];
+  for (const idx of indexes) {
+    const [rows] = await p.query<mysql.RowDataPacket[]>(
+      `SELECT 1 AS ok FROM information_schema.statistics
+       WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?
+       LIMIT 1`,
+      [idx.table, idx.name]
+    );
+    if (rows.length) continue;
+    await p.query(
+      `CREATE INDEX ${idx.name} ON ${idx.table} (${idx.columns})`
+    );
+  }
 }

@@ -7,8 +7,19 @@ export const queryKeys = {
       page: number,
       limit: number,
       q: string,
-      ownership: string
-    ) => ["board", "jobs", section, page, limit, q, ownership] as const,
+      ownership: string,
+      cursor?: string | null
+    ) =>
+      [
+        "board",
+        "jobs",
+        section,
+        page,
+        limit,
+        q,
+        ownership,
+        cursor ?? "",
+      ] as const,
     jobSlider: (q: string, ownership: string) =>
       ["board", "jobs", "active", "slider", q, ownership] as const,
     technicians: (

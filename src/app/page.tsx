@@ -483,6 +483,57 @@ function Pager({
   );
 }
 
+/** Prev/next pager for large archive lists (keyset cursor, no page jump). */
+function ArchivePager({
+  page,
+  total,
+  totalPages,
+  hasNext,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  if (total <= 0) return null;
+  if (totalPages <= 1 && !hasNext && page <= 1) return null;
+  return (
+    <div className="pager">
+      <button
+        type="button"
+        className="btn pager-nav"
+        disabled={page <= 1}
+        onClick={onPrev}
+        aria-label="Halaman sebelumnya"
+        title="Prev"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+      <span className="pager-meta" style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+        {page} / {totalPages} · {total} job
+      </span>
+      <button
+        type="button"
+        className="btn pager-nav"
+        disabled={!hasNext}
+        onClick={onNext}
+        aria-label="Halaman berikutnya"
+        title="Next"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const t = useT();
   const { data: session, status: sessionStatus } = useSession();
@@ -1544,7 +1595,13 @@ export default function HomePage() {
   const [activeJobPage, setActiveJobPage] = useState(1);
   const [queueJobPage, setQueueJobPage] = useState(1);
   const [completedJobPage, setCompletedJobPage] = useState(1);
+  const [completedJobCursors, setCompletedJobCursors] = useState<
+    (string | null)[]
+  >([null]);
   const [cancelledJobPage, setCancelledJobPage] = useState(1);
+  const [cancelledJobCursors, setCancelledJobCursors] = useState<
+    (string | null)[]
+  >([null]);
 
   const MASTER_PAGE_SIZE = 10;
   const [unitMasterPage, setUnitMasterPage] = useState(1);
@@ -2487,6 +2544,7 @@ export default function HomePage() {
     q: jobQuery,
     ownership: jobOwnershipFilter,
     enabled: isLoggedIn && showDoneJobs,
+    cursor: completedJobCursors[completedJobPage - 1] ?? null,
   });
   const cancelledJobsQuery = useJobsList({
     section: "cancelled",
@@ -2495,6 +2553,7 @@ export default function HomePage() {
     q: jobQuery,
     ownership: jobOwnershipFilter,
     enabled: isLoggedIn && showCancelledJobs,
+    cursor: cancelledJobCursors[cancelledJobPage - 1] ?? null,
   });
   const sliderJobsQuery = useActiveJobsSlider({
     q: jobQuery,
@@ -2513,9 +2572,11 @@ export default function HomePage() {
   const queueJobTotalPages = queueJobsQuery.data?.totalPages ?? 1;
   const queueJobPageSafe = Math.min(queueJobPage, queueJobTotalPages);
   const completedJobTotalPages = completedJobsQuery.data?.totalPages ?? 1;
-  const completedJobPageSafe = Math.min(completedJobPage, completedJobTotalPages);
+  const completedJobTotal = completedJobsQuery.data?.total ?? 0;
+  const completedJobHasNext = Boolean(completedJobsQuery.data?.nextCursor);
   const cancelledJobTotalPages = cancelledJobsQuery.data?.totalPages ?? 1;
-  const cancelledJobPageSafe = Math.min(cancelledJobPage, cancelledJobTotalPages);
+  const cancelledJobTotal = cancelledJobsQuery.data?.total ?? 0;
+  const cancelledJobHasNext = Boolean(cancelledJobsQuery.data?.nextCursor);
 
   const jobMap = useMemo(() => {
     const merged = [
@@ -2532,8 +2593,36 @@ export default function HomePage() {
     setActiveJobPage(1);
     setQueueJobPage(1);
     setCompletedJobPage(1);
+    setCompletedJobCursors([null]);
     setCancelledJobPage(1);
+    setCancelledJobCursors([null]);
   }, [jobQuery, jobSectionFilter, jobOwnershipFilter]);
+
+  function goCompletedArchiveNext() {
+    const next = completedJobsQuery.data?.nextCursor;
+    if (!next) return;
+    setCompletedJobCursors((c) => [...c, next]);
+    setCompletedJobPage((p) => p + 1);
+  }
+
+  function goCompletedArchivePrev() {
+    if (completedJobPage <= 1) return;
+    setCompletedJobCursors((c) => c.slice(0, -1));
+    setCompletedJobPage((p) => p - 1);
+  }
+
+  function goCancelledArchiveNext() {
+    const next = cancelledJobsQuery.data?.nextCursor;
+    if (!next) return;
+    setCancelledJobCursors((c) => [...c, next]);
+    setCancelledJobPage((p) => p + 1);
+  }
+
+  function goCancelledArchivePrev() {
+    if (cancelledJobPage <= 1) return;
+    setCancelledJobCursors((c) => c.slice(0, -1));
+    setCancelledJobPage((p) => p - 1);
+  }
 
   async function runAction(
     jobId: string,
@@ -4890,11 +4979,14 @@ export default function HomePage() {
                     </p>
                   )}
                   {completedJobs.map(renderJob)}
-                  {completedJobTotalPages > 1 && (
-                    <Pager
-                      page={completedJobPageSafe}
+                  {(completedJobTotalPages > 1 || completedJobHasNext) && (
+                    <ArchivePager
+                      page={completedJobPage}
+                      total={completedJobTotal}
                       totalPages={completedJobTotalPages}
-                      onChange={setCompletedJobPage}
+                      hasNext={completedJobHasNext}
+                      onPrev={goCompletedArchivePrev}
+                      onNext={goCompletedArchiveNext}
                     />
                   )}
                 </>
@@ -4917,11 +5009,14 @@ export default function HomePage() {
                     </p>
                   )}
                   {historyJobs.map(renderJob)}
-                  {cancelledJobTotalPages > 1 && (
-                    <Pager
-                      page={cancelledJobPageSafe}
+                  {(cancelledJobTotalPages > 1 || cancelledJobHasNext) && (
+                    <ArchivePager
+                      page={cancelledJobPage}
+                      total={cancelledJobTotal}
                       totalPages={cancelledJobTotalPages}
-                      onChange={setCancelledJobPage}
+                      hasNext={cancelledJobHasNext}
+                      onPrev={goCancelledArchivePrev}
+                      onNext={goCancelledArchiveNext}
                     />
                   )}
                 </>

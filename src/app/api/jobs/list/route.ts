@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     );
     const q = url.searchParams.get("q") || "";
     const ownership = parseOwnership(url.searchParams.get("ownership"));
+    const cursor = url.searchParams.get("cursor");
     const session = await auth();
     const userId = session?.user?.id ? String(session.user.id) : "";
 
@@ -43,6 +44,7 @@ export async function GET(req: Request) {
       q,
       ownership,
       userId,
+      cursor: cursor || null,
     });
     return NextResponse.json(result);
   } catch (e) {

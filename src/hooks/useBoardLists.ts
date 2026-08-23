@@ -16,16 +16,19 @@ export function useJobsList(opts: {
   q?: string;
   ownership?: JobOwnershipFilter;
   enabled?: boolean;
+  cursor?: string | null;
 }) {
   const q = opts.q || "";
   const ownership = opts.ownership || "all";
+  const cursor = opts.cursor ?? null;
   return useQuery({
     queryKey: queryKeys.board.jobs(
       opts.section,
       opts.page,
       opts.limit,
       q,
-      ownership
+      ownership,
+      cursor
     ),
     queryFn: () => {
       const params = new URLSearchParams({
@@ -35,6 +38,12 @@ export function useJobsList(opts: {
         q,
         ownership,
       });
+      if (
+        (opts.section === "done" || opts.section === "cancelled") &&
+        cursor
+      ) {
+        params.set("cursor", cursor);
+      }
       return api<PaginatedResult<JobWithDetails>>(
         `/api/jobs/list?${params.toString()}`
       );

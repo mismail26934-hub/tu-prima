@@ -27,6 +27,8 @@ export interface PaginatedResult<T> {
   page: number;
   limit: number;
   totalPages: number;
+  /** Keyset cursor for next page (archive sections). */
+  nextCursor?: string | null;
 }
 
 export interface TechnicianListItem extends Technician {
@@ -206,46 +208,95 @@ function buildJobWhere(
   return { sql: parts.join(" AND "), params };
 }
 
-async function loadAllTechnicians(): Promise<Technician[]> {
+const ARCHIVE_SECTIONS = new Set<JobListSection>(["done", "cancelled"]);
+
+function encodeJobCursor(createdAt: string, id: string): string {
+  return Buffer.from(`${createdAt}\0${id}`, "utf8").toString("base64url");
+}
+
+function decodeJobCursor(raw: string): { createdAt: string; id: string } | null {
+  try {
+    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+    const sep = decoded.indexOf("\0");
+    if (sep <= 0) return null;
+    const createdAt = decoded.slice(0, sep);
+    const id = decoded.slice(sep + 1);
+    if (!createdAt || !id) return null;
+    return { createdAt, id };
+  } catch {
+    return null;
+  }
+}
+
+async function loadTechniciansByIds(ids: string[]): Promise<Technician[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return [];
+  const ph = unique.map(() => "?").join(",");
   const p = getPool();
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT id, name, sn, status, current_job_id, phone FROM technicians ORDER BY name`
+    `SELECT id, name, sn, status, current_job_id, phone FROM technicians WHERE id IN (${ph})`,
+    unique
   );
   return rows.map(mapTechnicianRow);
 }
 
 async function enrichJobsBatch(
   jobs: Job[],
-  fromArchive: boolean
+  fromArchive: boolean,
+  opts?: { includeEvents?: boolean }
 ): Promise<JobWithDetails[]> {
   if (!jobs.length) return [];
+  const includeEvents = opts?.includeEvents === true;
 
   const jobIds = jobs.map((j) => j.id).filter(Boolean);
   const ph = jobIds.map(() => "?").join(",");
   const p = getPool();
 
-  const [steps] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM job_steps WHERE job_id IN (${ph}) ORDER BY job_id, step_order`,
-    jobIds
-  );
-  const [events] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM job_events WHERE job_id IN (${ph}) ORDER BY job_id, created_at`,
-    jobIds
-  );
-  const [assignees] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM job_assignees WHERE job_id IN (${ph}) ORDER BY job_id, assigned_at`,
-    jobIds
-  );
-  const [handovers] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM job_handovers WHERE job_id IN (${ph}) ORDER BY job_id, handover_order`,
-    jobIds
-  );
-  const [partLoans] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM job_part_loans WHERE job_id IN (${ph}) ORDER BY job_id, loan_order`,
-    jobIds
-  );
+  const childQueries: Promise<unknown>[] = [
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT * FROM job_steps WHERE job_id IN (${ph}) ORDER BY job_id, step_order`,
+      jobIds
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT * FROM job_assignees WHERE job_id IN (${ph}) ORDER BY job_id, assigned_at`,
+      jobIds
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT * FROM job_handovers WHERE job_id IN (${ph}) ORDER BY job_id, handover_order`,
+      jobIds
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT * FROM job_part_loans WHERE job_id IN (${ph}) ORDER BY job_id, loan_order`,
+      jobIds
+    ),
+  ];
+  if (includeEvents) {
+    childQueries.push(
+      p.query<mysql.RowDataPacket[]>(
+        `SELECT * FROM job_events WHERE job_id IN (${ph}) ORDER BY job_id, created_at`,
+        jobIds
+      )
+    );
+  }
 
-  const techs = await loadAllTechnicians();
+  const results = await Promise.all(childQueries);
+  const [steps] = results[0] as [mysql.RowDataPacket[]];
+  const [assignees] = results[1] as [mysql.RowDataPacket[]];
+  const [handovers] = results[2] as [mysql.RowDataPacket[]];
+  const [partLoans] = results[3] as [mysql.RowDataPacket[]];
+  const events = includeEvents
+    ? ((results[4] as [mysql.RowDataPacket[]])[0] as mysql.RowDataPacket[])
+    : [];
+
+  const techIdSet = new Set<string>();
+  for (const job of jobs) {
+    if (job.technician_id) techIdSet.add(job.technician_id);
+  }
+  for (const row of assignees) {
+    const id = str(row.technician_id);
+    if (id) techIdSet.add(id);
+  }
+  const techs = await loadTechniciansByIds([...techIdSet]);
   const techById = new Map(techs.map((t) => [t.id, t]));
 
   const stepsByJob = new Map<string, JobStep[]>();
@@ -257,11 +308,13 @@ async function enrichJobsBatch(
   }
 
   const eventsByJob = new Map<string, JobEvent[]>();
-  for (const row of events) {
-    const ev = mapEventRow(row);
-    const list = eventsByJob.get(ev.job_id) || [];
-    list.push(ev);
-    eventsByJob.set(ev.job_id, list);
+  if (includeEvents) {
+    for (const row of events) {
+      const ev = mapEventRow(row);
+      const list = eventsByJob.get(ev.job_id) || [];
+      list.push(ev);
+      eventsByJob.set(ev.job_id, list);
+    }
   }
 
   const assigneesByJob = new Map<string, JobAssignee[]>();
@@ -334,33 +387,69 @@ export async function listJobsPaginated(input: {
   q?: string;
   ownership?: JobOwnershipFilter;
   userId?: string;
+  cursor?: string | null;
 }): Promise<PaginatedResult<JobWithDetails>> {
   const page = Math.max(1, Math.floor(input.page || 1));
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit || 10)));
-  const offset = (page - 1) * limit;
   const q = input.q || "";
   const ownership = input.ownership || "all";
   const userId = input.userId || "";
   const { fromArchive } = sectionScope(input.section);
   const { sql, params } = buildJobWhere(input.section, q, ownership, userId);
   const p = getPool();
+  const useKeyset = ARCHIVE_SECTIONS.has(input.section);
+  const decodedCursor =
+    useKeyset && input.cursor ? decodeJobCursor(input.cursor) : null;
 
   const [countRows] = await p.query<mysql.RowDataPacket[]>(
     `SELECT COUNT(*) AS cnt FROM jobs WHERE ${sql}`,
     params
   );
   const total = num(countRows[0]?.cnt);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  const [jobRows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM jobs WHERE ${sql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
-  );
+  let jobRows: mysql.RowDataPacket[];
+  if (useKeyset) {
+    const keysetParts = [...params];
+    let keysetSql = sql;
+    if (decodedCursor) {
+      keysetSql += " AND (created_at < ? OR (created_at = ? AND id < ?))";
+      keysetParts.push(
+        decodedCursor.createdAt,
+        decodedCursor.createdAt,
+        decodedCursor.id
+      );
+    }
+    const [rows] = await p.query<mysql.RowDataPacket[]>(
+      `SELECT * FROM jobs WHERE ${keysetSql} ORDER BY created_at DESC, id DESC LIMIT ?`,
+      [...keysetParts, limit]
+    );
+    jobRows = rows;
+  } else {
+    const offset = (page - 1) * limit;
+    const [rows] = await p.query<mysql.RowDataPacket[]>(
+      `SELECT * FROM jobs WHERE ${sql} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    jobRows = rows;
+  }
 
   const jobs = jobRows.map(mapJobRow);
   const items = await enrichJobsBatch(jobs, fromArchive);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const last = jobs[jobs.length - 1];
+  const nextCursor =
+    useKeyset && jobs.length === limit && last
+      ? encodeJobCursor(last.created_at, last.id)
+      : null;
 
-  return { items, total, page, limit, totalPages };
+  return {
+    items,
+    total,
+    page,
+    limit,
+    totalPages,
+    nextCursor,
+  };
 }
 
 export async function listTechniciansPaginated(input: {

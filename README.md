@@ -1,8 +1,8 @@
 # TU-PRIMA — Progress Report & Inspection for Mechanic Allocation
 
-Aplikasi monitoring job workshop / recondition mekanik dengan **Excel sebagai database** (`data/workshop.xlsx`).
+Aplikasi monitoring job workshop / recondition mekanik dengan **MySQL/MariaDB sebagai database** (migrasi dari Excel).
 
-Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · ExcelJS · Zustand · TypeScript · PWA / IndexedDB (offline) · WebSocket**
+Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · ExcelJS (import/export saja) · Zustand · TypeScript · PWA / IndexedDB (offline) · WebSocket**
 
 ---
 
@@ -490,32 +490,43 @@ Payload progress penting:
 npm install
 ```
 
+Pastikan **MySQL atau MariaDB** berjalan lokal (tanpa Docker), lalu buat database (otomatis saat app start / migrasi).
+
 ### 2. Environment
 
-Salin `.env.example` → `.env.local`:
+Di `.env.local`:
 
 ```env
 AUTH_SECRET=ganti-dengan-string-panjang-acak
+DATABASE_URL=mysql://root@127.0.0.1:3306/tu_prima
 APP_USERNAME=admin
 APP_PASSWORD=admin123
 ```
 
-### 3. Dev server
+### 3. Database schema
+
+Schema otomatis dibuat saat pertama kali `npm run dev` atau:
+
+```bash
+npm run db:ensure
+```
+
+Tabel: `users`, `technicians`, `units`, `jobs`, `job_steps`, dll. (lihat `src/db/README.md`).
+
+Backup MariaDB:
+
+```bash
+mysqldump -u root tu_prima > backup-tu_prima.sql
+```
+
+### 4. Dev server
 
 ```bash
 npm run dev
 ```
 
-Buka [http://localhost:3000](http://localhost:3000) (atau port lain jika 3000 terpakai).  
-Script ini menjalankan **custom server** (`server.ts`): HTTP Next + WebSocket `ws://host:port/ws` (bukan `next dev` murni). Hentikan proses lama (`Ctrl+C`) sebelum ganti script.
-
-### 4. Seed Excel (opsional)
-
-```bash
-npm run seed
-```
-
-File Excel dibuat otomatis di `data/workshop.xlsx` saat pertama diakses jika belum ada.
+Buka [http://localhost:3000](http://localhost:3000).  
+Script ini menjalankan **custom server** (`server.ts`): HTTP Next + WebSocket `ws://host:port/ws`.
 
 ### 5. Production
 
@@ -528,7 +539,7 @@ npm start
 
 ## Mode offline (CRUD tanpa server)
 
-App tetap bisa **create / update / delete** (dan aksi progress) meski server atau jaringan mati. Excel di server **tidak berubah** sampai perangkat online lagi dan antrian terkirim.
+App tetap bisa **create / update / delete** (dan aksi progress) meski server atau jaringan mati. Database MySQL di server **tidak berubah** sampai perangkat online lagi dan antrian terkirim.
 
 ### Syarat
 
@@ -540,9 +551,9 @@ App tetap bisa **create / update / delete** (dan aksi progress) meski server ata
 ### Alur
 
 ```text
-Online  → UI ↔ /api/* ↔ workshop.xlsx
+Online  → UI ↔ /api/* ↔ MariaDB (tu_prima)
 Offline → UI → cache IndexedDB + outbox (antrian mutasi)
-Online kembali → flush outbox berurutan → Excel + audit/backup → refresh board
+Online kembali → flush outbox berurutan → MySQL + audit/backup → refresh board
 ```
 
 - Chip di topbar: **Offline · N** / **N** pending / error (klik → popover **Coba sync** + Refresh).

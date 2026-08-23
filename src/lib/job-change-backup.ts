@@ -1,7 +1,13 @@
-import path from "path";
-import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import ExcelJS from "exceljs";
+import {
+  loadArchiveWb,
+  saveArchiveWb,
+  readArchiveRows,
+  writeArchiveSheet,
+  type ArchiveRow,
+  type MysqlWorkbook,
+  type MysqlSheet,
+} from "@/db/archive-store";
 import type {
   AuditActor,
   Job,
@@ -12,8 +18,9 @@ import type {
   Technician,
 } from "@/lib/types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-export const BACKUP_JOBS_PATH = path.join(DATA_DIR, "backup-jobs.xlsx");
+/** Logical backup store in MySQL (was backup-jobs.xlsx). */
+export const BACKUP_JOBS_PATH = "mysql://backup";
+const ARCHIVE_DB = "backup";
 
 const SHEET = "ChangeLog";
 
@@ -84,7 +91,7 @@ export type JobChangeBackupInput = {
   at?: string;
 };
 
-type Row = Record<string, string | number>;
+type Row = ArchiveRow;
 
 let backupQueue: Promise<unknown> = Promise.resolve();
 
@@ -97,81 +104,37 @@ function withBackupLock<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function cellStr(v: ExcelJS.CellValue | undefined): string {
-  if (v == null) return "";
-  if (typeof v === "object" && "text" in v) return String(v.text ?? "");
-  if (typeof v === "object" && "result" in v) return String(v.result ?? "");
-  return String(v);
-}
-
 function writeSheet(
-  wb: ExcelJS.Workbook,
+  wb: MysqlWorkbook,
   name: string,
   headers: readonly string[],
   rows: Row[]
 ) {
-  const existing = wb.getWorksheet(name);
-  if (existing) wb.removeWorksheet(existing.id);
-  const ws = wb.addWorksheet(name);
-  ws.addRow([...headers]);
-  for (const r of rows) {
-    ws.addRow(headers.map((h) => r[h] ?? ""));
-  }
+  writeArchiveSheet(wb, name, headers, rows);
 }
 
-function readRows(ws: ExcelJS.Worksheet): Row[] {
-  const headerRow = ws.getRow(1);
-  const headers: string[] = [];
-  headerRow.eachCell((cell, col) => {
-    headers[col] = cellStr(cell.value).trim();
-  });
-  const rows: Row[] = [];
-  ws.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const obj: Row = {};
-    let empty = true;
-    headers.forEach((h, col) => {
-      if (!h) return;
-      const str = cellStr(row.getCell(col).value);
-      if (str !== "") empty = false;
-      obj[h] = str;
-    });
-    if (!empty) rows.push(obj);
-  });
-  return rows;
+function readRows(ws: MysqlSheet): Row[] {
+  return readArchiveRows(ws);
 }
 
-async function atomicWrite(wb: ExcelJS.Workbook) {
-  ensureDataDir();
-  const tmp = `${BACKUP_JOBS_PATH}.${process.pid}.tmp`;
-  await wb.xlsx.writeFile(tmp);
-  try {
-    if (fs.existsSync(BACKUP_JOBS_PATH)) fs.unlinkSync(BACKUP_JOBS_PATH);
-    fs.renameSync(tmp, BACKUP_JOBS_PATH);
-  } catch {
-    fs.copyFileSync(tmp, BACKUP_JOBS_PATH);
-    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
-  }
-}
-
-async function loadBackupWorkbook(): Promise<ExcelJS.Workbook> {
-  ensureDataDir();
-  const wb = new ExcelJS.Workbook();
-  if (!fs.existsSync(BACKUP_JOBS_PATH)) {
-    writeSheet(wb, SHEET, HEADERS, []);
-    await atomicWrite(wb);
-    return wb;
-  }
-  await wb.xlsx.readFile(BACKUP_JOBS_PATH);
+async function loadBackupWorkbook(): Promise<MysqlWorkbook> {
+  const wb = await loadArchiveWb(ARCHIVE_DB);
   if (!wb.getWorksheet(SHEET)) {
     writeSheet(wb, SHEET, HEADERS, []);
+    await saveArchiveWb(wb);
   }
   return wb;
 }
+
+async function atomicWrite(wb: MysqlWorkbook) {
+  await saveArchiveWb(wb);
+}
+
+
+
+
+
+
 
 function mapEntry(r: Row): JobChangeBackupEntry {
   return {

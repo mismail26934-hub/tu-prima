@@ -6,6 +6,7 @@ import {
   canManageHandover,
   canManageJobProgress,
   canReopenJob,
+  canSetTechnicianPresence,
 } from "@/lib/permissions";
 import type {
   AccessAction,
@@ -123,6 +124,26 @@ export async function requireReopenPermission(): Promise<NextResponse | null> {
     return NextResponse.json(
       {
         error: `Buka kembali job hanya untuk level superuser (level Anda: ${level})`,
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
+/** Set teknisi available/offline: superuser & foreman. */
+export async function requireTechnicianPresencePermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (!canSetTechnicianPresence(level)) {
+    if (level === "guest") {
+      return NextResponse.json(
+        { error: "Silakan login untuk mengubah status teknisi" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: `Set available/offline teknisi hanya untuk level superuser dan foreman (level Anda: ${level})`,
       },
       { status: 403 }
     );

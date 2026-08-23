@@ -664,6 +664,15 @@ html[data-theme="light"].menu-open .topbar-glass {
   border-bottom: 1px dashed var(--line-dashed);
 }
 
+.panel-vis-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
 .panel-vis-label {
   color: var(--muted);
   font-size: 0.82rem;
@@ -831,6 +840,10 @@ html[data-theme="light"].menu-open .topbar-glass {
 
   .panel-vis-bar {
     flex-wrap: wrap;
+  }
+
+  .panel-vis-filters {
+    width: 100%;
   }
 
   .panel-filter {

@@ -121,6 +121,13 @@ export function canReopenJob(level: AccessLevel | undefined): boolean {
   return level === "superuser";
 }
 
+/** Set teknisi available/offline dari board (superuser & foreman). */
+export function canSetTechnicianPresence(
+  level: AccessLevel | undefined
+): boolean {
+  return level === "superuser" || level === "foreman";
+}
+
 export function jobHasTechnicianAssignment(
   job: Pick<Job, "technician_id" | "status">,
   assigneeCount = 0

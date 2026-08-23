@@ -1,17 +1,22 @@
-import { create } from "zustand";
+import { useDashboardFiltersStore } from "./dashboardFiltersStore";
 
-interface JobBoardState {
+type JobBoardSlice = {
   draft: string;
   query: string;
   setDraft: (draft: string) => void;
   applySearch: () => void;
   clearSearch: () => void;
-}
+};
 
-export const useJobBoardStore = create<JobBoardState>((set, get) => ({
-  draft: "",
-  query: "",
-  setDraft: (draft) => set({ draft }),
-  applySearch: () => set({ query: get().draft.trim() }),
-  clearSearch: () => set({ draft: "", query: "" }),
-}));
+/** @deprecated Prefer useDashboardFiltersStore */
+export function useJobBoardStore<T>(selector: (state: JobBoardSlice) => T): T {
+  return useDashboardFiltersStore((s) =>
+    selector({
+      draft: s.jobDraft,
+      query: s.jobQuery,
+      setDraft: s.setJobDraft,
+      applySearch: s.applyJobSearch,
+      clearSearch: s.clearJobSearch,
+    })
+  );
+}

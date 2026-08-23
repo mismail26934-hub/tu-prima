@@ -1,19 +1,24 @@
-import { create } from "zustand";
+import { useDashboardFiltersStore } from "./dashboardFiltersStore";
 
-interface TechnicianBoardState {
-  /** Text currently typed in the input (not yet applied). */
+type TechnicianBoardSlice = {
   draft: string;
-  /** Applied query used for filtering. */
   query: string;
   setDraft: (draft: string) => void;
   applySearch: () => void;
   clearSearch: () => void;
-}
+};
 
-export const useTechnicianBoardStore = create<TechnicianBoardState>((set, get) => ({
-  draft: "",
-  query: "",
-  setDraft: (draft) => set({ draft }),
-  applySearch: () => set({ query: get().draft.trim() }),
-  clearSearch: () => set({ draft: "", query: "" }),
-}));
+/** @deprecated Prefer useDashboardFiltersStore */
+export function useTechnicianBoardStore<T>(
+  selector: (state: TechnicianBoardSlice) => T
+): T {
+  return useDashboardFiltersStore((s) =>
+    selector({
+      draft: s.techDraft,
+      query: s.techQuery,
+      setDraft: s.setTechDraft,
+      applySearch: s.applyTechSearch,
+      clearSearch: s.clearTechSearch,
+    })
+  );
+}

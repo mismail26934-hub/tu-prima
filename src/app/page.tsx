@@ -29,6 +29,7 @@ import {
   canManageJobProgress,
   canOperateJobProgress,
   canReopenJob,
+  canSetTechnicianPresence,
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import { downloadJobPdf } from "@/lib/job-pdf";
@@ -36,6 +37,12 @@ import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
 import { useJobBoardStore } from "@/store/jobBoardStore";
+import {
+  useDashboardFiltersStore,
+  type JobOwnershipFilter,
+  type JobSectionFilter,
+  type TechStatusFilter,
+} from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { OfflineSyncChip } from "@/components/OfflineSyncChip";
@@ -488,6 +495,7 @@ export default function HomePage() {
   const canUserDelete = canAccess(userLevel, "user", "delete");
   const canTechCreate = canAccess(userLevel, "technician", "create");
   const canTechUpdate = canAccess(userLevel, "technician", "update");
+  const canSetTechPresence = canSetTechnicianPresence(userLevel);
   const canTechDelete = canAccess(userLevel, "technician", "delete");
   const canUnitRead = canAccess(userLevel, "unit", "read");
   const canUnitCreate = canAccess(userLevel, "unit", "create");
@@ -1519,12 +1527,12 @@ export default function HomePage() {
     busy: 1,
     offline: 1,
   });
-  const [techStatusFilter, setTechStatusFilter] = useState<
-    "all" | TechnicianStatus
-  >("all");
-  const [jobSectionFilter, setJobSectionFilter] = useState<
-    "all" | "active" | "queue" | "done" | "cancelled"
-  >("all");
+  const techStatusFilter = useDashboardFiltersStore((s) => s.techStatusFilter);
+  const setTechStatusFilter = useDashboardFiltersStore((s) => s.setTechStatusFilter);
+  const jobSectionFilter = useDashboardFiltersStore((s) => s.jobSectionFilter);
+  const setJobSectionFilter = useDashboardFiltersStore((s) => s.setJobSectionFilter);
+  const jobOwnershipFilter = useDashboardFiltersStore((s) => s.jobOwnershipFilter);
+  const setJobOwnershipFilter = useDashboardFiltersStore((s) => s.setJobOwnershipFilter);
 
   const JOB_PAGE_SIZE = 10;
   const [activeJobPage, setActiveJobPage] = useState(1);
@@ -2431,32 +2439,53 @@ export default function HomePage() {
     [jobQuery]
   );
 
+  const matchJobOwnership = useCallback(
+    (j: JobWithDetails) => {
+      if (!userId || jobOwnershipFilter === "all") return true;
+      if (jobOwnershipFilter === "mine") {
+        return j.assigned_by_user_id === userId;
+      }
+      return j.delegated_to_user_id === userId;
+    },
+    [userId, jobOwnershipFilter]
+  );
+
+  const jobListFiltered = useCallback(
+    (j: JobWithDetails) => matchJob(j) && matchJobOwnership(j),
+    [matchJob, matchJobOwnership]
+  );
+
+  const jobListHasFilter = Boolean(jobQuery) || jobOwnershipFilter !== "all";
+
   const activeJobs = useMemo(
     () =>
       (data?.jobs || []).filter(
         (j) =>
-          ["in_progress", "paused", "assigned"].includes(j.status) && matchJob(j)
+          ["in_progress", "paused", "assigned"].includes(j.status) &&
+          jobListFiltered(j)
       ),
-    [data, matchJob]
+    [data, jobListFiltered]
   );
   const queuedJobs = useMemo(
     () =>
-      (data?.jobs || []).filter((j) => j.status === "queued" && matchJob(j)),
-    [data, matchJob]
+      (data?.jobs || []).filter(
+        (j) => j.status === "queued" && jobListFiltered(j)
+      ),
+    [data, jobListFiltered]
   );
   const historyJobs = useMemo(
-    () => (data?.cancelled_jobs || []).filter((j) => matchJob(j)),
-    [data, matchJob]
+    () => (data?.cancelled_jobs || []).filter((j) => jobListFiltered(j)),
+    [data, jobListFiltered]
   );
 
   const completedJobs = useMemo(
-    () => (data?.completed_jobs || []).filter((j) => matchJob(j)),
-    [data, matchJob]
+    () => (data?.completed_jobs || []).filter((j) => jobListFiltered(j)),
+    [data, jobListFiltered]
   );
 
   useEffect(() => {
     setActiveJobPage(1);
-  }, [jobQuery, jobSectionFilter]);
+  }, [jobQuery, jobSectionFilter, jobOwnershipFilter]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(activeJobs.length / JOB_PAGE_SIZE));
@@ -2932,7 +2961,7 @@ export default function HomePage() {
   }
 
   function openTechStatusModal(tech: Technician) {
-    if (!canTechUpdate || tech.status === "busy") return;
+    if (!canSetTechPresence || tech.status === "busy") return;
     const nextStatus: Exclude<TechnicianStatus, "busy"> =
       tech.status === "available" ? "offline" : "available";
     setModal({ type: "tech-status", tech, nextStatus });
@@ -4528,9 +4557,7 @@ export default function HomePage() {
                   <select
                     value={techStatusFilter}
                     onChange={(e) =>
-                      setTechStatusFilter(
-                        e.target.value as "all" | TechnicianStatus
-                      )
+                      setTechStatusFilter(e.target.value as TechStatusFilter)
                     }
                     aria-label={t("panel.filterTechStatus")}
                   >
@@ -4618,7 +4645,7 @@ export default function HomePage() {
                               <button
                                 className="btn btn-ghost"
                                 style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                                disabled={busy || !canTechUpdate}
+                                disabled={busy || !canSetTechPresence}
                                 onClick={() => openTechStatusModal(t)}
                               >
                                 {t.status === "available" ? "Set offline" : "Set available"}
@@ -4667,29 +4694,44 @@ export default function HomePage() {
             ) : (
             <section className="panel">
               <div className="panel-vis-bar">
-                <label className="panel-filter">
-                  <span className="panel-vis-label">{t("panel.filter")}</span>
-                  <select
-                    value={jobSectionFilter}
-                    onChange={(e) =>
-                      setJobSectionFilter(
-                        e.target.value as
-                          | "all"
-                          | "active"
-                          | "queue"
-                          | "done"
-                          | "cancelled"
-                      )
-                    }
-                    aria-label={t("panel.filterJobSection")}
-                  >
-                    <option value="all">All</option>
-                    <option value="active">{t("job.section.active")}</option>
-                    <option value="queue">{t("job.section.queue")}</option>
-                    <option value="done">{t("job.section.done")}</option>
-                    <option value="cancelled">{t("job.section.cancelled")}</option>
-                  </select>
-                </label>
+                <div className="panel-vis-filters">
+                  <label className="panel-filter">
+                    <span className="panel-vis-label">{t("panel.filter")}</span>
+                    <select
+                      value={jobSectionFilter}
+                      onChange={(e) =>
+                        setJobSectionFilter(e.target.value as JobSectionFilter)
+                      }
+                      aria-label={t("panel.filterJobSection")}
+                    >
+                      <option value="all">All</option>
+                      <option value="active">{t("job.section.active")}</option>
+                      <option value="queue">{t("job.section.queue")}</option>
+                      <option value="done">{t("job.section.done")}</option>
+                      <option value="cancelled">{t("job.section.cancelled")}</option>
+                    </select>
+                  </label>
+                  {isLoggedIn && userId && (
+                    <label className="panel-filter">
+                      <span className="panel-vis-label">{t("panel.filterJobOwnership")}</span>
+                      <select
+                        value={jobOwnershipFilter}
+                        onChange={(e) =>
+                          setJobOwnershipFilter(
+                            e.target.value as JobOwnershipFilter
+                          )
+                        }
+                        aria-label={t("panel.filterJobOwnership")}
+                      >
+                        <option value="all">{t("panel.jobOwnershipAll")}</option>
+                        <option value="mine">{t("panel.jobOwnershipMine")}</option>
+                        <option value="delegated">
+                          {t("panel.jobOwnershipDelegated")}
+                        </option>
+                      </select>
+                    </label>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="btn btn-icon panel-vis-btn"
@@ -4756,7 +4798,7 @@ export default function HomePage() {
                 <>
                   {activeJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
-                      {jobQuery ? t("panel.activeNoMatch") : t("panel.activeEmpty")}
+                      {jobListHasFilter ? t("panel.activeNoMatch") : t("panel.activeEmpty")}
                     </p>
                   )}
                   {pagedActiveJobs.map(renderJob)}
@@ -4777,7 +4819,7 @@ export default function HomePage() {
                   )}
                   {queuedJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
-                      {jobQuery ? t("panel.queueNoMatch") : t("panel.queueEmpty")}
+                      {jobListHasFilter ? t("panel.queueNoMatch") : t("panel.queueEmpty")}
                     </p>
                   )}
                   {queuedJobs.map(renderJob)}
@@ -4797,7 +4839,7 @@ export default function HomePage() {
                     <>
                       {completedJobs.length === 0 && (
                         <p style={{ color: "var(--muted)" }}>
-                          {jobQuery
+                          {jobListHasFilter
                             ? t("panel.doneNoMatch")
                             : t("panel.doneEmptyArchive")}
                         </p>
@@ -4822,7 +4864,7 @@ export default function HomePage() {
                     <>
                       {historyJobs.length === 0 && (
                         <p style={{ color: "var(--muted)" }}>
-                          {jobQuery
+                          {jobListHasFilter
                             ? t("panel.cancelledNoMatch")
                             : t("panel.cancelledEmptyArchive")}
                         </p>

@@ -22,7 +22,9 @@ export type JobEventType =
   | "cancelled"
   | "reopened"
   | "updated"
-  | "deleted";
+  | "deleted"
+  | "delegated"
+  | "undelegated";
 
 /** Who performed a mutation (from NextAuth session). */
 export interface AuditActor {
@@ -96,6 +98,15 @@ export interface Job {
   paused_at: string;
   total_paused_sec: number;
   estimated_minutes: number;
+  /** Foreman/superuser who last assigned technicians (operational owner). */
+  assigned_by_user_id?: string;
+  assigned_by_user_name?: string;
+  assigned_by_user_level?: string;
+  /** Optional co-manager foreman (shared access with assigner). */
+  delegated_to_user_id?: string;
+  delegated_to_user_name?: string;
+  delegated_at?: string;
+  delegated_by_user_id?: string;
 }
 
 export interface JobAssignee {

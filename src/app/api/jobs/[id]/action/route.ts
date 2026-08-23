@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 
 const ACTIONS = [
   "assign",
+  "delegate",
+  "undelegate",
   "start",
   "pause",
   "resume",
@@ -39,6 +41,8 @@ export async function POST(
 
     let denied;
     if (action === "assign") {
+      denied = await requireAssignPermission();
+    } else if (action === "delegate" || action === "undelegate") {
       denied = await requireAssignPermission();
     } else if (action === "reopen") {
       denied = await requireReopenPermission();
@@ -80,6 +84,9 @@ export async function POST(
       auto_next:
         typeof body.auto_next === "boolean" ? body.auto_next : undefined,
       note: body.note,
+      delegate_user_id: body.delegate_user_id
+        ? String(body.delegate_user_id)
+        : undefined,
       duration_sec:
         typeof body.duration_sec === "number" ? Number(body.duration_sec) : undefined,
       completed_at: body.completed_at ? String(body.completed_at) : undefined,

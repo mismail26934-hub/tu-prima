@@ -1718,6 +1718,10 @@ html[data-theme="light"].menu-open .topbar-glass {
   margin-top: 0;
 }
 
+.job-delegate-row {
+  margin-top: 6px;
+}
+
 .modal-backdrop {
   position: fixed;
   top: 0;

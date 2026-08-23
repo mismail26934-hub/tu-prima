@@ -22,8 +22,12 @@ import { USER_LEVELS } from "@/lib/types";
 import {
   canAccess,
   canAssignJob,
+  canAssignTechnicians,
+  canDelegateJob,
+  canManageActiveJob,
   canManageHandover,
   canManageJobProgress,
+  canOperateJobProgress,
   canReopenJob,
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
@@ -80,6 +84,7 @@ type Modal =
   | { type: "start-next-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-job"; job: JobWithDetails }
+  | { type: "delegate-job"; job: JobWithDetails }
   | { type: "reopen-job"; job: JobWithDetails }
     | {
       type: "handover-delete";
@@ -470,6 +475,7 @@ export default function HomePage() {
   const { data: session, status: sessionStatus } = useSession();
   const isLoggedIn = sessionStatus === "authenticated";
   const userLevel = session?.user?.level || "guest";
+  const userId = String(session?.user?.id || "");
   const canJobCreate = canAccess(userLevel, "job", "create");
   const canJobUpdate = canAccess(userLevel, "job", "update");
   const canJobDelete = canAccess(userLevel, "job", "delete");
@@ -494,6 +500,57 @@ export default function HomePage() {
   const canAttendanceCreate = canAccess(userLevel, "attendance", "create");
   const canAttendanceUpdate = canAccess(userLevel, "attendance", "update");
   const canAttendanceDelete = canAccess(userLevel, "attendance", "delete");
+
+  function jobAssigneeCount(job: JobWithDetails): number {
+    return job.technicians?.length ?? 0;
+  }
+
+  function canManageJob(job: JobWithDetails): boolean {
+    return canManageActiveJob(
+      userLevel,
+      userId,
+      job,
+      jobAssigneeCount(job)
+    );
+  }
+
+  function canAssignForJob(job: JobWithDetails): boolean {
+    return canAssignTechnicians(
+      userLevel,
+      userId,
+      job,
+      jobAssigneeCount(job)
+    );
+  }
+
+  function canProgressForJob(job: JobWithDetails): boolean {
+    return canOperateJobProgress(
+      userLevel,
+      userId,
+      job,
+      jobAssigneeCount(job)
+    );
+  }
+
+  function canHandoverForJob(job: JobWithDetails): boolean {
+    return (
+      canManageHandover(userLevel) &&
+      canManageJob(job) &&
+      !job.from_archive
+    );
+  }
+
+  function canDelegateForJob(job: JobWithDetails): boolean {
+    return (
+      canDelegateJob(userLevel, userId, job) &&
+      Boolean(job.assigned_by_user_id)
+    );
+  }
+
+  function canDeleteForJob(job: JobWithDetails): boolean {
+    return canJobDelete && canManageJob(job);
+  }
+
   const displayName = session?.user?.name || session?.user?.email || "";
   const displayNameShort = (() => {
     const parts = displayName.trim().split(/\s+/).filter(Boolean);
@@ -502,6 +559,12 @@ export default function HomePage() {
   })();
   const [error, setError] = useState("");
   const [modal, setModal] = useState<Modal>(null);
+  const modalJob =
+    modal && "job" in modal
+      ? (modal as { job: JobWithDetails }).job
+      : null;
+  const modalProgressOk = modalJob ? canProgressForJob(modalJob) : false;
+  const modalManageOk = modalJob ? canManageJob(modalJob) : false;
   const [busy, setBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [exportForm, setExportForm] = useState<{
@@ -516,6 +579,8 @@ export default function HomePage() {
     dateTo: "",
   });
   const [jobBackupsIncludeUndone, setJobBackupsIncludeUndone] = useState(false);
+  const [delegateForemanId, setDelegateForemanId] = useState("");
+  const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -1661,7 +1726,7 @@ export default function HomePage() {
   }
 
   function openEdit(job: JobWithDetails) {
-    if (!canJobUpdate) return;
+    if (!canManageJob(job)) return;
     loadForm({
       title: job.title,
       unit_id: job.unit_id || "",
@@ -1673,12 +1738,28 @@ export default function HomePage() {
   }
 
   function openAssign(job: JobWithDetails) {
-    if (!canJobAssign) return;
+    if (!canAssignForJob(job)) return;
     const existing =
       job.technicians?.map((t) => t.id) ||
       (job.technician_id ? [job.technician_id] : []);
     openAssignStore(job.id, existing);
     setModal({ type: "assign", job });
+  }
+
+  async function openDelegate(job: JobWithDetails) {
+    if (!canDelegateForJob(job)) return;
+    setError("");
+    setDelegateForemanId(job.delegated_to_user_id || "");
+    setBusy(true);
+    try {
+      const list = await api<AppUserPublic[]>("/api/users/foremen");
+      setForemanOptions(list.filter((u) => u.id !== userId));
+      setModal({ type: "delegate-job", job });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat daftar foreman");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function closeModal() {
@@ -2858,8 +2939,11 @@ export default function HomePage() {
   }
 
   function renderJob(job: JobWithDetails) {
-    const canHandoverWrite =
-      canManageHandover(userLevel) && !job.from_archive;
+    const manage = canManageJob(job);
+    const assignOk = canAssignForJob(job);
+    const progressOk = canProgressForJob(job);
+    const handoverOk = canHandoverForJob(job);
+    const delegateOk = canDelegateForJob(job);
     const jobMap = Object.fromEntries((data?.jobs || []).map((j) => [j.id, j]));
     const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
     return (
@@ -2871,7 +2955,7 @@ export default function HomePage() {
               <button
                 className="btn btn-icon"
                 style={{ width: 32, height: 32, minWidth: 32 }}
-                disabled={busy || !canJobUpdate}
+                disabled={busy || !manage}
                 onClick={() => openEdit(job)}
                 aria-label="Edit job"
                 title="Edit"
@@ -2905,7 +2989,7 @@ export default function HomePage() {
                   style={{ width: 32, height: 32, minWidth: 32 }}
                   disabled={
                     busy ||
-                    !canJobAssign ||
+                    !assignOk ||
                     (job.status === "queued" && availableTechs.length === 0)
                   }
                   onClick={() => openAssign(job)}
@@ -2913,8 +2997,8 @@ export default function HomePage() {
                     job.status === "queued" ? "Assign teknisi" : "Ubah teknisi"
                   }
                   title={
-                    !canJobAssign
-                      ? "Assign hanya untuk Foreman & Superuser"
+                    !assignOk
+                      ? "Hanya penugas / delegatee / foreman (antrian kosong)"
                       : job.status === "queued"
                         ? "Assign teknisi"
                         : "Ubah teknisi"
@@ -2943,6 +3027,30 @@ export default function HomePage() {
                 {job.technicians?.length > 1 ? ` (${job.technicians.length} teknisi)` : ""}
               </div>
             </div>
+            {delegateOk && (
+              <div className="job-delegate-row">
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                  disabled={busy}
+                  onClick={() => void openDelegate(job)}
+                  title="Delegasikan ke foreman lain"
+                >
+                  Delegasi
+                </button>
+              </div>
+            )}
+            {(job.assigned_by_user_name || job.delegated_to_user_name) && (
+              <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                {job.assigned_by_user_name
+                  ? `Penugas: ${job.assigned_by_user_name}`
+                  : ""}
+                {job.delegated_to_user_name
+                  ? `${job.assigned_by_user_name ? " · " : ""}Delegasi: ${job.delegated_to_user_name}`
+                  : ""}
+              </p>
+            )}
           </div>
           {["in_progress", "paused", "done"].includes(job.status) && (
             <div className="job-timer-wrap">
@@ -2952,12 +3060,12 @@ export default function HomePage() {
                   <button
                     className="btn job-timer-action"
                     style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                    disabled={busy || !canJobProgress}
+                    disabled={busy || !progressOk}
                     onClick={() => setModal({ type: "pause-job", job })}
                     title={
-                      canJobProgress
+                      progressOk
                         ? "Pause job"
-                        : "Hanya Foreman & Superuser yang dapat pause job"
+                        : "Hanya penugas / delegatee yang dapat pause job"
                     }
                   >
                     Pause
@@ -2967,12 +3075,12 @@ export default function HomePage() {
                   <button
                     className="btn btn-primary job-timer-action"
                     style={{ padding: "6px 10px", fontSize: "0.82rem" }}
-                    disabled={busy || !canJobProgress}
+                    disabled={busy || !progressOk}
                     onClick={() => setModal({ type: "resume-job", job })}
                     title={
-                      canJobProgress
-                        ? "Resume job"
-                        : "Hanya Foreman & Superuser yang dapat resume job"
+                progressOk
+                  ? "Resume job"
+                  : "Hanya penugas / delegatee yang dapat resume job"
                     }
                   >
                     Resume
@@ -3002,7 +3110,7 @@ export default function HomePage() {
           <span style={{ width: `${job.progress_pct}%` }} />
         </div>
 
-        {["assigned", "in_progress"].includes(job.status) && canJobProgress && (
+        {["assigned", "in_progress"].includes(job.status) && progressOk && (
           <div className="step-mode-toggle" role="group" aria-label="Mode step">
             <button
               type="button"
@@ -3043,7 +3151,7 @@ export default function HomePage() {
                 {job.status === "in_progress" &&
                 parallel &&
                 s.status === "pending" &&
-                canJobProgress ? (
+                progressOk ? (
                   <label className="step-check" title="Pilih untuk start parallel">
                     <input
                       type="checkbox"
@@ -3075,7 +3183,7 @@ export default function HomePage() {
                     }
                   />
                   {job.status === "in_progress" &&
-                    canJobProgress &&
+                    progressOk &&
                     s.status === "in_progress" && (
                       <span className="step-actions">
                         <button
@@ -3109,12 +3217,12 @@ export default function HomePage() {
           {job.status === "assigned" && (
             <button
               className="btn btn-primary"
-              disabled={busy || !canJobProgress}
+              disabled={busy || !progressOk}
               onClick={() => setModal({ type: "start-job", job })}
               title={
-                canJobProgress
+                progressOk
                   ? "Start job"
-                  : "Hanya Foreman & Superuser yang dapat start job"
+                  : "Hanya penugas / delegatee yang dapat start job"
               }
             >
               Start job
@@ -3128,7 +3236,7 @@ export default function HomePage() {
                     className="btn btn-primary"
                     disabled={
                       busy ||
-                      !canJobProgress ||
+                      !progressOk ||
                       !(selectedStepsByJob[job.id] || []).length
                     }
                     onClick={() => {
@@ -3148,7 +3256,7 @@ export default function HomePage() {
                     job.steps.some((s) => s.status === "pending") && (
                       <button
                         className="btn"
-                        disabled={busy || !canJobProgress}
+                        disabled={busy || !progressOk}
                         onClick={() => {
                           const next = job.steps.find(
                             (s) => s.status === "pending"
@@ -3164,12 +3272,12 @@ export default function HomePage() {
               )}
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !progressOk}
                 onClick={() => setModal({ type: "complete-job", job })}
                 title={
-                  canJobProgress
+                  progressOk
                     ? "Complete job"
-                    : "Hanya Foreman & Superuser yang dapat complete job"
+                    : "Hanya penugas / delegatee yang dapat complete job"
                 }
               >
                 Complete job
@@ -3179,12 +3287,12 @@ export default function HomePage() {
           {job.status === "paused" && (
             <button
               className="btn btn-primary"
-              disabled={busy || !canJobProgress}
+              disabled={busy || !progressOk}
               onClick={() => setModal({ type: "complete-job", job })}
               title={
-                canJobProgress
+                progressOk
                   ? "Complete job"
-                  : "Hanya Foreman & Superuser yang dapat complete job"
+                  : "Hanya penugas / delegatee yang dapat complete job"
               }
             >
               Complete job
@@ -3219,7 +3327,7 @@ export default function HomePage() {
                   ({getHandoverLocal(job).length})
                 </span>
               </h4>
-              {canHandoverWrite &&
+              {handoverOk &&
               getHandoverLocal(job).length === 0 &&
               !handoverComposeByJob[job.id] ? (
                 <button
@@ -3236,7 +3344,7 @@ export default function HomePage() {
                 >
                   + Tambah
                 </button>
-              ) : canHandoverWrite ? (
+              ) : handoverOk ? (
                 <label className="handover-mode">
                   <span>Aksi</span>
                   <select
@@ -3259,7 +3367,7 @@ export default function HomePage() {
                 <span className="step-hint">Hanya lihat</span>
               )}
             </div>
-            {canHandoverWrite &&
+            {handoverOk &&
               getHandoverMode(job.id) === "tambah" &&
               (getHandoverLocal(job).length > 0 ||
                 handoverComposeByJob[job.id]) && (
@@ -3329,7 +3437,7 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            {canHandoverWrite &&
+            {handoverOk &&
               getHandoverLocal(job).length > 0 &&
               getHandoverMode(job.id) === "ubah" && (
               <div className="handover-actions">
@@ -3350,7 +3458,7 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            {canHandoverWrite &&
+            {handoverOk &&
               getHandoverLocal(job).length > 0 &&
               getHandoverMode(job.id) === "hapus" && (
               <div className="handover-actions">
@@ -3368,7 +3476,7 @@ export default function HomePage() {
                     <th>Job Handover</th>
                     <th className="col-done">Done</th>
                     <th>Note</th>
-                    {canHandoverWrite &&
+                    {handoverOk &&
                       getHandoverMode(job.id) === "hapus" && (
                         <th className="col-act" />
                       )}
@@ -3377,7 +3485,7 @@ export default function HomePage() {
                 <tbody>
                   {getHandoverLocal(job).map((h) => {
                     const canEdit =
-                      canHandoverWrite && getHandoverMode(job.id) === "ubah";
+                      handoverOk && getHandoverMode(job.id) === "ubah";
                     return (
                       <tr
                         key={h.key}
@@ -3453,7 +3561,7 @@ export default function HomePage() {
                             h.note || "—"
                           )}
                         </td>
-                        {canHandoverWrite &&
+                        {handoverOk &&
                           getHandoverMode(job.id) === "hapus" && (
                             <td className="col-act">
                               <button
@@ -3501,7 +3609,7 @@ export default function HomePage() {
                   ({getPartLoanLocal(job).length})
                 </span>
               </h4>
-              {canHandoverWrite &&
+              {handoverOk &&
               getPartLoanLocal(job).length === 0 &&
               !partLoanComposeByJob[job.id] ? (
                 <button
@@ -3518,7 +3626,7 @@ export default function HomePage() {
                 >
                   + Tambah
                 </button>
-              ) : canHandoverWrite ? (
+              ) : handoverOk ? (
                 <label className="handover-mode">
                   <span>Aksi</span>
                   <select
@@ -3541,7 +3649,7 @@ export default function HomePage() {
                 <span className="step-hint">Hanya lihat</span>
               )}
             </div>
-            {canHandoverWrite &&
+            {handoverOk &&
               getPartLoanMode(job.id) === "tambah" &&
               (getPartLoanLocal(job).length > 0 ||
                 partLoanComposeByJob[job.id]) && (
@@ -3613,7 +3721,7 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            {canHandoverWrite &&
+            {handoverOk &&
               getPartLoanLocal(job).length > 0 &&
               getPartLoanMode(job.id) === "ubah" && (
               <div className="handover-actions">
@@ -3634,7 +3742,7 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            {canHandoverWrite &&
+            {handoverOk &&
               getPartLoanLocal(job).length > 0 &&
               getPartLoanMode(job.id) === "hapus" && (
               <div className="handover-actions">
@@ -3652,7 +3760,7 @@ export default function HomePage() {
                     <th>Part yang dipinjam</th>
                     <th className="col-done">Status</th>
                     <th>Note</th>
-                    {canHandoverWrite &&
+                    {handoverOk &&
                       getPartLoanMode(job.id) === "hapus" && (
                         <th className="col-act" />
                       )}
@@ -3661,7 +3769,7 @@ export default function HomePage() {
                 <tbody>
                   {getPartLoanLocal(job).map((p) => {
                     const canEdit =
-                      canHandoverWrite && getPartLoanMode(job.id) === "ubah";
+                      handoverOk && getPartLoanMode(job.id) === "ubah";
                     return (
                       <tr
                         key={p.key}
@@ -3736,7 +3844,7 @@ export default function HomePage() {
                             p.note || "—"
                           )}
                         </td>
-                        {canHandoverWrite &&
+                        {handoverOk &&
                           getPartLoanMode(job.id) === "hapus" && (
                             <td className="col-act">
                               <button
@@ -4838,8 +4946,8 @@ export default function HomePage() {
             )}
             <h3>Backup perubahan job</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Snapshot tersimpan di <code>data/backup-jobs.xlsx</code>. Undo
-              mengembalikan data sebelum perubahan (superuser).
+              Snapshot tersimpan di database (<code>job_change_backups</code>).
+              Undo mengembalikan data sebelum perubahan (superuser).
             </p>
             <label
               style={{
@@ -5122,7 +5230,7 @@ export default function HomePage() {
                     <button
                       className="btn btn-danger"
                       type="button"
-                      disabled={busy || !canJobUpdate}
+                      disabled={busy || !modalManageOk}
                       onClick={() =>
                         setModal({ type: "cancel-job", job: modal.job })
                       }
@@ -5134,7 +5242,9 @@ export default function HomePage() {
                     className="btn btn-danger"
                     type="button"
                     disabled={
-                      busy || !canJobDelete || modal.job.status === "done"
+                      busy ||
+                      !canDeleteForJob(modal.job) ||
+                      modal.job.status === "done"
                     }
                     onClick={() =>
                       setModal({ type: "delete-job", job: modal.job })
@@ -5603,6 +5713,64 @@ export default function HomePage() {
         </div>
       )}
 
+      {modal?.type === "delegate-job" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>Delegasi job</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 12px" }}>
+              Pilih foreman yang ikut mengelola job ini (hak akses sama dengan
+              penugas). Penugas asli tetap bisa manage.
+            </p>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              Foreman
+              <select
+                className="panel-search"
+                style={{ maxWidth: "none", width: "100%", marginTop: 6 }}
+                value={delegateForemanId}
+                disabled={busy}
+                onChange={(e) => setDelegateForemanId(e.target.value)}
+              >
+                <option value="">— Pilih foreman —</option>
+                {foremanOptions.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name || u.username}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              {modal.job.delegated_to_user_id && (
+                <button
+                  className="btn btn-danger"
+                  disabled={busy}
+                  onClick={() => runAction(modal.job.id, "undelegate")}
+                >
+                  Cabut delegasi
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={busy || !delegateForemanId}
+                onClick={() =>
+                  runAction(modal.job.id, "delegate", {
+                    delegate_user_id: delegateForemanId,
+                  })
+                }
+              >
+                <BusyLabel busy={busy} idle="Simpan delegasi" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "start-job" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -5630,7 +5798,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
                   runAction(modal.job.id, "start", {
@@ -5667,7 +5835,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() =>
                   runAction(modal.job.id, "start_steps", {
                     step_ids: [modal.step.id],
@@ -5715,7 +5883,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() =>
                   runAction(modal.job.id, "start_steps", {
                     step_ids: modal.steps.map((s) => s.id),
@@ -5752,7 +5920,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() => runAction(modal.job.id, "pause")}
               >
                 <BusyLabel busy={busy} idle="Ya, pause" pending="Memproses..." />
@@ -5780,7 +5948,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() => runAction(modal.job.id, "resume")}
               >
                 <BusyLabel busy={busy} idle="Ya, resume" pending="Memproses..." />
@@ -5818,7 +5986,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
                   runAction(modal.job.id, "complete_step", {
@@ -5844,8 +6012,8 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Selesaikan seluruh job ini? Data dipindah ke{" "}
-              <code>data/completed-jobs.xlsx</code> dan dihapus dari database
+              Selesaikan seluruh job ini? Job dipindah ke arsip{" "}
+              <strong>completed</strong> di database dan dihapus dari daftar
               aktif. Teknisi akan dilepas.
             </p>
             <div className="actions">
@@ -5854,7 +6022,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !canJobProgress}
+                disabled={busy || !modalProgressOk}
                 onClick={() => runAction(modal.job.id, "complete")}
               >
                 <BusyLabel busy={busy} idle="Ya, complete" pending="Memproses..." />
@@ -5873,11 +6041,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Buka kembali job dari archive (
-              {modal.job.status === "cancelled"
-                ? "cancelled-jobs.xlsx"
-                : "completed-jobs.xlsx"}
-              )? Job dikembalikan ke database aktif
+              Buka kembali job dari arsip{" "}
+              {modal.job.status === "cancelled" ? "cancelled" : "completed"} di
+              database? Job dikembalikan ke daftar aktif
               {modal.job.status === "done" || modal.job.started_at
                 ? " dengan status paused"
                 : modal.job.technicians?.length
@@ -6000,10 +6166,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Batalkan job ini? Data dipindah ke{" "}
-              <code>data/cancelled-jobs.xlsx</code> dan dihapus dari database
-              aktif.
-              Teknisi yang terpasang akan dilepas.
+              Batalkan job ini? Job dipindah ke arsip{" "}
+              <strong>cancelled</strong> di database dan dihapus dari daftar
+              aktif. Teknisi yang terpasang akan dilepas.
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
@@ -6030,9 +6195,9 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Hapus job ini dari database aktif? Data lengkap (job, steps,
-              events, assignees, handover, part loans) akan di-backup ke{" "}
-              <code>data/deleted-jobs.xlsx</code> sebelum dihapus.
+              Hapus job ini dari daftar aktif? Data lengkap (job, steps, events,
+              assignees, handover, part loans) akan di-backup ke arsip{" "}
+              <strong>deleted</strong> di database sebelum dihapus.
             </p>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
@@ -7053,7 +7218,7 @@ export default function HomePage() {
             {(busy || usersLoading) && <BusyOverlay />}
             <h3>Master User</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Kelola akun login (tersimpan di sheet Users pada Excel).
+              Kelola akun login (tersimpan di tabel <code>users</code> database).
             </p>
             {error && <div className="error">{error}</div>}
             <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
@@ -7266,8 +7431,8 @@ export default function HomePage() {
               {modal.user.name ? ` — ${modal.user.name}` : ""}
             </p>
             <p style={{ margin: "0 0 16px" }}>
-              Hapus user ini permanen dari Excel? User aktif terakhir tidak bisa
-              dihapus.
+              Hapus user ini permanen dari database? User aktif terakhir tidak
+              bisa dihapus.
             </p>
             <div className="actions">
               <button className="btn" onClick={() => setModal({ type: "users" })}>

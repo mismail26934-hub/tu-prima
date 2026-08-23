@@ -57,6 +57,13 @@ CREATE TABLE IF NOT EXISTS jobs (
   deleted_by_user_id   VARCHAR(64)  NOT NULL DEFAULT '',
   deleted_by_user_name VARCHAR(255) NOT NULL DEFAULT '',
   deleted_by_user_level VARCHAR(64) NOT NULL DEFAULT '',
+  assigned_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+  assigned_by_user_name VARCHAR(255) NOT NULL DEFAULT '',
+  assigned_by_user_level VARCHAR(64) NOT NULL DEFAULT '',
+  delegated_to_user_id VARCHAR(64) NOT NULL DEFAULT '',
+  delegated_to_user_name VARCHAR(255) NOT NULL DEFAULT '',
+  delegated_at VARCHAR(64) NOT NULL DEFAULT '',
+  delegated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
   KEY idx_jobs_scope (job_scope),
   KEY idx_jobs_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

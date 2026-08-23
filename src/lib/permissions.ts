@@ -1,4 +1,4 @@
-import type { UserLevel } from "@/lib/types";
+import type { Job, UserLevel } from "@/lib/types";
 
 export type AccessLevel = UserLevel | "guest";
 export type AccessResource =
@@ -76,6 +76,23 @@ export const ACCESS_MATRIX: Record<
   },
 };
 
+export const JOB_MANAGE_DENIED_MSG =
+  "Hanya penugas, foreman yang didelegasikan, atau superuser yang boleh mengubah job ini";
+
+const ACTIVE_JOB_STATUSES = new Set([
+  "queued",
+  "assigned",
+  "in_progress",
+  "paused",
+]);
+
+const QUEUED_UNASSIGNED_MANAGE_LEVELS = new Set<AccessLevel>([
+  "superuser",
+  "foreman",
+  "inputer",
+  "spv",
+]);
+
 export function canAccess(
   level: AccessLevel | undefined,
   resource: AccessResource,
@@ -102,4 +119,91 @@ export function canManageHandover(level: AccessLevel | undefined): boolean {
 /** Buka kembali job done → paused: hanya superuser. */
 export function canReopenJob(level: AccessLevel | undefined): boolean {
   return level === "superuser";
+}
+
+export function jobHasTechnicianAssignment(
+  job: Pick<Job, "technician_id" | "status">,
+  assigneeCount = 0
+): boolean {
+  return Boolean(job.technician_id) || assigneeCount > 0;
+}
+
+/** Manage active/queued job: owner, delegatee, or queued-unassigned roles. Superuser bypass. */
+export function canManageActiveJob(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  assigneeCount = 0
+): boolean {
+  if (!level || level === "guest") return false;
+  if (level === "superuser") return true;
+  if (!ACTIVE_JOB_STATUSES.has(job.status)) return false;
+
+  const hasAssignment = jobHasTechnicianAssignment(job, assigneeCount);
+  if (job.status === "queued" && !hasAssignment) {
+    return QUEUED_UNASSIGNED_MANAGE_LEVELS.has(level);
+  }
+
+  if (!userId) return false;
+  return (
+    userId === (job.assigned_by_user_id || "") ||
+    userId === (job.delegated_to_user_id || "")
+  );
+}
+
+/** Assign / re-assign teknisi (role foreman + ownership rules). */
+export function canAssignTechnicians(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  assigneeCount = 0
+): boolean {
+  if (!canAssignJob(level)) return false;
+  if (level === "superuser") return true;
+  if (job.status === "queued" && !jobHasTechnicianAssignment(job, assigneeCount)) {
+    return level === "foreman";
+  }
+  return canManageActiveJob(level, userId, job, assigneeCount);
+}
+
+/** Progress actions: foreman/superuser role + ownership. */
+export function canOperateJobProgress(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  assigneeCount = 0
+): boolean {
+  if (!canManageJobProgress(level)) return false;
+  return canManageActiveJob(level, userId, job, assigneeCount);
+}
+
+/** Delegasi job ke foreman lain (penugas asli atau superuser). */
+export function canDelegateJob(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<Job, "assigned_by_user_id">
+): boolean {
+  if (!level || !userId) return false;
+  if (level === "superuser") return true;
+  if (level !== "foreman") return false;
+  if (!job.assigned_by_user_id) return false;
+  return userId === job.assigned_by_user_id;
 }

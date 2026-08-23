@@ -156,7 +156,7 @@ const id = {
 
   "login.title": "TU-PRIMA",
   "login.hint":
-    "Silakan login untuk mengakses dashboard. Akun disimpan di sheet Users (Excel).",
+    "Silakan login untuk mengakses dashboard. Akun disimpan di database.",
   "login.username": "Username",
   "login.password": "Password",
   "login.submit": "Login",
@@ -173,12 +173,12 @@ const id = {
   "logout.leavingShort": "Keluar...",
   "logout.currentAccount": "Akun saat ini",
 
-  "loading.dashboard": "Memuat data dari Excel...",
+  "loading.dashboard": "Memuat data dari database...",
   "export.action": "Export",
   "export.exporting": "Mengekspor...",
 
-  "panel.doneEmptyArchive": "Belum ada job di completed-jobs.xlsx.",
-  "panel.cancelledEmptyArchive": "Belum ada job di cancelled-jobs.xlsx.",
+  "panel.doneEmptyArchive": "Belum ada job completed di database.",
+  "panel.cancelledEmptyArchive": "Belum ada job cancelled di database.",
 
   "common.hours": "jam",
   "common.minutes": "mnt",
@@ -187,9 +187,9 @@ const id = {
   "offline.bannerOffline":
     "Mode offline — data dari salinan lokal. Login & sync butuh server.",
   "offline.bannerOfflinePending":
-    "Mode offline — {count} perubahan menunggu sync ke Excel.",
+    "Mode offline — {count} perubahan menunggu sync ke server.",
   "offline.bannerPending": "{count} perubahan menunggu sync ke server.",
-  "offline.bannerSyncing": "Menyinkronkan {count} perubahan ke Excel…",
+  "offline.bannerSyncing": "Menyinkronkan {count} perubahan ke server…",
   "offline.bannerError": "Sync gagal: {error}",
   "offline.retry": "Coba sync",
   "offline.syncing": "Sync…",
@@ -356,7 +356,7 @@ const en: Record<MessageKey, string> = {
 
   "login.title": "TU-PRIMA",
   "login.hint":
-    "Please sign in to access the dashboard. Accounts are stored in the Users sheet (Excel).",
+    "Please sign in to access the dashboard. Accounts are stored in the database.",
   "login.username": "Username",
   "login.password": "Password",
   "login.submit": "Login",
@@ -373,12 +373,12 @@ const en: Record<MessageKey, string> = {
   "logout.leavingShort": "Signing out...",
   "logout.currentAccount": "Current account",
 
-  "loading.dashboard": "Loading data from Excel...",
+  "loading.dashboard": "Loading data from database...",
   "export.action": "Export",
   "export.exporting": "Exporting...",
 
-  "panel.doneEmptyArchive": "No jobs in completed-jobs.xlsx yet.",
-  "panel.cancelledEmptyArchive": "No jobs in cancelled-jobs.xlsx yet.",
+  "panel.doneEmptyArchive": "No completed jobs in the database yet.",
+  "panel.cancelledEmptyArchive": "No cancelled jobs in the database yet.",
 
   "common.hours": "h",
   "common.minutes": "min",
@@ -387,9 +387,9 @@ const en: Record<MessageKey, string> = {
   "offline.bannerOffline":
     "Offline mode — showing the local copy. Login and sync need the server.",
   "offline.bannerOfflinePending":
-    "Offline mode — {count} change(s) waiting to sync to Excel.",
+    "Offline mode — {count} change(s) waiting to sync to server.",
   "offline.bannerPending": "{count} change(s) waiting to sync to the server.",
-  "offline.bannerSyncing": "Syncing {count} change(s) to Excel…",
+  "offline.bannerSyncing": "Syncing {count} change(s) to server…",
   "offline.bannerError": "Sync failed: {error}",
   "offline.retry": "Retry sync",
   "offline.syncing": "Syncing…",

@@ -65,6 +65,14 @@ import {
   needsPasswordHash,
   verifyPassword,
 } from "./password";
+import {
+  canAssignTechnicians,
+  canDelegateJob,
+  canManageActiveJob,
+  canOperateJobProgress,
+  JOB_MANAGE_DENIED_MSG,
+  type AccessLevel,
+} from "./permissions";
 
 /** Runtime DB workbook name in MySQL (replaces data/workshop.xlsx). */
 const WORKSHOP_DB = "workshop";
@@ -269,7 +277,74 @@ function mapJob(r: Row): Job {
     paused_at: String(r.paused_at || ""),
     total_paused_sec: Number(r.total_paused_sec || 0),
     estimated_minutes: Number(r.estimated_minutes || 0),
+    assigned_by_user_id: String(r.assigned_by_user_id || ""),
+    assigned_by_user_name: String(r.assigned_by_user_name || ""),
+    assigned_by_user_level: String(r.assigned_by_user_level || ""),
+    delegated_to_user_id: String(r.delegated_to_user_id || ""),
+    delegated_to_user_name: String(r.delegated_to_user_name || ""),
+    delegated_at: String(r.delegated_at || ""),
+    delegated_by_user_id: String(r.delegated_by_user_id || ""),
   };
+}
+
+function clearJobDelegation(job: Job) {
+  job.delegated_to_user_id = "";
+  job.delegated_to_user_name = "";
+  job.delegated_at = "";
+  job.delegated_by_user_id = "";
+}
+
+function setJobAssigner(job: Job, actor: AuditActor | null | undefined) {
+  if (!actor?.user_id) return;
+  job.assigned_by_user_id = actor.user_id;
+  job.assigned_by_user_name = actor.user_name;
+  job.assigned_by_user_level = actor.user_level;
+  clearJobDelegation(job);
+}
+
+function assertJobManagePermission(
+  job: Job,
+  actor: AuditActor | null | undefined,
+  assigneeCount: number
+) {
+  const level = (actor?.user_level || "guest") as AccessLevel;
+  if (!canManageActiveJob(level, actor?.user_id, job, assigneeCount)) {
+    throw new Error(JOB_MANAGE_DENIED_MSG);
+  }
+}
+
+function assertAssignPermission(
+  job: Job,
+  actor: AuditActor | null | undefined,
+  assigneeCount: number
+) {
+  const level = (actor?.user_level || "guest") as AccessLevel;
+  if (!canAssignTechnicians(level, actor?.user_id, job, assigneeCount)) {
+    throw new Error(
+      "Hanya penugas, foreman yang didelegasikan, atau superuser yang boleh assign teknisi"
+    );
+  }
+}
+
+function assertDelegatePermission(
+  job: Job,
+  actor: AuditActor | null | undefined
+) {
+  const level = (actor?.user_level || "guest") as AccessLevel;
+  if (!canDelegateJob(level, actor?.user_id, job)) {
+    throw new Error("Hanya penugas job atau superuser yang boleh delegasi");
+  }
+}
+
+function assertProgressPermission(
+  job: Job,
+  actor: AuditActor | null | undefined,
+  assigneeCount: number
+) {
+  const level = (actor?.user_level || "guest") as AccessLevel;
+  if (!canOperateJobProgress(level, actor?.user_id, job, assigneeCount)) {
+    throw new Error(JOB_MANAGE_DENIED_MSG);
+  }
 }
 
 function mapUnit(r: Row): Unit {
@@ -498,6 +573,13 @@ const JOB_HEADERS = [
   "paused_at",
   "total_paused_sec",
   "estimated_minutes",
+  "assigned_by_user_id",
+  "assigned_by_user_name",
+  "assigned_by_user_level",
+  "delegated_to_user_id",
+  "delegated_to_user_name",
+  "delegated_at",
+  "delegated_by_user_id",
 ];
 const ASSIGNEE_HEADERS = ["id", "job_id", "technician_id", "assigned_at", "is_lead"];
 const STEP_HEADERS = [
@@ -1332,6 +1414,9 @@ export async function updateJob(
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
 
+    const assigneeCount = assigneesForJob(assignees, jobId).length;
+    assertJobManagePermission(job, input.actor, assigneeCount);
+
     const handoversBefore = loadHandovers(wb);
     const partLoansBefore = loadPartLoans(wb);
     const beforeBundle = buildJobChangeBundle(
@@ -1450,6 +1535,11 @@ export async function deleteJob(
     const jobSteps = steps.filter((s) => s.job_id === jobId);
     const jobEvents = events.filter((e) => e.job_id === jobId);
     const jobAssignees = assignees.filter((a) => a.job_id === jobId);
+    assertJobManagePermission(
+      job,
+      actor,
+      jobAssignees.length
+    );
     let handovers = loadHandovers(wb);
     const jobHandovers = handovers.filter((h) => h.job_id === jobId);
     let partLoans = loadPartLoans(wb);
@@ -1477,7 +1567,7 @@ export async function deleteJob(
         techs,
         jobAssignees.map((a) => a.technician_id).concat(job.technician_id || "")
       ),
-      meta: { archived_to: "deleted-jobs.xlsx" },
+      meta: { archived_to: "deleted (database)" },
     };
 
     audits.push(
@@ -1485,7 +1575,7 @@ export async function deleteJob(
         action: "delete",
         entity: "job",
         entity_id: jobId,
-        detail: `${job.title} · ${job.unit} · status ${job.status} · archived to deleted-jobs.xlsx`,
+        detail: `${job.title} · ${job.unit} · status ${job.status} · archived to deleted (database)`,
         actor,
         at,
       })
@@ -1541,6 +1631,12 @@ export async function createJobHandover(input: {
         "Handover hanya untuk job in_progress / paused / done"
       );
     }
+    const assignees = loadAssignees(wb, jobs);
+    assertJobManagePermission(
+      job,
+      input.actor,
+      assigneesForJob(assignees, job.id).length
+    );
     const title = input.title.trim();
     if (!title) throw new Error("Judul handover wajib diisi");
 
@@ -1618,6 +1714,12 @@ export async function updateJobHandover(
         "Handover hanya bisa diubah pada job in_progress / paused / done"
       );
     }
+    const assignees = loadAssignees(wb, jobs);
+    assertJobManagePermission(
+      job,
+      input.actor,
+      assigneesForJob(assignees, job.id).length
+    );
 
     const beforeRow = { ...row };
 
@@ -1678,6 +1780,14 @@ export async function deleteJobHandover(
         "Handover hanya bisa dihapus pada job in_progress / paused / done"
       );
     }
+    if (job) {
+      const assignees = loadAssignees(wb, jobs);
+      assertJobManagePermission(
+        job,
+        actor,
+        assigneesForJob(assignees, job.id).length
+      );
+    }
 
     handovers = handovers.filter((h) => h.id !== handoverId);
     audits.push(
@@ -1724,6 +1834,12 @@ export async function createJobPartLoan(input: {
         "Peminjaman part hanya untuk job in_progress / paused / done"
       );
     }
+    const assignees = loadAssignees(wb, jobs);
+    assertJobManagePermission(
+      job,
+      input.actor,
+      assigneesForJob(assignees, job.id).length
+    );
     const part_name = input.part_name.trim();
     if (!part_name) throw new Error("Nama part wajib diisi");
 
@@ -1803,6 +1919,12 @@ export async function updateJobPartLoan(
         "Peminjaman part hanya bisa diubah pada job in_progress / paused / done"
       );
     }
+    const assignees = loadAssignees(wb, jobs);
+    assertJobManagePermission(
+      job,
+      input.actor,
+      assigneesForJob(assignees, job.id).length
+    );
 
     const beforeRow = { ...row };
 
@@ -1863,6 +1985,14 @@ export async function deleteJobPartLoan(
     ) {
       throw new Error(
         "Peminjaman part hanya bisa dihapus pada job in_progress / paused / done"
+      );
+    }
+    if (job) {
+      const assignees = loadAssignees(wb, jobs);
+      assertJobManagePermission(
+        job,
+        actor,
+        assigneesForJob(assignees, job.id).length
       );
     }
 
@@ -2400,6 +2530,8 @@ export async function deleteTechnician(techId: string): Promise<{ ok: true }> {
 
 type JobAction =
   | "assign"
+  | "delegate"
+  | "undelegate"
   | "start"
   | "pause"
   | "resume"
@@ -2416,6 +2548,7 @@ export async function jobAction(
   payload?: {
     technician_id?: string;
     technician_ids?: string[];
+    delegate_user_id?: string;
     step_id?: string;
     step_ids?: string[];
     /** sequential: auto-start first / next step. parallel: manual checkbox batch. */
@@ -2542,22 +2675,22 @@ export async function jobAction(
         );
       }
 
-      let source = "completed-jobs.xlsx";
+      let source: "completed" | "cancelled" = "completed";
       let snap = await takeCompletedJobFromArchive(jobId);
       if (!snap) {
         snap = await takeCancelledJobFromArchive(jobId);
-        source = "cancelled-jobs.xlsx";
+        source = "cancelled";
       }
       if (!snap) {
         throw new Error(
-          "Job tidak ditemukan di archive completed-jobs / cancelled-jobs"
+          "Job tidak ditemukan di arsip completed / cancelled"
         );
       }
 
       const restored: Job = { ...snap.job };
       const restoredSteps = snap.steps.map((s) => ({ ...s }));
       const usePaused =
-        source === "completed-jobs.xlsx" || Boolean(restored.started_at);
+        source === "completed" || Boolean(restored.started_at);
 
       if (usePaused) {
         restored.status = "paused";
@@ -2641,6 +2774,27 @@ export async function jobAction(
     const job = jobs.find((j) => j.id === jobId);
     if (!job) throw new Error("Job not found");
 
+    const jobAssigneeCount = assigneesForJob(assignees, jobId).length;
+    if (action === "assign") {
+      assertAssignPermission(job, actor, jobAssigneeCount);
+    } else if (action === "delegate" || action === "undelegate") {
+      assertDelegatePermission(job, actor);
+    } else if (
+      [
+        "start",
+        "pause",
+        "resume",
+        "start_step",
+        "start_steps",
+        "complete_step",
+        "complete",
+      ].includes(action)
+    ) {
+      assertProgressPermission(job, actor, jobAssigneeCount);
+    } else if (action === "cancel") {
+      assertJobManagePermission(job, actor, jobAssigneeCount);
+    }
+
     const beforeBundle = buildJobChangeBundle(
       jobId,
       jobs,
@@ -2720,6 +2874,42 @@ export async function jobAction(
           ? `Teknisi diubah: ${names}`
           : `Diassign ke ${names}`
       );
+      setJobAssigner(job, actor);
+    }
+
+    if (action === "delegate") {
+      if (!job.assigned_by_user_id) {
+        throw new Error("Delegasi hanya setelah teknisi di-assign");
+      }
+      const targetId = String(payload?.delegate_user_id || "").trim();
+      if (!targetId) throw new Error("Pilih foreman tujuan delegasi");
+      if (targetId === actor?.user_id) {
+        throw new Error("Tidak bisa delegasi ke diri sendiri");
+      }
+      await ensureUsers(wb);
+      const target = readUsers(wb).find(
+        (u) => u.id === targetId && u.active === "1" && u.level === "foreman"
+      );
+      if (!target) {
+        throw new Error("Delegasi hanya ke foreman aktif");
+      }
+      job.delegated_to_user_id = target.id;
+      job.delegated_to_user_name = target.name || target.username;
+      job.delegated_at = nowIso();
+      job.delegated_by_user_id = actor?.user_id || "";
+      pushEvent(
+        "delegated",
+        `Didelegasikan ke ${job.delegated_to_user_name}`
+      );
+    }
+
+    if (action === "undelegate") {
+      if (!job.delegated_to_user_id) {
+        throw new Error("Job tidak sedang didelegasikan");
+      }
+      const prev = job.delegated_to_user_name || job.delegated_to_user_id;
+      clearJobDelegation(job);
+      pushEvent("undelegated", `Delegasi ke ${prev} dicabut`);
     }
 
     if (action === "start") {
@@ -2959,7 +3149,7 @@ export async function jobAction(
 
       pushAudit(
         "complete",
-        `${job.title} · ${job.unit} · archived to completed-jobs.xlsx`
+        `${job.title} · ${job.unit} · archived to completed (database)`
       );
 
       jobs = jobs.filter((j) => j.id !== jobId);
@@ -2986,7 +3176,7 @@ export async function jobAction(
         before: beforeBundle,
         after: {
           job: { ...job },
-          meta: { archived_to: "completed-jobs.xlsx" },
+          meta: { archived_to: "completed (database)" },
         },
         actor,
         at: archivedAt,
@@ -3037,7 +3227,7 @@ export async function jobAction(
 
       pushAudit(
         "cancel",
-        `${job.title} · ${job.unit} · archived to cancelled-jobs.xlsx`
+        `${job.title} · ${job.unit} · archived to cancelled (database)`
       );
 
       jobs = jobs.filter((j) => j.id !== jobId);
@@ -3064,7 +3254,7 @@ export async function jobAction(
         before: beforeBundle,
         after: {
           job: { ...job },
-          meta: { archived_to: "cancelled-jobs.xlsx" },
+          meta: { archived_to: "cancelled (database)" },
         },
         actor,
         at: archivedAt,
@@ -3837,6 +4027,17 @@ export async function listUsers(): Promise<AppUserPublic[]> {
     const seeded = await ensureUsers(wb);
     if (seeded) await saveWorkbook(wb);
     return readUsers(wb)
+      .map(toPublicUser)
+      .sort((a, b) => a.username.localeCompare(b.username));
+  });
+}
+
+export async function listForemanUsers(): Promise<AppUserPublic[]> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    await ensureUsers(wb);
+    return readUsers(wb)
+      .filter((u) => u.level === "foreman" && u.active === "1")
       .map(toPublicUser)
       .sort((a, b) => a.username.localeCompare(b.username));
   });

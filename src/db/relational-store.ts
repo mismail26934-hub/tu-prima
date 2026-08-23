@@ -87,6 +87,13 @@ function jobRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
     paused_at: str(r.paused_at),
     total_paused_sec: num(r.total_paused_sec),
     estimated_minutes: num(r.estimated_minutes),
+    assigned_by_user_id: str(r.assigned_by_user_id),
+    assigned_by_user_name: str(r.assigned_by_user_name),
+    assigned_by_user_level: str(r.assigned_by_user_level),
+    delegated_to_user_id: str(r.delegated_to_user_id),
+    delegated_to_user_name: str(r.delegated_to_user_name),
+    delegated_at: str(r.delegated_at),
+    delegated_by_user_id: str(r.delegated_by_user_id),
   };
   if (scope === "deleted") {
     return {
@@ -126,6 +133,13 @@ function jobRowToDb(row: DbRow, scope: JobScope): Record<string, unknown> {
     paused_at: str(row.paused_at),
     total_paused_sec: num(row.total_paused_sec),
     estimated_minutes: num(row.estimated_minutes),
+    assigned_by_user_id: str(row.assigned_by_user_id),
+    assigned_by_user_name: str(row.assigned_by_user_name),
+    assigned_by_user_level: str(row.assigned_by_user_level),
+    delegated_to_user_id: str(row.delegated_to_user_id),
+    delegated_to_user_name: str(row.delegated_to_user_name),
+    delegated_at: str(row.delegated_at),
+    delegated_by_user_id: str(row.delegated_by_user_id),
     archived_at: "",
     archived_by_user_id: "",
     archived_by_user_name: "",
@@ -270,6 +284,13 @@ function jobHeaders(scope: JobScope): string[] {
     "paused_at",
     "total_paused_sec",
     "estimated_minutes",
+    "assigned_by_user_id",
+    "assigned_by_user_name",
+    "assigned_by_user_level",
+    "delegated_to_user_id",
+    "delegated_to_user_name",
+    "delegated_at",
+    "delegated_by_user_id",
   ];
 }
 
@@ -471,8 +492,10 @@ async function saveScopedJobs(
         technician_id, template_id, created_at, started_at, completed_at,
         paused_at, total_paused_sec, estimated_minutes,
         archived_at, archived_by_user_id, archived_by_user_name, archived_by_user_level,
-        deleted_at, deleted_by_user_id, deleted_by_user_name, deleted_by_user_level
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        deleted_at, deleted_by_user_id, deleted_by_user_name, deleted_by_user_level,
+        assigned_by_user_id, assigned_by_user_name, assigned_by_user_level,
+        delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         d.id,
         d.job_scope,
@@ -497,6 +520,13 @@ async function saveScopedJobs(
         d.deleted_by_user_id,
         d.deleted_by_user_name,
         d.deleted_by_user_level,
+        d.assigned_by_user_id,
+        d.assigned_by_user_name,
+        d.assigned_by_user_level,
+        d.delegated_to_user_id,
+        d.delegated_to_user_name,
+        d.delegated_at,
+        d.delegated_by_user_id,
       ]
     );
   }
@@ -957,6 +987,13 @@ export async function ensureRelationalSchema() {
       deleted_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
       deleted_by_user_name VARCHAR(255) NOT NULL DEFAULT '',
       deleted_by_user_level VARCHAR(64) NOT NULL DEFAULT '',
+      assigned_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      assigned_by_user_name VARCHAR(255) NOT NULL DEFAULT '',
+      assigned_by_user_level VARCHAR(64) NOT NULL DEFAULT '',
+      delegated_to_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      delegated_to_user_name VARCHAR(255) NOT NULL DEFAULT '',
+      delegated_at VARCHAR(64) NOT NULL DEFAULT '',
+      delegated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
       KEY idx_jobs_scope (job_scope)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_assignees (
@@ -1064,5 +1101,21 @@ export async function ensureRelationalSchema() {
   ];
   for (const sql of statements) {
     await p.query(sql);
+  }
+  const alters = [
+    "assigned_by_user_id",
+    "assigned_by_user_name",
+    "assigned_by_user_level",
+    "delegated_to_user_id",
+    "delegated_to_user_name",
+    "delegated_at",
+    "delegated_by_user_id",
+  ] as const;
+  for (const col of alters) {
+    const type =
+      col.includes("_name") ? "VARCHAR(255)" : "VARCHAR(64)";
+    await p.query(
+      `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ${col} ${type} NOT NULL DEFAULT ''`
+    );
   }
 }

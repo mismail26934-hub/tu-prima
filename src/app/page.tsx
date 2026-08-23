@@ -2511,26 +2511,21 @@ export default function HomePage() {
     page: techPage.available,
     limit: TECH_PAGE_SIZE,
     q: techQuery,
-    enabled:
-      isLoggedIn &&
-      (techStatusFilter === "all" || techStatusFilter === "available"),
+    enabled: techStatusFilter === "all" || techStatusFilter === "available",
   });
   const techBusyQuery = useTechniciansList({
     status: "busy",
     page: techPage.busy,
     limit: TECH_PAGE_SIZE,
     q: techQuery,
-    enabled:
-      isLoggedIn && (techStatusFilter === "all" || techStatusFilter === "busy"),
+    enabled: techStatusFilter === "all" || techStatusFilter === "busy",
   });
   const techOfflineQuery = useTechniciansList({
     status: "offline",
     page: techPage.offline,
     limit: TECH_PAGE_SIZE,
     q: techQuery,
-    enabled:
-      isLoggedIn &&
-      (techStatusFilter === "all" || techStatusFilter === "offline"),
+    enabled: techStatusFilter === "all" || techStatusFilter === "offline",
   });
 
   const techQueries: Record<
@@ -2563,7 +2558,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
-    enabled: isLoggedIn && showActiveJobs,
+    enabled: showActiveJobs,
   });
   const queueJobsQuery = useJobsList({
     section: "queue",
@@ -2571,7 +2566,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
-    enabled: isLoggedIn && showQueueJobs,
+    enabled: showQueueJobs,
   });
   const completedJobsQuery = useJobsList({
     section: "done",
@@ -2579,7 +2574,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
-    enabled: isLoggedIn && showDoneJobs,
+    enabled: showDoneJobs,
     cursor: completedJobCursors[completedJobPage - 1] ?? null,
   });
   const cancelledJobsQuery = useJobsList({
@@ -2588,13 +2583,13 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
-    enabled: isLoggedIn && showCancelledJobs,
+    enabled: showCancelledJobs,
     cursor: cancelledJobCursors[cancelledJobPage - 1] ?? null,
   });
   const sliderJobsQuery = useActiveJobsSlider({
     q: jobQuery,
     ownership: jobOwnershipFilter,
-    enabled: isLoggedIn && showActiveJobs,
+    enabled: showActiveJobs,
   });
 
   const activeJobs = activeJobsQuery.data?.items || [];

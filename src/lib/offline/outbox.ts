@@ -47,12 +47,61 @@ function entityKeyFrom(url: string): string {
   return path;
 }
 
+function parseOutboxBody(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Drop stale pending/error rows superseded by the same job action. */
+async function dedupeJobActionOutbox(url: string, body: string | null) {
+  const path = url.split("?")[0];
+  const jobAction = path.match(/^\/api\/jobs\/([^/]+)\/action$/);
+  if (!jobAction) return;
+  const nextBody = parseOutboxBody(body);
+  if (!nextBody) return;
+  const nextAction = String(nextBody.action || "");
+  if (!nextAction) return;
+  const nextStepId = nextBody.step_id ? String(nextBody.step_id) : "";
+
+  const existing = await listOutbox();
+  for (const row of existing) {
+    if (row.status !== "pending" && row.status !== "error") continue;
+    if (row.url.split("?")[0] !== path) continue;
+    const prevBody = parseOutboxBody(row.body);
+    if (!prevBody) continue;
+    if (String(prevBody.action || "") !== nextAction) continue;
+    if (
+      nextAction === "complete_step" &&
+      nextStepId &&
+      String(prevBody.step_id || "") !== nextStepId
+    ) {
+      continue;
+    }
+    if (
+      (nextAction === "start_step" || nextAction === "start_steps") &&
+      nextStepId &&
+      String(prevBody.step_id || "") !== nextStepId
+    ) {
+      continue;
+    }
+    await removeOutboxItem(row.id);
+  }
+}
+
 export async function enqueueMutation(input: {
   method: string;
   url: string;
   body?: string | null;
   entityKey?: string;
 }): Promise<OutboxItem> {
+  await dedupeJobActionOutbox(input.url, input.body ?? null);
   const item: OutboxItem = {
     id: newEntityId("ox"),
     method: input.method.toUpperCase(),

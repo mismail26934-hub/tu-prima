@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { JobListSection, PaginatedResult } from "@/lib/board-list";
 import { queryKeys } from "@/lib/query-keys";
 import type {
   Attendance,
@@ -124,6 +125,191 @@ function findJob(data: DashboardData, jobId: string) {
     data.completed_jobs.find((j) => j.id === jobId) ||
     data.cancelled_jobs.find((j) => j.id === jobId)
   );
+}
+
+type BoardJobsQueryMeta = {
+  section: JobListSection | "slider";
+};
+
+function forEachBoardJobsQuery(
+  qc: QueryClient,
+  fn: (
+    key: readonly unknown[],
+    data: PaginatedResult<JobWithDetails>,
+    meta: BoardJobsQueryMeta
+  ) => void
+) {
+  for (const query of qc.getQueryCache().findAll({ queryKey: queryKeys.board.all })) {
+    const key = query.queryKey;
+    if (key[0] !== "board" || key[1] !== "jobs") continue;
+    const data = query.state.data as PaginatedResult<JobWithDetails> | undefined;
+    if (!data) continue;
+    const section =
+      key[3] === "slider"
+        ? ("slider" as const)
+        : (key[2] as JobListSection);
+    if (
+      section !== "slider" &&
+      !["active", "queue", "done", "cancelled"].includes(section)
+    ) {
+      continue;
+    }
+    fn(key, data, { section });
+  }
+}
+
+function findJobInBoardCaches(
+  qc: QueryClient,
+  jobId: string
+): JobWithDetails | undefined {
+  let found: JobWithDetails | undefined;
+  forEachBoardJobsQuery(qc, (_key, data) => {
+    if (!found) found = data.items.find((j) => j.id === jobId);
+  });
+  return found;
+}
+
+const EMPTY_DASHBOARD: DashboardData = {
+  technicians: [],
+  units: [],
+  jobs: [],
+  completed_jobs: [],
+  cancelled_jobs: [],
+  attendance: [],
+  summary: {
+    available: 0,
+    busy: 0,
+    offline: 0,
+    active_jobs: 0,
+    queued_jobs: 0,
+    done_today: 0,
+    completed_jobs: 0,
+    cancelled_jobs: 0,
+    avg_duration_sec: 0,
+  },
+};
+
+function findJobInClient(
+  qc: QueryClient,
+  jobId: string
+): JobWithDetails | undefined {
+  return (
+    findJobInBoardCaches(qc, jobId) ||
+    findJob(qc.getQueryData<DashboardData>(queryKeys.dashboard) ?? EMPTY_DASHBOARD, jobId)
+  );
+}
+
+function patchJobInBoardCaches(
+  qc: QueryClient,
+  jobId: string,
+  updater: (job: JobWithDetails) => JobWithDetails
+) {
+  forEachBoardJobsQuery(qc, (key, data) => {
+    const idx = data.items.findIndex((j) => j.id === jobId);
+    if (idx < 0) return;
+    const items = data.items.slice();
+    items[idx] = enrich(updater(items[idx]));
+    qc.setQueryData(key, { ...data, items });
+  });
+}
+
+function removeJobFromBoardCaches(qc: QueryClient, jobId: string) {
+  forEachBoardJobsQuery(qc, (key, data) => {
+    if (!data.items.some((j) => j.id === jobId)) return;
+    qc.setQueryData(key, {
+      ...data,
+      items: data.items.filter((j) => j.id !== jobId),
+      total: Math.max(0, data.total - 1),
+    });
+  });
+}
+
+function prependJobToBoardCaches(
+  qc: QueryClient,
+  job: JobWithDetails,
+  target: JobListSection | "active-slider"
+) {
+  forEachBoardJobsQuery(qc, (key, data, meta) => {
+    const match =
+      target === "active-slider"
+        ? meta.section === "slider" || meta.section === "active"
+        : meta.section === target ||
+          (target === "active" && meta.section === "slider");
+    if (!match) return;
+    const without = data.items.filter((j) => j.id !== job.id);
+    const had = without.length !== data.items.length;
+    qc.setQueryData(key, {
+      ...data,
+      items: [enrich(job), ...without],
+      total: had ? data.total : data.total + 1,
+    });
+  });
+}
+
+function buildSyntheticDashboard(
+  dashboard: DashboardData | undefined,
+  job: JobWithDetails | undefined
+): DashboardData {
+  const base: DashboardData = {
+    technicians: dashboard?.technicians ?? [],
+    units: dashboard?.units ?? [],
+    jobs: [],
+    completed_jobs: [],
+    cancelled_jobs: [],
+    attendance: dashboard?.attendance ?? [],
+    summary: dashboard?.summary ?? EMPTY_DASHBOARD.summary,
+  };
+  if (!job) return base;
+  if (job.status === "cancelled") return { ...base, cancelled_jobs: [job] };
+  if (job.status === "done") return { ...base, completed_jobs: [job] };
+  return { ...base, jobs: [job] };
+}
+
+function applyJobActionToCaches(
+  qc: QueryClient,
+  jobId: string,
+  body: JsonRecord
+) {
+  const job = findJobInClient(qc, jobId);
+  const dashboard = qc.getQueryData<DashboardData>(queryKeys.dashboard);
+  const after = applyJobAction(buildSyntheticDashboard(dashboard, job), jobId, body);
+  const action = String(body.action || "");
+
+  patchDashboard(qc, (data) => ({
+    ...data,
+    summary: after.summary,
+    technicians: after.technicians.length ? after.technicians : data.technicians,
+  }));
+
+  if (!job) return;
+
+  const updated =
+    after.jobs.find((j) => j.id === jobId) ||
+    after.completed_jobs.find((j) => j.id === jobId) ||
+    after.cancelled_jobs.find((j) => j.id === jobId);
+
+  if (action === "complete") {
+    removeJobFromBoardCaches(qc, jobId);
+    if (updated) prependJobToBoardCaches(qc, updated, "done");
+    return;
+  }
+  if (action === "cancel") {
+    removeJobFromBoardCaches(qc, jobId);
+    if (updated) prependJobToBoardCaches(qc, updated, "cancelled");
+    return;
+  }
+  if (action === "reopen" && updated) {
+    removeJobFromBoardCaches(qc, jobId);
+    const target: JobListSection | "active-slider" =
+      updated.status === "in_progress" || updated.status === "paused"
+        ? "active-slider"
+        : "queue";
+    prependJobToBoardCaches(qc, updated, target);
+    return;
+  }
+  if (updated) {
+    patchJobInBoardCaches(qc, jobId, () => updated);
+  }
 }
 
 export function findTemplate(
@@ -521,8 +707,7 @@ export function prepareJobActionBody(
   const match = url.split("?")[0].match(/^\/api\/jobs\/([^/]+)\/action$/);
   if (!match) return body;
   const action = String(body.action || "");
-  const data = qc.getQueryData<DashboardData>(queryKeys.dashboard);
-  const job = data ? findJob(data, match[1]) : undefined;
+  const job = qc ? findJobInClient(qc, match[1]) : undefined;
   if (!job) return body;
   const at = new Date();
   const atIso = at.toISOString();
@@ -627,7 +812,14 @@ export function applyOptimisticMutation(
 
   if (verb === "POST" && path === "/api/jobs") {
     const created = { id: String(body.id || ""), queued: true };
-    patchDashboard(qc, (data) => createJobOptimistic(qc, data, body));
+    let createdJob: JobWithDetails | undefined;
+    patchDashboard(qc, (data) => {
+      const next = createJobOptimistic(qc, data, body);
+      createdJob =
+        next.jobs.find((j) => j.id === String(body.id || "")) || next.jobs[0];
+      return next;
+    });
+    if (createdJob) prependJobToBoardCaches(qc, createdJob, "queue");
     return created;
   }
 
@@ -635,6 +827,7 @@ export function applyOptimisticMutation(
   if (jobPatch) {
     const jobId = jobPatch[1];
     if (verb === "PATCH") {
+      const units = qc.getQueryData<DashboardData>(queryKeys.dashboard)?.units ?? [];
       patchDashboard(qc, (data) =>
         mapJob(data, jobId, (job) => {
           const unit = data.units.find((u) => u.id === String(body.unit_id || job.unit_id));
@@ -669,9 +862,42 @@ export function applyOptimisticMutation(
           return next;
         })
       );
+      patchJobInBoardCaches(qc, jobId, (job) => {
+        const unit = units.find((u) => u.id === String(body.unit_id || job.unit_id));
+        const next = {
+          ...job,
+          title: String(body.title || job.title),
+          description:
+            body.description != null ? String(body.description) : job.description,
+          estimated_minutes:
+            Number(body.estimated_minutes || job.estimated_minutes) ||
+            job.estimated_minutes,
+          unit_id: unit?.id || job.unit_id,
+          unit: unit ? unitLabel(unit) : job.unit,
+        };
+        if (Array.isArray(body.steps) && ["queued", "assigned"].includes(job.status)) {
+          const defs = (body.steps as Array<string | JobStepPayload>).map((s, i) => {
+            if (typeof s === "string") {
+              return {
+                id: newEntityId("S"),
+                name: s,
+                std_minutes: job.steps[i]?.std_minutes || 0,
+              };
+            }
+            return {
+              id: s.id || newEntityId("S"),
+              name: s.name,
+              std_minutes: Number(s.std_minutes || job.steps[i]?.std_minutes || 0),
+            };
+          });
+          next.steps = toJobSteps(jobId, defs);
+        }
+        return next;
+      });
       return { id: jobId, queued: true };
     }
     if (verb === "DELETE") {
+      removeJobFromBoardCaches(qc, jobId);
       patchDashboard(qc, (data) => ({
         ...data,
         jobs: data.jobs.filter((j) => j.id !== jobId),
@@ -687,7 +913,7 @@ export function applyOptimisticMutation(
 
   const jobAction = path.match(/^\/api\/jobs\/([^/]+)\/action$/);
   if (verb === "POST" && jobAction) {
-    patchDashboard(qc, (data) => applyJobAction(data, jobAction[1], body));
+    applyJobActionToCaches(qc, jobAction[1], body);
     return { id: jobAction[1], queued: true, action: body.action };
   }
 
@@ -714,6 +940,10 @@ export function applyOptimisticMutation(
         ],
       }))
     );
+    patchJobInBoardCaches(qc, jobId, (job) => ({
+      ...job,
+      handovers: [...job.handovers, { ...row, order: job.handovers.length + 1 }],
+    }));
     return { ...row, queued: true };
   }
 
@@ -738,6 +968,21 @@ export function applyOptimisticMutation(
           ),
         }))
       );
+      patchJobInBoardCaches(qc, jobId, (job) => ({
+        ...job,
+        handovers: job.handovers.map((h) =>
+          h.id === handoverId
+            ? {
+                ...h,
+                title: body.title != null ? String(body.title) : h.title,
+                note: body.note != null ? String(body.note) : h.note,
+                done:
+                  typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
+                updated_at: nowIso(),
+              }
+            : h
+        ),
+      }));
       return { id: handoverId, queued: true };
     }
     if (verb === "DELETE") {
@@ -749,6 +994,12 @@ export function applyOptimisticMutation(
             .map((h, i) => ({ ...h, order: i + 1 })),
         }))
       );
+      patchJobInBoardCaches(qc, jobId, (job) => ({
+        ...job,
+        handovers: job.handovers
+          .filter((h) => h.id !== handoverId)
+          .map((h, i) => ({ ...h, order: i + 1 })),
+      }));
       return { ok: true, queued: true };
     }
   }
@@ -773,6 +1024,10 @@ export function applyOptimisticMutation(
         part_loans: [...job.part_loans, { ...row, order: job.part_loans.length + 1 }],
       }))
     );
+    patchJobInBoardCaches(qc, jobId, (job) => ({
+      ...job,
+      part_loans: [...job.part_loans, { ...row, order: job.part_loans.length + 1 }],
+    }));
     return { ...row, queued: true };
   }
 
@@ -800,6 +1055,24 @@ export function applyOptimisticMutation(
           ),
         }))
       );
+      patchJobInBoardCaches(qc, jobId, (job) => ({
+        ...job,
+        part_loans: job.part_loans.map((p) =>
+          p.id === loanId
+            ? {
+                ...p,
+                part_name:
+                  body.part_name != null ? String(body.part_name) : p.part_name,
+                note: body.note != null ? String(body.note) : p.note,
+                status:
+                  body.status === "closed" || body.status === "open"
+                    ? (body.status as PartLoanStatus)
+                    : p.status,
+                updated_at: nowIso(),
+              }
+            : p
+        ),
+      }));
       return { id: loanId, queued: true };
     }
     if (verb === "DELETE") {
@@ -811,6 +1084,12 @@ export function applyOptimisticMutation(
             .map((p, i) => ({ ...p, order: i + 1 })),
         }))
       );
+      patchJobInBoardCaches(qc, jobId, (job) => ({
+        ...job,
+        part_loans: job.part_loans
+          .filter((p) => p.id !== loanId)
+          .map((p, i) => ({ ...p, order: i + 1 })),
+      }));
       return { ok: true, queued: true };
     }
   }

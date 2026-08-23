@@ -75,6 +75,7 @@ export function useJobActionMutation() {
     onMutate: async (vars) => {
       const { jobId, action, payload } = vars;
       await queryClient.cancelQueries({ queryKey: queryKeys.dashboard });
+      await queryClient.cancelQueries({ queryKey: queryKeys.board.all });
       const previous = queryClient.getQueryData<DashboardData>(
         queryKeys.dashboard
       );
@@ -94,10 +95,12 @@ export function useJobActionMutation() {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.dashboard, context.previous);
       }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.board.all });
     },
     onSettled: () => {
       if (shouldHoldServerRefresh()) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.board.all });
     },
   });
 }

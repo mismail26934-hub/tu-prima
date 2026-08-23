@@ -3030,9 +3030,11 @@ export async function jobAction(
             ? [job.technician_id]
             : [];
       if (assigneeIds.length === 0) throw new Error("Assign teknisi dulu");
-      if (!["assigned", "queued"].includes(job.status)) {
+      if (job.status === "in_progress") {
+        // Idempotent replay (offline outbox).
+      } else if (!["assigned", "queued"].includes(job.status)) {
         throw new Error("Job tidak bisa di-start");
-      }
+      } else {
       assigneeIds.forEach((id) => {
         const tech = techs.find((t) => t.id === id);
         if (!tech) throw new Error("Technician not found");
@@ -3066,10 +3068,15 @@ export async function jobAction(
             ? "Pekerjaan dimulai (mode berurutan)"
             : "Pekerjaan dimulai (mode parallel)")
       );
+      }
     }
 
     if (action === "pause") {
-      if (job.status !== "in_progress") throw new Error("Hanya job in_progress yang bisa di-pause");
+      if (job.status === "paused") {
+        // Idempotent replay (offline outbox).
+      } else if (job.status !== "in_progress") {
+        throw new Error("Hanya job in_progress yang bisa di-pause");
+      } else {
       const snapshots = payload?.step_snapshots || [];
       const byId = new Map(snapshots.map((s) => [s.id, s]));
       const pauseNow = Date.now();
@@ -3092,10 +3099,15 @@ export async function jobAction(
       job.status = "paused";
       job.paused_at = payload?.paused_at || nowIso();
       pushEvent("paused", payload?.note || "Job dipause");
+      }
     }
 
     if (action === "resume") {
-      if (job.status !== "paused") throw new Error("Hanya job paused yang bisa di-resume");
+      if (job.status === "in_progress" && !job.paused_at) {
+        // Idempotent replay (offline outbox).
+      } else if (job.status !== "paused") {
+        throw new Error("Hanya job paused yang bisa di-resume");
+      } else {
       if (
         typeof payload?.total_paused_sec === "number" &&
         Number.isFinite(payload.total_paused_sec)
@@ -3115,6 +3127,7 @@ export async function jobAction(
         }
       });
       pushEvent("resumed", payload?.note || "Job dilanjutkan");
+      }
     }
 
     if (action === "start_step" || action === "start_steps") {
@@ -3140,6 +3153,9 @@ export async function jobAction(
       for (const stepId of ids) {
         const step = jobSteps().find((s) => s.id === stepId);
         if (!step) throw new Error(`Step tidak ditemukan: ${stepId}`);
+        if (step.status === "in_progress" || step.status === "done") {
+          continue;
+        }
         if (step.status !== "pending") {
           throw new Error(`Step "${step.name}" bukan pending`);
         }
@@ -3148,12 +3164,14 @@ export async function jobAction(
         step.completed_at = "";
         startedNames.push(step.name);
       }
-      pushEvent(
-        "step_started",
-        startedNames.length === 1
-          ? startedNames[0]
-          : `Parallel start (${startedNames.length}): ${startedNames.join(", ")}`
-      );
+      if (startedNames.length > 0) {
+        pushEvent(
+          "step_started",
+          startedNames.length === 1
+            ? startedNames[0]
+            : `Parallel start (${startedNames.length}): ${startedNames.join(", ")}`
+        );
+      }
     }
 
     if (action === "complete_step") {
@@ -3163,9 +3181,27 @@ export async function jobAction(
         ? jobSteps().find((s) => s.id === stepId)
         : jobSteps().find((s) => s.status === "in_progress");
       if (!current) throw new Error("Step tidak ditemukan");
-      if (current.status !== "in_progress") {
+      const wantAutoNext =
+        payload?.auto_next === true ||
+        (payload?.step_mode === "sequential" && payload?.auto_next !== false);
+      const maybeAutoNext = () => {
+        if (!wantAutoNext) return;
+        if (jobSteps().some((s) => s.status === "in_progress")) return;
+        const next = jobSteps().find((s) => s.status === "pending");
+        if (!next) return;
+        next.status = "in_progress";
+        next.started_at = clientTimeIso(
+          payload?.next_started_at || payload?.completed_at,
+          current.completed_at || nowIso()
+        );
+        pushEvent("step_started", next.name);
+      };
+      if (current.status === "done") {
+        // Idempotent replay: step already completed on server.
+        maybeAutoNext();
+      } else if (current.status !== "in_progress") {
         throw new Error("Hanya step aktif yang bisa diselesaikan");
-      }
+      } else {
       const now = Date.now();
       if (
         typeof payload?.duration_sec === "number" &&
@@ -3183,20 +3219,7 @@ export async function jobAction(
         payload?.started_at || current.started_at || current.completed_at;
       pushEvent("step_completed", current.name);
 
-      const stillActive = jobSteps().some((s) => s.status === "in_progress");
-      const wantAutoNext =
-        payload?.auto_next === true ||
-        (payload?.step_mode === "sequential" && payload?.auto_next !== false);
-      if (wantAutoNext && !stillActive) {
-        const next = jobSteps().find((s) => s.status === "pending");
-        if (next) {
-          next.status = "in_progress";
-          next.started_at = clientTimeIso(
-            payload?.next_started_at || payload?.completed_at,
-            current.completed_at
-          );
-          pushEvent("step_started", next.name);
-        }
+      maybeAutoNext();
       }
     }
 

@@ -3,6 +3,6 @@ node_modules
 #data/*.xlsx
 !.gitkeep
 !data/templates/**
-.env
+.env*
 .env.local
 .env*.local

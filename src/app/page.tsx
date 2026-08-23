@@ -4086,7 +4086,7 @@ export default function HomePage() {
         <div>
           <div className="brand">
             <div className="brand-row">
-              TU-PRIMA
+              {t("app.title")}
               <OfflineSyncChip
                 onRefresh={refreshDashboard}
                 refreshBusy={busy}

@@ -3,6 +3,7 @@ export type Locale = "id" | "en";
 export type MessageKey = keyof typeof id;
 
 const id = {
+  "app.title": "PRIMA",
   "brand.tagline": "Progress Report & Inspection for Mechanic Allocation",
 
   "nav.manage": "Kelola",
@@ -158,7 +159,7 @@ const id = {
   "export.busyLabel": "Export Job Aktif",
   "export.busyLabelQueue": "Export Job Antrian",
 
-  "login.title": "TU-PRIMA",
+  "login.title": "PRIMA",
   "login.hint":
     "Silakan login untuk mengakses dashboard. Akun disimpan di database.",
   "login.username": "Username",
@@ -202,11 +203,23 @@ const id = {
   "offline.chipOfflinePending": "Offline · {count}",
   "offline.chipSyncing": "Sync {count}…",
   "offline.popoverTitle": "Sinkronisasi",
+  "offline.sheetTitleOffline": "Offline",
+  "offline.bannerOfflineShort":
+    "Data dari salinan lokal. Sync butuh koneksi ke server.",
+  "offline.bannerOfflinePendingShort":
+    "{count} perubahan belum tersinkron ke server.",
+  "offline.bannerPendingShort": "{count} perubahan menunggu sync.",
+  "offline.refreshNeedsOnline": "Refresh membutuhkan koneksi online.",
+  "offline.waitingConnection": "Menunggu koneksi…",
+  "offline.waitingConnectionPending":
+    "Menunggu koneksi — {count} perubahan akan disinkron otomatis.",
+  "offline.close": "Tutup",
   "offline.noLocalData":
     "Belum ada salinan lokal. Buka aplikasi sekali saat server hidup, lalu bisa dipakai offline.",
 } as const;
 
 const en: Record<MessageKey, string> = {
+  "app.title": "PRIMA",
   "brand.tagline": "Progress Report & Inspection for Mechanic Allocation",
 
   "nav.manage": "Manage",
@@ -362,7 +375,7 @@ const en: Record<MessageKey, string> = {
   "export.busyLabel": "Export Active Jobs",
   "export.busyLabelQueue": "Export Queued Jobs",
 
-  "login.title": "TU-PRIMA",
+  "login.title": "PRIMA",
   "login.hint":
     "Please sign in to access the dashboard. Accounts are stored in the database.",
   "login.username": "Username",
@@ -406,6 +419,17 @@ const en: Record<MessageKey, string> = {
   "offline.chipOfflinePending": "Offline · {count}",
   "offline.chipSyncing": "Sync {count}…",
   "offline.popoverTitle": "Sync",
+  "offline.sheetTitleOffline": "Offline",
+  "offline.bannerOfflineShort":
+    "Using local copy. Sync requires a server connection.",
+  "offline.bannerOfflinePendingShort":
+    "{count} change(s) not yet synced to the server.",
+  "offline.bannerPendingShort": "{count} change(s) waiting to sync.",
+  "offline.refreshNeedsOnline": "Refresh requires an online connection.",
+  "offline.waitingConnection": "Waiting for connection…",
+  "offline.waitingConnectionPending":
+    "Waiting for connection — {count} change(s) will sync automatically.",
+  "offline.close": "Close",
   "offline.noLocalData":
     "No local copy yet. Open the app once while the server is up, then it can be used offline.",
 };

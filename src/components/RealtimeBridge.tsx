@@ -35,6 +35,7 @@ export function RealtimeBridge() {
           if (msg.type !== "dashboard-changed") return;
           if (shouldHoldServerRefresh()) return;
           void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.board.all });
           void queryClient.invalidateQueries({
             queryKey: queryKeys.templates.all,
           });

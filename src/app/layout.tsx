@@ -15,7 +15,7 @@ const body = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "TU-PRIMA — Progress Report & Inspection for Mechanic Allocation",
+  title: "PRIMA — Progress Report & Inspection for Mechanic Allocation",
   description:
     "Progress Report & Inspection for Mechanic Allocation — monitoring teknisi, progress job, dan durasi kerja",
   manifest: "/manifest.webmanifest",

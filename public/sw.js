@@ -1,5 +1,5 @@
-const CACHE = "tu-prima-shell-v5";
-const SHELL = ["/", "/masuk", "/manifest.webmanifest"];
+const CACHE = "tu-prima-shell-v6";
+const SHELL = ["/", "/sigin", "/auth-gagal", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

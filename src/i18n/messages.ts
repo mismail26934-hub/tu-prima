@@ -169,6 +169,19 @@ const id = {
   "login.error": "Username atau password salah.",
   "login.loading": "Memuat halaman login...",
 
+  "authGagal.title": "Login gagal",
+  "authGagal.default":
+    "Terjadi masalah saat autentikasi. Coba lagi atau hubungi admin.",
+  "authGagal.configuration":
+    "Konfigurasi server auth belum lengkap (cek AUTH_SECRET / DATABASE_URL di hosting).",
+  "authGagal.accessDenied": "Akses ditolak.",
+  "authGagal.verification": "Verifikasi gagal.",
+  "authGagal.callback": "Callback auth gagal. Cek koneksi database dan AUTH_URL.",
+  "authGagal.sessionRequired": "Sesi diperlukan. Silakan login lagi.",
+  "authGagal.code": "Kode: {code}",
+  "authGagal.backToSignIn": "Kembali ke login",
+  "authGagal.backHome": "Beranda",
+
   "logout.title": "Logout",
   "logout.body":
     "Keluar dari akun ini? Anda perlu login lagi untuk melakukan aksi yang memerlukan akses.",
@@ -384,6 +397,19 @@ const en: Record<MessageKey, string> = {
   "login.submitting": "Signing in...",
   "login.error": "Incorrect username or password.",
   "login.loading": "Loading login page...",
+
+  "authGagal.title": "Sign-in failed",
+  "authGagal.default":
+    "Something went wrong during authentication. Try again or contact an admin.",
+  "authGagal.configuration":
+    "Auth server configuration is incomplete (check AUTH_SECRET / DATABASE_URL on hosting).",
+  "authGagal.accessDenied": "Access denied.",
+  "authGagal.verification": "Verification failed.",
+  "authGagal.callback": "Auth callback failed. Check database connection and AUTH_URL.",
+  "authGagal.sessionRequired": "Session required. Please sign in again.",
+  "authGagal.code": "Code: {code}",
+  "authGagal.backToSignIn": "Back to sign in",
+  "authGagal.backHome": "Home",
 
   "logout.title": "Logout",
   "logout.body":

@@ -2135,7 +2135,7 @@ export default function HomePage() {
 
   function handleAuthClick() {
     if (!isLoggedIn) {
-      window.location.href = "/masuk";
+      window.location.href = "/sigin";
       return;
     }
     openLogoutConfirm();
@@ -2187,9 +2187,9 @@ export default function HomePage() {
     setBusy(true);
     writeCachedSession(null);
     try {
-      await signOut({ callbackUrl: "/masuk" });
+      await signOut({ callbackUrl: "/sigin" });
     } catch {
-      window.location.href = "/masuk";
+      window.location.href = "/sigin";
     } finally {
       // Keep overlay if redirect is slow; reset if still on page
       setBusy(false);

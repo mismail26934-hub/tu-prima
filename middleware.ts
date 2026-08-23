@@ -7,16 +7,18 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = Boolean(req.auth);
-  const isLoginPage = nextUrl.pathname.startsWith("/masuk");
+  const isLoginPage =
+    nextUrl.pathname.startsWith("/sigin") ||
+    nextUrl.pathname.startsWith("/auth-gagal");
   const isApi = nextUrl.pathname.startsWith("/api/");
   const isGuestPage = nextUrl.pathname === "/";
 
-  if (isLoginPage && isLoggedIn) {
+  if (isLoginPage && isLoggedIn && nextUrl.pathname.startsWith("/sigin")) {
     return NextResponse.redirect(new URL("/", nextUrl));
   }
 
   if (!isLoggedIn && !isLoginPage && !isGuestPage && !isApi) {
-    const loginUrl = new URL("/masuk", nextUrl);
+    const loginUrl = new URL("/sigin", nextUrl);
     loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }

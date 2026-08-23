@@ -8,8 +8,9 @@ export const authConfig = {
     updateAge: 60 * 60, // 1 jam
   },
   pages: {
-    // /login often blocked by Hostinger WAF/ModSecurity → use /masuk
-    signIn: "/masuk",
+    // Avoid Hostinger WAF blocks on /login and /api/auth/error
+    signIn: "/sigin",
+    error: "/auth-gagal",
   },
   providers: [],
   trustHost: true,

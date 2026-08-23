@@ -13,6 +13,7 @@ import { readCachedSession } from "@/lib/offline/session-cache";
 import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snapshot";
 import { queryKeys } from "@/lib/query-keys";
 import type { DashboardData, JobTemplate } from "@/lib/types";
+import { AUTH_BASE_PATH } from "@/lib/auth-path";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { SessionCache } from "@/components/SessionCache";
 import { BoardSnapshotSync } from "@/components/BoardSnapshotSync";
@@ -143,6 +144,7 @@ export function Providers({ children }: { children: ReactNode }) {
       }}
     >
       <SessionProvider
+        basePath={AUTH_BASE_PATH}
         session={offlineSession}
         refetchOnWindowFocus={true}
         refetchInterval={0}

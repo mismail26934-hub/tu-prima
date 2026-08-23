@@ -1,4 +1,4 @@
-const CACHE = "tu-prima-shell-v6";
+const CACHE = "tu-prima-shell-v7";
 const SHELL = ["/", "/sigin", "/auth-gagal", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -28,7 +28,7 @@ function isApi(url) {
 }
 
 function isAuthSession(url) {
-  return url.pathname.startsWith("/api/auth/session");
+  return url.pathname.startsWith("/api/session/session");
 }
 
 self.addEventListener("fetch", (event) => {

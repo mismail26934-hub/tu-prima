@@ -46,6 +46,7 @@ export function canQueueMutation(
   if (typeof Blob !== "undefined" && body instanceof Blob) return false;
   const path = url.split("?")[0];
   if (!path.startsWith("/api/")) return false;
+  if (path.startsWith("/api/session")) return false;
   if (path.startsWith("/api/auth")) return false;
   if (path.startsWith("/api/account/password")) return false;
   if (path.startsWith("/api/reports")) return false;

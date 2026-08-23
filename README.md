@@ -676,7 +676,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 - Perubahan Excel/template memicu ping WebSocket `{ type: "dashboard-changed" }` ke klien lain (refetch board). Poll 8 detik lewat TanStack Query tetap cadangan, **hanya jika tab aktif** (`refetchIntervalInBackground: false`). Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll + WS **mati / ditahan** saat browser offline atau outbox pending.
 - Offline CRUD: buka + login sekali saat server hidup agar SW/cache terisi. Perubahan lokal ngantri di IndexedDB sampai server nyala. Jangan andalkan login baru atau import Excel saat offline.
 - **Meals / kehadiran → board**: lihat [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi). Sync ada di **Daftar Hadir**, bukan Master Teknisi.
-- Service worker hanya cache app shell + `/api/auth/session`. **GET `/api/dashboard` tidak di-cache**, supaya assign/CRUD offline tidak ditimpa data lama. Poll/invalidate juga ditahan selama masih ada antrian outbox. Jika UI aneh setelah deploy: DevTools → Application → Service Workers → Unregister, lalu hard refresh.
+- Service worker hanya cache app shell + `/api/session/session`. **GET `/api/dashboard` tidak di-cache**, supaya assign/CRUD offline tidak ditimpa data lama. Poll/invalidate juga ditahan selama masih ada antrian outbox. Jika UI aneh setelah deploy: DevTools → Application → Service Workers → Unregister, lalu hard refresh.
 
 ### Ringkasan perubahan UI/data terkini
 

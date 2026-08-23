@@ -1,0 +1,11 @@
+# Hostinger: reduce ModSecurity / WAF false positives for Next.js
+# If Hostinger regenerates .htaccess on deploy, re-add these lines after deploy
+# or merge into the generated file in public_html.
+# Docs: https://www.hostinger.com/support/1583370-how-to-disable-modsecurity-at-hostinger/
+
+<IfModule mod_security.c>
+  SecRuleEngine Off
+</IfModule>
+
+SecFilterEngine Off
+SecFilterScanPOST Off

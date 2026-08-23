@@ -120,12 +120,8 @@ function cellStr(v: ExcelJS.CellValue | string | number | undefined): string {
   return String(v);
 }
 
-/** Header aliases: No. ID Badge = Pernr / SN (confirmed mapping). */
+/** Pernr / SN — bukan Badge ID (field terpisah). */
 const TECH_SN_HEADERS = [
-  "no. id badge",
-  "no id badge",
-  "id badge",
-  "badge",
   "sn",
   "sn kpc",
   "skill",
@@ -134,12 +130,81 @@ const TECH_SN_HEADERS = [
   "kpc",
 ] as const;
 
+const TECH_BADGE_HEADERS = [
+  "no. id badge",
+  "no id badge",
+  "id badge",
+  "badge id",
+  "badge_id",
+  "badge",
+] as const;
+
+const TECH_EMAIL_HEADERS = [
+  "email",
+  "e-mail",
+  "e mail",
+  "mail",
+] as const;
+
 const TECH_NAME_HEADERS = [
   "nama karyawan",
   "name employee",
   "name",
   "nama",
 ] as const;
+
+function normalizeTechEmail(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+function isValidTechEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateTechnicianFields(
+  input: {
+    name: string;
+    sn: string;
+    badge_id: string;
+    email: string;
+    phone: string;
+  },
+  techs: Technician[],
+  excludeId?: string
+): {
+  name: string;
+  sn: string;
+  badge_id: string;
+  email: string;
+  phone: string;
+} {
+  const name = input.name.trim();
+  const sn = input.sn.trim();
+  const badge_id = input.badge_id.trim();
+  const email = normalizeTechEmail(input.email);
+  const phone = input.phone.trim();
+  if (!name || !sn || !badge_id || !email || !phone) {
+    throw new Error(
+      "nama, SN/Pernr, Badge ID, email, dan telepon wajib diisi"
+    );
+  }
+  if (!isValidTechEmail(email)) {
+    throw new Error("Format email tidak valid");
+  }
+  const others = techs.filter((t) => t.id !== excludeId);
+  const snKey = sn.toLowerCase();
+  const badgeKey = badge_id.toLowerCase();
+  if (others.some((t) => t.sn.trim().toLowerCase() === snKey)) {
+    throw new Error(`SN/Pernr "${sn}" sudah dipakai teknisi lain`);
+  }
+  if (others.some((t) => (t.badge_id || "").trim().toLowerCase() === badgeKey)) {
+    throw new Error(`Badge ID "${badge_id}" sudah dipakai teknisi lain`);
+  }
+  if (others.some((t) => normalizeTechEmail(t.email || "") === email)) {
+    throw new Error(`Email "${email}" sudah dipakai teknisi lain`);
+  }
+  return { name, sn, badge_id, email, phone };
+}
 
 function findSheetHeader(
   ws: ExcelJS.Worksheet,
@@ -256,6 +321,8 @@ function mapTechnician(r: Row): Technician {
     id: String(r.id || ""),
     name: String(r.name || ""),
     sn: String(r.sn || r.skill || ""),
+    badge_id: String(r.badge_id || ""),
+    email: String(r.email || ""),
     status: String(r.status || "available") as TechnicianStatus,
     current_job_id: String(r.current_job_id || ""),
     phone: String(r.phone || ""),
@@ -557,7 +624,16 @@ function unitLabel(u: Unit): string {
   return u.name ? `${u.code} — ${u.name}` : u.code;
 }
 
-const TECH_HEADERS = ["id", "name", "sn", "status", "current_job_id", "phone"];
+const TECH_HEADERS = [
+  "id",
+  "name",
+  "sn",
+  "badge_id",
+  "email",
+  "status",
+  "current_job_id",
+  "phone",
+];
 const UNIT_HEADERS = ["id", "code", "name", "serial_number", "active"];
 const JOB_HEADERS = [
   "id",
@@ -922,12 +998,12 @@ function releaseTechsFromJob(techs: Technician[], jobId: string) {
 async function createSeedWorkbook(wb: MysqlWorkbook) {
   const now = nowIso();
   const techs: Technician[] = [
-    { id: "T01", name: "Andi Pratama", sn: "SN-1001", status: "busy", current_job_id: "J01", phone: "0812-1111-0001" },
-    { id: "T02", name: "Budi Santoso", sn: "SN-1002", status: "busy", current_job_id: "J01", phone: "0812-1111-0002" },
-    { id: "T03", name: "Citra Dewi", sn: "SN-1003", status: "available", current_job_id: "", phone: "0812-1111-0003" },
-    { id: "T04", name: "Dedi Kurnia", sn: "SN-1004", status: "busy", current_job_id: "J02", phone: "0812-1111-0004" },
-    { id: "T05", name: "Eko Wijaya", sn: "SN-1005", status: "offline", current_job_id: "", phone: "0812-1111-0005" },
-    { id: "T06", name: "Fajar Nugroho", sn: "SN-1006", status: "available", current_job_id: "", phone: "0812-1111-0006" },
+    { id: "T01", name: "Andi Pratama", sn: "SN-1001", badge_id: "BADGE-1001", email: "andi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0001" },
+    { id: "T02", name: "Budi Santoso", sn: "SN-1002", badge_id: "BADGE-1002", email: "budi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0002" },
+    { id: "T03", name: "Citra Dewi", sn: "SN-1003", badge_id: "BADGE-1003", email: "citra@example.com", status: "available", current_job_id: "", phone: "0812-1111-0003" },
+    { id: "T04", name: "Dedi Kurnia", sn: "SN-1004", badge_id: "BADGE-1004", email: "dedi@example.com", status: "busy", current_job_id: "J02", phone: "0812-1111-0004" },
+    { id: "T05", name: "Eko Wijaya", sn: "SN-1005", badge_id: "BADGE-1005", email: "eko@example.com", status: "offline", current_job_id: "", phone: "0812-1111-0005" },
+    { id: "T06", name: "Fajar Nugroho", sn: "SN-1006", badge_id: "BADGE-1006", email: "fajar@example.com", status: "available", current_job_id: "", phone: "0812-1111-0006" },
   ];
 
   const started1 = new Date(Date.now() - 85 * 60 * 1000).toISOString();
@@ -2252,6 +2328,8 @@ export async function createTechnician(input: {
   id?: string;
   name: string;
   sn: string;
+  badge_id: string;
+  email: string;
   phone?: string;
   status?: Exclude<TechnicianStatus, "busy">;
 }): Promise<Technician> {
@@ -2263,21 +2341,27 @@ export async function createTechnician(input: {
       const existing = techs.find((t) => t.id === requestedId);
       if (existing) return existing;
     }
-    const name = input.name.trim();
-    const sn = input.sn.trim();
-    const phone = (input.phone || "").trim();
-    if (!name || !sn || !phone) {
-      throw new Error("nama, SN, dan telepon wajib diisi");
-    }
+    const fields = validateTechnicianFields(
+      {
+        name: input.name,
+        sn: input.sn,
+        badge_id: input.badge_id,
+        email: input.email,
+        phone: input.phone || "",
+      },
+      techs
+    );
     const status: TechnicianStatus =
       input.status === "offline" ? "offline" : "available";
     const tech: Technician = {
       id: requestedId || `T-${uuidv4().slice(0, 8)}`,
-      name,
-      sn,
+      name: fields.name,
+      sn: fields.sn,
+      badge_id: fields.badge_id,
+      email: fields.email,
       status,
       current_job_id: "",
-      phone,
+      phone: fields.phone,
     };
     techs.push(tech);
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
@@ -2328,7 +2412,7 @@ export async function importTechniciansFromBuffer(
     const found = findSheetHeader(ws, TECH_SN_HEADERS, TECH_NAME_HEADERS);
     if (!found) {
       throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh "Nama Karyawan" / "Nama" dan "No. ID Badge" / "SN" / "Pernr".'
+        'Kolom wajib tidak ditemukan. Butuh "Nama Karyawan" / "Nama" dan "SN" / "Pernr".'
       );
     }
     const { headerRow, headerMap } = found;
@@ -2343,12 +2427,14 @@ export async function importTechniciansFromBuffer(
 
     const cName = col(...TECH_NAME_HEADERS);
     const cSn = col(...TECH_SN_HEADERS);
+    const cBadge = col(...TECH_BADGE_HEADERS);
+    const cEmail = col(...TECH_EMAIL_HEADERS);
     const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
     const cStatus = col("status");
 
-    if (!cName || !cSn) {
+    if (!cName || !cSn || !cBadge || !cEmail) {
       throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh "Nama Karyawan" / "Nama" dan "No. ID Badge" / "SN" / "Pernr".'
+        'Kolom wajib tidak ditemukan. Butuh Nama, SN/Pernr, Badge ID (No. ID Badge), dan Email.'
       );
     }
 
@@ -2364,17 +2450,24 @@ export async function importTechniciansFromBuffer(
       if (rowNumber <= headerRow) return;
       const name = cellStr(row.getCell(cName).value).trim();
       const sn = cellStr(row.getCell(cSn).value).trim();
+      const badge_id = cellStr(row.getCell(cBadge).value).trim();
+      const emailRaw = cellStr(row.getCell(cEmail).value).trim();
       const phone = cPhone ? cellStr(row.getCell(cPhone).value).trim() : "";
       const statusRaw = cStatus
         ? cellStr(row.getCell(cStatus).value).trim()
         : "";
       if (!name && !sn) return;
-      if (!name || !sn) {
+      if (!name || !sn || !badge_id || !emailRaw) {
         skipped.push(
-          `Baris ${rowNumber}: nama dan No. ID Badge/SN wajib (${name || "?"} / ${sn || "?"})`
+          `Baris ${rowNumber}: nama, SN/Pernr, Badge ID, dan email wajib (${name || "?"} / ${sn || "?"} / ${badge_id || "?"} / ${emailRaw || "?"})`
         );
         return;
       }
+      if (!isValidTechEmail(emailRaw)) {
+        skipped.push(`Baris ${rowNumber}: format email tidak valid (${emailRaw})`);
+        return;
+      }
+      const email = normalizeTechEmail(emailRaw);
 
       const status = normalizeTechStatus(statusRaw);
       const existing = techs.find(
@@ -2382,9 +2475,23 @@ export async function importTechniciansFromBuffer(
       );
 
       if (existing) {
-        existing.name = name;
-        existing.sn = sn;
-        if (phone) existing.phone = phone;
+        try {
+          const fields = validateTechnicianFields(
+            { name, sn, badge_id, email, phone: phone || existing.phone },
+            techs,
+            existing.id
+          );
+          existing.name = fields.name;
+          existing.sn = fields.sn;
+          existing.badge_id = fields.badge_id;
+          existing.email = fields.email;
+          existing.phone = fields.phone;
+        } catch (e) {
+          skipped.push(
+            `Baris ${rowNumber}: ${e instanceof Error ? e.message : "validasi gagal"}`
+          );
+          return;
+        }
         if (status && existing.status !== "busy") {
           existing.status = status;
           existing.current_job_id = "";
@@ -2404,10 +2511,24 @@ export async function importTechniciansFromBuffer(
         return;
       }
 
+      try {
+        validateTechnicianFields(
+          { name, sn, badge_id, email, phone: phone || "-" },
+          techs
+        );
+      } catch (e) {
+        skipped.push(
+          `Baris ${rowNumber}: ${e instanceof Error ? e.message : "validasi gagal"}`
+        );
+        return;
+      }
+
       techs.push({
         id: `T-${uuidv4().slice(0, 8)}`,
         name,
         sn,
+        badge_id,
+        email,
         phone: phone || "-",
         status: status || "available",
         current_job_id: "",
@@ -2437,6 +2558,8 @@ export async function updateTechnician(
   input: {
     name: string;
     sn: string;
+    badge_id: string;
+    email: string;
     phone?: string;
     status?: Exclude<TechnicianStatus, "busy">;
   }
@@ -2446,15 +2569,22 @@ export async function updateTechnician(
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const tech = techs.find((t) => t.id === techId);
     if (!tech) throw new Error("Technician not found");
-    const name = input.name.trim();
-    const sn = input.sn.trim();
-    const phone = (input.phone ?? tech.phone).trim();
-    if (!name || !sn || !phone) {
-      throw new Error("nama, SN, dan telepon wajib diisi");
-    }
-    tech.name = name;
-    tech.sn = sn;
-    tech.phone = phone;
+    const fields = validateTechnicianFields(
+      {
+        name: input.name,
+        sn: input.sn,
+        badge_id: input.badge_id,
+        email: input.email,
+        phone: input.phone ?? tech.phone,
+      },
+      techs,
+      techId
+    );
+    tech.name = fields.name;
+    tech.sn = fields.sn;
+    tech.badge_id = fields.badge_id;
+    tech.email = fields.email;
+    tech.phone = fields.phone;
     if (input.status === "available" || input.status === "offline") {
       if (tech.status === "busy") {
         throw new Error("Teknisi sedang mengerjakan job. Selesaikan job dulu.");

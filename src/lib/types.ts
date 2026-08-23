@@ -36,8 +36,11 @@ export interface AuditActor {
 export interface Technician {
   id: string;
   name: string;
-  /** Serial number / SN */
+  /** Pernr / SN (HR, absensi, SharePoint sync) */
   sn: string;
+  /** No. ID Badge — terpisah dari Pernr */
+  badge_id: string;
+  email: string;
   status: TechnicianStatus;
   current_job_id: string;
   phone: string;

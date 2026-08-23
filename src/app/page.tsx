@@ -39,7 +39,7 @@ import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
 import { useJobBoardStore } from "@/store/jobBoardStore";
 import {
   useDashboardFiltersStore,
-  type JobOwnershipFilter,
+  resolveJobOwnershipFilter,
   type JobSectionFilter,
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
@@ -745,6 +745,8 @@ export default function HomePage() {
   const [techForm, setTechForm] = useState({
     name: "",
     sn: "",
+    badge_id: "",
+    email: "",
     phone: "",
     status: "available" as Exclude<TechnicianStatus, "busy">,
   });
@@ -1213,7 +1215,14 @@ export default function HomePage() {
   }
 
   function openTechCreate() {
-    setTechForm({ name: "", sn: "", phone: "", status: "available" });
+    setTechForm({
+      name: "",
+      sn: "",
+      badge_id: "",
+      email: "",
+      phone: "",
+      status: "available",
+    });
     setModal({ type: "tech-form", mode: "create" });
   }
 
@@ -1221,6 +1230,8 @@ export default function HomePage() {
     setTechForm({
       name: tech.name,
       sn: tech.sn,
+      badge_id: tech.badge_id || "",
+      email: tech.email || "",
       phone: tech.phone || "",
       status: tech.status === "offline" ? "offline" : "available",
     });
@@ -1229,13 +1240,23 @@ export default function HomePage() {
 
   async function saveTech() {
     if (modal?.type !== "tech-form") return;
-    if (!techForm.name.trim() || !techForm.sn.trim() || !techForm.phone.trim()) return;
+    if (
+      !techForm.name.trim() ||
+      !techForm.sn.trim() ||
+      !techForm.badge_id.trim() ||
+      !techForm.email.trim() ||
+      !techForm.phone.trim()
+    ) {
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const payload = {
         name: techForm.name,
         sn: techForm.sn,
+        badge_id: techForm.badge_id,
+        email: techForm.email,
         phone: techForm.phone,
         ...(modal.tech?.status === "busy" ? {} : { status: techForm.status }),
       };
@@ -1588,8 +1609,21 @@ export default function HomePage() {
   const setTechStatusFilter = useDashboardFiltersStore((s) => s.setTechStatusFilter);
   const jobSectionFilter = useDashboardFiltersStore((s) => s.jobSectionFilter);
   const setJobSectionFilter = useDashboardFiltersStore((s) => s.setJobSectionFilter);
-  const jobOwnershipFilter = useDashboardFiltersStore((s) => s.jobOwnershipFilter);
-  const setJobOwnershipFilter = useDashboardFiltersStore((s) => s.setJobOwnershipFilter);
+  const jobOwnershipMine = useDashboardFiltersStore((s) => s.jobOwnershipMine);
+  const jobOwnershipDelegated = useDashboardFiltersStore(
+    (s) => s.jobOwnershipDelegated
+  );
+  const setJobOwnershipMine = useDashboardFiltersStore(
+    (s) => s.setJobOwnershipMine
+  );
+  const setJobOwnershipDelegated = useDashboardFiltersStore(
+    (s) => s.setJobOwnershipDelegated
+  );
+
+  const jobOwnershipFilter = useMemo(
+    () => resolveJobOwnershipFilter(jobOwnershipMine, jobOwnershipDelegated),
+    [jobOwnershipMine, jobOwnershipDelegated]
+  );
 
   const JOB_PAGE_SIZE = 5;
   const [activeJobPage, setActiveJobPage] = useState(1);
@@ -2468,6 +2502,8 @@ export default function HomePage() {
   const techFormValid =
     techForm.name.trim().length > 0 &&
     techForm.sn.trim().length > 0 &&
+    techForm.badge_id.trim().length > 0 &&
+    techForm.email.trim().length > 0 &&
     techForm.phone.trim().length > 0;
 
   const techAvailableQuery = useTechniciansList({
@@ -2596,7 +2632,7 @@ export default function HomePage() {
     setCompletedJobCursors([null]);
     setCancelledJobPage(1);
     setCancelledJobCursors([null]);
-  }, [jobQuery, jobSectionFilter, jobOwnershipFilter]);
+  }, [jobQuery, jobSectionFilter, jobOwnershipMine, jobOwnershipDelegated]);
 
   function goCompletedArchiveNext() {
     const next = completedJobsQuery.data?.nextCursor;
@@ -3193,7 +3229,7 @@ export default function HomePage() {
               </div>
             )}
             {(job.assigned_by_user_name || job.delegated_to_user_name) && (
-              <p className="step-hint" style={{ margin: "4px 0 0" }}>
+              <p className="job-ownership-meta">
                 {job.assigned_by_user_name
                   ? `Penugas: ${job.assigned_by_user_name}`
                   : ""}
@@ -4836,24 +4872,33 @@ export default function HomePage() {
                     </select>
                   </label>
                   {isLoggedIn && userId && (
-                    <label className="panel-filter">
-                      <span className="panel-vis-label">{t("panel.filterJobOwnership")}</span>
-                      <select
-                        value={jobOwnershipFilter}
-                        onChange={(e) =>
-                          setJobOwnershipFilter(
-                            e.target.value as JobOwnershipFilter
-                          )
-                        }
-                        aria-label={t("panel.filterJobOwnership")}
-                      >
-                        <option value="all">{t("panel.jobOwnershipAll")}</option>
-                        <option value="mine">{t("panel.jobOwnershipMine")}</option>
-                        <option value="delegated">
-                          {t("panel.jobOwnershipDelegated")}
-                        </option>
-                      </select>
-                    </label>
+                    <div
+                      className="panel-filter panel-filter--ownership"
+                      role="group"
+                      aria-label={t("panel.filterJobOwnership")}
+                    >
+                      <span className="panel-vis-label">
+                        {t("panel.filterJobOwnership")}
+                      </span>
+                      <label className="panel-ownership-check">
+                        <input
+                          type="checkbox"
+                          checked={jobOwnershipMine}
+                          onChange={(e) => setJobOwnershipMine(e.target.checked)}
+                        />
+                        {t("panel.jobOwnershipMine")}
+                      </label>
+                      <label className="panel-ownership-check">
+                        <input
+                          type="checkbox"
+                          checked={jobOwnershipDelegated}
+                          onChange={(e) =>
+                            setJobOwnershipDelegated(e.target.checked)
+                          }
+                        />
+                        {t("panel.jobOwnershipDelegated")}
+                      </label>
+                    </div>
                   )}
                 </div>
                 <button
@@ -7235,7 +7280,9 @@ export default function HomePage() {
                   <div>
                     <strong>{t.name}</strong>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {t.sn}
+                      Pernr: {t.sn}
+                      {t.badge_id ? ` · Badge: ${t.badge_id}` : ""}
+                      {t.email ? ` · ${t.email}` : ""}
                       {t.phone ? ` · ${t.phone}` : ""}
                       {` · ${t.status}`}
                     </div>
@@ -7303,10 +7350,29 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                SN *
+                SN / Pernr *
                 <input
                   value={techForm.sn}
                   onChange={(e) => setTechForm({ ...techForm, sn: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                No. ID Badge *
+                <input
+                  value={techForm.badge_id}
+                  onChange={(e) =>
+                    setTechForm({ ...techForm, badge_id: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Email *
+                <input
+                  type="email"
+                  value={techForm.email}
+                  onChange={(e) => setTechForm({ ...techForm, email: e.target.value })}
                   required
                 />
               </label>

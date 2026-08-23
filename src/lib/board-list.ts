@@ -19,7 +19,11 @@ import type {
 } from "@/lib/types";
 
 export type JobListSection = "active" | "queue" | "done" | "cancelled";
-export type JobOwnershipFilter = "all" | "mine" | "delegated";
+export type JobOwnershipFilter =
+  | "all"
+  | "mine"
+  | "delegated"
+  | "mine_or_delegated";
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -49,6 +53,8 @@ function mapTechnicianRow(r: mysql.RowDataPacket): Technician {
     id: str(r.id),
     name: str(r.name),
     sn: str(r.sn),
+    badge_id: str(r.badge_id),
+    email: str(r.email),
     status: str(r.status || "available") as TechnicianStatus,
     current_job_id: str(r.current_job_id),
     phone: str(r.phone),
@@ -203,6 +209,9 @@ function buildJobWhere(
   } else if (ownership === "delegated" && userId) {
     parts.push("delegated_to_user_id = ?");
     params.push(userId);
+  } else if (ownership === "mine_or_delegated" && userId) {
+    parts.push("(assigned_by_user_id = ? OR delegated_to_user_id = ?)");
+    params.push(userId, userId);
   }
 
   return { sql: parts.join(" AND "), params };
@@ -234,7 +243,7 @@ async function loadTechniciansByIds(ids: string[]): Promise<Technician[]> {
   const ph = unique.map(() => "?").join(",");
   const p = getPool();
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT id, name, sn, status, current_job_id, phone FROM technicians WHERE id IN (${ph})`,
+    `SELECT id, name, sn, badge_id, email, status, current_job_id, phone FROM technicians WHERE id IN (${ph})`,
     unique
   );
   return rows.map(mapTechnicianRow);
@@ -472,9 +481,11 @@ export async function listTechniciansPaginated(input: {
     params.push(status);
   }
   if (q) {
-    parts.push("(LOWER(t.name) LIKE ? OR LOWER(t.sn) LIKE ? OR LOWER(t.phone) LIKE ?)");
+    parts.push(
+      "(LOWER(t.name) LIKE ? OR LOWER(t.sn) LIKE ? OR LOWER(t.badge_id) LIKE ? OR LOWER(t.email) LIKE ? OR LOWER(t.phone) LIKE ?)"
+    );
     const like = `%${q}%`;
-    params.push(like, like, like);
+    params.push(like, like, like, like, like);
   }
 
   const where = parts.length ? `WHERE ${parts.join(" AND ")}` : "";
@@ -487,7 +498,7 @@ export async function listTechniciansPaginated(input: {
   const total = num(countRows[0]?.cnt);
 
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT t.id, t.name, t.sn, t.status, t.current_job_id, t.phone, j.title AS current_job_title
+    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, j.title AS current_job_title
      FROM technicians t
      LEFT JOIN jobs j ON j.id = t.current_job_id AND j.job_scope = 'active'
      ${where}

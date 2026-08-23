@@ -697,6 +697,28 @@ html[data-theme="light"].menu-open .topbar-glass {
   min-width: 140px;
 }
 
+.panel-filter--ownership {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.panel-ownership-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-ownership-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent, #f59e0b);
+  cursor: pointer;
+}
+
 .tech-cols--single {
   grid-template-columns: 1fr;
 }
@@ -1735,6 +1757,13 @@ html[data-theme="light"].menu-open .topbar-glass {
   margin-top: 6px;
 }
 
+.job-ownership-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 4px 0 0;
+  line-height: 1.35;
+}
+
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -2350,6 +2379,7 @@ html.active-job-slider-mode .step-mode-toggle,
 html.active-job-slider-mode .step-actions,
 html.active-job-slider-mode .actions,
 html.active-job-slider-mode .handover-panel,
+html.active-job-slider-mode .job-delegate-row,
 html.active-job-slider-mode .job-title-row .btn-icon,
 html.active-job-slider-mode .job-tech-row .btn-icon {
   display: none !important;
@@ -2454,6 +2484,7 @@ html[data-theme="light"].active-job-slider-mode .active-job-slider-screen {
 }
 
 .active-job-slider-screen .tech-names,
+.active-job-slider-screen .job-ownership-meta,
 .active-job-slider-screen .job-description {
   font-size: clamp(0.95rem, 1.8vw, 1.2rem);
 }

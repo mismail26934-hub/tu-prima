@@ -274,6 +274,8 @@ function techStubFromAssigneeRow(r: Row): Technician | null {
     id,
     name: String(r.technician_name || id),
     sn: String(r.technician_sn || ""),
+    badge_id: "",
+    email: "",
     status: "available",
     current_job_id: "",
     phone: "",

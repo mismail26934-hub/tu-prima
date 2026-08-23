@@ -699,10 +699,12 @@ export async function loadRelationalWorkbook(
     const [techs] = await p.query<mysql.RowDataPacket[]>(
       `SELECT * FROM technicians ORDER BY name`
     );
-    setSheet(wb, "Technicians", ["id", "name", "sn", "status", "current_job_id", "phone"], techs.map((r) => ({
+    setSheet(wb, "Technicians", ["id", "name", "sn", "badge_id", "email", "status", "current_job_id", "phone"], techs.map((r) => ({
       id: str(r.id),
       name: str(r.name),
       sn: str(r.sn),
+      badge_id: str(r.badge_id),
+      email: str(r.email),
       status: str(r.status),
       current_job_id: str(r.current_job_id),
       phone: str(r.phone),
@@ -838,11 +840,13 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
         await conn.query(`DELETE FROM technicians`);
         for (const row of wb.getWorksheet("Technicians")?.rows ?? []) {
           await conn.query(
-            `INSERT INTO technicians (id, name, sn, status, current_job_id, phone) VALUES (?,?,?,?,?,?)`,
+            `INSERT INTO technicians (id, name, sn, badge_id, email, status, current_job_id, phone) VALUES (?,?,?,?,?,?,?,?)`,
             [
               str(row.id),
               str(row.name),
               str(row.sn),
+              str(row.badge_id),
+              str(row.email),
               str(row.status),
               str(row.current_job_id),
               str(row.phone),
@@ -952,6 +956,8 @@ export async function ensureRelationalSchema() {
       id VARCHAR(64) NOT NULL PRIMARY KEY,
       name VARCHAR(255) NOT NULL DEFAULT '',
       sn VARCHAR(64) NOT NULL DEFAULT '',
+      badge_id VARCHAR(64) NOT NULL DEFAULT '',
+      email VARCHAR(255) NOT NULL DEFAULT '',
       status VARCHAR(32) NOT NULL DEFAULT 'offline',
       current_job_id VARCHAR(64) NOT NULL DEFAULT '',
       phone VARCHAR(64) NOT NULL DEFAULT ''
@@ -1118,6 +1124,12 @@ export async function ensureRelationalSchema() {
       `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ${col} ${type} NOT NULL DEFAULT ''`
     );
   }
+  await p.query(
+    `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS badge_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT ''`
+  );
   await ensureListIndexes(p);
 }
 

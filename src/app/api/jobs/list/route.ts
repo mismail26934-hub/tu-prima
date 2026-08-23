@@ -12,7 +12,13 @@ function parseSection(raw: string | null): JobListSection | null {
 }
 
 function parseOwnership(raw: string | null): JobOwnershipFilter {
-  if (raw === "mine" || raw === "delegated") return raw;
+  if (
+    raw === "mine" ||
+    raw === "delegated" ||
+    raw === "mine_or_delegated"
+  ) {
+    return raw;
+  }
   return "all";
 }
 

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS technicians (
   id             VARCHAR(64)  NOT NULL PRIMARY KEY,
   name           VARCHAR(255) NOT NULL DEFAULT '',
   sn             VARCHAR(64)  NOT NULL DEFAULT '',
+  badge_id       VARCHAR(64)  NOT NULL DEFAULT '',
+  email          VARCHAR(255) NOT NULL DEFAULT '',
   status         VARCHAR(32)  NOT NULL DEFAULT 'offline',
   current_job_id VARCHAR(64)  NOT NULL DEFAULT '',
   phone          VARCHAR(64)  NOT NULL DEFAULT '',

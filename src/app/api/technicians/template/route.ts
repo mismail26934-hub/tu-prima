@@ -12,12 +12,14 @@ export async function GET() {
   const sheet = workbook.addWorksheet("Teknisi");
   sheet.columns = [
     { header: "Nama", key: "name", width: 28 },
-    { header: "SN", key: "sn", width: 18 },
+    { header: "SN / Pernr", key: "sn", width: 18 },
+    { header: "No. ID Badge", key: "badge_id", width: 18 },
+    { header: "Email", key: "email", width: 28 },
     { header: "Telepon", key: "phone", width: 20 },
     { header: "Status", key: "status", width: 16 },
   ];
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:D1";
+  sheet.autoFilter = "A1:F1";
   sheet.getRow(1).font = { bold: true, color: { argb: "FF111827" } };
   sheet.getRow(1).fill = {
     type: "pattern",
@@ -26,9 +28,11 @@ export async function GET() {
   };
   sheet.getColumn("B").numFmt = "@";
   sheet.getColumn("C").numFmt = "@";
+  sheet.getColumn("D").numFmt = "@";
+  sheet.getColumn("E").numFmt = "@";
 
   for (let row = 2; row <= 501; row += 1) {
-    sheet.getCell(`D${row}`).dataValidation = {
+    sheet.getCell(`F${row}`).dataValidation = {
       type: "list",
       allowBlank: true,
       formulae: ['"available,offline"'],
@@ -40,14 +44,22 @@ export async function GET() {
 
   const guide = workbook.addWorksheet("Petunjuk");
   guide.columns = [
-    { header: "Kolom", key: "column", width: 20 },
+    { header: "Kolom", key: "column", width: 22 },
     { header: "Ketentuan", key: "rule", width: 72 },
   ];
   guide.addRows([
     { column: "Nama", rule: "Wajib. Nama lengkap teknisi. Alias: Nama Karyawan." },
     {
-      column: "SN",
-      rule: "Wajib dan unik (= No. ID Badge / Pernr). Jika sudah ada, data teknisi tersebut akan diperbarui. Alias: No. ID Badge, Pernr, NIK.",
+      column: "SN / Pernr",
+      rule: "Wajib dan unik. Nomor Pernr untuk absensi/HR. Jika SN sudah ada, baris akan memperbarui teknisi tersebut.",
+    },
+    {
+      column: "No. ID Badge",
+      rule: "Wajib dan unik. Terpisah dari SN/Pernr. Alias: Badge ID, ID Badge.",
+    },
+    {
+      column: "Email",
+      rule: "Wajib dan unik. Format email valid (contoh: nama@perusahaan.com).",
     },
     {
       column: "Telepon",

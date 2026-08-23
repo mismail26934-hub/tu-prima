@@ -866,6 +866,8 @@ export function applyOptimisticMutation(
       id: String(body.id || newEntityId("T")),
       name: String(body.name || "").trim(),
       sn: String(body.sn || body.skill || "").trim(),
+      badge_id: String(body.badge_id || "").trim(),
+      email: String(body.email || "").trim(),
       phone: String(body.phone || "").trim(),
       status: body.status === "offline" ? "offline" : "available",
       current_job_id: "",
@@ -890,6 +892,9 @@ export function applyOptimisticMutation(
                 ...t,
                 name: body.name != null ? String(body.name) : t.name,
                 sn: body.sn != null ? String(body.sn) : t.sn,
+                badge_id:
+                  body.badge_id != null ? String(body.badge_id) : t.badge_id,
+                email: body.email != null ? String(body.email) : t.email,
                 phone: body.phone != null ? String(body.phone) : t.phone,
                 status:
                   body.status === "available" || body.status === "offline"

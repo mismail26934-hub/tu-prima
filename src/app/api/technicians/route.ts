@@ -10,9 +10,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const sn = body.sn ?? body.skill;
-    if (!body.name || !sn || !body.phone) {
+    if (!body.name || !sn || !body.badge_id || !body.email || !body.phone) {
       return NextResponse.json(
-        { error: "nama, SN, dan telepon wajib diisi" },
+        {
+          error:
+            "nama, SN/Pernr, Badge ID, email, dan telepon wajib diisi",
+        },
         { status: 400 }
       );
     }
@@ -20,6 +23,8 @@ export async function POST(req: Request) {
       id: body.id ? String(body.id) : undefined,
       name: String(body.name),
       sn: String(sn),
+      badge_id: String(body.badge_id),
+      email: String(body.email),
       phone: String(body.phone),
       status: body.status === "offline" ? "offline" : "available",
     });

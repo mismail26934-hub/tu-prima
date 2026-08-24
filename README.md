@@ -13,20 +13,21 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 3. [Template time frame (Engine / Non Engine)](#template-time-frame-engine--non-engine)
 4. [Mode step: Berurutan vs Parallel](#mode-step-berurutan-vs-parallel)
 5. [Timer & sisa estimasi](#timer--sisa-estimasi)
-6. [Archive Excel (complete / cancel / hapus)](#archive-excel-complete--cancel--hapus)
+6. [Archive job (complete / cancel / hapus)](#archive-job-complete--cancel--hapus)
 7. [Catatan handover](#catatan-handover-job-aktif)
 8. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
 9. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
-10. [Struktur data Excel](#struktur-data-excel)
-11. [Template JSON](#template-json)
+10. [Struktur data (MySQL)](#struktur-data-mysql)
+11. [Template JSON & file data](#template-json--file-data)
 12. [Autentikasi & hak akses](#autentikasi--hak-akses)
 13. [Struktur folder](#struktur-folder)
 14. [API ringkas](#api-ringkas)
 15. [Menjalankan project](#menjalankan-project)
-16. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
-17. [Realtime WebSocket](#realtime-websocket)
-18. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
-19. [Catatan operasional](#catatan-operasional)
+16. [Deploy production (Hostinger)](#deploy-production-hostinger)
+17. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
+18. [Realtime WebSocket](#realtime-websocket)
+19. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
+20. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -45,11 +46,11 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 
 ### Job
 
-- **CRUD job**: buat, edit, hapus (backup ke `deleted-jobs.xlsx`), cancel (pindah ke `cancelled-jobs.xlsx`)
+- **CRUD job**: buat, edit, hapus (backup ke `job_scope = deleted`), cancel (pindah ke `cancelled`)
 - Buat job dari **template time frame** (Component Engine / Non Engine) atau **custom**
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
 - Start, pause, resume, complete step
-- **Complete job** → pindah penuh ke `completed-jobs.xlsx` (keluar dari `workshop.xlsx`)
+- **Complete job** → `job_scope = completed` (keluar dari board aktif)
 - **Buka kembali** (hanya **superuser**):
   - dari **Job completed** → restore → `paused`
   - dari **Job cancelled** → restore → `paused` / `assigned` / `queued`
@@ -61,14 +62,14 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 - **Catatan peminjaman part** + loading tambah/ubah/hapus (foreman write)
 - **Print PDF** per job (modal loading/success/error)
 - **Export to excel** (menu Kelola): satu menu → popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), kolom **stp_std_hours** + STP per step
-- **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke `backup-jobs.xlsx`
+- **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke tabel `job_change_backups`
 
 ### Master data (via menu Kelola)
 
 - **Unit** — CRUD + import Excel + unduh template
 - **Teknisi** — CRUD + import Excel + unduh template
 - **Template** — CRUD time frame Engine / Non Engine + unduh template Excel + mass upload
-- **Users** — CRUD akun login (level, aktif)
+- **Users** — CRUD akun login (nama, **email**, **no. telp**, level, aktif)
 - **Daftar hadir** — CRUD + import Excel absensi; **Sync Meals Request** (SharePoint Graph atau upload) untuk set **available / offline** pada board teknisi
 
 ### Akun
@@ -79,7 +80,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 
 ### State UI
 
-- **Server state** (dashboard, master data, mutasi): **TanStack Query** (`src/hooks/`, cache + poll 8s fallback; ping WebSocket saat Excel berubah)
+- **Server state** (dashboard, master data, mutasi): **TanStack Query** (`src/hooks/`, cache + poll 8s fallback; ping WebSocket saat data berubah)
 - **Offline**: cache dashboard/template di IndexedDB + outbox mutasi (`src/lib/offline/`)
 - Form Assign, Job, board filter: **Zustand** (`src/store/`) — UI only
 - Bahasa UI: **Zustand** `localeStore` + kamus `src/i18n/messages.ts` (default `id`)
@@ -96,30 +97,30 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 ## Alur proses bisnis
 
 ```text
-1. Login (opsional untuk lihat; wajib untuk aksi tulis/progress)
+1. Login di /sigin (opsional untuk lihat dashboard; wajib untuk aksi tulis/progress)
 2. Pastikan master Unit & Teknisi tersedia
 3. Buat Job baru
-      ├─ Mode template → pilih Engine / Non Engine → pilih komponen
+      ├─ Mode template → pilih Engine / Non Engine / GOH → pilih komponen
       │                 (steps + estimasi terisi dari time frame)
       └─ Mode custom  → isi judul, unit, deskripsi, steps manual
 4. Assign teknisi (Foreman / Superuser)
 5. Start job
 6. Kerjakan step (berurutan ATAU parallel)
 7. Pause / Resume bila perlu
-8. Complete job → arsip `completed-jobs.xlsx` (atau Cancel → `cancelled-jobs.xlsx` / Hapus → `deleted-jobs.xlsx`)
+8. Complete job → job_scope `completed` di MySQL (atau Cancel → `cancelled` / Hapus → `deleted`)
 9. Superuser dapat **Buka kembali** job completed/cancelled dari archive
 ```
 
 ### Status job
 
-| Status        | Arti                                       | Penyimpanan runtime                          |
+| Status        | Arti                                       | Penyimpanan runtime (`jobs.job_scope`)       |
 | ------------- | ------------------------------------------ | -------------------------------------------- |
-| `queued`      | Baru dibuat, belum di-assign / belum start | `workshop.xlsx`                              |
-| `assigned`    | Sudah punya teknisi, siap di-start         | `workshop.xlsx`                              |
-| `in_progress` | Sedang dikerjakan                          | `workshop.xlsx`                              |
-| `paused`      | Di-pause (timer job & step di-freeze)      | `workshop.xlsx`                              |
-| `done`        | Selesai                                    | **`completed-jobs.xlsx`** (setelah Complete) |
-| `cancelled`   | Dibatalkan                                 | **`cancelled-jobs.xlsx`** (setelah Cancel)   |
+| `queued`      | Baru dibuat, belum di-assign / belum start | `active`                                     |
+| `assigned`    | Sudah punya teknisi, siap di-start         | `active`                                     |
+| `in_progress` | Sedang dikerjakan                          | `active`                                     |
+| `paused`      | Di-pause (timer job & step di-freeze)      | `active`                                     |
+| `done`        | Selesai                                    | **`completed`** (setelah Complete)         |
+| `cancelled`   | Dibatalkan                                 | **`cancelled`** (setelah Cancel)             |
 
 ### Status step
 
@@ -215,19 +216,19 @@ Sync offline memakai `started_at` / `next_started_at` dari client, bukan jam ser
 
 ---
 
-## Archive Excel (complete / cancel / hapus)
+## Archive job (complete / cancel / hapus)
 
-Job aktif & antrian tetap di **`workshop.xlsx`**. Complete / cancel / hapus memakai file archive terpisah (append):
+Job aktif & antrian disimpan di MySQL dengan `job_scope = 'active'`. Complete / cancel / hapus memindahkan baris ke scope terpisah (bukan file Excel terpisah):
 
-| Aksi     | File                  | Efek pada workshop    | Lihat di UI              | Restore (superuser)                |
-| -------- | --------------------- | --------------------- | ------------------------ | ---------------------------------- |
-| Complete | `completed-jobs.xlsx` | Dihapus dari workshop | Filter **Job completed** | → `paused`                         |
-| Cancel   | `cancelled-jobs.xlsx` | Dihapus dari workshop | Filter **Job cancelled** | → `paused` / `assigned` / `queued` |
-| Hapus    | `deleted-jobs.xlsx`   | Dihapus; audit tetap  | — (arsip manual)         | Tidak (hanya backup)               |
+| Aksi     | `job_scope` | Efek pada job aktif     | Lihat di UI              | Restore (superuser)                |
+| -------- | ----------- | ----------------------- | ------------------------ | ---------------------------------- |
+| Complete | `completed` | Keluar dari board aktif | Filter **Job completed** | → `paused`                         |
+| Cancel   | `cancelled` | Keluar dari board aktif | Filter **Job cancelled** | → `paused` / `assigned` / `queued` |
+| Hapus    | `deleted`   | Keluar; audit tetap     | — (arsip DB)             | Tidak (hanya backup)               |
 
-Setiap baris archive menyimpan meta `archived_at` / `deleted_at` + user pelaku, plus sheet turunan (steps, events, assignees, handovers, part loans).
+Setiap baris archive menyimpan meta `archived_at` / `deleted_at` + user pelaku, plus relasi turunan (steps, events, assignees, handovers, part loans).
 
-Modul: `src/lib/job-completed-archive.ts`, `job-cancelled-archive.ts`, `job-delete-archive.ts`.
+Modul: `src/lib/job-completed-archive.ts`, `job-cancelled-archive.ts`, `job-delete-archive.ts` · penyimpanan: `src/db/archive-store.ts`.
 
 ---
 
@@ -246,7 +247,7 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** 
 - Saat proses: **overlay loading** + spinner di tombol (Menambah… / Menyimpan… / Menghapus…)
 - **Add / update / delete hanya foreman**; level lain hanya lihat read-only
 - Pada job dari archive (`from_archive`), catatan **read-only**
-- Tersimpan di sheet **JobHandovers**; aksi tercatat di **AuditLog**
+- Tersimpan di tabel **`job_handovers`**; aksi tercatat di **`audit_log`**
 
 API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[handoverId]`
 
@@ -264,7 +265,7 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan peminjaman 
 - Status default **open** saat tambah; ubah ke **closed** lewat mode Ubah
 - Judul menampilkan jumlah, mis. `Catatan peminjaman part (2)`
 - Write hanya **foreman**; archive completed/cancelled = read-only
-- Tersimpan di sheet **JobPartLoans** + **AuditLog**
+- Tersimpan di tabel **`job_part_loans`** + **`audit_log`**
 
 API: `POST /api/jobs/[id]/part-loans` · `PATCH|DELETE /api/jobs/[id]/part-loans/[loanId]`
 
@@ -274,13 +275,13 @@ API: `POST /api/jobs/[id]/part-loans` · `PATCH|DELETE /api/jobs/[id]/part-loans
 
 Setiap aksi job / assign / progress mencatat **user login** (dari session).
 
-### Sheet `JobEvents` (timeline job)
+### Tabel `job_events` (timeline job)
 
 Kolom: `id`, `job_id`, `type`, `note`, `created_at`, **`user_id`**, **`user_name`**, **`user_level`**
 
 Jenis event: `created`, `updated`, `assigned`, `started`, `paused`, `resumed`, `step_started`, `step_completed`, `completed`, `cancelled`, `reopened`, …
 
-### Sheet `AuditLog` (append-only)
+### Tabel `audit_log` (append-only)
 
 Tetap ada **meski job dihapus**.
 
@@ -294,9 +295,9 @@ Tetap ada **meski job dihapus**.
 
 Tercakup: create/update/delete job, assign/ubah teknisi, start/pause/resume/step/complete/cancel/reopen.
 
-### File `backup-jobs.xlsx` (ChangeLog — untuk undo)
+### Tabel `job_change_backups` (ChangeLog — untuk undo)
 
-Setiap create / update / delete job, assign, start/pause/resume/step/complete/cancel, handover, dan part loan menyimpan **snapshot JSON sebelum & sesudah** di sheet `ChangeLog` file terpisah `data/backup-jobs.xlsx`.
+Setiap create / update / delete job, assign, start/pause/resume/step/complete/cancel, handover, dan part loan menyimpan **snapshot JSON sebelum & sesudah** di tabel `job_change_backups` (dulu `backup-jobs.xlsx`).
 
 | Kolom                        | Isi                                               |
 | ---------------------------- | ------------------------------------------------- |
@@ -306,47 +307,47 @@ Setiap create / update / delete job, assign, start/pause/resume/step/complete/ca
 
 - UI: menu **Kelola → Backup / Undo** (**superuser** saja)
 - API: `GET/POST /api/backups/jobs` (**superuser** saja)
-- Undo mengembalikan state `before_json` ke `workshop.xlsx` (dan membersihkan arsip complete/cancel bila relevan)
+- Undo mengembalikan state `before_json` ke job aktif di MySQL (dan membersihkan arsip complete/cancel bila relevan)
 
 ---
 
-## Struktur data Excel
+## Struktur data (MySQL)
 
-File: **`data/workshop.xlsx`**
+Database: **`tu_prima`** (via `DATABASE_URL`). Schema lengkap: `src/db/schema.sql` · migrasi otomatis: `src/db/relational-store.ts`.
 
-| Sheet        | Isi utama                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Technicians  | id, name, **sn** (SN), status, current_job_id, phone                                                                |
-| Units        | id, code, name, active                                                                                              |
-| Jobs         | id, title, unit, unit_id, description, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
-| JobAssignees | job_id, technician_id, is_lead, assigned_at                                                                         |
-| JobSteps     | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                |
-| JobEvents    | timeline + **user_id / user_name / user_level**                                                                     |
-| JobHandovers | catatan serah terima job aktif (order, title, done, note, user)                                                     |
-| JobPartLoans | catatan peminjaman part (order, part_name, status open/closed, note, user)                                          |
-| Attendance   | date, technician_id, pernr, status, dws, check_in/out, …                                                            |
-| Users        | username, password, name, level, active                                                                             |
-| **AuditLog** | jejak aksi user (tahan delete)                                                                                      |
+| Tabel              | Isi utama                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `technicians`      | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email                                               |
+| `units`            | id, code, name, serial_number, active                                                                               |
+| `jobs`             | id, **job_scope**, title, unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes      |
+| `job_assignees`    | job_id, technician_id, is_lead, assigned_at                                                                         |
+| `job_steps`        | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                |
+| `job_events`       | timeline + **user_id / user_name / user_level**                                                                     |
+| `job_handovers`    | catatan serah terima job aktif (order, title, done, note, user)                                                     |
+| `job_part_loans`   | catatan peminjaman part (order, part_name, status open/closed, note, user)                                          |
+| `attendance`       | date, technician_id, pernr, status, dws, check_in/out, …                                                            |
+| `users`            | username, password_hash, name, **email**, **phone**, level, active                                                  |
+| `audit_log`        | jejak aksi user (tahan delete)                                                                                      |
+| `job_change_backups` | snapshot before/after untuk undo                                                                                  |
+
+Detail archive: lihat [Archive job](#archive-job-complete--cancel--hapus).
 
 ---
 
-## Template JSON
+## Template JSON & file data
+
+Runtime job/master/audit disimpan di **MySQL**. File di folder `data/` hanya untuk katalog template dan sumber import:
 
 ```text
 data/
-  workshop.xlsx          ← database runtime (aktif, antrian, master, audit)
-  completed-jobs.xlsx    ← job setelah Complete (pindah penuh)
-  cancelled-jobs.xlsx    ← job setelah Cancel (pindah penuh)
-  deleted-jobs.xlsx      ← backup saat Hapus
-  backup-jobs.xlsx       ← ChangeLog snapshot before/after (untuk undo)
-  job-templates.json     ← katalog template Engine / Non Engine
-  templates/             ← file Excel time frame sumber
+  job-templates.json     ← katalog template Engine / Non Engine / GOH (dibaca app)
+  templates/             ← file Excel time frame sumber (import / referensi)
     TIME FRAME ENGINE RECONDITION.xlsx
     TIME FRAME NON ENGINE RECONDITION (TRANSMISI).xlsx
     Time Frame GOH.xlsx
 ```
 
-Detail perilaku archive: lihat [Archive Excel](#archive-excel-complete--cancel--hapus).
+**ExcelJS** dipakai hanya untuk import/export laporan, upload master data, dan unduhan template — bukan database runtime.
 
 Struktur ringkas template:
 
@@ -372,8 +373,20 @@ Struktur ringkas template:
 
 ## Autentikasi & hak akses
 
-Login: **NextAuth (Credentials)** · akun di sheet **Users**.  
-Seed admin awal dari `.env.local` (`APP_USERNAME` / `APP_PASSWORD`) sebagai `superuser` jika sheet Users kosong.
+Login: **NextAuth v5 (Credentials)** · halaman `/sigin` · error `/auth-gagal` · API session di **`/api/session`** (bukan `/api/auth`, untuk menghindari blok WAF Hostinger).
+
+Akun di tabel **`users`** (kolom `email`, `phone` opsional).  
+Seed admin awal dari `.env.local` (`APP_USERNAME` / `APP_PASSWORD`) sebagai `superuser` jika tabel users kosong.
+
+Environment wajib production:
+
+```env
+AUTH_SECRET=string-acak-panjang
+AUTH_URL=https://prima.strakin.tech
+DATABASE_URL=mysql://USER:PASSWORD@srvXXXX.hstgr.io:3306/nama_db
+```
+
+`trustHost: true` sudah diset di `auth.config.ts`. Lihat juga [Deploy production](#deploy-production-hostinger).
 
 Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login = `guest`.
 
@@ -404,23 +417,28 @@ Catatan:
 ## Struktur folder
 
 ```text
-server.ts                 ← custom Node server (Next + WebSocket /ws)
+server.ts                 ← custom Node server (Next + WebSocket /ws + ensureSchema)
+.htaccess                 ← opsional: nonaktifkan ModSecurity di Apache (Hostinger WAF)
 src/
   app/
     page.tsx              ← dashboard utama (board, modal, job UI)
-    login/page.tsx
-    api/                  ← REST routes (jobs, units, technicians, reports, …)
+    sigin/page.tsx        ← halaman login
+    auth-gagal/page.tsx   ← halaman error NextAuth (custom, hindari WAF)
+    api/
+      session/[...nextauth]/  ← NextAuth handlers (basePath /api/session)
+      …                   ← REST routes (jobs, units, technicians, reports, …)
     globals.css
   auth.ts / auth.config.ts
   lib/
-    excel.ts              ← baca/tulis Excel + jobAction + audit + ping WS
+    auth-path.ts          ← AUTH_BASE_PATH = /api/session
+    excel.ts              ← logika bisnis + audit + ping WS (via mysql-workbook)
     job-completed-archive.ts
     job-cancelled-archive.ts
     job-delete-archive.ts
-    job-change-backup.ts  ← backup-jobs.xlsx ChangeLog + helpers
+    job-change-backup.ts  ← job_change_backups + helpers undo
     job-excel-report.ts   ← export Job Aktif / Antrian
     job-pdf.ts
-    job-templates.ts      ← katalog time frame (CRUD + cache)
+    job-templates.ts      ← katalog time frame (CRUD + cache JSON)
     job-template-excel.ts ← export Excel Master Template
     access.ts / permissions.ts
     duration.ts           ← timer & progress
@@ -428,7 +446,12 @@ src/
     api.ts                ← fetch helper + error JSON
     query-keys.ts         ← factory key TanStack Query
     offline/              ← outbox IndexedDB, optimistic cache, sync saat online
-    realtime/hub.ts       ← set koneksi WS + broadcast ping
+    realtime/hub.ts       ← hub WS globalThis + broadcast ping
+  db/
+    schema.sql            ← DDL MySQL
+    mysql-workbook.ts     ← pool + load/save ke tabel relasional
+    relational-store.ts   ← migrasi & mapping sheet → SQL
+    archive-store.ts      ← helper archive/backup di MySQL
   hooks/                  ← useDashboard, master queries, job action + invalidate, useOfflineStatus
   store/                  ← Zustand (job form, assign, board, locale)
   i18n/                   ← kamus ID/EN + useT()
@@ -437,11 +460,10 @@ middleware.ts             ← proteksi route + guest boleh / (kecuali /ws)
 public/
   sw.js                   ← service worker (app shell + session GET; API data tidak di-cache)
   manifest.webmanifest
+scripts/
+  hash-user-passwords.ts  ← hash password plain di DB
+  seed.ts                 ← seed awal (opsional)
 data/
-  workshop.xlsx
-  completed-jobs.xlsx
-  cancelled-jobs.xlsx
-  deleted-jobs.xlsx
   job-templates.json
   templates/
 ```
@@ -452,6 +474,7 @@ data/
 
 | Method       | Path                                                              | Keterangan                                                                                                         |
 | ------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| \*           | `/api/session/*`                                                  | NextAuth (login, logout, session) — basePath custom                                                                |
 | GET          | `/api/dashboard`                                                  | Snapshot board                                                                                                     |
 | GET          | `/api/job-templates`                                              | List / detail template (`full=1` katalog + steps; `include_inactive=1` master)                                     |
 | POST         | `/api/job-templates`                                              | Buat template time frame                                                                                           |
@@ -467,7 +490,7 @@ data/
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                                     |
 | PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                             |
 | GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                            |
-| GET          | `/api/backups/jobs`                                               | List ChangeLog `backup-jobs.xlsx` (**superuser**)                                                                  |
+| GET          | `/api/backups/jobs`                                               | List ChangeLog `job_change_backups` (**superuser**)                                                                  |
 | POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                                          |
 | \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                                    |
 | POST         | `/api/attendance/sync-sharepoint`                                 | Meals Request → presence: No. ID Badge = SN; ada → available, tidak ada → offline (upload file atau Graph)         |
@@ -494,14 +517,19 @@ Pastikan **MySQL atau MariaDB** berjalan lokal (tanpa Docker), lalu buat databas
 
 ### 2. Environment
 
-Di `.env.local`:
+Salin `.env.example` → `.env.local`:
 
 ```env
 AUTH_SECRET=ganti-dengan-string-panjang-acak
+AUTH_URL=http://localhost:3000
 DATABASE_URL=mysql://root@127.0.0.1:3306/tu_prima
 APP_USERNAME=admin
 APP_PASSWORD=admin123
 ```
+
+**Penting:** untuk `npm run dev` lokal, pakai MySQL **lokal** (`127.0.0.1`). Jangan arahkan `.env.local` ke database Hostinger — IP lokal Anda biasanya ditolak oleh Remote MySQL.
+
+Opsional (sync Meals SharePoint): `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `SHAREPOINT_MEALS_EXCEL_URL`.
 
 ### 3. Database schema
 
@@ -511,7 +539,13 @@ Schema otomatis dibuat saat pertama kali `npm run dev` atau:
 npm run db:ensure
 ```
 
-Tabel: `users`, `technicians`, `units`, `jobs`, `job_steps`, dll. (lihat `src/db/README.md`).
+Tabel: `users`, `technicians`, `units`, `jobs`, `job_steps`, `audit_log`, dll. (lihat `src/db/README.md`).
+
+Hash password plain (sekali, jika perlu):
+
+```bash
+npm run db:hash-passwords
+```
 
 Backup MariaDB:
 
@@ -528,12 +562,66 @@ npm run dev
 Buka [http://localhost:3000](http://localhost:3000).  
 Script ini menjalankan **custom server** (`server.ts`): HTTP Next + WebSocket `ws://host:port/ws`.
 
-### 5. Production
+### 5. Production (lokal / VPS)
 
 ```bash
 npm run build
 npm start
 ```
+
+Harus lewat `tsx server.ts` agar WebSocket `/ws` aktif. **`next start` saja tidak menyediakan `/ws`.**
+
+---
+
+## Deploy production (Hostinger)
+
+Production: [https://prima.strakin.tech](https://prima.strakin.tech)
+
+### Environment variables (hPanel → Deployments → Settings)
+
+| Key | Contoh / catatan |
+| --- | ---------------- |
+| `AUTH_SECRET` | String acak panjang (wajib) |
+| `AUTH_URL` | `https://prima.strakin.tech` |
+| `DATABASE_URL` | `mysql://USER:PASSWORD@srv1858.hstgr.io:3306/u925538922_tu_prima` |
+| `APP_USERNAME` / `APP_PASSWORD` | Seed superuser jika DB kosong |
+
+**Format `DATABASE_URL`:**
+
+- Hanya connection string di kolom **Value** — jangan ulang `DATABASE_URL=` di value.
+- Host MySQL untuk Node.js: **`srvXXXX.hstgr.io`** (bukan `auth-dbXXXX.hstgr.io` yang dipakai phpMyAdmin).
+- URL-encode karakter khusus di password (`@`, `&`, `(`, dll.).
+- Aktifkan **Remote MySQL** di hPanel jika app dan DB terpisah; untuk deploy Hostinger Node.js biasanya sudah diizinkan internal.
+
+### WAF / ModSecurity
+
+Hostinger WAF sering memblokir path `/login` dan `/api/auth/error`. Project ini memakai:
+
+| Asli (sering diblok) | Pengganti |
+| -------------------- | --------- |
+| `/login`             | `/sigin`  |
+| `/api/auth/*`        | `/api/session/*` |
+| error default NextAuth | `/auth-gagal` |
+
+File `.htaccess` di root (jika tidak ditimpa deploy) menonaktifkan ModSecurity:
+
+```apache
+SecFilterEngine Off
+SecFilterScanPOST Off
+```
+
+### Build & start
+
+Hostinger menjalankan `npm run build` lalu `npm start` (custom server + WebSocket). Setelah deploy, cek login di `/sigin` dan koneksi realtime antar tab.
+
+### Troubleshooting
+
+| Gejala | Kemungkinan penyebab |
+| ------ | -------------------- |
+| 403 di login / auth | WAF — pastikan path `/sigin` dan `/api/session` |
+| "Server configuration" error | `AUTH_SECRET` atau `DATABASE_URL` kosong/salah |
+| Data tidak tampil | `DATABASE_URL` salah host/password; DB belum di-seed |
+| WebSocket tidak sync antar tab | Pastikan `npm start` (bukan `next start`); hub pakai `globalThis` singleton |
 
 ---
 
@@ -551,7 +639,7 @@ App tetap bisa **create / update / delete** (dan aksi progress) meski server ata
 ### Alur
 
 ```text
-Online  → UI ↔ /api/* ↔ MariaDB (tu_prima)
+Online  → UI ↔ /api/* ↔ MySQL (tu_prima)
 Offline → UI → cache IndexedDB + outbox (antrian mutasi)
 Online kembali → flush outbox berurutan → MySQL + audit/backup → refresh board
 ```
@@ -572,9 +660,9 @@ Create memakai **ID dari client** (`J-…`, `S-…`, `H-…`, …) agar retry sy
 
 ### Konflik
 
-- Sumber kebenaran setelah sync tetap **Excel di server**.
+- Sumber kebenaran setelah sync tetap **MySQL di server**.
 - Dua orang edit job yang sama saat offline → yang **terakhir flush** yang menang (last-write-wins).
-- AuditLog / `backup-jobs.xlsx` tercatat **saat sync sukses**, bukan saat klik offline.
+- `audit_log` / `job_change_backups` tercatat **saat sync sukses**, bukan saat klik offline.
 
 ### File terkait
 
@@ -592,18 +680,18 @@ User lain melihat perubahan board **tanpa menunggu poll 8 detik**. Koneksi TCP t
 ### Alur
 
 ```text
-Browser A  →  POST /api/...  →  saveWorkbook / saveCatalog
+Browser A  →  POST /api/...  →  saveMysqlWorkbook / saveCatalog
                                    ↓
                          broadcast { type: "dashboard-changed" }
                                    ↓
 Browser B  ←  WebSocket /ws  ←  invalidate + refetch GET /api/dashboard
 ```
 
-- Hub in-memory: `src/lib/realtime/hub.ts` (satu proses Node — `npm run dev` / `npm start` lewat `server.ts`).
+- Hub in-memory: `src/lib/realtime/hub.ts` — **singleton `globalThis`** agar koneksi WS dari `server.ts` dan API route Next.js berbagi client set yang sama (penting di dev & Hostinger).
 - Client: `RealtimeBridge` subscribe `ws(s)://<host>/ws`. Pesan `dashboard-changed` → invalidate dashboard + katalog template.
-- **Tidak refetch** jika offline atau outbox masih pending (`shouldHoldServerRefresh`) — supaya SW/Excel lama tidak menimpa CRUD lokal.
+- **Tidak refetch** jika offline atau outbox masih pending (`shouldHoldServerRefresh`) — supaya cache lokal tidak ditimpa data server lama.
 - Poll 8 detik tetap jalan sebagai **cadangan** (tab aktif, online, outbox kosong).
-- Excel tetap sumber kebenaran. WS tidak mengganti REST/outbox.
+- MySQL tetap sumber kebenaran. WS tidak mengganti REST/outbox.
 
 ### Syarat
 
@@ -666,29 +754,29 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 ## Catatan operasional
 
-- Excel cocok untuk **demo / workshop kecil**. Hindari membuka & menyimpan file `data/*.xlsx` di Excel saat app sedang menulis.
+- Database runtime: **MySQL/MariaDB** (`tu_prima`). Jangan edit langsung di phpMyAdmin saat app sedang menulis — gunakan UI atau backup dulu.
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
 - Jangan jalankan dua server (`tsx server.ts` / sisa `next dev`) bersamaan di port berbeda pada project yang sama.
 - Template time frame diubah lewat **Kelola → Master Template** (tersimpan ke `data/job-templates.json`). Job yang sudah dibuat tidak otomatis ikut berubah.
-- Alternatif: edit sumber Excel di `data/templates/` lalu regenerate katalog bila ada skrip parse; restart / refresh setelah ubah file.
-- `data/*.xlsx` biasanya di-ignore git; backup `workshop.xlsx`, `completed-jobs.xlsx`, `cancelled-jobs.xlsx`, `deleted-jobs.xlsx` jika data penting.
-- Dashboard menyertakan `completed_jobs` + `cancelled_jobs` dari file archive (selain `jobs` dari workshop).
-- Perubahan Excel/template memicu ping WebSocket `{ type: "dashboard-changed" }` ke klien lain (refetch board). Poll 8 detik lewat TanStack Query tetap cadangan, **hanya jika tab aktif** (`refetchIntervalInBackground: false`). Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll + WS **mati / ditahan** saat browser offline atau outbox pending.
+- Alternatif: edit sumber Excel di `data/templates/` lalu import ulang; restart / refresh setelah ubah katalog.
+- Backup rutin: `mysqldump -u root tu_prima > backup.sql` (production: export dari hPanel / phpMyAdmin).
+- Dashboard menyertakan job `completed` + `cancelled` dari MySQL (selain job `active`).
+- Perubahan data memicu ping WebSocket `{ type: "dashboard-changed" }` ke klien lain (refetch board). Poll 8 detik lewat TanStack Query tetap cadangan, **hanya jika tab aktif** (`refetchIntervalInBackground: false`). Fokus kembali ke tab → refetch otomatis. Start/pause/resume job memakai optimistic update lalu sync ulang ke server. Poll + WS **mati / ditahan** saat browser offline atau outbox pending.
 - Offline CRUD: buka + login sekali saat server hidup agar SW/cache terisi. Perubahan lokal ngantri di IndexedDB sampai server nyala. Jangan andalkan login baru atau import Excel saat offline.
 - **Meals / kehadiran → board**: lihat [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi). Sync ada di **Daftar Hadir**, bukan Master Teknisi.
 - Service worker hanya cache app shell + `/api/session/session`. **GET `/api/dashboard` tidak di-cache**, supaya assign/CRUD offline tidak ditimpa data lama. Poll/invalidate juga ditahan selama masih ada antrian outbox. Jika UI aneh setelah deploy: DevTools → Application → Service Workers → Unregister, lalu hard refresh.
+- Tombol **Refresh** di navbar melakukan full page reload (`window.location.reload()`).
 
-### Ringkasan perubahan UI/data terkini
+### Ringkasan perubahan terkini
 
+- **MySQL/MariaDB** sebagai database runtime (migrasi dari Excel workbook)
+- **Users**: kolom `email` + `phone` di DB dan UI Master User
+- **Auth**: login `/sigin`, session `/api/session`, error `/auth-gagal` (WAF-friendly)
+- **WebSocket hub**: singleton `globalThis` — broadcast realtime konsisten di dev & Hostinger
 - **TanStack Query**: cache dashboard + master data; poll 8s cadangan + ping WebSocket realtime; optimistic start/pause/resume
-- Kartu sisa estimasi: teks putih + persen tersisa
-- STP/Std Hours per step (UI, PDF, export Excel)
-- Timer step berwarna menurut sisa STP (putih / oranye / merah)
-- Status + Est/Progress ditampilkan di bawah deskripsi job
-- Export digabung jadi **Export to excel** + filter tanggal
-- Complete / Cancel / Hapus memakai archive Excel terpisah; reopen completed & cancelled (superuser)
-- Loading overlay pada tambah/ubah/hapus handover & part loan
-- **Offline CRUD**: persist TanStack Query + outbox mutasi + PWA; create job/handover/unit memakai ID client yang idempotent di server
+- Kartu sisa estimasi: teks putih + persen tersisa · STP/Std Hours per step (UI, PDF, export Excel)
+- Export digabung **Export to excel** + filter tanggal · Complete/Cancel/Hapus via `job_scope`
+- **Offline CRUD**: persist TanStack Query + outbox mutasi + PWA; ID client idempotent di server
 
 ---
 

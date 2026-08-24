@@ -2142,7 +2142,7 @@ export default function HomePage() {
 
   function handleAuthClick() {
     if (!isLoggedIn) {
-      window.location.href = "/sigin";
+      window.location.href = "/sign-in";
       return;
     }
     openLogoutConfirm();
@@ -2194,9 +2194,9 @@ export default function HomePage() {
     setBusy(true);
     writeCachedSession(null);
     try {
-      await signOut({ callbackUrl: "/sigin" });
+      await signOut({ callbackUrl: "/sign-in" });
     } catch {
-      window.location.href = "/sigin";
+      window.location.href = "/sign-in";
     } finally {
       // Keep overlay if redirect is slow; reset if still on page
       setBusy(false);

@@ -39,7 +39,7 @@ function AuthGagalContent() {
           </p>
         )}
         <div style={{ marginTop: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Link className="btn btn-primary" href="/sigin">
+          <Link className="btn btn-primary" href="/sign-in">
             {t("authGagal.backToSignIn")}
           </Link>
           <Link className="btn" href="/">

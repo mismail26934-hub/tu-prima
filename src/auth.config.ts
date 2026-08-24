@@ -11,7 +11,7 @@ export const authConfig = {
   },
   pages: {
     // Avoid Hostinger WAF blocks on /login and /api/auth/error
-    signIn: "/sigin",
+    signIn: "/sign-in",
     error: "/auth-gagal",
   },
   providers: [],

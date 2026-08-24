@@ -1,5 +1,5 @@
-const CACHE = "tu-prima-shell-v7";
-const SHELL = ["/", "/sigin", "/auth-gagal", "/manifest.webmanifest"];
+const CACHE = "tu-prima-shell-v8";
+const SHELL = ["/", "/sign-in", "/auth-gagal", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

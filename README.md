@@ -97,7 +97,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 ## Alur proses bisnis
 
 ```text
-1. Login di /sigin (opsional untuk lihat dashboard; wajib untuk aksi tulis/progress)
+1. Login di /sign-in (opsional untuk lihat dashboard; wajib untuk aksi tulis/progress)
 2. Pastikan master Unit & Teknisi tersedia
 3. Buat Job baru
       ├─ Mode template → pilih Engine / Non Engine / GOH → pilih komponen
@@ -373,7 +373,7 @@ Struktur ringkas template:
 
 ## Autentikasi & hak akses
 
-Login: **NextAuth v5 (Credentials)** · halaman `/sigin` · error `/auth-gagal` · API session di **`/api/session`** (bukan `/api/auth`, untuk menghindari blok WAF Hostinger).
+Login: **NextAuth v5 (Credentials)** · halaman `/sign-in` · error `/auth-gagal` · API session di **`/api/session`** (bukan `/api/auth`, untuk menghindari blok WAF Hostinger).
 
 Akun di tabel **`users`** (kolom `email`, `phone` opsional).  
 Seed admin awal dari `.env.local` (`APP_USERNAME` / `APP_PASSWORD`) sebagai `superuser` jika tabel users kosong.
@@ -422,7 +422,7 @@ server.ts                 ← custom Node server (Next + WebSocket /ws + ensureS
 src/
   app/
     page.tsx              ← dashboard utama (board, modal, job UI)
-    sigin/page.tsx        ← halaman login
+    sign-in/page.tsx        ← halaman login
     auth-gagal/page.tsx   ← halaman error NextAuth (custom, hindari WAF)
     api/
       session/[...nextauth]/  ← NextAuth handlers (basePath /api/session)
@@ -599,7 +599,7 @@ Hostinger WAF sering memblokir path `/login` dan `/api/auth/error`. Project ini 
 
 | Asli (sering diblok) | Pengganti |
 | -------------------- | --------- |
-| `/login`             | `/sigin`  |
+| `/login`             | `/sign-in`  |
 | `/api/auth/*`        | `/api/session/*` |
 | error default NextAuth | `/auth-gagal` |
 
@@ -612,13 +612,13 @@ SecFilterScanPOST Off
 
 ### Build & start
 
-Hostinger menjalankan `npm run build` lalu `npm start` (custom server + WebSocket). Setelah deploy, cek login di `/sigin` dan koneksi realtime antar tab.
+Hostinger menjalankan `npm run build` lalu `npm start` (custom server + WebSocket). Setelah deploy, cek login di `/sign-in` dan koneksi realtime antar tab.
 
 ### Troubleshooting
 
 | Gejala | Kemungkinan penyebab |
 | ------ | -------------------- |
-| 403 di login / auth | WAF — pastikan path `/sigin` dan `/api/session` |
+| 403 di login / auth | WAF — pastikan path `/sign-in` dan `/api/session` |
 | "Server configuration" error | `AUTH_SECRET` atau `DATABASE_URL` kosong/salah |
 | Data tidak tampil | `DATABASE_URL` salah host/password; DB belum di-seed |
 | WebSocket tidak sync antar tab | Pastikan `npm start` (bukan `next start`); hub pakai `globalThis` singleton |
@@ -771,7 +771,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 - **MySQL/MariaDB** sebagai database runtime (migrasi dari Excel workbook)
 - **Users**: kolom `email` + `phone` di DB dan UI Master User
-- **Auth**: login `/sigin`, session `/api/session`, error `/auth-gagal` (WAF-friendly)
+- **Auth**: login `/sign-in`, session `/api/session`, error `/auth-gagal` (WAF-friendly)
 - **WebSocket hub**: singleton `globalThis` — broadcast realtime konsisten di dev & Hostinger
 - **TanStack Query**: cache dashboard + master data; poll 8s cadangan + ping WebSocket realtime; optimistic start/pause/resume
 - Kartu sisa estimasi: teks putih + persen tersisa · STP/Std Hours per step (UI, PDF, export Excel)

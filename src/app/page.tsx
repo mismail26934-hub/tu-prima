@@ -51,7 +51,6 @@ import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { api } from "@/lib/api";
 import { useDashboard } from "@/hooks/useDashboard";
-import { shouldHoldServerRefresh } from "@/lib/offline/sync";
 import { writeCachedSession } from "@/lib/offline/session-cache";
 import {
   readBoardSnapshot,
@@ -676,7 +675,6 @@ export default function HomePage() {
     data: queryData,
     error: dashboardError,
     isFetching: dashboardFetching,
-    refetch: refetchDashboard,
   } = useDashboard();
   const [snapDash, setSnapDash] = useState<DashboardData | undefined>();
   useEffect(() => {
@@ -687,9 +685,8 @@ export default function HomePage() {
   }, [queryData]);
   const data = queryData ?? snapDash;
   const refreshDashboard = useCallback(() => {
-    if (shouldHoldServerRefresh()) return;
-    void refetchDashboard();
-  }, [refetchDashboard]);
+    window.location.reload();
+  }, []);
   const {
     invalidateDashboard,
     invalidateTemplates,

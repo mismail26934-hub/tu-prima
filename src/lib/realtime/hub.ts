@@ -5,38 +5,57 @@ type RealtimeClient = {
   send: (data: string) => void;
 };
 
-const clients = new Set<RealtimeClient>();
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
+type RealtimeHubState = {
+  clients: Set<RealtimeClient>;
+  flushTimer: ReturnType<typeof setTimeout> | null;
+};
+
+const GLOBAL_KEY = "__tuPrimaRealtimeHub";
+
+function getHub(): RealtimeHubState {
+  const g = globalThis as typeof globalThis & {
+    [GLOBAL_KEY]?: RealtimeHubState;
+  };
+  if (!g[GLOBAL_KEY]) {
+    g[GLOBAL_KEY] = {
+      clients: new Set<RealtimeClient>(),
+      flushTimer: null,
+    };
+  }
+  return g[GLOBAL_KEY];
+}
 
 export function realtimeAdd(client: RealtimeClient) {
-  clients.add(client);
+  getHub().clients.add(client);
 }
 
 export function realtimeRemove(client: RealtimeClient) {
-  clients.delete(client);
+  getHub().clients.delete(client);
 }
 
 export function realtimeClientCount() {
-  return clients.size;
+  return getHub().clients.size;
 }
 
 function flushDashboardChanged() {
-  flushTimer = null;
+  const hub = getHub();
+  hub.flushTimer = null;
   const payload = JSON.stringify({
     type: "dashboard-changed",
     at: new Date().toISOString(),
   });
-  for (const client of clients) {
+  for (const client of hub.clients) {
     try {
       if (client.readyState === OPEN) client.send(payload);
     } catch {
-      clients.delete(client);
+      hub.clients.delete(client);
     }
   }
 }
 
 /** Coalesce bursts of Excel writes into one ping. */
 export function broadcastDashboardChanged() {
-  if (flushTimer) return;
-  flushTimer = setTimeout(flushDashboardChanged, 40);
+  const hub = getHub();
+  if (hub.flushTimer) return;
+  hub.flushTimer = setTimeout(flushDashboardChanged, 40);
 }

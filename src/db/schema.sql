@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   username      VARCHAR(64)  NOT NULL,
   password_hash VARCHAR(255) NOT NULL DEFAULT '',
   name          VARCHAR(255) NOT NULL DEFAULT '',
+  email         VARCHAR(255) NOT NULL DEFAULT '',
+  phone         VARCHAR(64)  NOT NULL DEFAULT '',
   level         VARCHAR(32)  NOT NULL DEFAULT 'teknisi',
   active        TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    VARCHAR(64)  NOT NULL DEFAULT '',

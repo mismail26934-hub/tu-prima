@@ -724,11 +724,13 @@ export async function loadRelationalWorkbook(
     const [users] = await p.query<mysql.RowDataPacket[]>(
       `SELECT * FROM users ORDER BY username`
     );
-    setSheet(wb, "Users", ["id", "username", "password", "name", "level", "active", "created_at"], users.map((r) => ({
+    setSheet(wb, "Users", ["id", "username", "password", "name", "email", "phone", "level", "active", "created_at"], users.map((r) => ({
       id: str(r.id),
       username: str(r.username),
       password: str(r.password_hash),
       name: str(r.name),
+      email: str(r.email),
+      phone: str(r.phone),
       level: str(r.level),
       active: flag01(r.active) ? "1" : "0",
       created_at: str(r.created_at),
@@ -871,12 +873,14 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
         await conn.query(`DELETE FROM users`);
         for (const row of wb.getWorksheet("Users")?.rows ?? []) {
           await conn.query(
-            `INSERT INTO users (id, username, password_hash, name, level, active, created_at) VALUES (?,?,?,?,?,?,?)`,
+            `INSERT INTO users (id, username, password_hash, name, email, phone, level, active, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
             [
               str(row.id),
               str(row.username),
               str(row.password),
               str(row.name),
+              str(row.email),
+              str(row.phone),
               str(row.level),
               flag01(row.active),
               str(row.created_at),
@@ -947,6 +951,8 @@ export async function ensureRelationalSchema() {
       username VARCHAR(64) NOT NULL,
       password_hash VARCHAR(255) NOT NULL DEFAULT '',
       name VARCHAR(255) NOT NULL DEFAULT '',
+      email VARCHAR(255) NOT NULL DEFAULT '',
+      phone VARCHAR(64) NOT NULL DEFAULT '',
       level VARCHAR(32) NOT NULL DEFAULT 'teknisi',
       active TINYINT(1) NOT NULL DEFAULT 1,
       created_at VARCHAR(64) NOT NULL DEFAULT '',
@@ -1129,6 +1135,12 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await ensureListIndexes(p);
 }

@@ -754,6 +754,8 @@ export default function HomePage() {
     username: "",
     password: "",
     name: "",
+    email: "",
+    phone: "",
     level: "teknisi" as UserLevel,
     active: "1",
   });
@@ -1335,6 +1337,8 @@ export default function HomePage() {
       username: "",
       password: "",
       name: "",
+      email: "",
+      phone: "",
       level: "teknisi",
       active: "1",
     });
@@ -1346,6 +1350,8 @@ export default function HomePage() {
       username: user.username,
       password: "",
       name: user.name,
+      email: user.email || "",
+      phone: user.phone || "",
       level: user.level,
       active: user.active,
     });
@@ -1366,6 +1372,8 @@ export default function HomePage() {
             username: userForm.username,
             password: userForm.password,
             name: userForm.name,
+            email: userForm.email,
+            phone: userForm.phone,
             level: userForm.level,
             active: userForm.active,
           }),
@@ -1376,6 +1384,8 @@ export default function HomePage() {
           body: JSON.stringify({
             username: userForm.username,
             name: userForm.name,
+            email: userForm.email,
+            phone: userForm.phone,
             level: userForm.level,
             active: userForm.active,
             ...(userForm.password ? { password: userForm.password } : {}),
@@ -2403,7 +2413,9 @@ export default function HomePage() {
     return appUsers.filter(
       (u) =>
         u.username.toLowerCase().includes(q) ||
-        u.name.toLowerCase().includes(q)
+        u.name.toLowerCase().includes(q) ||
+        (u.email || "").toLowerCase().includes(q) ||
+        (u.phone || "").toLowerCase().includes(q)
     );
   }, [appUsers, masterUserQuery]);
 
@@ -7469,7 +7481,7 @@ export default function HomePage() {
                     applyMasterUserSearch();
                   }
                 }}
-                placeholder="Cari username atau nama..."
+                placeholder="Cari username, nama, email, atau telp..."
                 aria-label="Cari user"
                 autoFocus
               />
@@ -7516,6 +7528,11 @@ export default function HomePage() {
                       {` · ${u.level}`}
                       {` · ${u.active === "1" ? "aktif" : "nonaktif"}`}
                     </div>
+                    {(u.email || u.phone) && (
+                      <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                        {[u.email, u.phone].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
                   </div>
                   <div className="actions" style={{ marginTop: 0 }}>
                     <button
@@ -7601,6 +7618,28 @@ export default function HomePage() {
                   onChange={(e) =>
                     setUserForm({ ...userForm, name: e.target.value })
                   }
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, email: e.target.value })
+                  }
+                  autoComplete="email"
+                />
+              </label>
+              <label>
+                No. Telp
+                <input
+                  type="tel"
+                  value={userForm.phone}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, phone: e.target.value })
+                  }
+                  autoComplete="tel"
                 />
               </label>
               <label>

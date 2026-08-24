@@ -536,6 +536,8 @@ function mapUser(r: Row): AppUser {
     username,
     password: String(r.password || ""),
     name: String(r.name || "").trim(),
+    email: String(r.email || "").trim(),
+    phone: String(r.phone || "").trim(),
     level: USER_LEVELS.includes(rawLevel as UserLevel)
       ? (rawLevel as UserLevel)
       : fallbackLevel,
@@ -565,6 +567,8 @@ function defaultSeedUser(): AppUser {
     username,
     password,
     name: "Administrator",
+    email: "",
+    phone: "",
     level: "superuser",
     active: "1",
     created_at: nowIso(),
@@ -731,6 +735,8 @@ const USER_HEADERS = [
   "username",
   "password",
   "name",
+  "email",
+  "phone",
   "level",
   "active",
   "created_at",
@@ -4259,6 +4265,8 @@ export async function createUser(input: {
   username: string;
   password: string;
   name?: string;
+  email?: string;
+  phone?: string;
   level?: UserLevel;
   active?: string;
 }): Promise<AppUserPublic> {
@@ -4269,6 +4277,8 @@ export async function createUser(input: {
     const username = input.username.trim();
     const password = input.password;
     const name = (input.name || "").trim() || username;
+    const email = (input.email || "").trim();
+    const phone = (input.phone || "").trim();
     if (!username || !password) {
       throw new Error("username dan password wajib diisi");
     }
@@ -4280,6 +4290,8 @@ export async function createUser(input: {
       username,
       password: await hashPassword(password),
       name,
+      email,
+      phone,
       level: input.level && USER_LEVELS.includes(input.level)
         ? input.level
         : "teknisi",
@@ -4299,6 +4311,8 @@ export async function updateUser(
     username?: string;
     password?: string;
     name?: string;
+    email?: string;
+    phone?: string;
     level?: UserLevel;
     active?: string;
   }
@@ -4329,6 +4343,12 @@ export async function updateUser(
     }
     if (input.name != null) {
       user.name = input.name.trim() || user.username;
+    }
+    if (input.email != null) {
+      user.email = input.email.trim();
+    }
+    if (input.phone != null) {
+      user.phone = input.phone.trim();
     }
     if (input.level && USER_LEVELS.includes(input.level)) {
       if (

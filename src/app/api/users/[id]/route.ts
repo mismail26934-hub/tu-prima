@@ -36,6 +36,8 @@ export async function PATCH(
       username: body.username != null ? String(body.username) : undefined,
       password: body.password != null ? String(body.password) : undefined,
       name: body.name != null ? String(body.name) : undefined,
+      email: body.email != null ? String(body.email) : undefined,
+      phone: body.phone != null ? String(body.phone) : undefined,
       level: USER_LEVELS.includes(body.level as UserLevel)
         ? (body.level as UserLevel)
         : undefined,

@@ -236,6 +236,8 @@ export interface AppUser {
   username: string;
   password: string;
   name: string;
+  email: string;
+  phone: string;
   level: UserLevel;
   active: string; // "1" | "0"
   created_at: string;

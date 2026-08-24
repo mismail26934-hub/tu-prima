@@ -51,6 +51,8 @@ export async function POST(req: Request) {
       username: String(body.username),
       password: String(body.password),
       name: body.name != null ? String(body.name) : undefined,
+      email: body.email != null ? String(body.email) : undefined,
+      phone: body.phone != null ? String(body.phone) : undefined,
       level: USER_LEVELS.includes(body.level as UserLevel)
         ? (body.level as UserLevel)
         : "teknisi",

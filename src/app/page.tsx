@@ -329,6 +329,71 @@ function PanelToggleIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+type StatIconKind =
+  | "available"
+  | "busy"
+  | "offline"
+  | "active"
+  | "queue"
+  | "done";
+
+function StatIcon({ kind }: { kind: StatIconKind }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2.2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true as const,
+  };
+  switch (kind) {
+    case "available":
+      return (
+        <svg {...common}>
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      );
+    case "busy":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      );
+    case "offline":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5.5 19c1.4-3 3.6-4.5 6.5-4.5S17.1 16 18.5 19" />
+          <path d="M4 4l16 16" />
+        </svg>
+      );
+    case "active":
+      return (
+        <svg {...common}>
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+      );
+    case "queue":
+      return (
+        <svg {...common}>
+          <path d="M8 6h13M8 12h13M8 18h13" />
+          <path d="M3 6h.01M3 12h.01M3 18h.01" />
+        </svg>
+      );
+    case "done":
+      return (
+        <svg {...common}>
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <path d="M22 4L12 14.01l-3-3" />
+        </svg>
+      );
+  }
+}
+
 function BusyOverlay({ label = "Memproses..." }: { label?: string }) {
   return (
     <div className="modal-loading" role="status" aria-live="polite">
@@ -4654,22 +4719,31 @@ export default function HomePage() {
             <section className="summary-group">
               <h3 className="summary-title">{t("summary.technicians")}</h3>
               <div className="summary">
-                <div className="stat">
-                  <div className="label">{t("summary.available")}</div>
-                  <div className="value" style={{ color: "var(--green)" }}>
-                    {data.summary.available}
+                <div className="stat stat--available">
+                  <span className="stat-icon" aria-hidden="true">
+                    <StatIcon kind="available" />
+                  </span>
+                  <div className="stat-body">
+                    <div className="label">{t("summary.available")}</div>
+                    <div className="value">{data.summary.available}</div>
                   </div>
                 </div>
-                <div className="stat">
-                  <div className="label">{t("summary.busy")}</div>
-                  <div className="value" style={{ color: "var(--amber)" }}>
-                    {data.summary.busy}
+                <div className="stat stat--busy">
+                  <span className="stat-icon" aria-hidden="true">
+                    <StatIcon kind="busy" />
+                  </span>
+                  <div className="stat-body">
+                    <div className="label">{t("summary.busy")}</div>
+                    <div className="value">{data.summary.busy}</div>
                   </div>
                 </div>
-                <div className="stat">
-                  <div className="label">{t("summary.offline")}</div>
-                  <div className="value" style={{ color: "var(--steel)" }}>
-                    {data.summary.offline}
+                <div className="stat stat--offline">
+                  <span className="stat-icon" aria-hidden="true">
+                    <StatIcon kind="offline" />
+                  </span>
+                  <div className="stat-body">
+                    <div className="label">{t("summary.offline")}</div>
+                    <div className="value">{data.summary.offline}</div>
                   </div>
                 </div>
               </div>
@@ -4677,17 +4751,32 @@ export default function HomePage() {
             <section className="summary-group">
               <h3 className="summary-title">{t("summary.jobs")}</h3>
               <div className="summary">
-                <div className="stat">
-                  <div className="label">{t("summary.activeJobs")}</div>
-                  <div className="value">{data.summary.active_jobs}</div>
+                <div className="stat stat--active">
+                  <span className="stat-icon" aria-hidden="true">
+                    <StatIcon kind="active" />
+                  </span>
+                  <div className="stat-body">
+                    <div className="label">{t("summary.activeJobs")}</div>
+                    <div className="value">{data.summary.active_jobs}</div>
+                  </div>
                 </div>
-                <div className="stat">
-                  <div className="label">{t("summary.queue")}</div>
-                  <div className="value">{data.summary.queued_jobs}</div>
+                <div className="stat stat--queue">
+                  <span className="stat-icon" aria-hidden="true">
+                    <StatIcon kind="queue" />
+                  </span>
+                  <div className="stat-body">
+                    <div className="label">{t("summary.queue")}</div>
+                    <div className="value">{data.summary.queued_jobs}</div>
+                  </div>
                 </div>
-                <div className="stat">
-                  <div className="label">{t("summary.completed")}</div>
-                  <div className="value">{data.summary.completed_jobs}</div>
+                <div className="stat stat--done">
+                  <span className="stat-icon" aria-hidden="true">
+                    <StatIcon kind="done" />
+                  </span>
+                  <div className="stat-body">
+                    <div className="label">{t("summary.completed")}</div>
+                    <div className="value">{data.summary.completed_jobs}</div>
+                  </div>
                 </div>
               </div>
             </section>

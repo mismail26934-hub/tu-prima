@@ -1,6 +1,7 @@
 import type mysql from "mysql2/promise";
 import { getPool } from "@/db/mysql-workbook";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
+import { parseStepTechnicianIds } from "@/lib/step-technicians";
 import type {
   DashboardData,
   Job,
@@ -98,6 +99,7 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     completed_at: str(r.completed_at),
     duration_sec: num(r.duration_sec),
     std_minutes: num(r.std_minutes),
+    technician_ids: parseStepTechnicianIds(r.technician_ids),
   };
 }
 
@@ -305,6 +307,11 @@ async function enrichJobsBatch(
     const id = str(row.technician_id);
     if (id) techIdSet.add(id);
   }
+  for (const row of steps) {
+    for (const id of parseStepTechnicianIds(row.technician_ids)) {
+      techIdSet.add(id);
+    }
+  }
   const techs = await loadTechniciansByIds([...techIdSet]);
   const techById = new Map(techs.map((t) => [t.id, t]));
 
@@ -459,6 +466,22 @@ export async function listJobsPaginated(input: {
     totalPages,
     nextCursor,
   };
+}
+
+export async function listJobsForExport(
+  statuses: JobStatus[]
+): Promise<JobWithDetails[]> {
+  const unique = [...new Set(statuses.filter(Boolean))];
+  if (!unique.length) return [];
+  const p = getPool();
+  const ph = unique.map(() => "?").join(",");
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT * FROM jobs
+     WHERE job_scope = 'active' AND status IN (${ph})
+     ORDER BY created_at ASC, id ASC`,
+    unique
+  );
+  return enrichJobsBatch(rows.map(mapJobRow), false);
 }
 
 export async function listTechniciansPaginated(input: {

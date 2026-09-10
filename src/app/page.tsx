@@ -32,6 +32,11 @@ import {
   canSetTechnicianPresence,
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
+import {
+  assignedTechnicianIds,
+  resolveStepTechnicianIds,
+  stepTechnicianNames,
+} from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
@@ -95,6 +100,8 @@ type Modal =
     }
   | { type: "start-next-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
+  | { type: "step-technicians"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
+  | { type: "print-pdf"; job: JobWithDetails }
   | { type: "complete-job"; job: JobWithDetails }
   | { type: "delegate-job"; job: JobWithDetails }
   | { type: "reopen-job"; job: JobWithDetails }
@@ -154,6 +161,7 @@ type Modal =
   | { type: "logout" }
   | { type: "settings" }
   | { type: "export-jobs" }
+  | { type: "export-jobs-confirm" }
   | { type: "job-backups" }
   | {
       type: "process-alert";
@@ -1738,6 +1746,7 @@ export default function HomePage() {
   const [selectedStepsByJob, setSelectedStepsByJob] = useState<
     Record<string, string[]>
   >({});
+  const [stepTechnicianIds, setStepTechnicianIds] = useState<string[]>([]);
   /** sequential = auto one-by-one; parallel = checkbox batch start. */
   const [stepModeByJob, setStepModeByJob] = useState<
     Record<string, "sequential" | "parallel">
@@ -2052,7 +2061,7 @@ export default function HomePage() {
     }
   }
 
-  async function exportJobsReport() {
+  function requestExportJobsReport() {
     if (!isLoggedIn) {
       setError("Silakan login untuk export laporan job");
       return;
@@ -2065,7 +2074,11 @@ export default function HomePage() {
       setError("Tanggal dari tidak boleh lebih besar dari tanggal sampai");
       return;
     }
+    setError("");
+    setModal({ type: "export-jobs-confirm" });
+  }
 
+  async function exportJobsReport() {
     const scope = exportForm.scope;
     const title =
       scope === "active"
@@ -2753,6 +2766,49 @@ export default function HomePage() {
     }
   }
 
+  function initStepTechnicianIds(
+    job: JobWithDetails,
+    step: JobWithDetails["steps"][0]
+  ) {
+    setStepTechnicianIds(
+      resolveStepTechnicianIds(step, assignedTechnicianIds(job))
+    );
+  }
+
+  function toggleStepTechnician(id: string) {
+    setStepTechnicianIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function renderStepTechnicianPicker(job: JobWithDetails) {
+    const techs = job.technicians || [];
+    if (!techs.length) return null;
+    return (
+      <div className="check-list" style={{ margin: "0 0 16px" }}>
+        <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: "0 0 8px" }}>
+          {t("job.stepTechniciansHint")}
+        </p>
+        {techs.map((tech) => (
+          <label className="check-item" key={tech.id}>
+            <input
+              type="checkbox"
+              checked={stepTechnicianIds.includes(tech.id)}
+              disabled={busy}
+              onChange={() => toggleStepTechnician(tech.id)}
+            />
+            <span>
+              {tech.name}
+              {tech.sn ? (
+                <span style={{ color: "var(--muted)" }}> — {tech.sn}</span>
+              ) : null}
+            </span>
+          </label>
+        ))}
+      </div>
+    );
+  }
+
   function toggleStepSelect(jobId: string, stepId: string, checked: boolean) {
     setSelectedStepsByJob((prev) => {
       const cur = new Set(prev[jobId] || []);
@@ -3421,15 +3477,36 @@ export default function HomePage() {
                 ) : (
                   <span className={`mark ${s.status}`} />
                 )}
-                <span className="step-name">
-                  {s.order}. {s.name}
-                  {s.status === "in_progress" ? " (aktif)" : ""}
-                  {Number(s.std_minutes || 0) > 0 && (
-                    <span className="step-stp" title="STP / Std Hours">
-                      {" "}
-                      · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
-                    </span>
-                  )}
+                <span className="step-main">
+                  <span className="step-name">
+                    {s.order}. {s.name}
+                    {s.status === "in_progress" ? " (aktif)" : ""}
+                    {Number(s.std_minutes || 0) > 0 && (
+                      <span className="step-stp" title="STP / Std Hours">
+                        {" "}
+                        · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
+                      </span>
+                    )}
+                  </span>
+                  {job.technicians?.length ? (
+                    <button
+                      type="button"
+                      className={`step-techs${progressOk ? "" : " is-static"}`}
+                      disabled={busy || !progressOk}
+                      onClick={() => {
+                        if (!progressOk) return;
+                        initStepTechnicianIds(job, s);
+                        setModal({ type: "step-technicians", job, step: s });
+                      }}
+                      title={
+                        progressOk
+                          ? t("job.stepTechniciansEdit")
+                          : t("job.stepTechnicians")
+                      }
+                    >
+                      {t("job.technician")}: {stepTechnicianNames(s, job) || "—"}
+                    </button>
+                  ) : null}
                 </span>
                 <span className="step-meta">
                   <StepDuration
@@ -3445,9 +3522,10 @@ export default function HomePage() {
                         <button
                           className="btn btn-step btn-primary"
                           disabled={busy}
-                          onClick={() =>
-                            setModal({ type: "complete-step", job, step: s })
-                          }
+                          onClick={() => {
+                            initStepTechnicianIds(job, s);
+                            setModal({ type: "complete-step", job, step: s });
+                          }}
                           title="Selesaikan step ini"
                         >
                           Selesai
@@ -3465,7 +3543,7 @@ export default function HomePage() {
             type="button"
             className="btn"
             disabled={busy}
-            onClick={() => printJobPdf(job)}
+            onClick={() => setModal({ type: "print-pdf", job })}
             title="Unduh PDF job (teknisi, steps, handover, peminjaman part)"
           >
             Print PDF
@@ -5249,7 +5327,7 @@ export default function HomePage() {
               <button
                 className="btn btn-primary"
                 disabled={busy}
-                onClick={() => exportJobsReport()}
+                onClick={() => requestExportJobsReport()}
               >
                 <BusyLabel
                   busy={busy}
@@ -5365,6 +5443,62 @@ export default function HomePage() {
               </button>
               <button className="btn" onClick={closeModal} disabled={busy}>
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "export-jobs-confirm" && (
+        <div className="modal-backdrop" onClick={() => setModal({ type: "export-jobs" })}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("export.title")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {exportForm.scope === "active"
+                ? t("export.scopeActive")
+                : t("export.scopeQueue")}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>{t("export.confirm")}</p>
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => setModal({ type: "export-jobs" })}
+                disabled={busy}
+              >
+                {t("job.cancelAction")}
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void exportJobsReport()}
+              >
+                {t("export.confirmYes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "print-pdf" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("job.printPdf")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              {t("job.printPdfConfirm")}
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                {t("job.cancelAction")}
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void printJobPdf(modal.job)}
+              >
+                {t("job.printPdfYes")}
               </button>
             </div>
           </div>
@@ -6295,23 +6429,76 @@ export default function HomePage() {
                   </>
                 )}
             </p>
+            {renderStepTechnicianPicker(modal.job)}
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 Tidak
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !modalProgressOk}
+                disabled={
+                  busy ||
+                  !modalProgressOk ||
+                  ((modal.job.technicians?.length || 0) > 0 &&
+                    stepTechnicianIds.length === 0)
+                }
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
                   runAction(modal.job.id, "complete_step", {
                     step_id: modal.step.id,
                     step_mode: mode,
                     auto_next: mode === "sequential",
+                    ...(modal.job.technicians?.length
+                      ? { technician_ids: stepTechnicianIds }
+                      : {}),
                   });
                 }}
               >
                 <BusyLabel busy={busy} idle="Ya, selesai step" pending="Memproses..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "step-technicians" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>{t("job.stepTechniciansEdit")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 12px" }}>
+              {t("job.steps")}{" "}
+              <strong>
+                {modal.step.order}. {modal.step.name}
+              </strong>
+            </p>
+            {renderStepTechnicianPicker(modal.job)}
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={
+                  busy ||
+                  !modalProgressOk ||
+                  stepTechnicianIds.length === 0
+                }
+                onClick={() =>
+                  runAction(modal.job.id, "set_step_technicians", {
+                    step_id: modal.step.id,
+                    technician_ids: stepTechnicianIds,
+                  })
+                }
+              >
+                <BusyLabel
+                  busy={busy}
+                  idle={t("job.stepTechniciansSave")}
+                  pending="Memproses..."
+                />
               </button>
             </div>
           </div>

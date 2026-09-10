@@ -131,6 +131,11 @@ export interface JobStep {
   duration_sec: number;
   /** Standard time from template STP/Std Hours (minutes). */
   std_minutes: number;
+  /**
+   * Technicians who worked this step (subset of job assignees).
+   * Empty / omitted = all technicians assigned to the job.
+   */
+  technician_ids?: string[];
 }
 
 export interface JobEvent {

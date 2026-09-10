@@ -1798,9 +1798,42 @@ html[data-theme="light"].menu-open .topbar-glass {
   gap: 8px;
 }
 
+.steps .step-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .steps .step-name {
   min-width: 0;
   word-break: break-word;
+}
+
+.steps .step-techs {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.steps .step-techs.is-static,
+.steps .step-techs:disabled {
+  cursor: default;
+}
+
+.steps .step-techs:not(:disabled):not(.is-static):hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 
 .steps .step-stp {

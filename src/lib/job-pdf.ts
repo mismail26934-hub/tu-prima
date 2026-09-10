@@ -6,6 +6,7 @@ import {
   calcStepElapsedSec,
   formatDuration,
 } from "@/lib/duration";
+import { stepTechnicianNames } from "@/lib/step-technicians";
 
 function fmtDate(iso: string): string {
   if (!iso) return "—";
@@ -120,7 +121,7 @@ export function downloadJobPdf(job: JobWithDetails): void {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["NO", "Step", "STP / Std", "Status", "Durasi"]],
+    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi"]],
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
@@ -136,6 +137,7 @@ export function downloadJobPdf(job: JobWithDetails): void {
         : "—",
       s.status,
       formatDuration(calcStepElapsedSec(s)),
+      stepTechnicianNames(s, job) || "—",
     ]),
     styles: { fontSize: 8, cellPadding: 1.5 },
     headStyles: { fillColor: [40, 48, 62], textColor: 255 },

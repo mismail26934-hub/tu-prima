@@ -18,6 +18,7 @@ import type {
   JobStep,
   Technician,
 } from "@/lib/types";
+import { serializeStepTechnicianIds } from "@/lib/step-technicians";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const DELETED_JOBS_PATH = "mysql://deleted";
@@ -68,6 +69,7 @@ const STEP_HEADERS = [
   "completed_at",
   "duration_sec",
   "std_minutes",
+  "technician_ids",
 ];
 
 const EVENT_HEADERS = [
@@ -223,6 +225,7 @@ export async function archiveDeletedJob(input: {
       completed_at: s.completed_at,
       duration_sec: s.duration_sec,
       std_minutes: s.std_minutes,
+      technician_ids: serializeStepTechnicianIds(s.technician_ids),
     }))
   );
 

@@ -20,6 +20,10 @@ import type {
   Technician,
 } from "@/lib/types";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
+import {
+  parseStepTechnicianIds,
+  serializeStepTechnicianIds,
+} from "@/lib/step-technicians";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const CANCELLED_JOBS_PATH = "mysql://cancelled";
@@ -70,6 +74,7 @@ const STEP_HEADERS = [
   "completed_at",
   "duration_sec",
   "std_minutes",
+  "technician_ids",
 ];
 
 const EVENT_HEADERS = [
@@ -213,6 +218,7 @@ function mapStepRow(r: Row): JobStep {
     completed_at: String(r.completed_at || ""),
     duration_sec: Number(r.duration_sec || 0),
     std_minutes: Number(r.std_minutes || 0),
+    technician_ids: parseStepTechnicianIds(r.technician_ids),
   };
 }
 
@@ -333,6 +339,7 @@ export async function archiveCancelledJob(input: {
       completed_at: s.completed_at,
       duration_sec: s.duration_sec,
       std_minutes: s.std_minutes,
+      technician_ids: serializeStepTechnicianIds(s.technician_ids),
     }))
   );
 

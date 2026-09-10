@@ -26,6 +26,13 @@ import type {
 } from "./types";
 import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
+import {
+  assignedIdsFromAssignees,
+  parseStepTechnicianIds,
+  selectedStepTechnicianIds,
+  serializeStepTechnicianIds,
+  technicianNamesByIds,
+} from "./step-technicians";
 import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
 import {
@@ -436,6 +443,7 @@ function mapStep(r: Row): JobStep {
     completed_at: String(r.completed_at || ""),
     duration_sec: Number(r.duration_sec || 0),
     std_minutes: Number(r.std_minutes || 0),
+    technician_ids: parseStepTechnicianIds(r.technician_ids),
   };
 }
 
@@ -593,6 +601,7 @@ function stepToRow(s: JobStep): Row {
     order: s.order,
     duration_sec: s.duration_sec,
     std_minutes: Number(s.std_minutes || 0),
+    technician_ids: serializeStepTechnicianIds(s.technician_ids),
   };
 }
 
@@ -673,6 +682,7 @@ const STEP_HEADERS = [
   "completed_at",
   "duration_sec",
   "std_minutes",
+  "technician_ids",
 ];
 const HANDOVER_HEADERS = [
   "id",
@@ -2653,6 +2663,7 @@ type JobAction =
   | "start_step"
   | "start_steps"
   | "complete_step"
+  | "set_step_technicians"
   | "complete"
   | "cancel"
   | "reopen";
@@ -2902,6 +2913,7 @@ export async function jobAction(
         "start_step",
         "start_steps",
         "complete_step",
+        "set_step_technicians",
         "complete",
       ].includes(action)
     ) {
@@ -3187,6 +3199,14 @@ export async function jobAction(
         ? jobSteps().find((s) => s.id === stepId)
         : jobSteps().find((s) => s.status === "in_progress");
       if (!current) throw new Error("Step tidak ditemukan");
+      const applyStepTechs = () => {
+        const assignedIds = assignedIdsFromAssignees(job, assignees);
+        const nextTechIds = selectedStepTechnicianIds(
+          payload?.technician_ids,
+          assignedIds
+        );
+        if (nextTechIds) current.technician_ids = nextTechIds;
+      };
       const wantAutoNext =
         payload?.auto_next === true ||
         (payload?.step_mode === "sequential" && payload?.auto_next !== false);
@@ -3204,6 +3224,7 @@ export async function jobAction(
       };
       if (current.status === "done") {
         // Idempotent replay: step already completed on server.
+        applyStepTechs();
         maybeAutoNext();
       } else if (current.status !== "in_progress") {
         throw new Error("Hanya step aktif yang bisa diselesaikan");
@@ -3223,10 +3244,46 @@ export async function jobAction(
       current.completed_at = payload?.completed_at || nowIso();
       current.started_at =
         payload?.started_at || current.started_at || current.completed_at;
+      applyStepTechs();
       pushEvent("step_completed", current.name);
 
       maybeAutoNext();
       }
+    }
+
+    if (action === "set_step_technicians") {
+      if (
+        !["queued", "assigned", "in_progress", "paused", "done"].includes(
+          job.status
+        )
+      ) {
+        throw new Error("Teknisi step tidak bisa diubah pada status ini");
+      }
+      const stepId = String(payload?.step_id || "");
+      const step = jobSteps().find((s) => s.id === stepId);
+      if (!step) throw new Error("Step tidak ditemukan");
+      const assignedIds = assignedIdsFromAssignees(job, assignees);
+      if (assignedIds.length === 0) {
+        throw new Error("Assign teknisi dulu");
+      }
+      const nextTechIds = selectedStepTechnicianIds(
+        payload?.technician_ids ?? [],
+        assignedIds
+      );
+      if (!nextTechIds) {
+        throw new Error("Pilih minimal satu teknisi yang ditugaskan");
+      }
+      step.technician_ids = nextTechIds;
+      const names = technicianNamesByIds(nextTechIds, techs);
+      pushEvent(
+        "updated",
+        `Teknisi step ${step.order}. ${step.name}: ${names || "—"}`
+      );
+      pushAudit(
+        "update",
+        `Teknisi step ${step.order}. ${step.name}: ${names || "—"}`,
+        step.id
+      );
     }
 
     if (action === "complete") {

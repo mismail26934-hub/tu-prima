@@ -102,6 +102,9 @@ const id = {
   "job.delete": "Delete",
   "job.reopen": "Reopen",
   "job.printPdf": "Print PDF",
+  "job.printPdfConfirm":
+    "Unduh PDF job ini (teknisi, steps, handover, peminjaman part)?",
+  "job.printPdfYes": "Ya, unduh PDF",
   "job.handover": "Handover",
   "job.partLoan": "Part Loan",
   "job.add": "Tambah",
@@ -139,6 +142,11 @@ const id = {
   "job.parallel": "Parallel",
   "job.sequentialHint": "Satu step aktif; selesai → lanjut otomatis",
   "job.parallelHint": "Centang beberapa step → Start terpilih (timer sama)",
+  "job.stepTechnicians": "Teknisi step",
+  "job.stepTechniciansHint":
+    "Pilih teknisi yang mengerjakan step ini. Default: semua teknisi yang ditugaskan.",
+  "job.stepTechniciansEdit": "Ubah teknisi step",
+  "job.stepTechniciansSave": "Simpan teknisi",
 
   "export.title": "Export to excel",
   "export.hint": "Pilih jenis laporan dan filter tanggal (opsional).",
@@ -158,6 +166,8 @@ const id = {
   "export.close": "Tutup",
   "export.busyLabel": "Export Job Aktif",
   "export.busyLabelQueue": "Export Job Antrian",
+  "export.confirm": "Unduh file Excel sesuai filter yang dipilih?",
+  "export.confirmYes": "Ya, unduh Excel",
 
   "login.title": "PRIMA",
   "login.hint":
@@ -331,6 +341,9 @@ const en: Record<MessageKey, string> = {
   "job.delete": "Delete",
   "job.reopen": "Reopen",
   "job.printPdf": "Print PDF",
+  "job.printPdfConfirm":
+    "Download this job PDF (technicians, steps, handover, part loans)?",
+  "job.printPdfYes": "Yes, download PDF",
   "job.handover": "Handover",
   "job.partLoan": "Part Loan",
   "job.add": "Add",
@@ -368,6 +381,11 @@ const en: Record<MessageKey, string> = {
   "job.parallel": "Parallel",
   "job.sequentialHint": "One active step; finish → auto continue",
   "job.parallelHint": "Check steps → Start selected (shared timer)",
+  "job.stepTechnicians": "Step technicians",
+  "job.stepTechniciansHint":
+    "Choose who worked this step. Default: all technicians assigned to the job.",
+  "job.stepTechniciansEdit": "Edit step technicians",
+  "job.stepTechniciansSave": "Save technicians",
 
   "export.title": "Export to Excel",
   "export.hint": "Choose report type and optional date filter.",
@@ -387,6 +405,8 @@ const en: Record<MessageKey, string> = {
   "export.close": "Close",
   "export.busyLabel": "Export Active Jobs",
   "export.busyLabelQueue": "Export Queued Jobs",
+  "export.confirm": "Download the Excel file with the selected filters?",
+  "export.confirmYes": "Yes, download Excel",
 
   "login.title": "PRIMA",
   "login.hint":

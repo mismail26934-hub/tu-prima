@@ -18,6 +18,10 @@ import type {
   Unit,
 } from "@/lib/types";
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
+import {
+  assignedTechnicianIds,
+  selectedStepTechnicianIds,
+} from "@/lib/step-technicians";
 
 function nowIso() {
   return new Date().toISOString();
@@ -350,6 +354,7 @@ function toJobSteps(jobId: string, defs: JobStepPayload[]): JobStep[] {
     completed_at: "",
     duration_sec: 0,
     std_minutes: Number(def.std_minutes || 0),
+    technician_ids: [],
   }));
 }
 
@@ -552,6 +557,18 @@ function applyJobAction(
           // freezeStepDuration ignores started_at when status === "done".
           started_at: String(body.started_at || s.started_at || at),
           duration_sec: duration,
+          technician_ids: (() => {
+            try {
+              return (
+                selectedStepTechnicianIds(
+                  body.technician_ids,
+                  assignedTechnicianIds(j)
+                ) ?? s.technician_ids
+              );
+            } catch {
+              return s.technician_ids;
+            }
+          })(),
         };
       });
       if (autoNext) {
@@ -562,6 +579,26 @@ function applyJobAction(
         }
       }
       return { ...j, steps };
+    });
+  }
+
+  if (action === "set_step_technicians") {
+    const stepId = String(body.step_id || "");
+    return mapJob(data, jobId, (j) => {
+      const assignedIds = assignedTechnicianIds(j);
+      let nextIds: string[] | undefined;
+      try {
+        nextIds = selectedStepTechnicianIds(body.technician_ids ?? [], assignedIds);
+      } catch {
+        return j;
+      }
+      if (!nextIds) return j;
+      return {
+        ...j,
+        steps: j.steps.map((s) =>
+          s.id === stepId ? { ...s, technician_ids: nextIds } : s
+        ),
+      };
     });
   }
 

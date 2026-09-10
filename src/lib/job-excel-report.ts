@@ -1,11 +1,12 @@
 import ExcelJS from "exceljs";
 import type { JobStatus, JobWithDetails } from "@/lib/types";
-import { getDashboard } from "@/lib/excel";
+import { listJobsForExport } from "@/lib/board-list";
 import {
   calcElapsedSec,
   calcStepElapsedSec,
   formatDuration,
 } from "@/lib/duration";
+import { stepTechnicianNames } from "@/lib/step-technicians";
 
 export type JobReportScope = "active" | "queue";
 
@@ -86,7 +87,7 @@ function stepsText(job: JobWithDetails): string {
           : " | STP/Std Hours: —";
       return `${s.order}. ${s.name}${stp} | [${s.status}] ${formatDuration(
         calcStepElapsedSec(s)
-      )}`;
+      )} | Teknisi: ${stepTechnicianNames(s, job) || "—"}`;
     })
     .join("\n");
 }
@@ -151,10 +152,9 @@ export async function buildJobsReportBuffer(
   scope: JobReportScope,
   filters: JobReportFilters = {}
 ): Promise<{ buffer: ExcelJS.Buffer; filename: string; count: number }> {
-  const dashboard = await getDashboard();
   const statuses = SCOPE_STATUSES[scope];
   const dateField = filters.dateField || "created";
-  const jobs = dashboard.jobs
+  const jobs = (await listJobsForExport(statuses))
     .filter((j) => statuses.includes(j.status))
     .filter((j) => matchDateFilter(j, { ...filters, dateField }))
     .slice()

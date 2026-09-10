@@ -75,6 +75,17 @@ export async function ensureDatabaseExists() {
           `Start MariaDB/MySQL service terlebih dahulu (atau jalankan mysqld).`
       );
     }
+    if (e.code === 'ETIMEDOUT') {
+      const portHint =
+        cfg.port === 8080
+          ? ` Port 8080 biasanya HTTP (phpMyAdmin/XAMPP), bukan MySQL. Coba :3306.`
+          : '';
+      throw new Error(
+        `Timeout koneksi MySQL ke ${cfg.host}:${cfg.port}.` +
+          portHint +
+          ` Pastikan host bisa dijangkau, firewall mengizinkan, dan DATABASE_URL memakai port MySQL (default 3306).`
+      );
+    }
     throw err;
   }
   try {

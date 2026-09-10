@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS job_steps (
   completed_at VARCHAR(64)  NOT NULL DEFAULT '',
   duration_sec INT          NOT NULL DEFAULT 0,
   std_minutes  INT          NOT NULL DEFAULT 0,
+  technician_ids TEXT,
   KEY idx_job_steps_job (job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -43,6 +43,52 @@ export function assignedIdsFromAssignees(
   return [...new Set(ids)];
 }
 
+export function unionTechnicianIds(
+  ...lists: Array<string[] | undefined>
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const raw of list || []) {
+      const id = String(raw || "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+/** Stored IDs if present, otherwise current assignees. Does not drop unassigned IDs. */
+export function frozenStepTechnicianIds(
+  step: Pick<JobStep, "technician_ids">,
+  assignedIds: string[]
+): string[] {
+  const stored = parseStepTechnicianIds(step.technician_ids);
+  return stored.length ? stored : [...assignedIds];
+}
+
+/** Keep step snapshot (or previous assignees) and add newly assigned technicians. */
+export function mergeInProgressStepTechnicians(
+  step: Pick<JobStep, "technician_ids">,
+  previousAssignedIds: string[],
+  nextAssignedIds: string[]
+): string[] {
+  return unionTechnicianIds(
+    frozenStepTechnicianIds(step, previousAssignedIds),
+    nextAssignedIds
+  );
+}
+
+export function stampEmptyTechnicianIds(
+  step: { technician_ids?: string[] },
+  assignedIds: string[]
+): void {
+  if (parseStepTechnicianIds(step.technician_ids).length) return;
+  if (!assignedIds.length) return;
+  step.technician_ids = [...assignedIds];
+}
+
 /** Empty stored list = all currently assigned technicians. */
 export function resolveStepTechnicianIds(
   step: Pick<JobStep, "technician_ids">,
@@ -55,12 +101,37 @@ export function resolveStepTechnicianIds(
   return filtered.length ? filtered : assignedIds;
 }
 
+/**
+ * Done / in_progress keep the snapshot in job_steps.technician_ids
+ * (including technicians later removed from the job).
+ * Pending still follows current assignees when the list is empty.
+ */
+export function displayStepTechnicianIds(
+  step: Pick<JobStep, "technician_ids" | "status">,
+  assignedIds: string[]
+): string[] {
+  const stored = parseStepTechnicianIds(step.technician_ids);
+  if (
+    stored.length &&
+    (step.status === "done" || step.status === "in_progress")
+  ) {
+    return stored;
+  }
+  return resolveStepTechnicianIds(step, assignedIds);
+}
+
 export function stepTechnicianNames(
-  step: Pick<JobStep, "technician_ids">,
+  step: Pick<JobStep, "technician_ids" | "status">,
   job: JobWithDetails
 ): string {
-  const ids = resolveStepTechnicianIds(step, assignedTechnicianIds(job));
-  const byId = new Map((job.technicians || []).map((t) => [t.id, t.name]));
+  const ids = displayStepTechnicianIds(step, assignedTechnicianIds(job));
+  const byId = new Map<string, string>();
+  for (const t of job.technician_index || []) {
+    if (t.id) byId.set(t.id, t.name);
+  }
+  for (const t of job.technicians || []) {
+    if (t.id) byId.set(t.id, t.name);
+  }
   if (job.technician?.id && job.technician.name) {
     byId.set(job.technician.id, job.technician.name);
   }
@@ -76,19 +147,20 @@ export function stepTechnicianNames(
  */
 export function selectedStepTechnicianIds(
   payloadIds: unknown,
-  assignedIds: string[]
+  assignedIds: string[],
+  extraAllowedIds: string[] = []
 ): string[] | undefined {
   if (payloadIds == null) return undefined;
   if (!Array.isArray(payloadIds)) {
     throw new Error("technician_ids tidak valid");
   }
-  const allowed = new Set(assignedIds);
+  const allowed = new Set(unionTechnicianIds(assignedIds, extraAllowedIds));
   const next = [
     ...new Set(
       payloadIds.map((id) => String(id || "").trim()).filter((id) => allowed.has(id))
     ),
   ];
-  if (assignedIds.length > 0 && next.length === 0) {
+  if (allowed.size > 0 && next.length === 0) {
     throw new Error("Pilih minimal satu teknisi yang ditugaskan");
   }
   return next;

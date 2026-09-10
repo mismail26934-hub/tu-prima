@@ -48,6 +48,8 @@ export async function PATCH(
           body.status === "available" || body.status === "offline"
             ? body.status
             : undefined,
+        superior_user_id:
+          body.superior_user_id != null ? String(body.superior_user_id) : undefined,
       });
       return NextResponse.json(tech);
     }

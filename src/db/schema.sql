@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS technicians (
   status         VARCHAR(32)  NOT NULL DEFAULT 'offline',
   current_job_id VARCHAR(64)  NOT NULL DEFAULT '',
   phone          VARCHAR(64)  NOT NULL DEFAULT '',
+  superior_user_id   VARCHAR(64)  NOT NULL DEFAULT '',
+  superior_user_name VARCHAR(255) NOT NULL DEFAULT '',
   KEY idx_technicians_status_name (status, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -120,6 +122,7 @@ CREATE TABLE IF NOT EXISTS job_handovers (
   job_id         VARCHAR(64)  NOT NULL,
   handover_order INT          NOT NULL DEFAULT 0,
   title          VARCHAR(255) NOT NULL DEFAULT '',
+  to_name        VARCHAR(255) NOT NULL DEFAULT '',
   done           TINYINT(1)   NOT NULL DEFAULT 0,
   note           TEXT,
   user_id        VARCHAR(64)  NOT NULL DEFAULT '',

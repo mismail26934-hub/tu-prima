@@ -84,6 +84,15 @@ export function useUsers(enabled: boolean) {
   });
 }
 
+export function useForemen(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.foremen,
+    queryFn: () => api<AppUserPublic[]>("/api/users/foremen"),
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
 export function useJobBackups(includeUndone: boolean, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.backups.list(includeUndone),

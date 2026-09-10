@@ -40,6 +40,7 @@ export const queryKeys = {
       ["job-templates", "detail", id, { includeInactive }] as const,
   },
   users: ["users"] as const,
+  foremen: ["users", "foremen"] as const,
   backups: {
     all: ["job-backups"] as const,
     list: (includeUndone: boolean) =>

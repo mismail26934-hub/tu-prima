@@ -343,6 +343,7 @@ function handoverHeaders(scope: JobScope): string[] {
     "job_id",
     "order",
     "title",
+    "to_name",
     "done",
     "note",
     "user_id",
@@ -436,6 +437,7 @@ function handoverRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       job_id: str(r.job_id),
       order: num(r.handover_order),
       title: str(r.title),
+      to_name: str(r.to_name),
       done: flag01(r.done) ? "1" : "0",
       note: str(r.note),
       user_id: str(r.user_id),
@@ -591,13 +593,14 @@ async function saveScopedJobs(
   const insertHandovers = wb.getWorksheet(SCOPE_HANDOVER_SHEET[scope])?.rows ?? [];
   for (const row of insertHandovers) {
     await conn.query(
-      `INSERT INTO job_handovers (id, job_id, handover_order, title, done, note, user_id, user_name, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_handovers (id, job_id, handover_order, title, to_name, done, note, user_id, user_name, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
         num(row.order),
         str(row.title),
+        str(row.to_name),
         flag01(row.done),
         str(row.note),
         str(row.user_id),
@@ -702,7 +705,7 @@ export async function loadRelationalWorkbook(
     const [techs] = await p.query<mysql.RowDataPacket[]>(
       `SELECT * FROM technicians ORDER BY name`
     );
-    setSheet(wb, "Technicians", ["id", "name", "sn", "badge_id", "email", "status", "current_job_id", "phone"], techs.map((r) => ({
+    setSheet(wb, "Technicians", ["id", "name", "sn", "badge_id", "email", "status", "current_job_id", "phone", "superior_user_id", "superior_user_name"], techs.map((r) => ({
       id: str(r.id),
       name: str(r.name),
       sn: str(r.sn),
@@ -711,6 +714,8 @@ export async function loadRelationalWorkbook(
       status: str(r.status),
       current_job_id: str(r.current_job_id),
       phone: str(r.phone),
+      superior_user_id: str(r.superior_user_id),
+      superior_user_name: str(r.superior_user_name),
     })));
 
     const [units] = await p.query<mysql.RowDataPacket[]>(
@@ -845,7 +850,7 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
         await conn.query(`DELETE FROM technicians`);
         for (const row of wb.getWorksheet("Technicians")?.rows ?? []) {
           await conn.query(
-            `INSERT INTO technicians (id, name, sn, badge_id, email, status, current_job_id, phone) VALUES (?,?,?,?,?,?,?,?)`,
+            `INSERT INTO technicians (id, name, sn, badge_id, email, status, current_job_id, phone, superior_user_id, superior_user_name) VALUES (?,?,?,?,?,?,?,?,?,?)`,
             [
               str(row.id),
               str(row.name),
@@ -855,6 +860,8 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
               str(row.status),
               str(row.current_job_id),
               str(row.phone),
+              str(row.superior_user_id),
+              str(row.superior_user_name),
             ]
           );
         }
@@ -969,7 +976,9 @@ export async function ensureRelationalSchema() {
       email VARCHAR(255) NOT NULL DEFAULT '',
       status VARCHAR(32) NOT NULL DEFAULT 'offline',
       current_job_id VARCHAR(64) NOT NULL DEFAULT '',
-      phone VARCHAR(64) NOT NULL DEFAULT ''
+      phone VARCHAR(64) NOT NULL DEFAULT '',
+      superior_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      superior_user_name VARCHAR(255) NOT NULL DEFAULT ''
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS units (
       id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -1050,6 +1059,7 @@ export async function ensureRelationalSchema() {
       job_id VARCHAR(64) NOT NULL,
       handover_order INT NOT NULL DEFAULT 0,
       title VARCHAR(255) NOT NULL DEFAULT '',
+      to_name VARCHAR(255) NOT NULL DEFAULT '',
       done TINYINT(1) NOT NULL DEFAULT 0,
       note TEXT,
       user_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -1141,6 +1151,12 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await p.query(
+    `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS superior_user_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS superior_user_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await p.query(
@@ -1148,6 +1164,9 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS technician_ids TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_name VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await ensureListIndexes(p);
 }

@@ -152,16 +152,17 @@ export function downloadJobPdf(job: JobWithDetails): void {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["NO", "Job Handover", "Done", "Note"]],
+    head: [["NO", "Job Handover", "Ditujukan kepada", "Done", "Note"]],
     body:
       (job.handovers || []).length > 0
         ? (job.handovers || []).map((h) => [
             String(h.order),
             h.title,
+            h.to_name || "—",
             h.done === "1" ? "Yes" : "No",
             h.note || "—",
           ])
-        : [["—", "Belum ada catatan handover", "—", "—"]],
+        : [["—", "Belum ada catatan handover", "—", "—", "—"]],
     styles: { fontSize: 8, cellPadding: 1.5 },
     headStyles: { fillColor: [40, 48, 62], textColor: 255 },
     theme: "grid",

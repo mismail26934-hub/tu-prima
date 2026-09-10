@@ -168,6 +168,7 @@ CREATE TABLE `job_handovers` (
   `job_id` varchar(64) NOT NULL,
   `handover_order` int(11) NOT NULL DEFAULT 0,
   `title` varchar(255) NOT NULL DEFAULT '',
+  `to_name` varchar(255) NOT NULL DEFAULT '',
   `done` tinyint(1) NOT NULL DEFAULT 0,
   `note` text DEFAULT NULL,
   `user_id` varchar(64) NOT NULL DEFAULT '',
@@ -225,7 +226,9 @@ CREATE TABLE `technicians` (
   `current_job_id` varchar(64) NOT NULL DEFAULT '',
   `phone` varchar(64) NOT NULL DEFAULT '',
   `badge_id` varchar(64) NOT NULL DEFAULT '',
-  `email` varchar(255) NOT NULL DEFAULT ''
+  `email` varchar(255) NOT NULL DEFAULT '',
+  `superior_user_id` varchar(64) NOT NULL DEFAULT '',
+  `superior_user_name` varchar(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

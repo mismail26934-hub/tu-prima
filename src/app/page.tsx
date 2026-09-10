@@ -34,7 +34,7 @@ import {
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import {
   assignedTechnicianIds,
-  resolveStepTechnicianIds,
+  displayStepTechnicianIds,
   stepTechnicianNames,
 } from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
@@ -66,6 +66,7 @@ import {
   useMasterTemplates,
   useTemplateSummaries,
   useUsers,
+  useForemen,
 } from "@/hooks/useMasterQueries";
 import {
   useJobActionMutation,
@@ -105,6 +106,12 @@ type Modal =
   | { type: "complete-job"; job: JobWithDetails }
   | { type: "delegate-job"; job: JobWithDetails }
   | { type: "reopen-job"; job: JobWithDetails }
+    | {
+      type: "handover-to";
+      job: JobWithDetails;
+      target: "draft" | { key: string };
+      current: string;
+    }
     | {
       type: "handover-delete";
       job: JobWithDetails;
@@ -189,6 +196,10 @@ function writeBoolFlag(key: string, value: boolean) {
   } catch {
     /* ignore */
   }
+}
+
+function userDisplayName(u: { name?: string; username: string }): string {
+  return (u.name || "").trim() || u.username;
 }
 
 function jobTemplateCategoryLabel(category: JobTemplateCategory | string): string {
@@ -718,6 +729,8 @@ export default function HomePage() {
   const [jobBackupsIncludeUndone, setJobBackupsIncludeUndone] = useState(false);
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
+  const [handoverToQuery, setHandoverToQuery] = useState("");
+  const [handoverToLoading, setHandoverToLoading] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -774,6 +787,9 @@ export default function HomePage() {
   const { data: appUsers = [], isLoading: usersLoading } = useUsers(
     usersModalOpen && userLevel === "superuser"
   );
+  const { data: foremanPicker = [], isLoading: foremenLoading } = useForemen(
+    modal?.type === "tech-form"
+  );
   const {
     data: jobBackups = [],
     isLoading: backupsLoading,
@@ -819,6 +835,7 @@ export default function HomePage() {
     email: "",
     phone: "",
     status: "available" as Exclude<TechnicianStatus, "busy">,
+    superior_user_id: "",
   });
   const [masterTechDraft, setMasterTechDraft] = useState("");
   const [masterTechQuery, setMasterTechQuery] = useState("");
@@ -1294,6 +1311,7 @@ export default function HomePage() {
       email: "",
       phone: "",
       status: "available",
+      superior_user_id: "",
     });
     setModal({ type: "tech-form", mode: "create" });
   }
@@ -1306,6 +1324,7 @@ export default function HomePage() {
       email: tech.email || "",
       phone: tech.phone || "",
       status: tech.status === "offline" ? "offline" : "available",
+      superior_user_id: tech.superior_user_id || "",
     });
     setModal({ type: "tech-form", mode: "edit", tech });
   }
@@ -1330,6 +1349,7 @@ export default function HomePage() {
         badge_id: techForm.badge_id,
         email: techForm.email,
         phone: techForm.phone,
+        superior_user_id: techForm.superior_user_id,
         ...(modal.tech?.status === "busy" ? {} : { status: techForm.status }),
       };
       if (modal.mode === "create") {
@@ -1671,6 +1691,7 @@ export default function HomePage() {
   const applyAssignSearch = useAssignStore((s) => s.applySearch);
   const clearAssignSearch = useAssignStore((s) => s.clearSearch);
   const toggleAssignTech = useAssignStore((s) => s.toggleTech);
+  const clearAssignTechs = useAssignStore((s) => s.clearTechs);
   const resetAssign = useAssignStore((s) => s.reset);
 
   const techDraft = useTechnicianBoardStore((s) => s.draft);
@@ -1752,7 +1773,7 @@ export default function HomePage() {
     Record<string, "sequential" | "parallel">
   >({});
   const [handoverDraftByJob, setHandoverDraftByJob] = useState<
-    Record<string, { title: string; note: string }>
+    Record<string, { title: string; note: string; to_name: string }>
   >({});
   /** Mode aksi handover per job: tampilkan UI sesuai pilihan. */
   const [handoverModeByJob, setHandoverModeByJob] = useState<
@@ -1770,6 +1791,7 @@ export default function HomePage() {
         key: string;
         id?: string;
         title: string;
+        to_name: string;
         note: string;
         done: boolean;
         order: number;
@@ -1781,6 +1803,7 @@ export default function HomePage() {
     key: string;
     id?: string;
     title: string;
+    to_name: string;
     note: string;
     done: boolean;
     order: number;
@@ -1953,7 +1976,76 @@ export default function HomePage() {
 
   function closeModal() {
     resetAssign();
+    setHandoverToQuery("");
     setModal(null);
+  }
+
+  async function openHandoverToPicker(
+    job: JobWithDetails,
+    target: "draft" | { key: string },
+    current: string
+  ) {
+    setError("");
+    setHandoverToQuery("");
+    setHandoverToLoading(true);
+    setModal({ type: "handover-to", job, target, current });
+    try {
+      const list = await api<AppUserPublic[]>("/api/users/foremen");
+      setForemanOptions(list);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Gagal memuat daftar penerima"
+      );
+      setForemanOptions([]);
+    } finally {
+      setHandoverToLoading(false);
+    }
+  }
+
+  function applyHandoverToName(name: string) {
+    if (modal?.type !== "handover-to") return;
+    const { job, target } = modal;
+    const next = name.trim();
+    if (target === "draft") {
+      setHandoverDraftByJob((prev) => ({
+        ...prev,
+        [job.id]: {
+          ...getHandoverDraft(job),
+          to_name: next,
+        },
+      }));
+    } else {
+      setHandoverLocal(job, (rows) =>
+        rows.map((r) => (r.key === target.key ? { ...r, to_name: next } : r))
+      );
+    }
+    closeModal();
+  }
+
+  function renderHandoverToTrigger(
+    job: JobWithDetails,
+    value: string,
+    target: "draft" | { key: string }
+  ) {
+    return (
+      <button
+        type="button"
+        className="handover-to-trigger"
+        disabled={busy}
+        onClick={() => void openHandoverToPicker(job, target, value)}
+        aria-haspopup="dialog"
+        aria-label={t("job.handoverTo")}
+      >
+        <span
+          className={`handover-to-trigger-label${value ? "" : " is-placeholder"}`}
+        >
+          {value || t("job.handoverToPlaceholder")}
+        </span>
+        <span className="handover-to-caret" aria-hidden>
+          ▾
+        </span>
+      </button>
+    );
   }
 
   function parseSteps(text: string): string[] {
@@ -2311,16 +2403,32 @@ export default function HomePage() {
       modal?.type === "assign" || modal?.type === "confirm-assign"
         ? modal.job.id
         : null;
-    return [...assignTechLookup.values()].filter(
-      (t) =>
-        (t.status === "available" ||
-          t.current_job_id === jobId ||
-          assignTechIds.includes(t.id)) &&
-        (!q ||
-          t.name.toLowerCase().includes(q) ||
-          t.sn.toLowerCase().includes(q))
-    );
-  }, [assignTechLookup, assignQuery, assignTechIds, modal]);
+    const checkedOrder = new Map(assignTechIds.map((id, i) => [id, i]));
+    const rank = (t: Technician) => {
+      if (checkedOrder.has(t.id)) return 0;
+      if (userId && t.superior_user_id === userId) return 1;
+      return 2;
+    };
+    return [...assignTechLookup.values()]
+      .filter(
+        (t) =>
+          (t.status === "available" ||
+            t.current_job_id === jobId ||
+            assignTechIds.includes(t.id)) &&
+          (!q ||
+            t.name.toLowerCase().includes(q) ||
+            t.sn.toLowerCase().includes(q))
+      )
+      .sort((a, b) => {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 0) {
+          return (checkedOrder.get(a.id) ?? 0) - (checkedOrder.get(b.id) ?? 0);
+        }
+        return a.name.localeCompare(b.name, "id");
+      });
+  }, [assignTechLookup, assignQuery, assignTechIds, modal, userId]);
 
   const attendanceTechListQuery = useTechniciansList({
     status: "all",
@@ -2412,6 +2520,17 @@ export default function HomePage() {
     setUnitDraft("");
     setUnitQuery("");
   }
+
+  const handoverToFiltered = useMemo(() => {
+    const q = handoverToQuery.trim().toLowerCase();
+    if (!q) return foremanOptions;
+    return foremanOptions.filter((u) =>
+      [u.name, u.username, u.email, u.phone]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [foremanOptions, handoverToQuery]);
 
   const filteredMasterTemplates = useMemo(() => {
     const q = templateQuery.trim().toLowerCase();
@@ -2771,7 +2890,7 @@ export default function HomePage() {
     step: JobWithDetails["steps"][0]
   ) {
     setStepTechnicianIds(
-      resolveStepTechnicianIds(step, assignedTechnicianIds(job))
+      displayStepTechnicianIds(step, assignedTechnicianIds(job))
     );
   }
 
@@ -2782,7 +2901,17 @@ export default function HomePage() {
   }
 
   function renderStepTechnicianPicker(job: JobWithDetails) {
-    const techs = job.technicians || [];
+    const assigned = new Set(assignedTechnicianIds(job));
+    const byId = new Map<string, (typeof job.technicians)[number]>();
+    for (const t of job.technician_index || []) {
+      if (t?.id) byId.set(t.id, t);
+    }
+    for (const t of job.technicians || []) {
+      if (t?.id) byId.set(t.id, t);
+    }
+    const techs = [...byId.values()].filter(
+      (t) => assigned.has(t.id) || stepTechnicianIds.includes(t.id)
+    );
     if (!techs.length) return null;
     return (
       <div className="check-list" style={{ margin: "0 0 16px" }}>
@@ -2802,6 +2931,9 @@ export default function HomePage() {
               {tech.sn ? (
                 <span style={{ color: "var(--muted)" }}> — {tech.sn}</span>
               ) : null}
+              {!assigned.has(tech.id) ? (
+                <span style={{ color: "var(--muted)" }}> · sebelumnya</span>
+              ) : null}
             </span>
           </label>
         ))}
@@ -2818,8 +2950,13 @@ export default function HomePage() {
     });
   }
 
-  function getHandoverDraft(jobId: string) {
-    return handoverDraftByJob[jobId] || { title: "", note: "" };
+  function getHandoverDraft(job: JobWithDetails) {
+    const d = handoverDraftByJob[job.id];
+    return {
+      title: d?.title || "",
+      note: d?.note || "",
+      to_name: d?.to_name || "",
+    };
   }
 
   function handoversFromServer(job: JobWithDetails): HandoverLocalRow[] {
@@ -2827,6 +2964,7 @@ export default function HomePage() {
       key: h.id,
       id: h.id,
       title: h.title,
+      to_name: h.to_name || "",
       note: h.note,
       done: h.done === "1",
       order: h.order,
@@ -2858,6 +2996,7 @@ export default function HomePage() {
       if (!s) return true;
       return (
         r.title.trim() !== s.title ||
+        r.to_name.trim() !== s.to_name.trim() ||
         r.note.trim() !== s.note ||
         r.done !== s.done
       );
@@ -2865,7 +3004,7 @@ export default function HomePage() {
   }
 
   async function addHandover(job: JobWithDetails) {
-    const draft = getHandoverDraft(job.id);
+    const draft = getHandoverDraft(job);
     const title = draft.title.trim();
     if (!title) return;
     setBusy(true);
@@ -2876,13 +3015,14 @@ export default function HomePage() {
         method: "POST",
         body: JSON.stringify({
           title,
+          to_name: draft.to_name.trim(),
           note: draft.note.trim(),
           done: false,
         }),
       });
       setHandoverDraftByJob((prev) => ({
         ...prev,
-        [job.id]: { title: "", note: "" },
+        [job.id]: { title: "", note: "", to_name: "" },
       }));
       setHandoverComposeByJob((prev) => {
         const next = { ...prev };
@@ -2907,6 +3047,7 @@ export default function HomePage() {
       if (!s) return true;
       return (
         r.title.trim() !== s.title ||
+        r.to_name.trim() !== s.to_name.trim() ||
         r.note.trim() !== s.note ||
         r.done !== s.done
       );
@@ -2923,6 +3064,7 @@ export default function HomePage() {
           method: "PATCH",
           body: JSON.stringify({
             title: row.title.trim(),
+            to_name: row.to_name.trim(),
             note: row.note.trim(),
             done: row.done,
           }),
@@ -3488,7 +3630,10 @@ export default function HomePage() {
                       </span>
                     )}
                   </span>
-                  {job.technicians?.length ? (
+                  {(() => {
+                    const techLabel = stepTechnicianNames(s, job);
+                    if (!job.technicians?.length && !techLabel) return null;
+                    return (
                     <button
                       type="button"
                       className={`step-techs${progressOk ? "" : " is-static"}`}
@@ -3504,9 +3649,10 @@ export default function HomePage() {
                           : t("job.stepTechnicians")
                       }
                     >
-                      {t("job.technician")}: {stepTechnicianNames(s, job) || "—"}
+                      {t("job.technician")}: {techLabel || "—"}
                     </button>
-                  ) : null}
+                    );
+                  })()}
                 </span>
                 <span className="step-meta">
                   <StepDuration
@@ -3674,6 +3820,14 @@ export default function HomePage() {
                       ...prev,
                       [job.id]: true,
                     }));
+                    setHandoverDraftByJob((prev) => ({
+                      ...prev,
+                      [job.id]: {
+                        title: prev[job.id]?.title || "",
+                        note: prev[job.id]?.note || "",
+                        to_name: prev[job.id]?.to_name || "",
+                      },
+                    }));
                   }}
                 >
                   + Tambah
@@ -3705,70 +3859,77 @@ export default function HomePage() {
               getHandoverMode(job.id) === "tambah" &&
               (getHandoverLocal(job).length > 0 ||
                 handoverComposeByJob[job.id]) && (
-              <div className="handover-add">
+              <div className="handover-add has-to-name">
                 <input
                   className="handover-input"
                   placeholder="Job Handover"
-                  value={getHandoverDraft(job.id).title}
+                  value={getHandoverDraft(job).title}
                   disabled={busy}
                   onChange={(e) =>
                     setHandoverDraftByJob((prev) => ({
                       ...prev,
                       [job.id]: {
-                        ...getHandoverDraft(job.id),
+                        ...getHandoverDraft(job),
                         title: e.target.value,
                       },
                     }))
                   }
                 />
+                {renderHandoverToTrigger(
+                  job,
+                  getHandoverDraft(job).to_name,
+                  "draft"
+                )}
                 <input
                   className="handover-input"
                   placeholder="Note"
-                  value={getHandoverDraft(job.id).note}
+                  value={getHandoverDraft(job).note}
                   disabled={busy}
                   onChange={(e) =>
                     setHandoverDraftByJob((prev) => ({
                       ...prev,
                       [job.id]: {
-                        ...getHandoverDraft(job.id),
+                        ...getHandoverDraft(job),
                         note: e.target.value,
                       },
                     }))
                   }
                 />
-                {getHandoverLocal(job).length === 0 && (
+                <div className="handover-add-actions">
+                  {getHandoverLocal(job).length === 0 && (
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setHandoverComposeByJob((prev) => {
+                          const next = { ...prev };
+                          delete next[job.id];
+                          return next;
+                        });
+                        setHandoverDraftByJob((prev) => {
+                          const next = { ...prev };
+                          delete next[job.id];
+                          return next;
+                        });
+                      }}
+                    >
+                      Batal
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => {
-                      setHandoverComposeByJob((prev) => {
-                        const next = { ...prev };
-                        delete next[job.id];
-                        return next;
-                      });
-                      setHandoverDraftByJob((prev) => {
-                        const next = { ...prev };
-                        delete next[job.id];
-                        return next;
-                      });
-                    }}
+                    className="btn btn-primary"
+                    disabled={busy || !getHandoverDraft(job).title.trim()}
+                    onClick={() => addHandover(job)}
                   >
-                    Batal
+                    <BusyLabel
+                      busy={isNotePanelBusy(job.id, "handover", "add")}
+                      idle="+ Tambah"
+                      pending="Menambah..."
+                    />
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy || !getHandoverDraft(job.id).title.trim()}
-                  onClick={() => addHandover(job)}
-                >
-                  <BusyLabel
-                    busy={isNotePanelBusy(job.id, "handover", "add")}
-                    idle="+ Tambah"
-                    pending="Menambah..."
-                  />
-                </button>
+                </div>
               </div>
             )}
             {handoverOk &&
@@ -3808,6 +3969,7 @@ export default function HomePage() {
                   <tr>
                     <th className="col-no">NO</th>
                     <th>Job Handover</th>
+                    <th>{t("job.handoverTo")}</th>
                     <th className="col-done">Done</th>
                     <th>Note</th>
                     {handoverOk &&
@@ -3825,8 +3987,10 @@ export default function HomePage() {
                         key={h.key}
                         className={h.done ? "is-done" : ""}
                       >
-                        <td className="col-no">{h.order}</td>
-                        <td>
+                        <td className="col-no" data-label="NO">
+                          {h.order}
+                        </td>
+                        <td data-label="Job Handover">
                           {canEdit ? (
                             <input
                               className="handover-input"
@@ -3846,7 +4010,16 @@ export default function HomePage() {
                             h.title
                           )}
                         </td>
-                        <td className="col-done">
+                        <td data-label={t("job.handoverTo")}>
+                          {canEdit ? (
+                            renderHandoverToTrigger(job, h.to_name, {
+                              key: h.key,
+                            })
+                          ) : (
+                            h.to_name || "—"
+                          )}
+                        </td>
+                        <td className="col-done" data-label="Done">
                           {canEdit ? (
                             <select
                               className="handover-select"
@@ -3874,7 +4047,7 @@ export default function HomePage() {
                             "No"
                           )}
                         </td>
-                        <td>
+                        <td data-label="Note">
                           {canEdit ? (
                             <input
                               className="handover-input"
@@ -3897,7 +4070,7 @@ export default function HomePage() {
                         </td>
                         {handoverOk &&
                           getHandoverMode(job.id) === "hapus" && (
-                            <td className="col-act">
+                            <td className="col-act" data-label="Aksi">
                               <button
                                 type="button"
                                 className="btn btn-step"
@@ -4018,41 +4191,43 @@ export default function HomePage() {
                     }))
                   }
                 />
-                {getPartLoanLocal(job).length === 0 && (
+                <div className="handover-add-actions">
+                  {getPartLoanLocal(job).length === 0 && (
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setPartLoanComposeByJob((prev) => {
+                          const next = { ...prev };
+                          delete next[job.id];
+                          return next;
+                        });
+                        setPartLoanDraftByJob((prev) => {
+                          const next = { ...prev };
+                          delete next[job.id];
+                          return next;
+                        });
+                      }}
+                    >
+                      Batal
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => {
-                      setPartLoanComposeByJob((prev) => {
-                        const next = { ...prev };
-                        delete next[job.id];
-                        return next;
-                      });
-                      setPartLoanDraftByJob((prev) => {
-                        const next = { ...prev };
-                        delete next[job.id];
-                        return next;
-                      });
-                    }}
+                    className="btn btn-primary"
+                    disabled={
+                      busy || !getPartLoanDraft(job.id).part_name.trim()
+                    }
+                    onClick={() => addPartLoan(job)}
                   >
-                    Batal
+                    <BusyLabel
+                      busy={isNotePanelBusy(job.id, "part-loan", "add")}
+                      idle="+ Tambah"
+                      pending="Menambah..."
+                    />
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={
-                    busy || !getPartLoanDraft(job.id).part_name.trim()
-                  }
-                  onClick={() => addPartLoan(job)}
-                >
-                  <BusyLabel
-                    busy={isNotePanelBusy(job.id, "part-loan", "add")}
-                    idle="+ Tambah"
-                    pending="Menambah..."
-                  />
-                </button>
+                </div>
               </div>
             )}
             {handoverOk &&
@@ -4109,8 +4284,10 @@ export default function HomePage() {
                         key={p.key}
                         className={p.status === "closed" ? "is-done" : ""}
                       >
-                        <td className="col-no">{p.order}</td>
-                        <td>
+                        <td className="col-no" data-label="NO">
+                          {p.order}
+                        </td>
+                        <td data-label="Part yang dipinjam">
                           {canEdit ? (
                             <input
                               className="handover-input"
@@ -4130,7 +4307,7 @@ export default function HomePage() {
                             p.part_name
                           )}
                         </td>
-                        <td className="col-done">
+                        <td className="col-done" data-label="Status">
                           {canEdit ? (
                             <select
                               className="handover-select"
@@ -4157,7 +4334,7 @@ export default function HomePage() {
                             p.status
                           )}
                         </td>
-                        <td>
+                        <td data-label="Note">
                           {canEdit ? (
                             <input
                               className="handover-input"
@@ -4180,7 +4357,7 @@ export default function HomePage() {
                         </td>
                         {handoverOk &&
                           getPartLoanMode(job.id) === "hapus" && (
-                            <td className="col-act">
+                            <td className="col-act" data-label="Aksi">
                               <button
                                 type="button"
                                 className="btn btn-step"
@@ -6039,9 +6216,19 @@ export default function HomePage() {
                   );
                 })}
               </div>
-              <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
-                Teknisi pertama yang dicentang menjadi lead. Dipilih: {assignTechIds.length}
-              </p>
+              <div className="assign-check-meta">
+                <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
+                  Teknisi pertama yang dicentang menjadi lead. Dipilih: {assignTechIds.length}
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={assignTechIds.length === 0}
+                  onClick={clearAssignTechs}
+                >
+                  {t("job.assignUncheckAll")}
+                </button>
+              </div>
               <div className="actions">
                 <button className="btn" onClick={closeModal}>
                   Batal
@@ -6568,6 +6755,84 @@ export default function HomePage() {
                   pending="Memproses..."
                 />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "handover-to" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal modal-handover-to" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("job.handoverTo")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Cari
+              <input
+                className="panel-search"
+                style={{ maxWidth: "none", width: "100%", marginTop: 6 }}
+                type="search"
+                value={handoverToQuery}
+                onChange={(e) => setHandoverToQuery(e.target.value)}
+                placeholder={t("job.handoverToSearch")}
+                autoFocus
+                disabled={handoverToLoading}
+              />
+            </label>
+            <div className="handover-to-list" role="listbox">
+              {handoverToLoading && (
+                <span className="handover-to-empty">
+                  {t("job.handoverToLoading")}
+                </span>
+              )}
+              {!handoverToLoading &&
+                handoverToFiltered.length === 0 && (
+                  <span className="handover-to-empty">
+                    {t("job.handoverToEmpty")}
+                  </span>
+                )}
+              {!handoverToLoading &&
+                handoverToFiltered.map((u) => {
+                  const label = userDisplayName(u);
+                  const selected =
+                    label === modal.current ||
+                    u.username === modal.current ||
+                    (u.name || "").trim() === modal.current;
+                  const showUser =
+                    u.username &&
+                    u.username.toLowerCase() !== label.toLowerCase();
+                  return (
+                    <button
+                      type="button"
+                      key={u.id}
+                      role="option"
+                      aria-selected={selected}
+                      className={`handover-to-option${selected ? " is-selected" : ""}`}
+                      onClick={() => applyHandoverToName(label)}
+                    >
+                      <span>{label}</span>
+                      {showUser && (
+                        <span className="handover-to-option-meta">
+                          {u.username}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+            <div className="actions">
+              <button className="btn" onClick={closeModal}>
+                {t("job.cancelAction")}
+              </button>
+              {modal.current ? (
+                <button
+                  className="btn"
+                  onClick={() => applyHandoverToName("")}
+                >
+                  {t("job.handoverToNone")}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -7564,6 +7829,9 @@ export default function HomePage() {
                       {t.badge_id ? ` · Badge: ${t.badge_id}` : ""}
                       {t.email ? ` · ${t.email}` : ""}
                       {t.phone ? ` · ${t.phone}` : ""}
+                      {t.superior_user_name
+                        ? ` · Superior: ${t.superior_user_name}`
+                        : ""}
                       {` · ${t.status}`}
                     </div>
                   </div>
@@ -7662,6 +7930,47 @@ export default function HomePage() {
                   value={techForm.phone}
                   onChange={(e) => setTechForm({ ...techForm, phone: e.target.value })}
                   required
+                />
+              </label>
+              <label>
+                Superior
+                <SearchableSelect
+                  value={techForm.superior_user_id}
+                  disabled={foremenLoading}
+                  placeholder={
+                    foremenLoading
+                      ? "Memuat daftar foreman..."
+                      : "Pilih foreman (opsional)"
+                  }
+                  emptyMessage="Tidak ada foreman yang cocok"
+                  aria-label="Superior"
+                  options={[
+                    ...foremanPicker.map((u) => ({
+                      value: u.id,
+                      label: `${u.name || u.username}${
+                        u.name && u.username && u.name !== u.username
+                          ? ` — ${u.username}`
+                          : ""
+                      }`,
+                      searchText: `${u.name} ${u.username}`,
+                    })),
+                    ...(techForm.superior_user_id &&
+                    !foremanPicker.some((u) => u.id === techForm.superior_user_id) &&
+                    modal.tech?.superior_user_id === techForm.superior_user_id
+                      ? [
+                          {
+                            value: techForm.superior_user_id,
+                            label:
+                              modal.tech.superior_user_name ||
+                              techForm.superior_user_id,
+                            searchText: modal.tech.superior_user_name || "",
+                          },
+                        ]
+                      : []),
+                  ]}
+                  onChange={(next) =>
+                    setTechForm({ ...techForm, superior_user_id: next })
+                  }
                 />
               </label>
               {modal.tech?.status === "busy" ? (

@@ -12,6 +12,7 @@ interface AssignState {
   applySearch: () => void;
   clearSearch: () => void;
   toggleTech: (techId: string) => void;
+  clearTechs: () => void;
   reset: () => void;
 }
 
@@ -36,5 +37,6 @@ export const useAssignStore = create<AssignState>((set, get) => ({
         ? state.techIds.filter((id) => id !== techId)
         : [...state.techIds, techId],
     })),
+  clearTechs: () => set({ techIds: [] }),
   reset: () => set({ jobId: null, techIds: [], draft: "", query: "" }),
 }));

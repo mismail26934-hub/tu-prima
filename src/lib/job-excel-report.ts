@@ -96,7 +96,9 @@ function handoversText(job: JobWithDetails): string {
   return (job.handovers || [])
     .map(
       (h) =>
-        `${h.order}. ${h.title} · Done=${h.done === "1" ? "Yes" : "No"}${
+        `${h.order}. ${h.title}${
+          h.to_name ? ` → ${h.to_name}` : ""
+        } · Done=${h.done === "1" ? "Yes" : "No"}${
           h.note ? ` · Note=${h.note}` : ""
         }`
     )

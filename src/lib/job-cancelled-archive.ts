@@ -106,6 +106,7 @@ const HANDOVER_HEADERS = [
   "job_id",
   "order",
   "title",
+  "to_name",
   "done",
   "note",
   "user_id",
@@ -251,6 +252,7 @@ function mapHandoverRow(r: Row): JobHandover {
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
+    to_name: String(r.to_name || ""),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
     user_id: String(r.user_id || ""),
@@ -285,6 +287,8 @@ function techStubFromAssigneeRow(r: Row): Technician | null {
     status: "available",
     current_job_id: "",
     phone: "",
+    superior_user_id: "",
+    superior_user_name: "",
   };
 }
 
@@ -389,6 +393,7 @@ export async function archiveCancelledJob(input: {
       job_id: h.job_id,
       order: h.order,
       title: h.title,
+      to_name: h.to_name,
       done: h.done,
       note: h.note,
       user_id: h.user_id,

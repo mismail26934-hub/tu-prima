@@ -20,7 +20,10 @@ import type {
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
 import {
   assignedTechnicianIds,
+  mergeInProgressStepTechnicians,
+  parseStepTechnicianIds,
   selectedStepTechnicianIds,
+  stampEmptyTechnicianIds,
 } from "@/lib/step-technicians";
 
 function nowIso() {
@@ -410,6 +413,38 @@ function applyJobAction(
       .filter((t): t is Technician => Boolean(t));
     if (!selected.length || !job) return data;
     const selectedIds = new Set(selected.map((t) => t.id));
+    const previousAssignedIds = assignedTechnicianIds(job);
+    const nextTechIds = selected.map((t) => t.id);
+    const nextSteps =
+      job.status === "in_progress" || job.status === "paused"
+        ? job.steps.map((s) => {
+            if (s.status === "in_progress") {
+              return {
+                ...s,
+                technician_ids: mergeInProgressStepTechnicians(
+                  s,
+                  previousAssignedIds,
+                  nextTechIds
+                ),
+              };
+            }
+            if (s.status === "done") {
+              const stored = parseStepTechnicianIds(s.technician_ids);
+              return stored.length
+                ? s
+                : { ...s, technician_ids: [...previousAssignedIds] };
+            }
+            return s;
+          })
+        : job.steps;
+    const indexById = new Map<string, Technician>();
+    for (const t of job.technician_index || []) {
+      if (t?.id) indexById.set(t.id, t);
+    }
+    for (const t of job.technicians || []) {
+      if (t?.id) indexById.set(t.id, t);
+    }
+    for (const t of selected) indexById.set(t.id, t);
     return {
       ...data,
       technicians: data.technicians.map((t) => {
@@ -430,6 +465,8 @@ function applyJobAction(
               status: j.status === "queued" ? "assigned" : j.status,
               technicians: selected,
               technician: selected[0],
+              technician_index: [...indexById.values()],
+              steps: nextSteps,
             })
       ),
     };
@@ -475,7 +512,15 @@ function applyJobAction(
                 j.steps.every((s) => s.status === "pending")
               ? j.steps.map((s, i) =>
                   i === 0
-                    ? { ...s, status: "in_progress", started_at: clockAt }
+                    ? {
+                        ...s,
+                        status: "in_progress",
+                        started_at: clockAt,
+                        technician_ids: parseStepTechnicianIds(s.technician_ids)
+                          .length
+                          ? s.technician_ids
+                          : assignedTechnicianIds(j),
+                      }
                     : s
                 )
               : j.steps,
@@ -529,7 +574,14 @@ function applyJobAction(
       started_at: j.started_at || at,
       steps: j.steps.map((s) =>
         ids.has(s.id)
-          ? { ...s, status: "in_progress", started_at: s.started_at || at }
+          ? {
+              ...s,
+              status: "in_progress",
+              started_at: s.started_at || at,
+              technician_ids: parseStepTechnicianIds(s.technician_ids).length
+                ? s.technician_ids
+                : assignedTechnicianIds(j),
+            }
           : s
       ),
     }));
@@ -562,7 +614,8 @@ function applyJobAction(
               return (
                 selectedStepTechnicianIds(
                   body.technician_ids,
-                  assignedTechnicianIds(j)
+                  assignedTechnicianIds(j),
+                  parseStepTechnicianIds(s.technician_ids)
                 ) ?? s.technician_ids
               );
             } catch {
@@ -576,6 +629,7 @@ function applyJobAction(
         if (next && !steps.some((s) => s.status === "in_progress")) {
           next.status = "in_progress";
           next.started_at = nextAt;
+          stampEmptyTechnicianIds(next, assignedTechnicianIds(j));
         }
       }
       return { ...j, steps };
@@ -588,7 +642,13 @@ function applyJobAction(
       const assignedIds = assignedTechnicianIds(j);
       let nextIds: string[] | undefined;
       try {
-        nextIds = selectedStepTechnicianIds(body.technician_ids ?? [], assignedIds);
+        nextIds = selectedStepTechnicianIds(
+          body.technician_ids ?? [],
+          assignedIds,
+          parseStepTechnicianIds(
+            j.steps.find((s) => s.id === stepId)?.technician_ids
+          )
+        );
       } catch {
         return j;
       }
@@ -962,6 +1022,7 @@ export function applyOptimisticMutation(
       job_id: jobId,
       order: 0,
       title: String(body.title || ""),
+      to_name: String(body.to_name || ""),
       done: body.done ? "1" : "0",
       note: String(body.note || ""),
       user_id: "",
@@ -996,6 +1057,7 @@ export function applyOptimisticMutation(
               ? {
                   ...h,
                   title: body.title != null ? String(body.title) : h.title,
+                  to_name: body.to_name != null ? String(body.to_name) : h.to_name,
                   note: body.note != null ? String(body.note) : h.note,
                   done:
                     typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
@@ -1012,6 +1074,7 @@ export function applyOptimisticMutation(
             ? {
                 ...h,
                 title: body.title != null ? String(body.title) : h.title,
+                to_name: body.to_name != null ? String(body.to_name) : h.to_name,
                 note: body.note != null ? String(body.note) : h.note,
                 done:
                   typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
@@ -1187,6 +1250,8 @@ export function applyOptimisticMutation(
       phone: String(body.phone || "").trim(),
       status: body.status === "offline" ? "offline" : "available",
       current_job_id: "",
+      superior_user_id: String(body.superior_user_id || "").trim(),
+      superior_user_name: String(body.superior_user_name || "").trim(),
     };
     patchDashboard(qc, (data) =>
       data.technicians.some((t) => t.id === tech.id)
@@ -1212,6 +1277,14 @@ export function applyOptimisticMutation(
                   body.badge_id != null ? String(body.badge_id) : t.badge_id,
                 email: body.email != null ? String(body.email) : t.email,
                 phone: body.phone != null ? String(body.phone) : t.phone,
+                superior_user_id:
+                  body.superior_user_id != null
+                    ? String(body.superior_user_id)
+                    : t.superior_user_id,
+                superior_user_name:
+                  body.superior_user_name != null
+                    ? String(body.superior_user_name)
+                    : t.superior_user_name,
                 status:
                   body.status === "available" || body.status === "offline"
                     ? (body.status as TechnicianStatus)

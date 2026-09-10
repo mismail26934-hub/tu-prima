@@ -21,6 +21,7 @@ export async function POST(
       id: body.id ? String(body.id) : undefined,
       job_id: id,
       title: String(body.title || ""),
+      to_name: body.to_name != null ? String(body.to_name) : "",
       note: body.note != null ? String(body.note) : "",
       done: Boolean(body.done),
       actor,

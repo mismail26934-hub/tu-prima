@@ -59,6 +59,8 @@ function mapTechnicianRow(r: mysql.RowDataPacket): Technician {
     status: str(r.status || "available") as TechnicianStatus,
     current_job_id: str(r.current_job_id),
     phone: str(r.phone),
+    superior_user_id: str(r.superior_user_id),
+    superior_user_name: str(r.superior_user_name),
   };
 }
 
@@ -132,6 +134,7 @@ function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
     job_id: str(r.job_id),
     order: num(r.handover_order),
     title: str(r.title),
+    to_name: str(r.to_name),
     done: num(r.done) ? "1" : "0",
     note: str(r.note),
     user_id: str(r.user_id),
@@ -245,7 +248,7 @@ async function loadTechniciansByIds(ids: string[]): Promise<Technician[]> {
   const ph = unique.map(() => "?").join(",");
   const p = getPool();
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT id, name, sn, badge_id, email, status, current_job_id, phone FROM technicians WHERE id IN (${ph})`,
+    `SELECT id, name, sn, badge_id, email, status, current_job_id, phone, superior_user_id, superior_user_name FROM technicians WHERE id IN (${ph})`,
     unique
   );
   return rows.map(mapTechnicianRow);
@@ -379,10 +382,22 @@ async function enrichJobsBatch(
       null;
     const jobSteps = (stepsByJob.get(job.id) || []).slice().sort((a, b) => a.order - b.order);
     const current_steps = jobSteps.filter((s) => s.status === "in_progress");
+    const indexIds = new Set<string>();
+    for (const t of technicians) indexIds.add(t.id);
+    if (job.technician_id) indexIds.add(job.technician_id);
+    for (const s of jobSteps) {
+      for (const id of parseStepTechnicianIds(s.technician_ids)) {
+        indexIds.add(id);
+      }
+    }
+    const technician_index = [...indexIds]
+      .map((id) => techById.get(id))
+      .filter((t): t is Technician => Boolean(t));
     return {
       ...job,
       technician,
       technicians,
+      technician_index,
       steps: jobSteps,
       events: eventsByJob.get(job.id) || [],
       handovers: handoversByJob.get(job.id) || [],
@@ -505,10 +520,10 @@ export async function listTechniciansPaginated(input: {
   }
   if (q) {
     parts.push(
-      "(LOWER(t.name) LIKE ? OR LOWER(t.sn) LIKE ? OR LOWER(t.badge_id) LIKE ? OR LOWER(t.email) LIKE ? OR LOWER(t.phone) LIKE ?)"
+      "(LOWER(t.name) LIKE ? OR LOWER(t.sn) LIKE ? OR LOWER(t.badge_id) LIKE ? OR LOWER(t.email) LIKE ? OR LOWER(t.phone) LIKE ? OR LOWER(t.superior_user_name) LIKE ?)"
     );
     const like = `%${q}%`;
-    params.push(like, like, like, like, like);
+    params.push(like, like, like, like, like, like);
   }
 
   const where = parts.length ? `WHERE ${parts.join(" AND ")}` : "";
@@ -521,7 +536,7 @@ export async function listTechniciansPaginated(input: {
   const total = num(countRows[0]?.cnt);
 
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, j.title AS current_job_title
+    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, t.superior_user_id, t.superior_user_name, j.title AS current_job_title
      FROM technicians t
      LEFT JOIN jobs j ON j.id = t.current_job_id AND j.job_scope = 'active'
      ${where}

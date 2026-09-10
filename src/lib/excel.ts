@@ -28,9 +28,11 @@ import { USER_LEVELS } from "./types";
 import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
 import {
   assignedIdsFromAssignees,
+  mergeInProgressStepTechnicians,
   parseStepTechnicianIds,
   selectedStepTechnicianIds,
   serializeStepTechnicianIds,
+  stampEmptyTechnicianIds,
   technicianNamesByIds,
 } from "./step-technicians";
 import { fetchDashboardSummary } from "@/lib/board-list";
@@ -213,6 +215,29 @@ function validateTechnicianFields(
   return { name, sn, badge_id, email, phone };
 }
 
+function resolveForemanSuperior(
+  wb: MysqlWorkbook,
+  superiorUserId: string | undefined,
+  previous?: { superior_user_id: string; superior_user_name: string }
+): { superior_user_id: string; superior_user_name: string } {
+  if (superiorUserId === undefined) {
+    return {
+      superior_user_id: previous?.superior_user_id || "",
+      superior_user_name: previous?.superior_user_name || "",
+    };
+  }
+  const id = superiorUserId.trim();
+  if (!id) return { superior_user_id: "", superior_user_name: "" };
+  const u = readUsers(wb).find(
+    (x) => x.id === id && x.active === "1" && x.level === "foreman"
+  );
+  if (!u) throw new Error("Superior harus foreman aktif");
+  return {
+    superior_user_id: u.id,
+    superior_user_name: (u.name || u.username).trim(),
+  };
+}
+
 function findSheetHeader(
   ws: ExcelJS.Worksheet,
   snNames: readonly string[],
@@ -333,6 +358,8 @@ function mapTechnician(r: Row): Technician {
     status: String(r.status || "available") as TechnicianStatus,
     current_job_id: String(r.current_job_id || ""),
     phone: String(r.phone || ""),
+    superior_user_id: String(r.superior_user_id || ""),
+    superior_user_name: String(r.superior_user_name || ""),
   };
 }
 
@@ -480,6 +507,7 @@ function mapHandover(r: Row): JobHandover {
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
+    to_name: String(r.to_name || ""),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
     user_id: String(r.user_id || ""),
@@ -646,6 +674,8 @@ const TECH_HEADERS = [
   "status",
   "current_job_id",
   "phone",
+  "superior_user_id",
+  "superior_user_name",
 ];
 const UNIT_HEADERS = ["id", "code", "name", "serial_number", "active"];
 const JOB_HEADERS = [
@@ -689,6 +719,7 @@ const HANDOVER_HEADERS = [
   "job_id",
   "order",
   "title",
+  "to_name",
   "done",
   "note",
   "user_id",
@@ -1014,12 +1045,12 @@ function releaseTechsFromJob(techs: Technician[], jobId: string) {
 async function createSeedWorkbook(wb: MysqlWorkbook) {
   const now = nowIso();
   const techs: Technician[] = [
-    { id: "T01", name: "Andi Pratama", sn: "SN-1001", badge_id: "BADGE-1001", email: "andi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0001" },
-    { id: "T02", name: "Budi Santoso", sn: "SN-1002", badge_id: "BADGE-1002", email: "budi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0002" },
-    { id: "T03", name: "Citra Dewi", sn: "SN-1003", badge_id: "BADGE-1003", email: "citra@example.com", status: "available", current_job_id: "", phone: "0812-1111-0003" },
-    { id: "T04", name: "Dedi Kurnia", sn: "SN-1004", badge_id: "BADGE-1004", email: "dedi@example.com", status: "busy", current_job_id: "J02", phone: "0812-1111-0004" },
-    { id: "T05", name: "Eko Wijaya", sn: "SN-1005", badge_id: "BADGE-1005", email: "eko@example.com", status: "offline", current_job_id: "", phone: "0812-1111-0005" },
-    { id: "T06", name: "Fajar Nugroho", sn: "SN-1006", badge_id: "BADGE-1006", email: "fajar@example.com", status: "available", current_job_id: "", phone: "0812-1111-0006" },
+    { id: "T01", name: "Andi Pratama", sn: "SN-1001", badge_id: "BADGE-1001", email: "andi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0001", superior_user_id: "", superior_user_name: "" },
+    { id: "T02", name: "Budi Santoso", sn: "SN-1002", badge_id: "BADGE-1002", email: "budi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0002", superior_user_id: "", superior_user_name: "" },
+    { id: "T03", name: "Citra Dewi", sn: "SN-1003", badge_id: "BADGE-1003", email: "citra@example.com", status: "available", current_job_id: "", phone: "0812-1111-0003", superior_user_id: "", superior_user_name: "" },
+    { id: "T04", name: "Dedi Kurnia", sn: "SN-1004", badge_id: "BADGE-1004", email: "dedi@example.com", status: "busy", current_job_id: "J02", phone: "0812-1111-0004", superior_user_id: "", superior_user_name: "" },
+    { id: "T05", name: "Eko Wijaya", sn: "SN-1005", badge_id: "BADGE-1005", email: "eko@example.com", status: "offline", current_job_id: "", phone: "0812-1111-0005", superior_user_id: "", superior_user_name: "" },
+    { id: "T06", name: "Fajar Nugroho", sn: "SN-1006", badge_id: "BADGE-1006", email: "fajar@example.com", status: "available", current_job_id: "", phone: "0812-1111-0006", superior_user_id: "", superior_user_name: "" },
   ];
 
   const started1 = new Date(Date.now() - 85 * 60 * 1000).toISOString();
@@ -1196,10 +1227,20 @@ function enrichJob(
     technicians.find((t) => t.id === job.technician_id) || technicians[0] || null;
   const current_steps = jobSteps.filter((s) => s.status === "in_progress");
   const current_step = current_steps[0] || null;
+  const indexIds = new Set<string>();
+  for (const t of technicians) indexIds.add(t.id);
+  if (job.technician_id) indexIds.add(job.technician_id);
+  for (const s of jobSteps) {
+    for (const id of parseStepTechnicianIds(s.technician_ids)) {
+      indexIds.add(id);
+    }
+  }
+  const technician_index = techs.filter((t) => indexIds.has(t.id));
   return {
     ...job,
     technician,
     technicians,
+    technician_index,
     steps: jobSteps,
     events: jobEvents,
     handovers: jobHandovers,
@@ -1688,6 +1729,7 @@ export async function createJobHandover(input: {
   id?: string;
   job_id: string;
   title: string;
+  to_name?: string;
   note?: string;
   done?: boolean;
   actor?: AuditActor | null;
@@ -1727,6 +1769,7 @@ export async function createJobHandover(input: {
       job_id: input.job_id,
       order,
       title,
+      to_name: (input.to_name || "").trim().slice(0, 255),
       done: input.done ? "1" : "0",
       note: (input.note || "").trim(),
       user_id: input.actor?.user_id || "",
@@ -1766,6 +1809,7 @@ export async function updateJobHandover(
   handoverId: string,
   input: {
     title?: string;
+    to_name?: string;
     note?: string;
     done?: boolean;
     actor?: AuditActor | null;
@@ -1799,6 +1843,7 @@ export async function updateJobHandover(
       if (!title) throw new Error("Judul handover wajib diisi");
       row.title = title;
     }
+    if (input.to_name !== undefined) row.to_name = input.to_name.trim().slice(0, 255);
     if (input.note !== undefined) row.note = input.note.trim();
     if (input.done !== undefined) row.done = input.done ? "1" : "0";
     row.user_id = input.actor?.user_id || row.user_id;
@@ -2348,9 +2393,11 @@ export async function createTechnician(input: {
   email: string;
   phone?: string;
   status?: Exclude<TechnicianStatus, "busy">;
+  superior_user_id?: string;
 }): Promise<Technician> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
+    await ensureUsers(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const requestedId = String(input.id || "").trim();
     if (requestedId) {
@@ -2369,6 +2416,7 @@ export async function createTechnician(input: {
     );
     const status: TechnicianStatus =
       input.status === "offline" ? "offline" : "available";
+    const superior = resolveForemanSuperior(wb, input.superior_user_id);
     const tech: Technician = {
       id: requestedId || `T-${uuidv4().slice(0, 8)}`,
       name: fields.name,
@@ -2378,6 +2426,8 @@ export async function createTechnician(input: {
       status,
       current_job_id: "",
       phone: fields.phone,
+      superior_user_id: superior.superior_user_id,
+      superior_user_name: superior.superior_user_name,
     };
     techs.push(tech);
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
@@ -2548,6 +2598,8 @@ export async function importTechniciansFromBuffer(
         phone: phone || "-",
         status: status || "available",
         current_job_id: "",
+        superior_user_id: "",
+        superior_user_name: "",
       });
       imported += 1;
       changed = true;
@@ -2578,10 +2630,12 @@ export async function updateTechnician(
     email: string;
     phone?: string;
     status?: Exclude<TechnicianStatus, "busy">;
+    superior_user_id?: string;
   }
 ): Promise<Technician> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
+    await ensureUsers(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const tech = techs.find((t) => t.id === techId);
     if (!tech) throw new Error("Technician not found");
@@ -2601,6 +2655,9 @@ export async function updateTechnician(
     tech.badge_id = fields.badge_id;
     tech.email = fields.email;
     tech.phone = fields.phone;
+    const superior = resolveForemanSuperior(wb, input.superior_user_id, tech);
+    tech.superior_user_id = superior.superior_user_id;
+    tech.superior_user_name = superior.superior_user_name;
     if (input.status === "available" || input.status === "offline") {
       if (tech.status === "busy") {
         throw new Error("Teknisi sedang mengerjakan job. Selesaikan job dulu.");
@@ -2972,6 +3029,21 @@ export async function jobAction(
       }
 
       const prevStatus = job.status;
+      const previousAssignedIds = assignedIdsFromAssignees(job, assignees);
+      if (["in_progress", "paused"].includes(prevStatus)) {
+        for (const step of jobSteps()) {
+          if (step.status === "in_progress") {
+            step.technician_ids = mergeInProgressStepTechnicians(
+              step,
+              previousAssignedIds,
+              ids
+            );
+          } else if (step.status === "done") {
+            stampEmptyTechnicianIds(step, previousAssignedIds);
+          }
+        }
+      }
+
       // Release previous assignees on this job
       releaseTechsFromJob(techs, job.id);
       assignees = assignees.filter((a) => a.job_id !== job.id);
@@ -3076,6 +3148,7 @@ export async function jobAction(
         if (first) {
           first.status = "in_progress";
           first.started_at = startedAt;
+          stampEmptyTechnicianIds(first, assigneeIds);
           pushEvent("step_started", first.name);
         }
       }
@@ -3180,6 +3253,10 @@ export async function jobAction(
         step.status = "in_progress";
         step.started_at = startedAt;
         step.completed_at = "";
+        stampEmptyTechnicianIds(
+          step,
+          assignedIdsFromAssignees(job, assignees)
+        );
         startedNames.push(step.name);
       }
       if (startedNames.length > 0) {
@@ -3203,9 +3280,11 @@ export async function jobAction(
         const assignedIds = assignedIdsFromAssignees(job, assignees);
         const nextTechIds = selectedStepTechnicianIds(
           payload?.technician_ids,
-          assignedIds
+          assignedIds,
+          parseStepTechnicianIds(current.technician_ids)
         );
         if (nextTechIds) current.technician_ids = nextTechIds;
+        else stampEmptyTechnicianIds(current, assignedIds);
       };
       const wantAutoNext =
         payload?.auto_next === true ||
@@ -3219,6 +3298,10 @@ export async function jobAction(
         next.started_at = clientTimeIso(
           payload?.next_started_at || payload?.completed_at,
           current.completed_at || nowIso()
+        );
+        stampEmptyTechnicianIds(
+          next,
+          assignedIdsFromAssignees(job, assignees)
         );
         pushEvent("step_started", next.name);
       };
@@ -3268,7 +3351,8 @@ export async function jobAction(
       }
       const nextTechIds = selectedStepTechnicianIds(
         payload?.technician_ids ?? [],
-        assignedIds
+        assignedIds,
+        parseStepTechnicianIds(step.technician_ids)
       );
       if (!nextTechIds) {
         throw new Error("Pilih minimal satu teknisi yang ditugaskan");
@@ -3301,8 +3385,12 @@ export async function jobAction(
       const now = Date.now();
       const snapshots = payload?.step_snapshots || [];
       const byId = new Map(snapshots.map((s) => [s.id, s]));
+      const completeAssignedIds = assignedIdsFromAssignees(job, assignees);
       jobSteps().forEach((s) => {
         if (s.status !== "done") {
+          if (s.status === "in_progress") {
+            stampEmptyTechnicianIds(s, completeAssignedIds);
+          }
           const snap = byId.get(s.id);
           if (snap && Number.isFinite(snap.duration_sec)) {
             s.duration_sec = Math.max(0, Math.floor(snap.duration_sec));

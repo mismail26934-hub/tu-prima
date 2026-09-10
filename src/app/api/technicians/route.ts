@@ -27,6 +27,8 @@ export async function POST(req: Request) {
       email: String(body.email),
       phone: String(body.phone),
       status: body.status === "offline" ? "offline" : "available",
+      superior_user_id:
+        body.superior_user_id != null ? String(body.superior_user_id) : "",
     });
     return NextResponse.json(tech);
   } catch (e) {

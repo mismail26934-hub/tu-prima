@@ -44,6 +44,9 @@ export interface Technician {
   status: TechnicianStatus;
   current_job_id: string;
   phone: string;
+  /** Foreman user who is this technician's superior. */
+  superior_user_id: string;
+  superior_user_name: string;
 }
 
 export interface Unit {
@@ -167,6 +170,8 @@ export interface JobHandover {
   job_id: string;
   order: number;
   title: string;
+  /** Free-text recipient (who the handover is directed to). */
+  to_name: string;
   /** "1" = Yes/done, "0" = No */
   done: string;
   note: string;
@@ -194,6 +199,11 @@ export interface JobPartLoan {
 export interface JobWithDetails extends Job {
   technician?: Technician | null;
   technicians: Technician[];
+  /**
+   * Name lookup for step history — includes technicians who worked a step
+   * even if they were later unassigned from the job.
+   */
+  technician_index?: Technician[];
   steps: JobStep[];
   events: JobEvent[];
   handovers: JobHandover[];

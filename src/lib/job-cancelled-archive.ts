@@ -19,6 +19,7 @@ import type {
   JobWithDetails,
   Technician,
 } from "@/lib/types";
+import { normalizeJobPriority } from "@/lib/types";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
 import {
   parseStepTechnicianIds,
@@ -49,6 +50,7 @@ const JOB_HEADERS = [
   ...META,
   "id",
   "title",
+  "priority",
   "unit",
   "unit_id",
   "description",
@@ -194,6 +196,7 @@ function mapJobRow(r: Row): Job {
   return {
     id: String(r.id || ""),
     title: String(r.title || ""),
+    priority: normalizeJobPriority(r.priority),
     unit: String(r.unit || ""),
     unit_id: String(r.unit_id || ""),
     description: String(r.description || ""),
@@ -315,6 +318,7 @@ export async function archiveCancelledJob(input: {
       ...meta,
       id: input.job.id,
       title: input.job.title,
+      priority: input.job.priority || "",
       unit: input.job.unit,
       unit_id: input.job.unit_id,
       description: input.job.description,

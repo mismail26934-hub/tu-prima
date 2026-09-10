@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
-import { listJobsPaginated, type JobListSection, type JobOwnershipFilter } from "@/lib/board-list";
+import {
+  listJobsPaginated,
+  type JobListSection,
+  type JobOwnershipFilter,
+  type JobPriorityFilter,
+} from "@/lib/board-list";
 import { auth } from "@/auth";
+import { normalizeJobPriority } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +28,10 @@ function parseOwnership(raw: string | null): JobOwnershipFilter {
   return "all";
 }
 
+function parsePriority(raw: string | null): JobPriorityFilter {
+  return normalizeJobPriority(raw);
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -39,6 +49,7 @@ export async function GET(req: Request) {
     );
     const q = url.searchParams.get("q") || "";
     const ownership = parseOwnership(url.searchParams.get("ownership"));
+    const priority = parsePriority(url.searchParams.get("priority"));
     const cursor = url.searchParams.get("cursor");
     const session = await auth();
     const userId = session?.user?.id ? String(session.user.id) : "";
@@ -49,6 +60,7 @@ export async function GET(req: Request) {
       limit,
       q,
       ownership,
+      priority,
       userId,
       cursor: cursor || null,
     });

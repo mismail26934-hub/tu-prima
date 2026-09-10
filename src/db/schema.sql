@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   id                   VARCHAR(64)  NOT NULL PRIMARY KEY,
   job_scope            ENUM('active','completed','cancelled','deleted') NOT NULL DEFAULT 'active',
   title                VARCHAR(255) NOT NULL DEFAULT '',
+  priority             VARCHAR(16)  NOT NULL DEFAULT '',
   unit_label           VARCHAR(255) NOT NULL DEFAULT '',
   unit_id              VARCHAR(64)  NOT NULL DEFAULT '',
   description          TEXT,

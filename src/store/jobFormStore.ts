@@ -8,6 +8,7 @@ export interface JobFormData {
   category: JobTemplateCategory | "";
   template_id: string;
   title: string;
+  priority: string;
   unit_id: string;
   description: string;
   estimated_minutes: string;
@@ -19,6 +20,7 @@ const emptyForm = (): JobFormData => ({
   category: "",
   template_id: "",
   title: "",
+  priority: "",
   unit_id: "",
   description: "",
   estimated_minutes: "90",

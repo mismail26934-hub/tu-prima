@@ -87,9 +87,21 @@ export interface JobTemplateSummary {
   step_count: number;
 }
 
+export const JOB_PRIORITIES = ["URGENT", "P1", "P2", "P3"] as const;
+export type JobPriority = (typeof JOB_PRIORITIES)[number];
+
+export function normalizeJobPriority(raw: unknown): JobPriority | "" {
+  const v = String(raw || "").trim().toUpperCase();
+  return (JOB_PRIORITIES as readonly string[]).includes(v)
+    ? (v as JobPriority)
+    : "";
+}
+
 export interface Job {
   id: string;
   title: string;
+  /** Optional selected-item priority: URGENT | P1 | P2 | P3. */
+  priority?: JobPriority | "";
   unit: string;
   unit_id: string;
   description: string;

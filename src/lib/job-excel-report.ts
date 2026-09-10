@@ -216,6 +216,7 @@ function addCombinedJobSheet(
   sheet.columns = [
     { header: "job_id", key: "job_id", width: 38 },
     { header: "title", key: "title", width: 36 },
+    { header: "priority", key: "priority", width: 12 },
     { header: "unit", key: "unit", width: 24 },
     { header: "status", key: "status", width: 14 },
     { header: "kelompok", key: "kelompok", width: 12 },
@@ -246,6 +247,7 @@ function addCombinedJobSheet(
     const row = sheet.addRow({
       job_id: job.id,
       title: job.title,
+      priority: job.priority || "",
       unit: job.unit,
       status: job.status,
       kelompok,

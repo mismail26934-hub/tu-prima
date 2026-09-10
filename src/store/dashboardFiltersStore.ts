@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { TechnicianStatus } from "@/lib/types";
+import { JOB_PRIORITIES, type JobPriority } from "@/lib/types";
 
 export type JobSectionFilter = "all" | "active" | "queue" | "done" | "cancelled";
 export type JobOwnershipFilter =
@@ -10,6 +11,7 @@ export type JobOwnershipFilter =
   | "mine"
   | "delegated"
   | "mine_or_delegated";
+export type JobPriorityFilter = JobPriority | "";
 export type TechStatusFilter = "all" | TechnicianStatus;
 
 const STORAGE_KEY = "tus-dashboard-filters";
@@ -28,6 +30,7 @@ interface DashboardFiltersState {
   jobSectionFilter: JobSectionFilter;
   jobOwnershipMine: boolean;
   jobOwnershipDelegated: boolean;
+  jobPriorityFilter: JobPriorityFilter;
   techStatusFilter: TechStatusFilter;
   jobDraft: string;
   jobQuery: string;
@@ -36,6 +39,7 @@ interface DashboardFiltersState {
   setJobSectionFilter: (value: JobSectionFilter) => void;
   setJobOwnershipMine: (value: boolean) => void;
   setJobOwnershipDelegated: (value: boolean) => void;
+  setJobPriorityFilter: (value: JobPriorityFilter) => void;
   setTechStatusFilter: (value: TechStatusFilter) => void;
   setJobDraft: (draft: string) => void;
   applyJobSearch: () => void;
@@ -57,6 +61,7 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
       jobSectionFilter: "all",
       jobOwnershipMine: false,
       jobOwnershipDelegated: false,
+      jobPriorityFilter: "",
       techStatusFilter: "all",
       jobDraft: "",
       jobQuery: "",
@@ -66,6 +71,14 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
       setJobOwnershipMine: (jobOwnershipMine) => set({ jobOwnershipMine }),
       setJobOwnershipDelegated: (jobOwnershipDelegated) =>
         set({ jobOwnershipDelegated }),
+      setJobPriorityFilter: (jobPriorityFilter) =>
+        set({
+          jobPriorityFilter: JOB_PRIORITIES.includes(
+            jobPriorityFilter as JobPriority
+          )
+            ? jobPriorityFilter
+            : "",
+        }),
       setTechStatusFilter: (techStatusFilter) => set({ techStatusFilter }),
       setJobDraft: (jobDraft) => set({ jobDraft }),
       applyJobSearch: () => set({ jobQuery: get().jobDraft.trim() }),
@@ -76,12 +89,17 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
         const s = persisted as PersistedV0 & Record<string, unknown>;
+        const jobPriorityFilter = JOB_PRIORITIES.includes(
+          s.jobPriorityFilter as JobPriority
+        )
+          ? (s.jobPriorityFilter as JobPriority)
+          : "";
         if (typeof s.jobOwnershipMine === "boolean") {
-          return persisted as DashboardFiltersState;
+          return { ...s, jobPriorityFilter } as DashboardFiltersState;
         }
         const old = s.jobOwnershipFilter;
         return {
@@ -89,12 +107,14 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
           jobOwnershipMine: old === "mine" || old === "mine_or_delegated",
           jobOwnershipDelegated:
             old === "delegated" || old === "mine_or_delegated",
+          jobPriorityFilter,
         };
       },
       partialize: (state) => ({
         jobSectionFilter: state.jobSectionFilter,
         jobOwnershipMine: state.jobOwnershipMine,
         jobOwnershipDelegated: state.jobOwnershipDelegated,
+        jobPriorityFilter: state.jobPriorityFilter,
         techStatusFilter: state.techStatusFilter,
         jobDraft: state.jobDraft,
         jobQuery: state.jobQuery,

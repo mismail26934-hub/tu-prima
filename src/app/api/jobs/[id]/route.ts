@@ -22,6 +22,7 @@ export async function PATCH(
     const actor = await getCurrentActor();
     const job = await updateJob(id, {
       title: String(body.title),
+      priority: body.priority != null ? String(body.priority) : "",
       unit_id: String(body.unit_id),
       description: body.description ? String(body.description) : "",
       estimated_minutes: body.estimated_minutes

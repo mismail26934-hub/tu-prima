@@ -18,7 +18,7 @@ import type {
   UserLevel,
   DashboardData,
 } from "@/lib/types";
-import { USER_LEVELS } from "@/lib/types";
+import { JOB_PRIORITIES, USER_LEVELS, normalizeJobPriority } from "@/lib/types";
 import {
   canAccess,
   canAssignJob,
@@ -46,6 +46,7 @@ import {
   useDashboardFiltersStore,
   resolveJobOwnershipFilter,
   type JobSectionFilter,
+  type JobPriorityFilter,
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
@@ -1721,6 +1722,10 @@ export default function HomePage() {
   const setJobOwnershipDelegated = useDashboardFiltersStore(
     (s) => s.setJobOwnershipDelegated
   );
+  const jobPriorityFilter = useDashboardFiltersStore((s) => s.jobPriorityFilter);
+  const setJobPriorityFilter = useDashboardFiltersStore(
+    (s) => s.setJobPriorityFilter
+  );
 
   const jobOwnershipFilter = useMemo(
     () => resolveJobOwnershipFilter(jobOwnershipMine, jobOwnershipDelegated),
@@ -1943,6 +1948,7 @@ export default function HomePage() {
     if (!canManageJob(job)) return;
     loadForm({
       title: job.title,
+      priority: normalizeJobPriority(job.priority),
       unit_id: job.unit_id || "",
       description: job.description,
       estimated_minutes: String(job.estimated_minutes || 60),
@@ -2750,6 +2756,8 @@ export default function HomePage() {
   }, [techQuery, techStatusFilter]);
 
   const jobListHasFilter = Boolean(jobQuery) || jobOwnershipFilter !== "all";
+  const jobListHasPriorityFilter = Boolean(jobPriorityFilter);
+  const liveJobListHasFilter = jobListHasFilter || jobListHasPriorityFilter;
 
   const showActiveJobs =
     jobSectionFilter === "all" || jobSectionFilter === "active";
@@ -2766,6 +2774,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
+    priority: jobPriorityFilter,
     enabled: showActiveJobs,
   });
   const queueJobsQuery = useJobsList({
@@ -2774,6 +2783,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
+    priority: jobPriorityFilter,
     enabled: showQueueJobs,
   });
   const completedJobsQuery = useJobsList({
@@ -2797,6 +2807,7 @@ export default function HomePage() {
   const sliderJobsQuery = useActiveJobsSlider({
     q: jobQuery,
     ownership: jobOwnershipFilter,
+    priority: jobPriorityFilter,
     enabled: showActiveJobs,
   });
 
@@ -2835,7 +2846,7 @@ export default function HomePage() {
     setCompletedJobCursors([null]);
     setCancelledJobPage(1);
     setCancelledJobCursors([null]);
-  }, [jobQuery, jobSectionFilter, jobOwnershipMine, jobOwnershipDelegated]);
+  }, [jobQuery, jobSectionFilter, jobOwnershipMine, jobOwnershipDelegated, jobPriorityFilter]);
 
   function goCompletedArchiveNext() {
     const next = completedJobsQuery.data?.nextCursor;
@@ -3304,6 +3315,7 @@ export default function HomePage() {
         method: "POST",
         body: JSON.stringify({
           title: form.title.trim(),
+          priority: form.priority,
           unit_id: form.unit_id,
           description: form.description.trim(),
           estimated_minutes: Number(form.estimated_minutes),
@@ -3332,6 +3344,7 @@ export default function HomePage() {
         method: "PATCH",
         body: JSON.stringify({
           title: form.title.trim(),
+          priority: form.priority,
           unit_id: form.unit_id,
           description: form.description.trim(),
           estimated_minutes: Number(form.estimated_minutes),
@@ -3402,6 +3415,7 @@ export default function HomePage() {
     const delegateOk = canDelegateForJob(job);
     const jobMapLocal = jobMap;
     const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
+    const jobPriority = normalizeJobPriority(job.priority);
     return (
       <article className="job" key={job.id} id={`job-${job.id}`}>
         <SliderActiveStepScroll job={job} />
@@ -3432,6 +3446,13 @@ export default function HomePage() {
                 </svg>
               </button>
               <div className="job-title">{job.title}</div>
+              {jobPriority ? (
+                <span
+                  className={`job-priority-pill job-priority-pill--${jobPriority.toLowerCase()}`}
+                >
+                  {jobPriority}
+                </span>
+              ) : null}
             </div>
             <div className="job-unit">
               {job.unit}
@@ -5269,6 +5290,31 @@ export default function HomePage() {
                       <option value="cancelled">{t("job.section.cancelled")}</option>
                     </select>
                   </label>
+                  {(jobSectionFilter === "all" ||
+                    jobSectionFilter === "active" ||
+                    jobSectionFilter === "queue") && (
+                    <label className="panel-filter panel-filter--priority">
+                      <span className="panel-vis-label">
+                        {t("panel.filterJobPriority")}
+                      </span>
+                      <select
+                        value={jobPriorityFilter}
+                        onChange={(e) =>
+                          setJobPriorityFilter(
+                            e.target.value as JobPriorityFilter
+                          )
+                        }
+                        aria-label={t("panel.filterJobPriority")}
+                      >
+                        <option value="">{t("panel.priorityAll")}</option>
+                        {JOB_PRIORITIES.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   {isLoggedIn && userId && (
                     <div
                       className="panel-filter panel-filter--ownership"
@@ -5278,24 +5324,26 @@ export default function HomePage() {
                       <span className="panel-vis-label">
                         {t("panel.filterJobOwnership")}
                       </span>
-                      <label className="panel-ownership-check">
-                        <input
-                          type="checkbox"
-                          checked={jobOwnershipMine}
-                          onChange={(e) => setJobOwnershipMine(e.target.checked)}
-                        />
-                        {t("panel.jobOwnershipMine")}
-                      </label>
-                      <label className="panel-ownership-check">
-                        <input
-                          type="checkbox"
-                          checked={jobOwnershipDelegated}
-                          onChange={(e) =>
-                            setJobOwnershipDelegated(e.target.checked)
-                          }
-                        />
-                        {t("panel.jobOwnershipDelegated")}
-                      </label>
+                      <div className="panel-ownership-options">
+                        <label className="panel-ownership-check">
+                          <input
+                            type="checkbox"
+                            checked={jobOwnershipMine}
+                            onChange={(e) => setJobOwnershipMine(e.target.checked)}
+                          />
+                          {t("panel.jobOwnershipMine")}
+                        </label>
+                        <label className="panel-ownership-check">
+                          <input
+                            type="checkbox"
+                            checked={jobOwnershipDelegated}
+                            onChange={(e) =>
+                              setJobOwnershipDelegated(e.target.checked)
+                            }
+                          />
+                          {t("panel.jobOwnershipDelegated")}
+                        </label>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -5368,7 +5416,7 @@ export default function HomePage() {
                   )}
                   {!activeJobsQuery.isLoading && activeJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
-                      {jobListHasFilter ? t("panel.activeNoMatch") : t("panel.activeEmpty")}
+                      {liveJobListHasFilter ? t("panel.activeNoMatch") : t("panel.activeEmpty")}
                     </p>
                   )}
                   {activeJobs.map(renderJob)}
@@ -5392,7 +5440,7 @@ export default function HomePage() {
                   )}
                   {!queueJobsQuery.isLoading && queuedJobs.length === 0 && (
                     <p style={{ color: "var(--muted)" }}>
-                      {jobListHasFilter ? t("panel.queueNoMatch") : t("panel.queueEmpty")}
+                      {liveJobListHasFilter ? t("panel.queueNoMatch") : t("panel.queueEmpty")}
                     </p>
                   )}
                   {queuedJobs.map(renderJob)}
@@ -6044,6 +6092,20 @@ export default function HomePage() {
                   onChange={(e) => setForm({ title: e.target.value })}
                   required
                 />
+              </label>
+              <label>
+                {t("job.priority")}
+                <select
+                  value={form.priority || ""}
+                  onChange={(e) => setForm({ priority: e.target.value })}
+                >
+                  <option value="">{t("job.priorityNone")}</option>
+                  {JOB_PRIORITIES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Unit *

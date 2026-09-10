@@ -93,6 +93,7 @@ export function downloadJobPdf(job: JobWithDetails): void {
 
   const meta: Array<[string, string]> = [
     ["Unit", job.unit || "—"],
+    ["Priority", job.priority || "—"],
     ["Status", formatPdfStatus(job.status)],
     ["Teknisi", techNames],
     ["Estimasi", `${job.estimated_minutes || 0} menit`],

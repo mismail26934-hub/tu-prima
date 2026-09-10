@@ -24,7 +24,7 @@ import type {
   JobPartLoan,
   PartLoanStatus,
 } from "./types";
-import { USER_LEVELS } from "./types";
+import { USER_LEVELS, normalizeJobPriority } from "./types";
 import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
 import {
   assignedIdsFromAssignees,
@@ -367,6 +367,7 @@ function mapJob(r: Row): Job {
   return {
     id: String(r.id || ""),
     title: String(r.title || ""),
+    priority: normalizeJobPriority(r.priority),
     unit: String(r.unit || ""),
     unit_id: String(r.unit_id || ""),
     description: String(r.description || ""),
@@ -683,6 +684,7 @@ const UNIT_HEADERS = ["id", "code", "name", "serial_number", "active"];
 const JOB_HEADERS = [
   "id",
   "title",
+  "priority",
   "unit",
   "unit_id",
   "description",
@@ -1349,6 +1351,7 @@ function normalizeJobStepInputs(
 export async function createJob(input: {
   id?: string;
   title: string;
+  priority?: string;
   unit_id: string;
   description?: string;
   estimated_minutes?: number;
@@ -1421,6 +1424,7 @@ export async function createJob(input: {
     const job: Job = {
       id,
       title: input.title,
+      priority: normalizeJobPriority(input.priority),
       unit: unitLabel(unit),
       unit_id: unit.id,
       description: input.description || "",
@@ -1510,6 +1514,7 @@ export async function updateJob(
   jobId: string,
   input: {
     title: string;
+    priority?: string;
     unit_id: string;
     description?: string;
     estimated_minutes?: number;
@@ -1555,6 +1560,7 @@ export async function updateJob(
     }
 
     job.title = title;
+    job.priority = normalizeJobPriority(input.priority);
     job.unit_id = unit.id;
     job.unit = unitLabel(unit);
     job.description = input.description?.trim() || "";

@@ -75,6 +75,7 @@ function jobRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
   const base: DbRow = {
     id: str(r.id),
     title: str(r.title),
+    priority: str(r.priority),
     unit: str(r.unit_label),
     unit_id: str(r.unit_id),
     description: str(r.description),
@@ -121,6 +122,7 @@ function jobRowToDb(row: DbRow, scope: JobScope): Record<string, unknown> {
     id: str(row.id),
     job_scope: scope,
     title: str(row.title),
+    priority: str(row.priority),
     unit_label: str(row.unit),
     unit_id: str(row.unit_id),
     description: str(row.description),
@@ -272,6 +274,7 @@ function jobHeaders(scope: JobScope): string[] {
     ...metaPrefix(scope),
     "id",
     "title",
+    "priority",
     "unit",
     "unit_id",
     "description",
@@ -494,18 +497,19 @@ async function saveScopedJobs(
     const d = jobRowToDb(row, scope);
     await conn.query(
       `INSERT INTO jobs (
-        id, job_scope, title, unit_label, unit_id, description, status,
+        id, job_scope, title, priority, unit_label, unit_id, description, status,
         technician_id, template_id, created_at, started_at, completed_at,
         paused_at, total_paused_sec, estimated_minutes,
         archived_at, archived_by_user_id, archived_by_user_name, archived_by_user_level,
         deleted_at, deleted_by_user_id, deleted_by_user_name, deleted_by_user_level,
         assigned_by_user_id, assigned_by_user_name, assigned_by_user_level,
         delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         d.id,
         d.job_scope,
         d.title,
+        d.priority,
         d.unit_label,
         d.unit_id,
         d.description,
@@ -994,6 +998,7 @@ export async function ensureRelationalSchema() {
       id VARCHAR(64) NOT NULL PRIMARY KEY,
       job_scope ENUM('active','completed','cancelled','deleted') NOT NULL DEFAULT 'active',
       title VARCHAR(255) NOT NULL DEFAULT '',
+      priority VARCHAR(16) NOT NULL DEFAULT '',
       unit_label VARCHAR(255) NOT NULL DEFAULT '',
       unit_id VARCHAR(64) NOT NULL DEFAULT '',
       description TEXT,
@@ -1174,6 +1179,9 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority VARCHAR(16) NOT NULL DEFAULT ''`
   );
   await ensureListIndexes(p);
 }

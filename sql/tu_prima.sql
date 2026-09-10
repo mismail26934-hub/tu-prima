@@ -69,6 +69,7 @@ CREATE TABLE `jobs` (
   `id` varchar(64) NOT NULL,
   `job_scope` enum('active','completed','cancelled','deleted') NOT NULL DEFAULT 'active',
   `title` varchar(255) NOT NULL DEFAULT '',
+  `priority` varchar(16) NOT NULL DEFAULT '',
   `unit_label` varchar(255) NOT NULL DEFAULT '',
   `unit_id` varchar(64) NOT NULL DEFAULT '',
   `description` text DEFAULT NULL,

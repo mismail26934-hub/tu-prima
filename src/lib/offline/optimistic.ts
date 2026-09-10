@@ -17,6 +17,7 @@ import type {
   TechnicianStatus,
   Unit,
 } from "@/lib/types";
+import { normalizeJobPriority } from "@/lib/types";
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
 import {
   assignedTechnicianIds,
@@ -165,6 +166,20 @@ function forEachBoardJobsQuery(
   }
 }
 
+function boardQueryPriorityFilter(key: readonly unknown[]): string {
+  if (key[3] === "slider") return normalizeJobPriority(key[6]);
+  return normalizeJobPriority(key[8]);
+}
+
+function jobMatchesBoardPriorityFilter(
+  job: JobWithDetails,
+  key: readonly unknown[]
+): boolean {
+  const wanted = boardQueryPriorityFilter(key);
+  if (!wanted) return true;
+  return normalizeJobPriority(job.priority) === wanted;
+}
+
 function findJobInBoardCaches(
   qc: QueryClient,
   jobId: string
@@ -214,8 +229,17 @@ function patchJobInBoardCaches(
   forEachBoardJobsQuery(qc, (key, data) => {
     const idx = data.items.findIndex((j) => j.id === jobId);
     if (idx < 0) return;
+    const nextJob = enrich(updater(data.items[idx]));
+    if (!jobMatchesBoardPriorityFilter(nextJob, key)) {
+      qc.setQueryData(key, {
+        ...data,
+        items: data.items.filter((j) => j.id !== jobId),
+        total: Math.max(0, data.total - 1),
+      });
+      return;
+    }
     const items = data.items.slice();
-    items[idx] = enrich(updater(items[idx]));
+    items[idx] = nextJob;
     qc.setQueryData(key, { ...data, items });
   });
 }
@@ -243,6 +267,7 @@ function prependJobToBoardCaches(
         : meta.section === target ||
           (target === "active" && meta.section === "slider");
     if (!match) return;
+    if (!jobMatchesBoardPriorityFilter(job, key)) return;
     const without = data.items.filter((j) => j.id !== job.id);
     const had = without.length !== data.items.length;
     qc.setQueryData(key, {
@@ -366,6 +391,7 @@ function emptyJob(partial: Partial<Job> & Pick<Job, "id" | "title">): JobWithDet
   const job: JobWithDetails = {
     id: partial.id,
     title: partial.title,
+    priority: normalizeJobPriority(partial.priority),
     unit: partial.unit || "",
     unit_id: partial.unit_id || "",
     description: partial.description || "",
@@ -781,6 +807,7 @@ function createJobOptimistic(
     ...emptyJob({
       id,
       title: String(body.title || "Job"),
+      priority: normalizeJobPriority(body.priority),
       unit: unit ? unitLabel(unit) : "",
       unit_id: unit?.id || String(body.unit_id || ""),
       description: String(body.description || ""),
@@ -941,6 +968,10 @@ export function applyOptimisticMutation(
           const next = {
             ...job,
             title: String(body.title || job.title),
+            priority:
+              body.priority != null
+                ? normalizeJobPriority(body.priority)
+                : job.priority,
             description:
               body.description != null ? String(body.description) : job.description,
             estimated_minutes:

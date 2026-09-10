@@ -13,21 +13,22 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 3. [Template time frame (Engine / Non Engine)](#template-time-frame-engine--non-engine)
 4. [Mode step: Berurutan vs Parallel](#mode-step-berurutan-vs-parallel)
 5. [Timer & sisa estimasi](#timer--sisa-estimasi)
-6. [Archive job (complete / cancel / hapus)](#archive-job-complete--cancel--hapus)
-7. [Catatan handover](#catatan-handover-job-aktif)
-8. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
-9. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
-10. [Struktur data (MySQL)](#struktur-data-mysql)
-11. [Template JSON & file data](#template-json--file-data)
-12. [Autentikasi & hak akses](#autentikasi--hak-akses)
-13. [Struktur folder](#struktur-folder)
-14. [API ringkas](#api-ringkas)
-15. [Menjalankan project](#menjalankan-project)
-16. [Deploy production (Hostinger)](#deploy-production-hostinger)
-17. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
-18. [Realtime WebSocket](#realtime-websocket)
-19. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
-20. [Catatan operasional](#catatan-operasional)
+6. [Prioritas job (URGENT / P1 / P2 / P3)](#prioritas-job-urgent--p1--p2--p3)
+7. [Archive job (complete / cancel / hapus)](#archive-job-complete--cancel--hapus)
+8. [Catatan handover](#catatan-handover-job-aktif)
+9. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
+10. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
+11. [Struktur data (MySQL)](#struktur-data-mysql)
+12. [Template JSON & file data](#template-json--file-data)
+13. [Autentikasi & hak akses](#autentikasi--hak-akses)
+14. [Struktur folder](#struktur-folder)
+15. [API ringkas](#api-ringkas)
+16. [Menjalankan project](#menjalankan-project)
+17. [Deploy production (Hostinger)](#deploy-production-hostinger)
+18. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
+19. [Realtime WebSocket](#realtime-websocket)
+20. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
+21. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -55,6 +56,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
   - dari **Job completed** → restore → `paused`
   - dari **Job cancelled** → restore → `paused` / `assigned` / `queued`
 - Filter board: All / Job aktif / Antrian / **Job completed** / **Job cancelled**
+- **Prioritas job** opsional: `URGENT` / `P1` / `P2` / `P3` (form Create/Edit, pill di kartu, filter Job aktif & Antrian)
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
 - Setiap step menampilkan **STP/Std Hours** (`std_minutes` dari template)
 - Estimasi di kartu: `Est. N mnt / H jam M mnt · Progress P%` (di bawah deskripsi job)
@@ -102,7 +104,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 3. Buat Job baru
       ├─ Mode template → pilih Engine / Non Engine / GOH → pilih komponen
       │                 (steps + estimasi terisi dari time frame)
-      └─ Mode custom  → isi judul, unit, deskripsi, steps manual
+      ├─ Mode custom  → isi judul, unit, deskripsi, steps manual
+      └─ Prioritas (opsional) → URGENT / P1 / P2 / P3; boleh dikosongkan
 4. Assign teknisi (Foreman / Superuser)
 5. Start job
 6. Kerjakan step (berurutan ATAU parallel)
@@ -216,6 +219,31 @@ Sync offline memakai `started_at` / `next_started_at` dari client, bukan jam ser
 
 ---
 
+## Prioritas job (URGENT / P1 / P2 / P3)
+
+Field **Selected Item Priority Job (optional)** di form Create / Edit, tepat di bawah Judul.
+
+| Nilai      | Arti                 |
+| ---------- | -------------------- |
+| _(kosong)_ | Tidak ada prioritas  |
+| `URGENT`   | Urgent               |
+| `P1`       | Priority 1           |
+| `P2`       | Priority 2           |
+| `P3`       | Priority 3           |
+
+- Tersimpan di kolom **`jobs.priority`** (`VARCHAR(16)`, default `''`)
+- Nilai selain daftar di atas diabaikan (dinormalisasi ke kosong)
+- Kartu job menampilkan **pill** di samping judul jika prioritas diisi
+- PDF dan export Excel ikut kolom `priority`
+- Filter dropdown **Filter prioritas** di panel Job berlaku hanya untuk **Job aktif** dan **Antrian** (termasuk slider). Job completed / cancelled tidak tersaring
+- Di mobile, bar filter (section + prioritas + penugasan) ditumpuk vertikal agar label/dropdown tidak berdesakan
+
+Migrasi kolom otomatis saat app start (`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority …` di `src/db/relational-store.ts`).
+
+API: `POST /api/jobs` dan `PATCH /api/jobs/[id]` menerima `priority` · `GET /api/jobs/list?section=active|queue&priority=URGENT|P1|P2|P3`
+
+---
+
 ## Archive job (complete / cancel / hapus)
 
 Job aktif & antrian disimpan di MySQL dengan `job_scope = 'active'`. Complete / cancel / hapus memindahkan baris ke scope terpisah (bukan file Excel terpisah):
@@ -319,7 +347,7 @@ Database: **`tu_prima`** (via `DATABASE_URL`). Schema lengkap: `src/db/schema.sq
 | ------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `technicians`      | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email                                               |
 | `units`            | id, code, name, serial_number, active                                                                               |
-| `jobs`             | id, **job_scope**, title, unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes      |
+| `jobs`             | id, **job_scope**, title, **priority** (`URGENT`/`P1`/`P2`/`P3` atau kosong), unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
 | `job_assignees`    | job_id, technician_id, is_lead, assigned_at                                                                         |
 | `job_steps`        | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                |
 | `job_events`       | timeline + **user_id / user_name / user_level**                                                                     |
@@ -482,8 +510,9 @@ data/
 | GET          | `/api/job-templates/template`                                     | Unduh blank Excel untuk mass upload                                                                                |
 | POST         | `/api/job-templates/import`                                       | Mass upload template (sheet Templates + Steps)                                                                     |
 | GET          | `/api/job-templates/download`                                     | Export katalog Excel (opsional `id` / `category`)                                                                  |
-| POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, actor audit)                                                                            |
-| PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job                                                                                                 |
+| POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, `priority` opsional, actor audit)                                                       |
+| PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job (`priority` opsional)                                                                           |
+| GET          | `/api/jobs/list?section=&page=&limit=&q=&ownership=&priority=`    | List paginated (filter `priority` hanya active/queue)                                                              |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel`, `reopen` |
 | POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                            |
 | PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                                    |
@@ -769,6 +798,9 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 ### Ringkasan perubahan terkini
 
+- **Prioritas job** opsional (`URGENT` / `P1` / `P2` / `P3`): form Create/Edit, kolom `jobs.priority`, pill di kartu, PDF/Excel, filter Job aktif & Antrian; layout filter mobile ditumpuk vertikal
+- **Catatan per step** (`job_steps.note`) + ikon/modal di kartu job
+- **Delegasi penuh**: hanya foreman terdelegasi + superuser yang mengendalikan job (assigner asli tidak bisa undelegate)
 - **MySQL/MariaDB** sebagai database runtime (migrasi dari Excel workbook)
 - **Users**: kolom `email` + `phone` di DB dan UI Master User
 - **Auth**: login `/sign-in`, session `/api/session`, error `/auth-gagal` (WAF-friendly)

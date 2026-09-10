@@ -18,6 +18,8 @@ import type {
   Technician,
   TechnicianStatus,
 } from "@/lib/types";
+import { normalizeJobPriority } from "@/lib/types";
+import type { JobPriority } from "@/lib/types";
 
 export type JobListSection = "active" | "queue" | "done" | "cancelled";
 export type JobOwnershipFilter =
@@ -25,6 +27,7 @@ export type JobOwnershipFilter =
   | "mine"
   | "delegated"
   | "mine_or_delegated";
+export type JobPriorityFilter = JobPriority | "";
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -68,6 +71,7 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
   return {
     id: str(r.id),
     title: str(r.title),
+    priority: normalizeJobPriority(r.priority),
     unit: str(r.unit_label),
     unit_id: str(r.unit_id),
     description: str(r.description),
@@ -189,7 +193,8 @@ function buildJobWhere(
   section: JobListSection,
   q: string,
   ownership: JobOwnershipFilter,
-  userId: string
+  userId: string,
+  priority: JobPriorityFilter = ""
 ): { sql: string; params: unknown[] } {
   const { jobScope, statuses } = sectionScope(section);
   const parts = ["job_scope = ?"];
@@ -203,10 +208,15 @@ function buildJobWhere(
   const term = q.trim().toLowerCase();
   if (term) {
     parts.push(
-      "(LOWER(title) LIKE ? OR LOWER(unit_label) LIKE ? OR LOWER(description) LIKE ? OR LOWER(status) LIKE ?)"
+      "(LOWER(title) LIKE ? OR LOWER(unit_label) LIKE ? OR LOWER(description) LIKE ? OR LOWER(status) LIKE ? OR LOWER(priority) LIKE ?)"
     );
     const like = `%${term}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like);
+  }
+
+  if ((section === "active" || section === "queue") && priority) {
+    parts.push("priority = ?");
+    params.push(priority);
   }
 
   if (ownership === "mine" && userId) {
@@ -418,6 +428,7 @@ export async function listJobsPaginated(input: {
   limit: number;
   q?: string;
   ownership?: JobOwnershipFilter;
+  priority?: JobPriorityFilter;
   userId?: string;
   cursor?: string | null;
 }): Promise<PaginatedResult<JobWithDetails>> {
@@ -425,9 +436,16 @@ export async function listJobsPaginated(input: {
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit || 10)));
   const q = input.q || "";
   const ownership = input.ownership || "all";
+  const priority = normalizeJobPriority(input.priority);
   const userId = input.userId || "";
   const { fromArchive } = sectionScope(input.section);
-  const { sql, params } = buildJobWhere(input.section, q, ownership, userId);
+  const { sql, params } = buildJobWhere(
+    input.section,
+    q,
+    ownership,
+    userId,
+    priority
+  );
   const p = getPool();
   const useKeyset = ARCHIVE_SECTIONS.has(input.section);
   const decodedCursor =

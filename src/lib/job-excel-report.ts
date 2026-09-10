@@ -7,6 +7,7 @@ import {
   formatDuration,
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
+import { fmtFileStamp } from "@/lib/file-stamp";
 
 export type JobReportScope = "active" | "queue";
 
@@ -85,9 +86,12 @@ function stepsText(job: JobWithDetails): string {
         stpMin > 0
           ? ` | STP/Std Hours: ${formatStdLabel(stpMin)}`
           : " | STP/Std Hours: —";
+      const note = (s.note || "").trim();
       return `${s.order}. ${s.name}${stp} | [${s.status}] ${formatDuration(
         calcStepElapsedSec(s)
-      )} | Teknisi: ${stepTechnicianNames(s, job) || "—"}`;
+      )} | Teknisi: ${stepTechnicianNames(s, job) || "—"}${
+        note ? ` | Note: ${note}` : ""
+      }`;
     })
     .join("\n");
 }
@@ -193,7 +197,7 @@ export async function buildJobsReportBuffer(
   ]);
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = fmtFileStamp();
   const filename =
     scope === "active"
       ? `report-job-aktif-${stamp}.xlsx`

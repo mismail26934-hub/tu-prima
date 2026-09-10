@@ -209,7 +209,9 @@ CREATE TABLE `job_steps` (
   `started_at` varchar(64) NOT NULL DEFAULT '',
   `completed_at` varchar(64) NOT NULL DEFAULT '',
   `duration_sec` int(11) NOT NULL DEFAULT 0,
-  `std_minutes` int(11) NOT NULL DEFAULT 0
+  `std_minutes` int(11) NOT NULL DEFAULT 0,
+  `technician_ids` text DEFAULT NULL,
+  `note` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

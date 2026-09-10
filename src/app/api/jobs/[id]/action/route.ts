@@ -21,6 +21,7 @@ const ACTIONS = [
   "start_steps",
   "complete_step",
   "set_step_technicians",
+  "set_step_note",
   "complete",
   "cancel",
   "reopen",
@@ -56,6 +57,7 @@ export async function POST(
         "start_steps",
         "complete_step",
         "set_step_technicians",
+        "set_step_note",
         "complete",
       ].includes(action)
     ) {

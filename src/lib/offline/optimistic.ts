@@ -358,6 +358,7 @@ function toJobSteps(jobId: string, defs: JobStepPayload[]): JobStep[] {
     duration_sec: 0,
     std_minutes: Number(def.std_minutes || 0),
     technician_ids: [],
+    note: "",
   }));
 }
 
@@ -660,6 +661,15 @@ function applyJobAction(
         ),
       };
     });
+  }
+
+  if (action === "set_step_note") {
+    const stepId = String(body.step_id || "");
+    const note = String(body.note ?? "").trim().slice(0, 4000);
+    return mapJob(data, jobId, (j) => ({
+      ...j,
+      steps: j.steps.map((s) => (s.id === stepId ? { ...s, note } : s)),
+    }));
   }
 
   if (action === "complete" && job) {

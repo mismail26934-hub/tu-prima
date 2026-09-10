@@ -75,6 +75,7 @@ const STEP_HEADERS = [
   "duration_sec",
   "std_minutes",
   "technician_ids",
+  "note",
 ];
 
 const EVENT_HEADERS = [
@@ -220,6 +221,7 @@ function mapStepRow(r: Row): JobStep {
     duration_sec: Number(r.duration_sec || 0),
     std_minutes: Number(r.std_minutes || 0),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
+    note: String(r.note || ""),
   };
 }
 
@@ -344,6 +346,7 @@ export async function archiveCompletedJob(input: {
       duration_sec: s.duration_sec,
       std_minutes: s.std_minutes,
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
+      note: s.note || "",
     }))
   );
 

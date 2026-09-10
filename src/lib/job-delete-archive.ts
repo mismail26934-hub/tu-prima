@@ -70,6 +70,7 @@ const STEP_HEADERS = [
   "duration_sec",
   "std_minutes",
   "technician_ids",
+  "note",
 ];
 
 const EVENT_HEADERS = [
@@ -227,6 +228,7 @@ export async function archiveDeletedJob(input: {
       duration_sec: s.duration_sec,
       std_minutes: s.std_minutes,
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
+      note: s.note || "",
     }))
   );
 

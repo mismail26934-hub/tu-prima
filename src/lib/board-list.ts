@@ -102,6 +102,7 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     duration_sec: num(r.duration_sec),
     std_minutes: num(r.std_minutes),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
+    note: str(r.note),
   };
 }
 

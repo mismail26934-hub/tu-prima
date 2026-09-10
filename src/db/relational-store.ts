@@ -307,6 +307,7 @@ function stepHeaders(scope: JobScope): string[] {
     "duration_sec",
     "std_minutes",
     "technician_ids",
+    "note",
   ];
 }
 
@@ -388,6 +389,7 @@ function stepRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       duration_sec: num(r.duration_sec),
       std_minutes: num(r.std_minutes),
       technician_ids: str(r.technician_ids),
+      note: str(r.note),
     },
     scope
   );
@@ -538,8 +540,8 @@ async function saveScopedJobs(
   const insertSteps = wb.getWorksheet(SCOPE_STEP_SHEET[scope])?.rows ?? [];
   for (const row of insertSteps) {
     await conn.query(
-      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -551,6 +553,7 @@ async function saveScopedJobs(
         num(row.duration_sec),
         num(row.std_minutes),
         str(row.technician_ids),
+        str(row.note),
       ]
     );
   }
@@ -1041,6 +1044,7 @@ export async function ensureRelationalSchema() {
       duration_sec INT NOT NULL DEFAULT 0,
       std_minutes INT NOT NULL DEFAULT 0,
       technician_ids TEXT,
+      note TEXT,
       KEY idx_job_steps_job (job_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_events (
@@ -1164,6 +1168,9 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS technician_ids TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS note TEXT`
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_name VARCHAR(255) NOT NULL DEFAULT ''`

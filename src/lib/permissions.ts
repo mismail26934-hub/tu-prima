@@ -77,7 +77,7 @@ export const ACCESS_MATRIX: Record<
 };
 
 export const JOB_MANAGE_DENIED_MSG =
-  "Hanya penugas, foreman yang didelegasikan, atau superuser yang boleh mengubah job ini";
+  "Hanya pengendali job (foreman yang didelegasikan, atau penugas jika belum didelegasi) atau superuser yang boleh mengubah job ini";
 
 const ACTIVE_JOB_STATUSES = new Set([
   "queued",
@@ -135,7 +135,14 @@ export function jobHasTechnicianAssignment(
   return Boolean(job.technician_id) || assigneeCount > 0;
 }
 
-/** Manage active/queued job: owner, delegatee, or queued-unassigned roles. Superuser bypass. */
+/** Manage active/queued job: current controller, or queued-unassigned roles. Superuser bypass.
+ *  After delegation, only the delegated foreman controls the job (original assigner cannot). */
+export function jobControllerUserId(
+  job: Pick<Job, "assigned_by_user_id" | "delegated_to_user_id">
+): string {
+  return String(job.delegated_to_user_id || job.assigned_by_user_id || "").trim();
+}
+
 export function canManageActiveJob(
   level: AccessLevel | undefined,
   userId: string | undefined,
@@ -158,10 +165,8 @@ export function canManageActiveJob(
   }
 
   if (!userId) return false;
-  return (
-    userId === (job.assigned_by_user_id || "") ||
-    userId === (job.delegated_to_user_id || "")
-  );
+  const controller = jobControllerUserId(job);
+  return Boolean(controller) && userId === controller;
 }
 
 /** Assign / re-assign teknisi (role foreman + ownership rules). */
@@ -202,15 +207,17 @@ export function canOperateJobProgress(
   return canManageActiveJob(level, userId, job, assigneeCount);
 }
 
-/** Delegasi job ke foreman lain (penugas asli atau superuser). */
+/** Delegasi job: pengendali saat ini (penugas, atau foreman yang didelegasikan) atau superuser.
+ *  Penugas asli tidak bisa cabut/ubah delegasi setelah kendali dialihkan. */
 export function canDelegateJob(
   level: AccessLevel | undefined,
   userId: string | undefined,
-  job: Pick<Job, "assigned_by_user_id">
+  job: Pick<Job, "assigned_by_user_id" | "delegated_to_user_id">
 ): boolean {
   if (!level || !userId) return false;
   if (level === "superuser") return true;
   if (level !== "foreman") return false;
-  if (!job.assigned_by_user_id) return false;
-  return userId === job.assigned_by_user_id;
+  const controller = jobControllerUserId(job);
+  if (!controller) return false;
+  return userId === controller;
 }

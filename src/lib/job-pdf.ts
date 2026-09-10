@@ -7,6 +7,32 @@ import {
   formatDuration,
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
+import { fmtFileStamp } from "@/lib/file-stamp";
+
+function formatPdfStatus(status: string): string {
+  switch (String(status || "").trim()) {
+    case "in_progress":
+      return "In progress";
+    case "pending":
+      return "Pending";
+    case "done":
+      return "Done";
+    case "queued":
+      return "Queued";
+    case "assigned":
+      return "Assigned";
+    case "paused":
+      return "Paused";
+    case "cancelled":
+      return "Cancelled";
+    case "open":
+      return "Open";
+    case "closed":
+      return "Closed";
+    default:
+      return status || "—";
+  }
+}
 
 function fmtDate(iso: string): string {
   if (!iso) return "—";
@@ -67,7 +93,7 @@ export function downloadJobPdf(job: JobWithDetails): void {
 
   const meta: Array<[string, string]> = [
     ["Unit", job.unit || "—"],
-    ["Status", job.status],
+    ["Status", formatPdfStatus(job.status)],
     ["Teknisi", techNames],
     ["Estimasi", `${job.estimated_minutes || 0} menit`],
     ["Elapsed", `${elapsed}${overtime}`],
@@ -117,11 +143,34 @@ export function downloadJobPdf(job: JobWithDetails): void {
     doc.setFontSize(9);
   };
 
+  const tableTheme = {
+    theme: "grid" as const,
+    styles: {
+      font: "helvetica",
+      fontStyle: "bold" as const,
+      fontSize: 9,
+      cellPadding: 1.8,
+      textColor: [0, 0, 0] as [number, number, number],
+      lineColor: [40, 48, 62] as [number, number, number],
+      lineWidth: 0.25,
+    },
+    headStyles: {
+      fillColor: [40, 48, 62] as [number, number, number],
+      textColor: 255,
+      fontStyle: "bold" as const,
+      fontSize: 9,
+    },
+    bodyStyles: {
+      textColor: [0, 0, 0] as [number, number, number],
+      fontStyle: "bold" as const,
+    },
+  };
+
   sectionTitle("Tahapan (Steps)");
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi"]],
+    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note"]],
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
@@ -135,13 +184,12 @@ export function downloadJobPdf(job: JobWithDetails): void {
             return `${h} jam ${rem} mnt`;
           })()
         : "—",
-      s.status,
+      formatPdfStatus(s.status),
       formatDuration(calcStepElapsedSec(s)),
       stepTechnicianNames(s, job) || "—",
+      (s.note || "").trim() || "—",
     ]),
-    styles: { fontSize: 8, cellPadding: 1.5 },
-    headStyles: { fillColor: [40, 48, 62], textColor: 255 },
-    theme: "grid",
+    ...tableTheme,
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
     .finalY + 6;
@@ -163,9 +211,7 @@ export function downloadJobPdf(job: JobWithDetails): void {
             h.note || "—",
           ])
         : [["—", "Belum ada catatan handover", "—", "—", "—"]],
-    styles: { fontSize: 8, cellPadding: 1.5 },
-    headStyles: { fillColor: [40, 48, 62], textColor: 255 },
-    theme: "grid",
+    ...tableTheme,
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
     .finalY + 6;
@@ -182,17 +228,15 @@ export function downloadJobPdf(job: JobWithDetails): void {
         ? (job.part_loans || []).map((p) => [
             String(p.order),
             p.part_name,
-            p.status,
+            formatPdfStatus(p.status),
             p.note || "—",
           ])
         : [["—", "Belum ada catatan peminjaman part", "—", "—"]],
-    styles: { fontSize: 8, cellPadding: 1.5 },
-    headStyles: { fillColor: [40, 48, 62], textColor: 255 },
-    theme: "grid",
+    ...tableTheme,
   });
 
   const fileName = `job_${safeFilePart(job.unit || job.id)}_${safeFilePart(
     job.title || "report"
-  )}.pdf`;
+  )}_${fmtFileStamp()}.pdf`;
   doc.save(fileName);
 }

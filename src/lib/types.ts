@@ -139,6 +139,8 @@ export interface JobStep {
    * Empty / omitted = all technicians assigned to the job.
    */
   technician_ids?: string[];
+  /** Free-text catatan per step. */
+  note?: string;
 }
 
 export interface JobEvent {

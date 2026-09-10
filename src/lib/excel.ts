@@ -423,7 +423,7 @@ function assertAssignPermission(
   const level = (actor?.user_level || "guest") as AccessLevel;
   if (!canAssignTechnicians(level, actor?.user_id, job, assigneeCount)) {
     throw new Error(
-      "Hanya penugas, foreman yang didelegasikan, atau superuser yang boleh assign teknisi"
+      "Hanya pengendali job atau superuser yang boleh assign teknisi"
     );
   }
 }
@@ -434,7 +434,7 @@ function assertDelegatePermission(
 ) {
   const level = (actor?.user_level || "guest") as AccessLevel;
   if (!canDelegateJob(level, actor?.user_id, job)) {
-    throw new Error("Hanya penugas job atau superuser yang boleh delegasi");
+    throw new Error("Hanya pengendali job atau superuser yang boleh delegasi");
   }
 }
 
@@ -471,6 +471,7 @@ function mapStep(r: Row): JobStep {
     duration_sec: Number(r.duration_sec || 0),
     std_minutes: Number(r.std_minutes || 0),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
+    note: String(r.note || ""),
   };
 }
 
@@ -630,6 +631,7 @@ function stepToRow(s: JobStep): Row {
     duration_sec: s.duration_sec,
     std_minutes: Number(s.std_minutes || 0),
     technician_ids: serializeStepTechnicianIds(s.technician_ids),
+    note: String(s.note || ""),
   };
 }
 
@@ -713,6 +715,7 @@ const STEP_HEADERS = [
   "duration_sec",
   "std_minutes",
   "technician_ids",
+  "note",
 ];
 const HANDOVER_HEADERS = [
   "id",
@@ -1447,6 +1450,7 @@ export async function createJob(input: {
         completed_at: "",
         duration_sec: 0,
         std_minutes: Number(def.std_minutes || 0),
+        note: "",
       });
     });
 
@@ -1573,6 +1577,7 @@ export async function updateJob(
           completed_at: "",
           duration_sec: 0,
           std_minutes: Number(fromTpl?.std_minutes || 0),
+          note: "",
         });
       });
     }
@@ -2721,6 +2726,7 @@ type JobAction =
   | "start_steps"
   | "complete_step"
   | "set_step_technicians"
+  | "set_step_note"
   | "complete"
   | "cancel"
   | "reopen";
@@ -3366,6 +3372,35 @@ export async function jobAction(
       pushAudit(
         "update",
         `Teknisi step ${step.order}. ${step.name}: ${names || "—"}`,
+        step.id
+      );
+    }
+
+    if (action === "set_step_note") {
+      if (
+        !["queued", "assigned", "in_progress", "paused", "done"].includes(
+          job.status
+        )
+      ) {
+        throw new Error("Catatan step tidak bisa diubah pada status ini");
+      }
+      const stepId = String(payload?.step_id || "");
+      const step = jobSteps().find((s) => s.id === stepId);
+      if (!step) throw new Error("Step tidak ditemukan");
+      const nextNote = String(payload?.note ?? "").trim().slice(0, 4000);
+      step.note = nextNote;
+      const preview = nextNote
+        ? nextNote.length > 80
+          ? `${nextNote.slice(0, 80)}…`
+          : nextNote
+        : "(kosong)";
+      pushEvent(
+        "updated",
+        `Catatan step ${step.order}. ${step.name}: ${preview}`
+      );
+      pushAudit(
+        "update",
+        `Catatan step ${step.order}. ${step.name}: ${preview}`,
         step.id
       );
     }

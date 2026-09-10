@@ -102,6 +102,7 @@ type Modal =
   | { type: "start-next-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "step-technicians"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
+  | { type: "step-note"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "print-pdf"; job: JobWithDetails }
   | { type: "complete-job"; job: JobWithDetails }
   | { type: "delegate-job"; job: JobWithDetails }
@@ -1768,6 +1769,7 @@ export default function HomePage() {
     Record<string, string[]>
   >({});
   const [stepTechnicianIds, setStepTechnicianIds] = useState<string[]>([]);
+  const [stepNoteDraft, setStepNoteDraft] = useState("");
   /** sequential = auto one-by-one; parallel = checkbox batch start. */
   const [stepModeByJob, setStepModeByJob] = useState<
     Record<string, "sequential" | "parallel">
@@ -3452,7 +3454,7 @@ export default function HomePage() {
                   }
                   title={
                     !assignOk
-                      ? "Hanya penugas / delegatee / foreman (antrian kosong)"
+                      ? "Hanya pengendali job / foreman (antrian kosong)"
                       : job.status === "queued"
                         ? "Assign teknisi"
                         : "Ubah teknisi"
@@ -3519,7 +3521,7 @@ export default function HomePage() {
                     title={
                       progressOk
                         ? "Pause job"
-                        : "Hanya penugas / delegatee yang dapat pause job"
+                        : "Hanya pengendali job yang dapat pause job"
                     }
                   >
                     Pause
@@ -3534,7 +3536,7 @@ export default function HomePage() {
                     title={
                 progressOk
                   ? "Resume job"
-                  : "Hanya penugas / delegatee yang dapat resume job"
+                  : "Hanya pengendali job yang dapat resume job"
                     }
                   >
                     Resume
@@ -3620,15 +3622,51 @@ export default function HomePage() {
                   <span className={`mark ${s.status}`} />
                 )}
                 <span className="step-main">
-                  <span className="step-name">
-                    {s.order}. {s.name}
-                    {s.status === "in_progress" ? " (aktif)" : ""}
-                    {Number(s.std_minutes || 0) > 0 && (
-                      <span className="step-stp" title="STP / Std Hours">
-                        {" "}
-                        · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
-                      </span>
-                    )}
+                  <span className="step-name-row">
+                    <span className="step-name">
+                      {s.order}. {s.name}
+                      {s.status === "in_progress" ? " (aktif)" : ""}
+                      {Number(s.std_minutes || 0) > 0 && (
+                        <span className="step-stp" title="STP / Std Hours">
+                          {" "}
+                          · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      className={`step-note-btn${
+                        (s.note || "").trim() ? " has-note" : ""
+                      }`}
+                      disabled={busy}
+                      onClick={() => {
+                        setStepNoteDraft(s.note || "");
+                        setModal({ type: "step-note", job, step: s });
+                      }}
+                      title={
+                        (s.note || "").trim()
+                          ? t("job.stepNoteEdit")
+                          : t("job.stepNote")
+                      }
+                      aria-label={t("job.stepNote")}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <path d="M14 2v6h6" />
+                        <path d="M8 13h8" />
+                        <path d="M8 17h5" />
+                      </svg>
+                    </button>
                   </span>
                   {(() => {
                     const techLabel = stepTechnicianNames(s, job);
@@ -3653,6 +3691,18 @@ export default function HomePage() {
                     </button>
                     );
                   })()}
+                  <button
+                    type="button"
+                    className="step-note-text"
+                    disabled={busy}
+                    onClick={() => {
+                      setStepNoteDraft(s.note || "");
+                      setModal({ type: "step-note", job, step: s });
+                    }}
+                    title={t("job.stepNoteEdit")}
+                  >
+                    {t("job.stepNote")}: {(s.note || "").trim() || "—"}
+                  </button>
                 </span>
                 <span className="step-meta">
                   <StepDuration
@@ -3702,7 +3752,7 @@ export default function HomePage() {
               title={
                 progressOk
                   ? "Start job"
-                  : "Hanya penugas / delegatee yang dapat start job"
+                  : "Hanya pengendali job yang dapat start job"
               }
             >
               Start job
@@ -3757,7 +3807,7 @@ export default function HomePage() {
                 title={
                   progressOk
                     ? "Complete job"
-                    : "Hanya penugas / delegatee yang dapat complete job"
+                    : "Hanya pengendali job yang dapat complete job"
                 }
               >
                 Complete job
@@ -3772,7 +3822,7 @@ export default function HomePage() {
               title={
                 progressOk
                   ? "Complete job"
-                  : "Hanya penugas / delegatee yang dapat complete job"
+                  : "Hanya pengendali job yang dapat complete job"
               }
             >
               Complete job
@@ -6358,8 +6408,8 @@ export default function HomePage() {
               {modal.job.title} — {modal.job.unit}
             </p>
             <p style={{ margin: "0 0 12px" }}>
-              Pilih foreman yang ikut mengelola job ini (hak akses sama dengan
-              penugas). Penugas asli tetap bisa manage.
+              Kendali job dialihkan penuh ke foreman yang dipilih. Penugas asli
+              tidak bisa manage atau mencabut delegasi. Superuser tetap bisa.
             </p>
             <label style={{ display: "block", marginBottom: 16 }}>
               Foreman
@@ -6687,6 +6737,62 @@ export default function HomePage() {
                   pending="Memproses..."
                 />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "step-note" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>{t("job.stepNoteEdit")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 12px" }}>
+              {t("job.steps")}{" "}
+              <strong>
+                {modal.step.order}. {modal.step.name}
+              </strong>
+            </p>
+            <p className="field-hint" style={{ marginTop: 0 }}>
+              {t("job.stepNoteHint")}
+            </p>
+            <textarea
+              className="step-note-field"
+              value={stepNoteDraft}
+              placeholder={t("job.stepNotePlaceholder")}
+              disabled={busy || !modalProgressOk}
+              maxLength={4000}
+              rows={6}
+              onChange={(e) => setStepNoteDraft(e.target.value)}
+            />
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                {t("job.cancelAction")}
+              </button>
+              {modalProgressOk && (
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    busy ||
+                    stepNoteDraft.trim() === (modal.step.note || "").trim()
+                  }
+                  onClick={() =>
+                    runAction(modal.job.id, "set_step_note", {
+                      step_id: modal.step.id,
+                      note: stepNoteDraft.trim().slice(0, 4000),
+                    })
+                  }
+                >
+                  <BusyLabel
+                    busy={busy}
+                    idle={t("job.stepNoteSave")}
+                    pending={t("job.saving")}
+                  />
+                </button>
+              )}
             </div>
           </div>
         </div>

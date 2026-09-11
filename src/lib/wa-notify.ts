@@ -1,13 +1,46 @@
-import type { Job, JobHandover, JobStatus } from "./types";
+import { formatDuration } from "./duration";
+import type {
+  Job,
+  JobHandover,
+  JobStatus,
+  PartLoanStatus,
+  StepStatus,
+} from "./types";
 
 const FONNTE_SEND_URL = "https://api.fonnte.com/send";
 const FONNTE_GET_GROUP_URL = "https://api.fonnte.com/get-whatsapp-group";
 const FONNTE_FETCH_GROUP_URL = "https://api.fonnte.com/fetch-group";
 const TIME_ZONE = "Asia/Makassar";
 const MAX_NOTE_CHARS = 800;
+const MAX_DESC_CHARS = 240;
 const SEND_TIMEOUT_MS = 15_000;
 
 export type HandoverNotifyAction = "create" | "update" | "delete";
+
+export type HandoverNotifyStep = {
+  order: number;
+  name: string;
+  status: StepStatus;
+  note?: string;
+  technicianNames?: string;
+  elapsedLabel?: string;
+};
+
+export type HandoverNotifyPartLoan = {
+  order: number;
+  part_name: string;
+  status: PartLoanStatus;
+  note?: string;
+  user_name?: string;
+};
+
+export type HandoverNotifySnapshot = {
+  technicianNames: string;
+  steps: HandoverNotifyStep[];
+  partLoans: HandoverNotifyPartLoan[];
+  progressPct: number;
+  elapsedSec: number;
+};
 
 export type HandoverNotifyPayload = {
   action: HandoverNotifyAction;
@@ -16,6 +49,10 @@ export type HandoverNotifyPayload = {
   technicianNames?: string;
   previous?: JobHandover | null;
   recipientPhone?: string;
+  steps?: HandoverNotifyStep[];
+  partLoans?: HandoverNotifyPartLoan[];
+  progressPct?: number;
+  elapsedSec?: number;
 };
 
 type FonnteGroup = { id?: string; name?: string };
@@ -106,10 +143,9 @@ function formatWita(iso: string): string {
   const date = iso ? new Date(iso) : new Date();
   const safe = Number.isNaN(date.getTime()) ? new Date() : date;
   const formatted = new Intl.DateTimeFormat("id-ID", {
-    weekday: "long",
+    weekday: "short",
     day: "numeric",
-    month: "long",
-    year: "numeric",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -118,139 +154,187 @@ function formatWita(iso: string): string {
   return `${formatted} WITA`;
 }
 
-function headingFor(payload: HandoverNotifyPayload): string {
-  if (payload.action === "create") return "HANDOVER BARU";
-  if (payload.action === "delete") return "HANDOVER DIHAPUS";
-  const before = payload.previous?.done === "1";
-  const after = payload.handover.done === "1";
-  if (!before && after) return "HANDOVER DISELESAIKAN";
-  if (before && !after) return "HANDOVER DIBUKA KEMBALI";
-  return "PEMBARUAN HANDOVER";
+function priorityLabel(priority: string): string {
+  const p = priority.trim().toUpperCase();
+  if (p === "URGENT") return "🔴 URGENT";
+  if (p === "P1") return "🟠 P1";
+  if (p === "P2") return "🟡 P2";
+  if (p === "P3") return "🔵 P3";
+  return p;
 }
 
-function introFor(
-  payload: HandoverNotifyPayload,
-  audience: "group" | "direct"
-): string {
-  const from = waPlain(payload.handover.from_name || payload.handover.user_name, "");
-  const to = waPlain(payload.handover.to_name, "");
-  const fromTo =
-    from && to
-      ? ` dari ${from} kepada ${to}`
-      : from
-        ? ` dari ${from}`
-        : to
-          ? ` kepada ${to}`
-          : "";
-
-  if (audience === "direct") {
-    if (payload.action === "create") {
-      return from
-        ? `Catatan handover dari ${from} ditujukan kepada Anda. Mohon ditindaklanjuti.`
-        : "Catatan handover ini ditujukan kepada Anda. Mohon ditindaklanjuti.";
-    }
-    if (payload.action === "delete") {
-      return "Catatan handover yang ditujukan kepada Anda telah dihapus.";
-    }
-    const before = payload.previous?.done === "1";
-    const after = payload.handover.done === "1";
-    if (!before && after) {
-      return "Catatan handover yang ditujukan kepada Anda telah ditandai selesai.";
-    }
-    if (before && !after) {
-      return "Status selesai pada catatan handover yang ditujukan kepada Anda telah dibatalkan.";
-    }
-    return "Catatan handover yang ditujukan kepada Anda telah diperbarui.";
-  }
-  if (payload.action === "create") {
-    return fromTo
-      ? `Catatan handover${fromTo} telah dicatat pada job berikut.`
-      : "Catatan handover baru telah dicatat pada job berikut.";
-  }
-  if (payload.action === "delete") {
-    return "Catatan handover berikut telah dihapus dari job.";
-  }
+function headingAction(payload: HandoverNotifyPayload): string {
+  if (payload.action === "create") return "Handover baru";
+  if (payload.action === "delete") return "Handover dihapus";
   const before = payload.previous?.done === "1";
   const after = payload.handover.done === "1";
-  if (!before && after) {
-    return "Catatan handover telah ditandai selesai.";
+  if (!before && after) return "Handover selesai";
+  if (before && !after) return "Handover dibuka kembali";
+  return "Handover diperbarui";
+}
+
+function headingFor(payload: HandoverNotifyPayload): string {
+  const action = headingAction(payload);
+  const to = waPlain(payload.handover.to_name, "");
+  if (to && to !== "—") return `*${action} ke ${to}*`;
+  return `*${action}*`;
+}
+
+function handoverFromToLine(payload: HandoverNotifyPayload): string {
+  const from = waPlain(
+    payload.handover.from_name || payload.handover.user_name,
+    ""
+  );
+  const to = waPlain(payload.handover.to_name, "");
+  if (from && from !== "—" && to && to !== "—") {
+    return `Handover dari ${from} ke *${to}*`;
   }
-  if (before && !after) {
-    return "Status selesai pada catatan handover telah dibatalkan.";
+  if (from && from !== "—") return `Handover dari ${from}`;
+  if (to && to !== "—") return `Handover ke *${to}*`;
+  return "Handover";
+}
+
+function splitStepName(name: string): { phase: string; label: string } {
+  const idx = name.indexOf(": ");
+  if (idx > 0) {
+    return {
+      phase: name.slice(0, idx).trim(),
+      label: name.slice(idx + 2).trim() || name,
+    };
   }
-  return "Catatan handover pada job berikut telah diperbarui.";
+  return { phase: "", label: name };
+}
+
+function stepIcon(status: StepStatus | string): string {
+  if (status === "done") return "✅";
+  if (status === "in_progress") return "▶️";
+  return "○";
+}
+
+function appendStepLines(lines: string[], steps: HandoverNotifyStep[]): void {
+  if (!steps.length) return;
+  const done = steps.filter((s) => s.status === "done").length;
+  const active = steps.filter((s) => s.status === "in_progress").length;
+  const pending = steps.filter((s) => s.status === "pending").length;
+  lines.push(
+    "",
+    `*Step* (${done} Selesai • ${active} Sedang dikerjakan • ${pending} Belum dimulai)`
+  );
+
+  let lastPhase = "\0";
+  for (const step of steps) {
+    const { phase, label } = splitStepName(step.name);
+    if (phase && phase !== lastPhase) {
+      lines.push("", `*${waPlain(phase)}*`);
+      lastPhase = phase;
+    } else if (!phase && lastPhase !== "") {
+      lastPhase = "";
+    }
+    lines.push(`${stepIcon(step.status)} ${step.order}. ${waPlain(label)}`);
+    if (step.status === "pending") continue;
+    const detail = [
+      waPlain(step.technicianNames, ""),
+      clip(waPlain(step.note, ""), 160),
+      String(step.elapsedLabel || "").trim(),
+    ].filter((part) => part && part !== "—");
+    if (detail.length) lines.push(`    ${detail.join(" · ")}`);
+  }
+}
+
+function appendPartLoanLines(
+  lines: string[],
+  partLoans: HandoverNotifyPartLoan[]
+): void {
+  if (!partLoans.length) return;
+  lines.push("", "*Catatan peminjaman part*");
+  for (const loan of partLoans) {
+    const open = loan.status !== "closed";
+    lines.push(
+      `${open ? "▶️" : "✅"} ${loan.order}. ${waPlain(loan.part_name)}`
+    );
+    const fallback = open ? "Masih dipinjam" : "Sudah dikembalikan";
+    const note = clip(waPlain(loan.note, ""), 160);
+    const who = waPlain(loan.user_name, "");
+    const detail = [
+      note && note !== "—" ? note : fallback,
+      who && who !== "—" ? who : "",
+    ].filter(Boolean);
+    if (detail.length) lines.push(`    ${detail.join(" · ")}`);
+  }
 }
 
 export function buildHandoverWhatsAppMessage(
   payload: HandoverNotifyPayload,
-  audience: "group" | "direct" = "group"
+  _audience: "group" | "direct" = "group"
 ): string {
   const { job, handover } = payload;
-  const note = clip(waPlain(handover.note, "Tidak ada catatan tambahan."), MAX_NOTE_CHARS);
-  const lines = [
-    "*PRIMA*",
-    "_Progress Report & Inspection for Mechanic Allocation_",
-    "",
-    "────────────────────",
-    `*${headingFor(payload)}*`,
-    "────────────────────",
-    "",
-    introFor(payload, audience),
-    "",
-    "*Job*",
-    waPlain(job.title),
-    "",
-    "*Unit*",
-    waPlain(job.unit),
-  ];
+  const unit = waPlain(job.unit, "");
+  const title = waPlain(job.title);
+  const jobLine =
+    unit && unit !== "—" ? `*${unit}* · ${title}` : `*${title}*`;
+  const status = jobStatusLabel(job.status);
+  const priority = priorityLabel(String(job.priority || ""));
+  const statusLine = priority ? `${status} · ${priority}` : status;
+  const desc = clip(waPlain(job.description, ""), MAX_DESC_CHARS);
+  const note = clip(waPlain(handover.note, ""), MAX_NOTE_CHARS);
+  const steps = payload.steps || [];
+  const doneCount = steps.filter((s) => s.status === "done").length;
+  const progressBits: string[] = [];
+  if (typeof payload.progressPct === "number") {
+    progressBits.push(`Progress ${payload.progressPct}%`);
+  }
+  if (steps.length) {
+    progressBits.push(`${doneCount}/${steps.length} step selesai`);
+  }
+  if (
+    typeof payload.elapsedSec === "number" &&
+    (job.started_at || payload.elapsedSec > 0)
+  ) {
+    progressBits.push(`Elapsed ${formatDuration(payload.elapsedSec)}`);
+  }
 
-  const priority = String(job.priority || "").trim();
-  if (priority) {
-    lines.push("", "*Prioritas*", priority);
+  const lines = [headingFor(payload), jobLine, statusLine];
+  if (desc && desc !== "—") lines.push(desc);
+  if (progressBits.length) lines.push(progressBits.join(" · "));
+
+  lines.push(
+    "",
+    handoverFromToLine(payload),
+    `#${handover.order} ${waPlain(handover.title)}`
+  );
+  if (note && note !== "—") {
+    lines.push("", note);
+  }
+
+  const ownerBits: string[] = [];
+  if (job.assigned_by_user_name) {
+    ownerBits.push(`Penugas: ${waPlain(job.assigned_by_user_name)}`);
+  }
+  if (job.delegated_to_user_name) {
+    ownerBits.push(`Delegasi: ${waPlain(job.delegated_to_user_name)}`);
   }
 
   lines.push(
     "",
-    "*Status job*",
-    jobStatusLabel(job.status),
-    "",
-    "*Teknisi*",
-    waPlain(payload.technicianNames, "Belum ada teknisi yang ditugaskan."),
-    "",
-    "*Handover*",
-    `#${handover.order}  ${waPlain(handover.title)}`,
-    "",
-    "*Dari*",
-    waPlain(handover.from_name || handover.user_name, "Tidak disebutkan"),
-    "",
-    "*Ditujukan kepada*",
-    waPlain(handover.to_name, "Tidak disebutkan"),
-    "",
-    "*Catatan*",
-    note,
-    "",
-    "*Status handover*",
-    handover.done === "1" ? "Selesai" : "Belum selesai",
-    "",
-    "*Dicatat oleh*",
-    waPlain(handover.user_name, "Sistem"),
-    "",
-    "*Waktu*",
-    formatWita(handover.updated_at)
+    `Teknisi job: ${waPlain(payload.technicianNames, "Belum ditugaskan")}`
   );
+  if (ownerBits.length) lines.push(ownerBits.join(" · "));
+  if (job.started_at) {
+    lines.push(`Mulai ${formatWita(job.started_at)}`);
+  }
+  lines.push(
+    `Dicatat ${waPlain(handover.user_name, "Sistem")} · ${formatWita(handover.updated_at)}`
+  );
+
+  appendStepLines(lines, steps);
+  appendPartLoanLines(lines, payload.partLoans || []);
 
   const link = jobDeepLinkUrl(job.id);
   if (link) {
-    lines.push("", "*Buka job di PRIMA*", link);
+    lines.push("", "Buka job", link);
   }
 
-  lines.push(
-    "",
-    "────────────────────",
-    "_Pesan otomatis dari sistem PRIMA._",
-    "_Mohon tidak membalas ke nomor ini._"
-  );
-
+  lines.push("", "Pesan otomatis PRIMA · jangan dibalas");
   return lines.join("\n");
 }
 

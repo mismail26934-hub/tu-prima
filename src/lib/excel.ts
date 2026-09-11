@@ -25,9 +25,17 @@ import type {
   PartLoanStatus,
 } from "./types";
 import { USER_LEVELS, normalizeJobPriority } from "./types";
-import { calcElapsedSec, calcProgressPct, clientTimeIso, nowIso } from "./duration";
+import {
+  calcElapsedSec,
+  calcProgressPct,
+  calcStepElapsedSec,
+  clientTimeIso,
+  formatDuration,
+  nowIso,
+} from "./duration";
 import {
   assignedIdsFromAssignees,
+  displayStepTechnicianIds,
   mergeInProgressStepTechnicians,
   parseStepTechnicianIds,
   selectedStepTechnicianIds,
@@ -43,7 +51,10 @@ import {
 } from "./step-photo";
 import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
-import { notifyHandoverWhatsApp } from "./wa-notify";
+import {
+  notifyHandoverWhatsApp,
+  type HandoverNotifySnapshot,
+} from "./wa-notify";
 import {
   appendJobChangeBackup,
   getJobChangeBackup,
@@ -998,16 +1009,52 @@ function assigneesForJob(assignees: JobAssignee[], jobId: string): JobAssignee[]
     });
 }
 
-function jobTechnicianNames(
+function handoverNotifySnapshot(
   wb: MysqlWorkbook,
   job: Job,
   assignees: JobAssignee[]
-): string {
+): HandoverNotifySnapshot {
   const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
-  return technicianNamesByIds(
-    assignedIdsFromAssignees(job, assignees),
-    techs
-  );
+  const assignedIds = assignedIdsFromAssignees(job, assignees);
+  const steps = readRows(getSheet(wb, SHEETS.steps))
+    .map(mapStep)
+    .filter((s) => s.job_id === job.id)
+    .sort((a, b) => a.order - b.order);
+  const partLoans = loadPartLoans(wb)
+    .filter((p) => p.job_id === job.id)
+    .sort(
+      (a, b) => a.order - b.order || a.updated_at.localeCompare(b.updated_at)
+    );
+  return {
+    technicianNames: technicianNamesByIds(assignedIds, techs),
+    progressPct: calcProgressPct(steps),
+    elapsedSec: calcElapsedSec(job),
+    steps: steps.map((s) => {
+      const names = technicianNamesByIds(
+        displayStepTechnicianIds(s, assignedIds),
+        techs
+      );
+      const elapsed =
+        s.status === "done" || s.status === "in_progress"
+          ? formatDuration(calcStepElapsedSec(s))
+          : "";
+      return {
+        order: s.order,
+        name: s.name,
+        status: s.status,
+        note: s.note || "",
+        technicianNames: names,
+        elapsedLabel: elapsed,
+      };
+    }),
+    partLoans: partLoans.map((p) => ({
+      order: p.order,
+      part_name: p.part_name,
+      status: p.status,
+      note: p.note || "",
+      user_name: p.user_name || "",
+    })),
+  };
 }
 
 function userDisplayLabel(u: AppUser): string {
@@ -1752,7 +1799,7 @@ export async function createJobHandover(input: {
       row,
       notify: true as const,
       job: { ...job },
-      technicianNames: jobTechnicianNames(wb, job, assignees),
+      snapshot: handoverNotifySnapshot(wb, job, assignees),
       recipientPhone: recipient.phone,
     };
   });
@@ -1761,8 +1808,8 @@ export async function createJobHandover(input: {
       action: "create",
       job: result.job,
       handover: result.row,
-      technicianNames: result.technicianNames,
       recipientPhone: result.recipientPhone,
+      ...result.snapshot,
     });
   }
   return result.row;
@@ -1860,7 +1907,7 @@ export async function updateJobHandover(
       row: { ...row },
       previous: beforeRow,
       job: { ...job },
-      technicianNames: jobTechnicianNames(wb, job, assignees),
+      snapshot: handoverNotifySnapshot(wb, job, assignees),
       recipientPhone: resolveHandoverRecipient(
         readUsers(wb),
         row.to_user_id,
@@ -1873,8 +1920,8 @@ export async function updateJobHandover(
     job: result.job,
     handover: result.row,
     previous: result.previous,
-    technicianNames: result.technicianNames,
     recipientPhone: result.recipientPhone,
+    ...result.snapshot,
   });
   return result.row;
 }
@@ -1935,7 +1982,7 @@ export async function deleteJobHandover(
       ok: true as const,
       job: job ? { ...job } : null,
       handover: { ...row },
-      technicianNames: job ? jobTechnicianNames(wb, job, assignees) : "",
+      snapshot: job ? handoverNotifySnapshot(wb, job, assignees) : null,
       recipientPhone: job
         ? resolveHandoverRecipient(readUsers(wb), row.to_user_id, row.to_name)
             .phone
@@ -1947,8 +1994,8 @@ export async function deleteJobHandover(
       action: "delete",
       job: result.job,
       handover: result.handover,
-      technicianNames: result.technicianNames,
       recipientPhone: result.recipientPhone,
+      ...(result.snapshot || {}),
     });
   }
   return { ok: true };

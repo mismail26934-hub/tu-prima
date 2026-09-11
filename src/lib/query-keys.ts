@@ -9,7 +9,8 @@ export const queryKeys = {
       q: string,
       ownership: string,
       cursor?: string | null,
-      priority?: string
+      priority?: string,
+      jobId?: string
     ) =>
       [
         "board",
@@ -21,9 +22,20 @@ export const queryKeys = {
         ownership,
         cursor ?? "",
         priority || "",
+        jobId || "",
       ] as const,
-    jobSlider: (q: string, ownership: string, priority?: string) =>
-      ["board", "jobs", "active", "slider", q, ownership, priority || ""] as const,
+    jobSlider: (q: string, ownership: string, priority?: string, jobId?: string) =>
+      [
+        "board",
+        "jobs",
+        "active",
+        "slider",
+        q,
+        ownership,
+        priority || "",
+        jobId || "",
+      ] as const,
+    jobById: (id: string) => ["board", "job", id] as const,
     technicians: (
       status: string,
       page: number,

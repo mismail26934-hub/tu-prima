@@ -37,6 +37,7 @@ import {
 } from "./step-technicians";
 import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
+import { notifyHandoverWhatsApp } from "./wa-notify";
 import {
   appendJobChangeBackup,
   getJobChangeBackup,
@@ -1016,6 +1017,18 @@ function assigneesForJob(assignees: JobAssignee[], jobId: string): JobAssignee[]
     });
 }
 
+function jobTechnicianNames(
+  wb: MysqlWorkbook,
+  job: Job,
+  assignees: JobAssignee[]
+): string {
+  const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+  return technicianNamesByIds(
+    assignedIdsFromAssignees(job, assignees),
+    techs
+  );
+}
+
 function loadUnits(wb: MysqlWorkbook, jobs: Job[]): Unit[] {
   const ws = getSheet(wb, SHEETS.units);
   let units = readRows(ws).map(mapUnit).filter((u) => u.id && u.code);
@@ -1745,7 +1758,7 @@ export async function createJobHandover(input: {
   done?: boolean;
   actor?: AuditActor | null;
 }): Promise<JobHandover> {
-  return withDbLock(async () => {
+  const result = await withDbLock(async () => {
     const wb = await loadWorkbook();
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const job = jobs.find((j) => j.id === input.job_id);
@@ -1769,7 +1782,7 @@ export async function createJobHandover(input: {
     const requestedId = String(input.id || "").trim();
     if (requestedId) {
       const existing = handovers.find((h) => h.id === requestedId);
-      if (existing) return existing;
+      if (existing) return { row: existing, notify: false as const };
     }
     const forJob = handovers.filter((h) => h.job_id === input.job_id);
     const order =
@@ -1812,8 +1825,22 @@ export async function createJobHandover(input: {
       at,
     });
     await saveWorkbook(wb);
-    return row;
+    return {
+      row,
+      notify: true as const,
+      job: { ...job },
+      technicianNames: jobTechnicianNames(wb, job, assignees),
+    };
   });
+  if (result.notify) {
+    notifyHandoverWhatsApp({
+      action: "create",
+      job: result.job,
+      handover: result.row,
+      technicianNames: result.technicianNames,
+    });
+  }
+  return result.row;
 }
 
 export async function updateJobHandover(
@@ -1826,7 +1853,7 @@ export async function updateJobHandover(
     actor?: AuditActor | null;
   }
 ): Promise<JobHandover> {
-  return withDbLock(async () => {
+  const result = await withDbLock(async () => {
     const wb = await loadWorkbook();
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const handovers = loadHandovers(wb);
@@ -1883,15 +1910,28 @@ export async function updateJobHandover(
       actor: input.actor,
     });
     await saveWorkbook(wb);
-    return row;
+    return {
+      row: { ...row },
+      previous: beforeRow,
+      job: { ...job },
+      technicianNames: jobTechnicianNames(wb, job, assignees),
+    };
   });
+  notifyHandoverWhatsApp({
+    action: "update",
+    job: result.job,
+    handover: result.row,
+    previous: result.previous,
+    technicianNames: result.technicianNames,
+  });
+  return result.row;
 }
 
 export async function deleteJobHandover(
   handoverId: string,
   actor?: AuditActor | null
 ): Promise<{ ok: true }> {
-  return withDbLock(async () => {
+  const result = await withDbLock(async () => {
     const wb = await loadWorkbook();
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     let handovers = loadHandovers(wb);
@@ -1907,8 +1947,8 @@ export async function deleteJobHandover(
         "Handover hanya bisa dihapus pada job in_progress / paused / done"
       );
     }
+    const assignees = job ? loadAssignees(wb, jobs) : [];
     if (job) {
-      const assignees = loadAssignees(wb, jobs);
       assertJobManagePermission(
         job,
         actor,
@@ -1939,8 +1979,22 @@ export async function deleteJobHandover(
       actor,
     });
     await saveWorkbook(wb);
-    return { ok: true };
+    return {
+      ok: true as const,
+      job: job ? { ...job } : null,
+      handover: { ...row },
+      technicianNames: job ? jobTechnicianNames(wb, job, assignees) : "",
+    };
   });
+  if (result.job) {
+    notifyHandoverWhatsApp({
+      action: "delete",
+      job: result.job,
+      handover: result.handover,
+      technicianNames: result.technicianNames,
+    });
+  }
+  return { ok: true };
 }
 
 export async function createJobPartLoan(input: {

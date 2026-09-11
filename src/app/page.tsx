@@ -79,6 +79,7 @@ import {
   useJobsList,
   useTechniciansList,
 } from "@/hooks/useBoardLists";
+import { useJobDeepLink } from "@/hooks/useJobDeepLink";
 
 type Modal =
   | null
@@ -1726,6 +1727,23 @@ export default function HomePage() {
   const setJobPriorityFilter = useDashboardFiltersStore(
     (s) => s.setJobPriorityFilter
   );
+  const jobDeepLink = useJobDeepLink();
+
+  useEffect(() => {
+    if (!jobDeepLink.ready || !jobDeepLink.jobId || !jobDeepLink.section) return;
+    setJobSectionFilter(jobDeepLink.section);
+    setJobOwnershipMine(false);
+    setJobOwnershipDelegated(false);
+    setJobPriorityFilter("");
+  }, [
+    jobDeepLink.ready,
+    jobDeepLink.jobId,
+    jobDeepLink.section,
+    setJobSectionFilter,
+    setJobOwnershipMine,
+    setJobOwnershipDelegated,
+    setJobPriorityFilter,
+  ]);
 
   const jobOwnershipFilter = useMemo(
     () => resolveJobOwnershipFilter(jobOwnershipMine, jobOwnershipDelegated),
@@ -2320,7 +2338,8 @@ export default function HomePage() {
 
   function handleAuthClick() {
     if (!isLoggedIn) {
-      window.location.href = "/sign-in";
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.href = `/sign-in?callbackUrl=${encodeURIComponent(next)}`;
       return;
     }
     openLogoutConfirm();
@@ -2755,7 +2774,10 @@ export default function HomePage() {
     setTechPage({ available: 1, busy: 1, offline: 1 });
   }, [techQuery, techStatusFilter]);
 
-  const jobListHasFilter = Boolean(jobQuery) || jobOwnershipFilter !== "all";
+  const jobListHasFilter =
+    Boolean(jobQuery) ||
+    Boolean(jobDeepLink.jobId) ||
+    jobOwnershipFilter !== "all";
   const jobListHasPriorityFilter = Boolean(jobPriorityFilter);
   const liveJobListHasFilter = jobListHasFilter || jobListHasPriorityFilter;
 
@@ -2775,6 +2797,7 @@ export default function HomePage() {
     q: jobQuery,
     ownership: jobOwnershipFilter,
     priority: jobPriorityFilter,
+    jobId: jobDeepLink.jobId,
     enabled: showActiveJobs,
   });
   const queueJobsQuery = useJobsList({
@@ -2784,6 +2807,7 @@ export default function HomePage() {
     q: jobQuery,
     ownership: jobOwnershipFilter,
     priority: jobPriorityFilter,
+    jobId: jobDeepLink.jobId,
     enabled: showQueueJobs,
   });
   const completedJobsQuery = useJobsList({
@@ -2792,6 +2816,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
+    jobId: jobDeepLink.jobId,
     enabled: showDoneJobs,
     cursor: completedJobCursors[completedJobPage - 1] ?? null,
   });
@@ -2801,6 +2826,7 @@ export default function HomePage() {
     limit: JOB_PAGE_SIZE,
     q: jobQuery,
     ownership: jobOwnershipFilter,
+    jobId: jobDeepLink.jobId,
     enabled: showCancelledJobs,
     cursor: cancelledJobCursors[cancelledJobPage - 1] ?? null,
   });
@@ -2808,6 +2834,7 @@ export default function HomePage() {
     q: jobQuery,
     ownership: jobOwnershipFilter,
     priority: jobPriorityFilter,
+    jobId: jobDeepLink.jobId,
     enabled: showActiveJobs,
   });
 
@@ -2840,13 +2867,34 @@ export default function HomePage() {
   }, [activeJobs, queuedJobs, sliderJobs, completedJobs, historyJobs]);
 
   useEffect(() => {
+    if (!jobDeepLink.jobId || !jobDeepLink.ready) return;
+    const nodes = document.querySelectorAll(
+      `#job-${CSS.escape(jobDeepLink.jobId)}`
+    );
+    const el =
+      [...nodes].find((node) => {
+        const html = node as HTMLElement;
+        return html.offsetParent !== null || html.getClientRects().length > 0;
+      }) || nodes[0];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [
+    jobDeepLink.jobId,
+    jobDeepLink.ready,
+    activeJobs,
+    queuedJobs,
+    completedJobs,
+    historyJobs,
+  ]);
+
+  useEffect(() => {
     setActiveJobPage(1);
     setQueueJobPage(1);
     setCompletedJobPage(1);
     setCompletedJobCursors([null]);
     setCancelledJobPage(1);
     setCancelledJobCursors([null]);
-  }, [jobQuery, jobSectionFilter, jobOwnershipMine, jobOwnershipDelegated, jobPriorityFilter]);
+  }, [jobQuery, jobSectionFilter, jobOwnershipMine, jobOwnershipDelegated, jobPriorityFilter, jobDeepLink.jobId]);
 
   function goCompletedArchiveNext() {
     const next = completedJobsQuery.data?.nextCursor;
@@ -3417,7 +3465,15 @@ export default function HomePage() {
     const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
     const jobPriority = normalizeJobPriority(job.priority);
     return (
-      <article className="job" key={job.id} id={`job-${job.id}`}>
+      <article
+        className={`job${
+          jobDeepLink.jobId && job.id === jobDeepLink.jobId
+            ? " job-deep-link-target"
+            : ""
+        }`}
+        key={job.id}
+        id={`job-${job.id}`}
+      >
         <SliderActiveStepScroll job={job} />
         <div className="job-head">
           <div>
@@ -3926,6 +3982,24 @@ export default function HomePage() {
                 <span className="step-hint">Hanya lihat</span>
               )}
             </div>
+            {handoverOk && (
+              <p className="handover-wa-hint">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+                </svg>
+                <span>{t("job.handoverWaHint")}</span>
+              </p>
+            )}
             {handoverOk &&
               getHandoverMode(job.id) === "tambah" &&
               (getHandoverLocal(job).length > 0 ||
@@ -5376,6 +5450,22 @@ export default function HomePage() {
                       <ActiveJobSliderToggle />
                     )}
                   </div>
+                  {jobDeepLink.jobId && (
+                    <div className="job-deep-link-banner">
+                      <span>
+                        {jobDeepLink.missing
+                          ? t("job.deepLinkMissing")
+                          : t("job.deepLinkHint")}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={jobDeepLink.clear}
+                      >
+                        {t("job.deepLinkClear")}
+                      </button>
+                    </div>
+                  )}
                   <div className="panel-search-row">
                     <input
                       className="panel-search"

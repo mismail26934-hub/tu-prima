@@ -1,8 +1,31 @@
 import { NextResponse } from "next/server";
 import { deleteJob, updateJob } from "@/lib/excel";
+import { getJobById } from "@/lib/board-list";
 import { getCurrentActor, requirePermission } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const denied = await requirePermission("job", "read");
+  if (denied) return denied;
+  try {
+    const { id } = await ctx.params;
+    const found = await getJobById(id);
+    if (!found) {
+      return NextResponse.json(
+        { error: "Job tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json(found);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Gagal memuat job";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   req: Request,

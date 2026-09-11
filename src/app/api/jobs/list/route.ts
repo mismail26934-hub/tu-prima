@@ -48,6 +48,7 @@ export async function GET(req: Request) {
       Math.max(1, Number(url.searchParams.get("limit") || 5) || 5)
     );
     const q = url.searchParams.get("q") || "";
+    const jobId = url.searchParams.get("jobId") || "";
     const ownership = parseOwnership(url.searchParams.get("ownership"));
     const priority = parsePriority(url.searchParams.get("priority"));
     const cursor = url.searchParams.get("cursor");
@@ -63,6 +64,7 @@ export async function GET(req: Request) {
       priority,
       userId,
       cursor: cursor || null,
+      jobId,
     });
     return NextResponse.json(result);
   } catch (e) {

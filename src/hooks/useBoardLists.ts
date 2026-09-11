@@ -17,12 +17,14 @@ export function useJobsList(opts: {
   q?: string;
   ownership?: JobOwnershipFilter;
   priority?: JobPriorityFilter;
+  jobId?: string;
   enabled?: boolean;
   cursor?: string | null;
 }) {
   const q = opts.q || "";
   const ownership = opts.ownership || "all";
   const priority = opts.priority || "";
+  const jobId = opts.jobId || "";
   const cursor = opts.cursor ?? null;
   return useQuery({
     queryKey: queryKeys.board.jobs(
@@ -32,7 +34,8 @@ export function useJobsList(opts: {
       q,
       ownership,
       cursor,
-      priority
+      priority,
+      jobId
     ),
     queryFn: () => {
       const params = new URLSearchParams({
@@ -43,6 +46,7 @@ export function useJobsList(opts: {
         ownership,
       });
       if (priority) params.set("priority", priority);
+      if (jobId) params.set("jobId", jobId);
       if (
         (opts.section === "done" || opts.section === "cancelled") &&
         cursor
@@ -63,13 +67,15 @@ export function useActiveJobsSlider(opts: {
   q?: string;
   ownership?: JobOwnershipFilter;
   priority?: JobPriorityFilter;
+  jobId?: string;
   enabled?: boolean;
 }) {
   const q = opts.q || "";
   const ownership = opts.ownership || "all";
   const priority = opts.priority || "";
+  const jobId = opts.jobId || "";
   return useQuery({
-    queryKey: queryKeys.board.jobSlider(q, ownership, priority),
+    queryKey: queryKeys.board.jobSlider(q, ownership, priority, jobId),
     queryFn: () => {
       const params = new URLSearchParams({
         section: "active",
@@ -79,6 +85,7 @@ export function useActiveJobsSlider(opts: {
         ownership,
       });
       if (priority) params.set("priority", priority);
+      if (jobId) params.set("jobId", jobId);
       return api<PaginatedResult<JobWithDetails>>(
         `/api/jobs/list?${params.toString()}`
       );

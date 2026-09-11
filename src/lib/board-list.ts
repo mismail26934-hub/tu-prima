@@ -194,7 +194,8 @@ function buildJobWhere(
   q: string,
   ownership: JobOwnershipFilter,
   userId: string,
-  priority: JobPriorityFilter = ""
+  priority: JobPriorityFilter = "",
+  jobId = ""
 ): { sql: string; params: unknown[] } {
   const { jobScope, statuses } = sectionScope(section);
   const parts = ["job_scope = ?"];
@@ -205,13 +206,20 @@ function buildJobWhere(
     params.push(...statuses);
   }
 
+  const exactId = jobId.trim();
+  if (exactId) {
+    parts.push("id = ?");
+    params.push(exactId);
+    return { sql: parts.join(" AND "), params };
+  }
+
   const term = q.trim().toLowerCase();
   if (term) {
     parts.push(
-      "(LOWER(title) LIKE ? OR LOWER(unit_label) LIKE ? OR LOWER(description) LIKE ? OR LOWER(status) LIKE ? OR LOWER(priority) LIKE ?)"
+      "(LOWER(id) LIKE ? OR LOWER(title) LIKE ? OR LOWER(unit_label) LIKE ? OR LOWER(description) LIKE ? OR LOWER(status) LIKE ? OR LOWER(priority) LIKE ?)"
     );
     const like = `%${term}%`;
-    params.push(like, like, like, like, like);
+    params.push(like, like, like, like, like, like);
   }
 
   if ((section === "active" || section === "queue") && priority) {
@@ -431,6 +439,7 @@ export async function listJobsPaginated(input: {
   priority?: JobPriorityFilter;
   userId?: string;
   cursor?: string | null;
+  jobId?: string;
 }): Promise<PaginatedResult<JobWithDetails>> {
   const page = Math.max(1, Math.floor(input.page || 1));
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit || 10)));
@@ -444,7 +453,8 @@ export async function listJobsPaginated(input: {
     q,
     ownership,
     userId,
-    priority
+    priority,
+    input.jobId || ""
   );
   const p = getPool();
   const useKeyset = ARCHIVE_SECTIONS.has(input.section);
@@ -500,6 +510,40 @@ export async function listJobsPaginated(input: {
     totalPages,
     nextCursor,
   };
+}
+
+function listSectionFromJob(scope: string, status: string): JobListSection | null {
+  if (scope === "completed") return "done";
+  if (scope === "cancelled") return "cancelled";
+  if (scope === "active") {
+    return status === "queued" ? "queue" : "active";
+  }
+  return null;
+}
+
+export type JobLookupResult = {
+  job: JobWithDetails;
+  section: JobListSection;
+};
+
+export async function getJobById(id: string): Promise<JobLookupResult | null> {
+  const jobId = String(id || "").trim();
+  if (!jobId) return null;
+  const p = getPool();
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT * FROM jobs WHERE id = ? AND job_scope <> 'deleted' LIMIT 1`,
+    [jobId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const section = listSectionFromJob(str(row.job_scope), str(row.status));
+  if (!section) return null;
+  const fromArchive = section === "done" || section === "cancelled";
+  const [job] = await enrichJobsBatch([mapJobRow(row)], fromArchive, {
+    includeEvents: true,
+  });
+  if (!job) return null;
+  return { job, section };
 }
 
 export async function listJobsForExport(

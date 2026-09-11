@@ -115,6 +115,12 @@ const id = {
   "job.handoverToEmpty": "Tidak ada yang cocok",
   "job.handoverToNone": "Kosongkan",
   "job.handoverToLoading": "Memuat daftar penerima…",
+  "job.handoverWaHint":
+    "Grup operasional akan menerima notifikasi WhatsApp setelah catatan ini disimpan.",
+  "job.deepLinkHint":
+    "Menampilkan job dari tautan. Filter lain dinonaktifkan sementara.",
+  "job.deepLinkMissing": "Job dari tautan tidak ditemukan atau sudah dihapus.",
+  "job.deepLinkClear": "Tampilkan semua job",
   "job.partLoan": "Part Loan",
   "job.add": "Tambah",
   "job.save": "Simpan",
@@ -371,6 +377,12 @@ const en: Record<MessageKey, string> = {
   "job.handoverToEmpty": "No matches",
   "job.handoverToNone": "Clear",
   "job.handoverToLoading": "Loading recipients…",
+  "job.handoverWaHint":
+    "The operations group will receive a WhatsApp notification after this note is saved.",
+  "job.deepLinkHint":
+    "Showing the job from the link. Other filters are paused.",
+  "job.deepLinkMissing": "The linked job was not found or has been deleted.",
+  "job.deepLinkClear": "Show all jobs",
   "job.partLoan": "Part Loan",
   "job.add": "Add",
   "job.save": "Save",

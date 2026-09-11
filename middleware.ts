@@ -14,12 +14,18 @@ export default auth((req) => {
   const isGuestPage = nextUrl.pathname === "/";
 
   if (isLoginPage && isLoggedIn && nextUrl.pathname.startsWith("/sign-in")) {
-    return NextResponse.redirect(new URL("/", nextUrl));
+    const raw = nextUrl.searchParams.get("callbackUrl") || "/";
+    const target =
+      raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+    return NextResponse.redirect(new URL(target, nextUrl));
   }
 
   if (!isLoggedIn && !isLoginPage && !isGuestPage && !isApi) {
     const loginUrl = new URL("/sign-in", nextUrl);
-    loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
+    loginUrl.searchParams.set(
+      "callbackUrl",
+      `${nextUrl.pathname}${nextUrl.search}`
+    );
     return NextResponse.redirect(loginUrl);
   }
 

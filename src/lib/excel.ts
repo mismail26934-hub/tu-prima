@@ -64,7 +64,6 @@ import {
 import {
   loadMysqlWorkbook,
   saveMysqlWorkbook,
-  workbookHasData,
   readMysqlRows,
   writeMysqlSheet,
   MysqlWorkbook,
@@ -133,6 +132,9 @@ function cellStr(v: ExcelJS.CellValue | string | number | undefined): string {
 /** Pernr / SN — bukan Badge ID (field terpisah). */
 const TECH_SN_HEADERS = [
   "sn",
+  "sn / pernr",
+  "sn/pernr",
+  "sn pernr",
   "sn kpc",
   "skill",
   "pernr",
@@ -317,13 +319,6 @@ function extractPresenceBadgesFromWorkbook(src: ExcelJS.Workbook): {
 }
 
 async function loadWorkbook(): Promise<MysqlWorkbook> {
-  const hasData = await workbookHasData(WORKSHOP_DB);
-  if (!hasData) {
-    const wb = new MysqlWorkbook(WORKSHOP_DB);
-    await createSeedWorkbook(wb);
-    await saveMysqlWorkbook(wb);
-    return wb;
-  }
   return loadMysqlWorkbook(WORKSHOP_DB);
 }
 
@@ -594,26 +589,6 @@ function toPublicUser(u: AppUser): AppUserPublic {
   return rest;
 }
 
-function defaultSeedUser(): AppUser {
-  const username =
-    (typeof process.env.APP_USERNAME === "string" && process.env.APP_USERNAME) ||
-    "admin";
-  const password =
-    (typeof process.env.APP_PASSWORD === "string" && process.env.APP_PASSWORD) ||
-    "admin123";
-  return {
-    id: "U-admin",
-    username,
-    password,
-    name: "Administrator",
-    email: "",
-    phone: "",
-    level: "superuser",
-    active: "1",
-    created_at: nowIso(),
-  };
-}
-
 function techToRow(t: Technician): Row {
   return { ...t };
 }
@@ -788,18 +763,6 @@ const USER_HEADERS = [
   "active",
   "created_at",
 ];
-
-/** Ensure Users sheet exists; seed default admin if empty. Returns true if workbook mutated. */
-async function ensureUsers(wb: MysqlWorkbook): Promise<boolean> {
-  const existing = readRows(getSheet(wb, SHEETS.users))
-    .map(mapUser)
-    .filter((u) => u.id && u.username);
-  if (existing.length > 0) return false;
-  const seed = defaultSeedUser();
-  seed.password = await hashPassword(seed.password);
-  writeSheet(wb, SHEETS.users, USER_HEADERS, [userToRow(seed)]);
-  return true;
-}
 
 function readUsers(wb: MysqlWorkbook): AppUser[] {
   return readRows(getSheet(wb, SHEETS.users))
@@ -1060,147 +1023,6 @@ function releaseTechsFromJob(techs: Technician[], jobId: string) {
     }
   });
 }
-async function createSeedWorkbook(wb: MysqlWorkbook) {
-  const now = nowIso();
-  const techs: Technician[] = [
-    { id: "T01", name: "Andi Pratama", sn: "SN-1001", badge_id: "BADGE-1001", email: "andi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0001", superior_user_id: "", superior_user_name: "" },
-    { id: "T02", name: "Budi Santoso", sn: "SN-1002", badge_id: "BADGE-1002", email: "budi@example.com", status: "busy", current_job_id: "J01", phone: "0812-1111-0002", superior_user_id: "", superior_user_name: "" },
-    { id: "T03", name: "Citra Dewi", sn: "SN-1003", badge_id: "BADGE-1003", email: "citra@example.com", status: "available", current_job_id: "", phone: "0812-1111-0003", superior_user_id: "", superior_user_name: "" },
-    { id: "T04", name: "Dedi Kurnia", sn: "SN-1004", badge_id: "BADGE-1004", email: "dedi@example.com", status: "busy", current_job_id: "J02", phone: "0812-1111-0004", superior_user_id: "", superior_user_name: "" },
-    { id: "T05", name: "Eko Wijaya", sn: "SN-1005", badge_id: "BADGE-1005", email: "eko@example.com", status: "offline", current_job_id: "", phone: "0812-1111-0005", superior_user_id: "", superior_user_name: "" },
-    { id: "T06", name: "Fajar Nugroho", sn: "SN-1006", badge_id: "BADGE-1006", email: "fajar@example.com", status: "available", current_job_id: "", phone: "0812-1111-0006", superior_user_id: "", superior_user_name: "" },
-  ];
-
-  const started1 = new Date(Date.now() - 85 * 60 * 1000).toISOString();
-  const started2 = new Date(Date.now() - 32 * 60 * 1000).toISOString();
-  const step2Start = new Date(Date.now() - 40 * 60 * 1000).toISOString();
-
-  const units: Unit[] = [
-    { id: "U01", code: "AVZ-1234", name: "Avanza B 1234 ABC", serial_number: "SN-AVZ-1234", active: "1" },
-    { id: "U02", code: "INV-5678", name: "Innova D 5678 XYZ", serial_number: "SN-INV-5678", active: "1" },
-    { id: "U03", code: "XEN-9012", name: "Xenia F 9012 LMN", serial_number: "SN-XEN-9012", active: "1" },
-    { id: "U04", code: "FRT-4455", name: "Fortuner B 4455 QRS", serial_number: "SN-FRT-4455", active: "1" },
-    { id: "U05", code: "E448", name: "GOH Unit Rental", serial_number: "SN-E448", active: "1" },
-  ];
-
-  const jobs: Job[] = [
-    {
-      id: "J01",
-      title: "Ganti Kampas Rem Depan",
-      unit: unitLabel(units[0]),
-      unit_id: "U01",
-      description: "Rem depan bunyi & jarak rem jauh",
-      status: "in_progress",
-      technician_id: "T02",
-      template_id: "",
-      created_at: new Date(Date.now() - 100 * 60 * 1000).toISOString(),
-      started_at: started1,
-      completed_at: "",
-      paused_at: "",
-      total_paused_sec: 0,
-      estimated_minutes: 120,
-    },
-    {
-      id: "J02",
-      title: "Servis AC Tidak Dingin",
-      unit: unitLabel(units[1]),
-      unit_id: "U02",
-      description: "Isi freon + cek compressor",
-      status: "in_progress",
-      technician_id: "T04",
-      template_id: "",
-      created_at: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
-      started_at: started2,
-      completed_at: "",
-      paused_at: "",
-      total_paused_sec: 300,
-      estimated_minutes: 90,
-    },
-    {
-      id: "J03",
-      title: "Tune Up Berkala 40.000 km",
-      unit: unitLabel(units[2]),
-      unit_id: "U03",
-      description: "Ganti oli, filter, busi, cek kelistrikan",
-      status: "queued",
-      technician_id: "",
-      template_id: "",
-      created_at: now,
-      started_at: "",
-      completed_at: "",
-      paused_at: "",
-      total_paused_sec: 0,
-      estimated_minutes: 150,
-    },
-    {
-      id: "J04",
-      title: "Perbaikan Starter Motor",
-      unit: unitLabel(units[3]),
-      unit_id: "U04",
-      description: "Starter sering macet saat dingin",
-      status: "queued",
-      technician_id: "",
-      template_id: "",
-      created_at: now,
-      started_at: "",
-      completed_at: "",
-      paused_at: "",
-      total_paused_sec: 0,
-      estimated_minutes: 100,
-    },
-  ];
-
-  const steps: JobStep[] = [
-    { id: "S01", job_id: "J01", name: "Diagnosis", order: 1, status: "done", started_at: started1, completed_at: new Date(Date.now() - 70 * 60 * 1000).toISOString(), duration_sec: 900, std_minutes: 30 },
-    { id: "S02", job_id: "J01", name: "Bongkar & Ganti Sparepart", order: 2, status: "in_progress", started_at: step2Start, completed_at: "", duration_sec: 0, std_minutes: 60 },
-    { id: "S03", job_id: "J01", name: "Pasang & Test Rem", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 20 },
-    { id: "S04", job_id: "J01", name: "QC & Serah Terima", order: 4, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 10 },
-    { id: "S05", job_id: "J02", name: "Cek Tekanan Freon", order: 1, status: "done", started_at: started2, completed_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(), duration_sec: 720, std_minutes: 20 },
-    { id: "S06", job_id: "J02", name: "Isi Freon / Perbaiki Compressor", order: 2, status: "in_progress", started_at: new Date(Date.now() - 18 * 60 * 1000).toISOString(), completed_at: "", duration_sec: 0, std_minutes: 50 },
-    { id: "S07", job_id: "J02", name: "Test Pendinginan", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 20 },
-    { id: "S08", job_id: "J03", name: "Ganti Oli & Filter", order: 1, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 40 },
-    { id: "S09", job_id: "J03", name: "Ganti Busi", order: 2, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 30 },
-    { id: "S10", job_id: "J03", name: "Cek Kelistrikan", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 40 },
-    { id: "S11", job_id: "J03", name: "QC Final", order: 4, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 40 },
-    { id: "S12", job_id: "J04", name: "Diagnosis Starter", order: 1, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 30 },
-    { id: "S13", job_id: "J04", name: "Perbaikan / Ganti", order: 2, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 50 },
-    { id: "S14", job_id: "J04", name: "Test Start Engine", order: 3, status: "pending", started_at: "", completed_at: "", duration_sec: 0, std_minutes: 20 },
-  ];
-
-  const emptyActor = null;
-  const events: JobEvent[] = [
-    makeJobEvent("J01", "created", "Job dibuat", emptyActor, jobs[0].created_at),
-    makeJobEvent("J01", "assigned", "Diassign ke Andi Pratama, Budi Santoso", emptyActor, jobs[0].created_at),
-    makeJobEvent("J01", "started", "Pekerjaan dimulai", emptyActor, started1),
-    makeJobEvent("J01", "step_completed", "Diagnosis selesai", emptyActor, steps[0].completed_at),
-    makeJobEvent("J01", "step_started", "Bongkar & Ganti Sparepart", emptyActor, step2Start),
-    makeJobEvent("J02", "created", "Job dibuat", emptyActor, jobs[1].created_at),
-    makeJobEvent("J02", "assigned", "Diassign ke Dedi Kurnia", emptyActor, jobs[1].created_at),
-    makeJobEvent("J02", "started", "Pekerjaan dimulai", emptyActor, started2),
-    makeJobEvent("J02", "paused", "Tunggu sparepart", emptyActor, new Date(Date.now() - 25 * 60 * 1000).toISOString()),
-    makeJobEvent("J02", "resumed", "Lanjut pekerjaan", emptyActor, new Date(Date.now() - 20 * 60 * 1000).toISOString()),
-    makeJobEvent("J03", "created", "Job dibuat", emptyActor, now),
-    makeJobEvent("J04", "created", "Job dibuat", emptyActor, now),
-  ];
-
-  const assignees: JobAssignee[] = [
-    { id: uuidv4(), job_id: "J01", technician_id: "T02", assigned_at: jobs[0].created_at, is_lead: "1" },
-    { id: uuidv4(), job_id: "J01", technician_id: "T01", assigned_at: jobs[0].created_at, is_lead: "0" },
-    { id: uuidv4(), job_id: "J02", technician_id: "T04", assigned_at: jobs[1].created_at, is_lead: "1" },
-  ];
-
-  writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
-  writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
-  writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
-  writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
-  writeSheet(wb, SHEETS.steps, STEP_HEADERS, steps.map(stepToRow));
-  writeSheet(wb, SHEETS.events, EVENT_HEADERS, events.map(eventToRow));
-  writeSheet(wb, SHEETS.attendance, ATTENDANCE_HEADERS, []);
-  writeSheet(wb, SHEETS.users, USER_HEADERS, [userToRow(defaultSeedUser())]);
-  writeSheet(wb, SHEETS.audit, AUDIT_HEADERS, []);
-  writeSheet(wb, SHEETS.handovers, HANDOVER_HEADERS, []);
-  writeSheet(wb, SHEETS.partLoans, PART_LOAN_HEADERS, []);
-}
 
 function enrichJob(
   job: Job,
@@ -1282,14 +1104,12 @@ export async function getDashboard(): Promise<DashboardData> {
     const partLoans = loadPartLoans(wb);
     const hadUnits = readRows(getSheet(wb, SHEETS.units)).length > 0;
     const units = loadUnits(wb, jobs);
-    const usersSeeded = await ensureUsers(wb);
     const techSnMigrated = migrateTechnicianSnColumn(wb);
     const unitSerialMigrated = migrateUnitSerialNumberColumn(wb);
     const stepStdMigrated = migrateJobStepStdMinutes(wb, jobs, steps);
     steps = stepStdMigrated.steps;
     if (
       (!hadUnits && units.length > 0) ||
-      usersSeeded ||
       techSnMigrated ||
       unitSerialMigrated ||
       stepStdMigrated.changed
@@ -2309,12 +2129,84 @@ function normalizeUnitStatus(raw: string): "1" | "0" | null {
   return null;
 }
 
-export async function importUnitsFromBuffer(
+export type UnitImportPreviewRow = {
+  row: number;
+  code: string;
+  name: string;
+  serial_number: string;
+  active: "" | "1" | "0";
+  ok: boolean;
+  action: "create" | "update" | "skip";
+  error?: string;
+};
+
+export type UnitImportCommitRow = {
+  code: string;
+  name: string;
+  serial_number: string;
+  active?: "" | "1" | "0";
+  action: "create" | "update";
+};
+
+function parseUnitImportSheet(ws: ExcelJS.Worksheet): {
+  headerRow: number;
+  cCode: number;
+  cName: number;
+  cSerial: number;
+  cStatus: number;
+} {
+  const headerMap: Record<string, number> = {};
+  let headerRow = 1;
+  // Prefer first row; also allow header found later like other imports
+  const found = findSheetHeader(
+    ws,
+    ["nomor unit", "no unit", "no. unit", "code", "kode", "unit"],
+    ["model", "name", "nama", "nama unit"]
+  );
+  if (found) {
+    headerRow = found.headerRow;
+    Object.assign(headerMap, found.headerMap);
+  } else {
+    ws.getRow(1).eachCell((cell, column) => {
+      const key = cellStr(cell.value).trim().toLowerCase();
+      if (key) headerMap[key] = column;
+    });
+  }
+  const col = (...names: string[]) => {
+    for (const name of names) {
+      const column = headerMap[name.toLowerCase()];
+      if (column) return column;
+    }
+    return 0;
+  };
+
+  const cCode = col("nomor unit", "no unit", "no. unit", "code", "kode", "unit");
+  const cName = col("model", "name", "nama", "nama unit");
+  const cSerial = col(
+    "serial number",
+    "serial_number",
+    "serialnumber",
+    "nomor seri",
+    "no seri",
+    "no. seri",
+    "sn"
+  );
+  const cStatus = col("status", "active", "aktif");
+  if (!cCode || !cName || !cSerial) {
+    throw new Error(
+      'Kolom wajib tidak ditemukan. Butuh header "Nomor unit", "Model", dan "Serial number".'
+    );
+  }
+  return { headerRow, cCode, cName, cSerial, cStatus };
+}
+
+/** Parse Excel and validate unit rows without writing to DB. */
+export async function previewUnitsFromBuffer(
   buffer: ArrayBuffer | Buffer
 ): Promise<{
-  imported: number;
-  updated: number;
-  skipped: string[];
+  rows: UnitImportPreviewRow[];
+  okCount: number;
+  errorCount: number;
 }> {
   return withDbLock(async () => {
     const src = new ExcelJS.Workbook();
@@ -2326,37 +2218,83 @@ export async function importUnitsFromBuffer(
     const ws = src.worksheets[0];
     if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
 
-    const headerMap: Record<string, number> = {};
-    ws.getRow(1).eachCell((cell, column) => {
-      const key = cellStr(cell.value).trim().toLowerCase();
-      if (key) headerMap[key] = column;
-    });
-    const col = (...names: string[]) => {
-      for (const name of names) {
-        const column = headerMap[name.toLowerCase()];
-        if (column) return column;
+    const { headerRow, cCode, cName, cSerial, cStatus } =
+      parseUnitImportSheet(ws);
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const units = loadUnits(wb, jobs);
+    const seenCode = new Set<string>();
+    const rows: UnitImportPreviewRow[] = [];
+
+    ws.eachRow((row, rowNumber) => {
+      if (rowNumber <= headerRow) return;
+      const code = cellStr(row.getCell(cCode).value).trim().toUpperCase();
+      const name = cellStr(row.getCell(cName).value).trim();
+      const serial_number = cellStr(row.getCell(cSerial).value).trim();
+      const statusRaw = cStatus
+        ? cellStr(row.getCell(cStatus).value).trim()
+        : "";
+      if (!code && !name && !serial_number && !statusRaw) return;
+
+      const activeNorm = normalizeUnitStatus(statusRaw);
+      const active: "" | "1" | "0" = activeNorm || "";
+      const base: UnitImportPreviewRow = {
+        row: rowNumber,
+        code,
+        name,
+        serial_number,
+        active,
+        ok: false,
+        action: "skip",
+      };
+
+      if (!code || !name || !serial_number) {
+        rows.push({
+          ...base,
+          error: "nomor unit, model, dan serial number wajib diisi",
+        });
+        return;
       }
-      return 0;
+      if (statusRaw && !activeNorm) {
+        rows.push({
+          ...base,
+          error: `status "${statusRaw}" tidak valid (gunakan aktif/nonaktif)`,
+        });
+        return;
+      }
+      if (seenCode.has(code)) {
+        rows.push({
+          ...base,
+          error: `nomor unit duplikat di file (${code})`,
+        });
+        return;
+      }
+
+      seenCode.add(code);
+      const existing = units.find((u) => u.code.toUpperCase() === code);
+      rows.push({
+        ...base,
+        ok: true,
+        action: existing ? "update" : "create",
+      });
+    });
+
+    return {
+      rows,
+      okCount: rows.filter((r) => r.ok).length,
+      errorCount: rows.filter((r) => !r.ok).length,
     };
+  });
+}
 
-    const cCode = col("nomor unit", "no unit", "no. unit", "code", "kode", "unit");
-    const cName = col("model", "name", "nama", "nama unit");
-    const cSerial = col(
-      "serial number",
-      "serial_number",
-      "serialnumber",
-      "nomor seri",
-      "no seri",
-      "no. seri",
-      "sn"
-    );
-    const cStatus = col("status", "active", "aktif");
-    if (!cCode || !cName || !cSerial) {
-      throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh header "Nomor unit", "Model", dan "Serial number".'
-      );
+/** Commit selected unit preview rows to DB. */
+export async function commitUnitsImport(
+  rows: UnitImportCommitRow[]
+): Promise<{ imported: number; updated: number; skipped: string[] }> {
+  return withDbLock(async () => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error("Tidak ada baris yang dipilih");
     }
-
     const wb = await loadWorkbook();
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const units = loadUnits(wb, jobs);
@@ -2365,32 +2303,28 @@ export async function importUnitsFromBuffer(
     let updated = 0;
     let changed = false;
 
-    ws.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      const code = cellStr(row.getCell(cCode).value).trim().toUpperCase();
-      const name = cellStr(row.getCell(cName).value).trim();
-      const serial_number = cellStr(row.getCell(cSerial).value).trim();
-      const statusRaw = cStatus
-        ? cellStr(row.getCell(cStatus).value).trim()
-        : "";
-      if (!code && !name && !serial_number && !statusRaw) return;
+    for (const row of rows) {
+      const code = String(row.code || "").trim().toUpperCase();
+      const name = String(row.name || "").trim();
+      const serial_number = String(row.serial_number || "").trim();
+      const activeRaw = String(row.active || "").trim();
+      const active = normalizeUnitStatus(activeRaw);
+      const action = row.action === "update" ? "update" : "create";
       if (!code || !name || !serial_number) {
-        skipped.push(
-          `Baris ${rowNumber}: nomor unit, model, dan serial number wajib (${code || "?"} / ${name || "?"} / ${serial_number || "?"})`
-        );
-        return;
+        skipped.push(`${code || name || "?"}: field wajib kosong`);
+        continue;
+      }
+      if (activeRaw && !active) {
+        skipped.push(`${code}: status tidak valid`);
+        continue;
       }
 
-      const active = normalizeUnitStatus(statusRaw);
-      if (statusRaw && !active) {
-        skipped.push(
-          `Baris ${rowNumber}: status "${statusRaw}" tidak valid (gunakan aktif/nonaktif)`
-        );
-        return;
-      }
-
-      const existing = units.find((unit) => unit.code.toUpperCase() === code);
-      if (existing) {
+      const existing = units.find((u) => u.code.toUpperCase() === code);
+      if (action === "update" || existing) {
+        if (!existing) {
+          skipped.push(`${code}: unit tidak ditemukan untuk update`);
+          continue;
+        }
         existing.name = name;
         existing.serial_number = serial_number;
         if (active) existing.active = active;
@@ -2400,7 +2334,7 @@ export async function importUnitsFromBuffer(
         });
         updated += 1;
         changed = true;
-        return;
+        continue;
       }
 
       units.push({
@@ -2412,11 +2346,8 @@ export async function importUnitsFromBuffer(
       });
       imported += 1;
       changed = true;
-    });
-
-    if (!changed && skipped.length === 0) {
-      throw new Error("Tidak ada baris data unit yang bisa diimpor");
     }
+
     if (changed) {
       writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
       writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
@@ -2428,6 +2359,33 @@ export async function importUnitsFromBuffer(
       skipped: skipped.slice(0, 50),
     };
   });
+}
+
+export async function importUnitsFromBuffer(
+  buffer: ArrayBuffer | Buffer
+): Promise<{
+  imported: number;
+  updated: number;
+  skipped: string[];
+}> {
+  const preview = await previewUnitsFromBuffer(buffer);
+  const rows: UnitImportCommitRow[] = preview.rows
+    .filter((r) => r.ok)
+    .map((r) => ({
+      code: r.code,
+      name: r.name,
+      serial_number: r.serial_number,
+      active: r.active,
+      action: r.action === "update" ? ("update" as const) : ("create" as const),
+    }));
+  if (!rows.length) {
+    throw new Error(
+      preview.errorCount
+        ? `Tidak ada baris valid (${preview.errorCount} error)`
+        : "Tidak ada baris data unit yang bisa diimpor"
+    );
+  }
+  return commitUnitsImport(rows);
 }
 
 export async function setTechnicianStatus(
@@ -2462,7 +2420,6 @@ export async function createTechnician(input: {
 }): Promise<Technician> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const requestedId = String(input.id || "").trim();
     if (requestedId) {
@@ -2513,6 +2470,330 @@ function normalizeTechStatus(
   return null;
 }
 
+export type TechnicianImportPreviewRow = {
+  row: number;
+  name: string;
+  sn: string;
+  badge_id: string;
+  email: string;
+  phone: string;
+  status: "" | "available" | "offline";
+  ok: boolean;
+  action: "create" | "update" | "skip";
+  error?: string;
+};
+
+export type TechnicianImportCommitRow = {
+  name: string;
+  sn: string;
+  badge_id: string;
+  email: string;
+  phone: string;
+  status?: "" | "available" | "offline";
+  action: "create" | "update";
+};
+
+function parseTechnicianImportSheet(ws: ExcelJS.Worksheet): {
+  headerRow: number;
+  cName: number;
+  cSn: number;
+  cBadge: number;
+  cEmail: number;
+  cPhone: number;
+  cStatus: number;
+} {
+  const found = findSheetHeader(ws, TECH_SN_HEADERS, TECH_NAME_HEADERS);
+  if (!found) {
+    throw new Error(
+      'Kolom wajib tidak ditemukan. Butuh "Nama Karyawan" / "Nama" dan "SN" / "Pernr".'
+    );
+  }
+  const { headerRow, headerMap } = found;
+  const col = (...names: string[]) => {
+    for (const n of names) {
+      const c = headerMap[n.toLowerCase()];
+      if (c) return c;
+    }
+    return 0;
+  };
+  const cName = col(...TECH_NAME_HEADERS);
+  const cSn = col(...TECH_SN_HEADERS);
+  const cBadge = col(...TECH_BADGE_HEADERS);
+  const cEmail = col(...TECH_EMAIL_HEADERS);
+  const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
+  const cStatus = col("status");
+  if (!cName || !cSn || !cBadge || !cEmail) {
+    throw new Error(
+      'Kolom wajib tidak ditemukan. Butuh Nama, SN/Pernr, Badge ID (No. ID Badge), dan Email.'
+    );
+  }
+  return { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus };
+}
+
+/** Parse Excel and validate rows without writing to DB. */
+export async function previewTechniciansFromBuffer(
+  buffer: ArrayBuffer | Buffer
+): Promise<{
+  rows: TechnicianImportPreviewRow[];
+  okCount: number;
+  errorCount: number;
+}> {
+  return withDbLock(async () => {
+    const src = new ExcelJS.Workbook();
+    const bytes =
+      buffer instanceof ArrayBuffer
+        ? Buffer.from(new Uint8Array(buffer))
+        : Buffer.from(buffer);
+    await src.xlsx.load(bytes as unknown as ExcelJS.Buffer);
+    const ws = src.worksheets[0];
+    if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
+
+    const { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus } =
+      parseTechnicianImportSheet(ws);
+    const wb = await loadWorkbook();
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const seenSn = new Set<string>();
+    const seenBadge = new Set<string>();
+    const seenEmail = new Set<string>();
+    const rows: TechnicianImportPreviewRow[] = [];
+
+    ws.eachRow((row, rowNumber) => {
+      if (rowNumber <= headerRow) return;
+      const name = cellStr(row.getCell(cName).value).trim();
+      const sn = cellStr(row.getCell(cSn).value).trim();
+      const badge_id = cellStr(row.getCell(cBadge).value).trim();
+      const emailRaw = cellStr(row.getCell(cEmail).value).trim();
+      const phone = cPhone ? cellStr(row.getCell(cPhone).value).trim() : "";
+      const statusRaw = cStatus
+        ? cellStr(row.getCell(cStatus).value).trim()
+        : "";
+      if (!name && !sn && !badge_id && !emailRaw) return;
+
+      const statusNorm = normalizeTechStatus(statusRaw);
+      const status: "" | "available" | "offline" = statusNorm || "";
+      const base: TechnicianImportPreviewRow = {
+        row: rowNumber,
+        name,
+        sn,
+        badge_id,
+        email: emailRaw,
+        phone,
+        status,
+        ok: false,
+        action: "skip",
+      };
+
+      if (!name || !sn || !badge_id || !emailRaw) {
+        rows.push({
+          ...base,
+          error:
+            "nama, SN/Pernr, Badge ID, dan email wajib diisi",
+        });
+        return;
+      }
+      if (!isValidTechEmail(emailRaw)) {
+        rows.push({
+          ...base,
+          error: `format email tidak valid (${emailRaw})`,
+        });
+        return;
+      }
+      const email = normalizeTechEmail(emailRaw);
+      const snKey = sn.toLowerCase();
+      const badgeKey = badge_id.toLowerCase();
+      if (seenSn.has(snKey)) {
+        rows.push({ ...base, email, error: `SN/Pernr duplikat di file (${sn})` });
+        return;
+      }
+      if (seenBadge.has(badgeKey)) {
+        rows.push({
+          ...base,
+          email,
+          error: `Badge ID duplikat di file (${badge_id})`,
+        });
+        return;
+      }
+      if (seenEmail.has(email)) {
+        rows.push({
+          ...base,
+          email,
+          error: `Email duplikat di file (${email})`,
+        });
+        return;
+      }
+
+      const existing = techs.find(
+        (t) => t.sn.trim().toLowerCase() === snKey
+      );
+      try {
+        validateTechnicianFields(
+          {
+            name,
+            sn,
+            badge_id,
+            email,
+            phone: phone || (existing ? existing.phone : ""),
+          },
+          techs,
+          existing?.id
+        );
+      } catch (e) {
+        rows.push({
+          ...base,
+          email,
+          error: e instanceof Error ? e.message : "validasi gagal",
+        });
+        return;
+      }
+
+      if (existing) {
+        seenSn.add(snKey);
+        seenBadge.add(badgeKey);
+        seenEmail.add(email);
+        rows.push({
+          ...base,
+          email,
+          phone: phone || existing.phone,
+          ok: true,
+          action: "update",
+        });
+        return;
+      }
+
+      if (!phone) {
+        rows.push({
+          ...base,
+          email,
+          error: "telepon wajib untuk data baru",
+        });
+        return;
+      }
+
+      seenSn.add(snKey);
+      seenBadge.add(badgeKey);
+      seenEmail.add(email);
+      rows.push({
+        ...base,
+        email,
+        ok: true,
+        action: "create",
+      });
+    });
+
+    return {
+      rows,
+      okCount: rows.filter((r) => r.ok).length,
+      errorCount: rows.filter((r) => !r.ok).length,
+    };
+  });
+}
+
+/** Commit selected preview rows to DB. */
+export async function commitTechniciansImport(
+  rows: TechnicianImportCommitRow[]
+): Promise<{ imported: number; updated: number; skipped: string[] }> {
+  return withDbLock(async () => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error("Tidak ada baris yang dipilih");
+    }
+    const wb = await loadWorkbook();
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const skipped: string[] = [];
+    let imported = 0;
+    let updated = 0;
+
+    for (const row of rows) {
+      const name = String(row.name || "").trim();
+      const sn = String(row.sn || "").trim();
+      const badge_id = String(row.badge_id || "").trim();
+      const emailRaw = String(row.email || "").trim();
+      const phone = String(row.phone || "").trim();
+      const status = normalizeTechStatus(String(row.status || ""));
+      const action = row.action === "update" ? "update" : "create";
+      if (!name || !sn || !badge_id || !emailRaw) {
+        skipped.push(`${sn || name || "?"}: field wajib kosong`);
+        continue;
+      }
+      if (!isValidTechEmail(emailRaw)) {
+        skipped.push(`${sn}: email tidak valid`);
+        continue;
+      }
+      const email = normalizeTechEmail(emailRaw);
+      const existing = techs.find(
+        (t) => t.sn.trim().toLowerCase() === sn.toLowerCase()
+      );
+
+      if (action === "update" || existing) {
+        if (!existing) {
+          skipped.push(`${sn}: teknisi tidak ditemukan untuk update`);
+          continue;
+        }
+        try {
+          const fields = validateTechnicianFields(
+            { name, sn, badge_id, email, phone: phone || existing.phone },
+            techs,
+            existing.id
+          );
+          existing.name = fields.name;
+          existing.sn = fields.sn;
+          existing.badge_id = fields.badge_id;
+          existing.email = fields.email;
+          existing.phone = fields.phone;
+          if (status && existing.status !== "busy") {
+            existing.status = status;
+            existing.current_job_id = "";
+          }
+          updated += 1;
+        } catch (e) {
+          skipped.push(
+            `${sn}: ${e instanceof Error ? e.message : "validasi gagal"}`
+          );
+        }
+        continue;
+      }
+
+      if (!phone) {
+        skipped.push(`${sn}: telepon wajib untuk data baru`);
+        continue;
+      }
+      try {
+        const fields = validateTechnicianFields(
+          { name, sn, badge_id, email, phone },
+          techs
+        );
+        techs.push({
+          id: `T-${uuidv4().slice(0, 8)}`,
+          name: fields.name,
+          sn: fields.sn,
+          badge_id: fields.badge_id,
+          email: fields.email,
+          phone: fields.phone,
+          status: status || "available",
+          current_job_id: "",
+          superior_user_id: "",
+          superior_user_name: "",
+        });
+        imported += 1;
+      } catch (e) {
+        skipped.push(
+          `${sn}: ${e instanceof Error ? e.message : "validasi gagal"}`
+        );
+      }
+    }
+
+    if (imported === 0 && updated === 0) {
+      throw new Error(
+        skipped.length
+          ? `Tidak ada baris yang berhasil disimpan. ${skipped[0]}`
+          : "Tidak ada baris yang berhasil disimpan"
+      );
+    }
+    writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    await saveWorkbook(wb);
+    return { imported, updated, skipped: skipped.slice(0, 50) };
+  });
+}
+
 export async function importTechniciansFromBuffer(
   buffer: ArrayBuffer | Buffer,
   opts?: {
@@ -2540,34 +2821,8 @@ export async function importTechniciansFromBuffer(
     const ws = src.worksheets[0];
     if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
 
-    const found = findSheetHeader(ws, TECH_SN_HEADERS, TECH_NAME_HEADERS);
-    if (!found) {
-      throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh "Nama Karyawan" / "Nama" dan "SN" / "Pernr".'
-      );
-    }
-    const { headerRow, headerMap } = found;
-
-    const col = (...names: string[]) => {
-      for (const n of names) {
-        const c = headerMap[n.toLowerCase()];
-        if (c) return c;
-      }
-      return 0;
-    };
-
-    const cName = col(...TECH_NAME_HEADERS);
-    const cSn = col(...TECH_SN_HEADERS);
-    const cBadge = col(...TECH_BADGE_HEADERS);
-    const cEmail = col(...TECH_EMAIL_HEADERS);
-    const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
-    const cStatus = col("status");
-
-    if (!cName || !cSn || !cBadge || !cEmail) {
-      throw new Error(
-        'Kolom wajib tidak ditemukan. Butuh Nama, SN/Pernr, Badge ID (No. ID Badge), dan Email.'
-      );
-    }
+    const { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus } =
+      parseTechnicianImportSheet(ws);
 
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
@@ -2700,7 +2955,6 @@ export async function updateTechnician(
 ): Promise<Technician> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const tech = techs.find((t) => t.id === techId);
     if (!tech) throw new Error("Technician not found");
@@ -3151,7 +3405,6 @@ export async function jobAction(
       if (targetId === actor?.user_id) {
         throw new Error("Tidak bisa delegasi ke diri sendiri");
       }
-      await ensureUsers(wb);
       const target = readUsers(wb).find(
         (u) => u.id === targetId && u.active === "1" && u.level === "foreman"
       );
@@ -4402,8 +4655,6 @@ export async function syncTechnicianPresenceFromBuffer(
 export async function listUsers(): Promise<AppUserPublic[]> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    const seeded = await ensureUsers(wb);
-    if (seeded) await saveWorkbook(wb);
     return readUsers(wb)
       .map(toPublicUser)
       .sort((a, b) => a.username.localeCompare(b.username));
@@ -4413,7 +4664,6 @@ export async function listUsers(): Promise<AppUserPublic[]> {
 export async function listForemanUsers(): Promise<AppUserPublic[]> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     return readUsers(wb)
       .filter((u) => u.level === "foreman" && u.active === "1")
       .map(toPublicUser)
@@ -4427,7 +4677,6 @@ export async function authenticateUser(
 ): Promise<AppUserPublic | null> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    const seeded = await ensureUsers(wb);
     const users = readUsers(wb);
     const user = users.find(
       (u) =>
@@ -4435,15 +4684,12 @@ export async function authenticateUser(
         u.active === "1"
     );
     if (!user) {
-      if (seeded) await saveWorkbook(wb);
       return null;
     }
     const wasPlain = needsPasswordHash(user.password);
     if (!(await verifyPassword(password, user.password))) {
-      if (seeded) await saveWorkbook(wb);
       return null;
     }
-    let dirty = seeded;
     if (wasPlain) {
       user.password = await hashPassword(password);
       writeSheet(
@@ -4452,9 +4698,8 @@ export async function authenticateUser(
         USER_HEADERS,
         users.map((u) => (u.id === user.id ? userToRow(user) : userToRow(u)))
       );
-      dirty = true;
+      await saveWorkbook(wb);
     }
-    if (dirty) await saveWorkbook(wb);
     return toPublicUser(user);
   });
 }
@@ -4466,7 +4711,6 @@ export async function changeOwnPassword(
 ): Promise<{ ok: true }> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     const users = readUsers(wb);
     const user = users.find((item) => item.id === userId && item.active === "1");
     if (!user) throw new Error("User tidak ditemukan atau sudah nonaktif");
@@ -4492,8 +4736,6 @@ export async function getUserByUsername(
 ): Promise<AppUserPublic | null> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    const seeded = await ensureUsers(wb);
-    if (seeded) await saveWorkbook(wb);
     const user = readUsers(wb).find(
       (u) => u.username.toLowerCase() === username.trim().toLowerCase()
     );
@@ -4512,7 +4754,6 @@ export async function createUser(input: {
 }): Promise<AppUserPublic> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     const users = readUsers(wb);
     const username = input.username.trim();
     const password = input.password;
@@ -4559,7 +4800,6 @@ export async function updateUser(
 ): Promise<AppUserPublic> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     const users = readUsers(wb);
     const user = users.find((u) => u.id === userId);
     if (!user) throw new Error("User tidak ditemukan");
@@ -4634,7 +4874,6 @@ export async function updateUser(
 export async function deleteUser(userId: string): Promise<{ ok: true }> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
-    await ensureUsers(wb);
     const users = readUsers(wb);
     const target = users.find((u) => u.id === userId);
     if (!target) throw new Error("User tidak ditemukan");

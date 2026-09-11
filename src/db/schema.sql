@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS job_steps (
   std_minutes  INT          NOT NULL DEFAULT 0,
   technician_ids TEXT,
   note         TEXT,
+  photo_name   VARCHAR(255) NOT NULL DEFAULT '',
   KEY idx_job_steps_job (job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -124,7 +125,10 @@ CREATE TABLE IF NOT EXISTS job_handovers (
   job_id         VARCHAR(64)  NOT NULL,
   handover_order INT          NOT NULL DEFAULT 0,
   title          VARCHAR(255) NOT NULL DEFAULT '',
+  from_name      VARCHAR(255) NOT NULL DEFAULT '',
+  from_user_id   VARCHAR(64)  NOT NULL DEFAULT '',
   to_name        VARCHAR(255) NOT NULL DEFAULT '',
+  to_user_id     VARCHAR(64)  NOT NULL DEFAULT '',
   done           TINYINT(1)   NOT NULL DEFAULT 0,
   note           TEXT,
   user_id        VARCHAR(64)  NOT NULL DEFAULT '',

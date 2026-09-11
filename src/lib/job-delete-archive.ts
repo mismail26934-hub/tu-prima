@@ -72,6 +72,7 @@ const STEP_HEADERS = [
   "std_minutes",
   "technician_ids",
   "note",
+  "photo_name",
 ];
 
 const EVENT_HEADERS = [
@@ -103,7 +104,10 @@ const HANDOVER_HEADERS = [
   "job_id",
   "order",
   "title",
+  "from_name",
+  "from_user_id",
   "to_name",
+  "to_user_id",
   "done",
   "note",
   "user_id",
@@ -231,6 +235,7 @@ export async function archiveDeletedJob(input: {
       std_minutes: s.std_minutes,
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
       note: s.note || "",
+      photo_name: s.photo_name || "",
     }))
   );
 
@@ -280,7 +285,10 @@ export async function archiveDeletedJob(input: {
       job_id: h.job_id,
       order: h.order,
       title: h.title,
+      from_name: h.from_name,
+      from_user_id: h.from_user_id,
       to_name: h.to_name,
+      to_user_id: h.to_user_id,
       done: h.done,
       note: h.note,
       user_id: h.user_id,

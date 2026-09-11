@@ -35,6 +35,8 @@ import {
   stampEmptyTechnicianIds,
   technicianNamesByIds,
 } from "./step-technicians";
+import { attachStepPhotoUrl, stepHasPhoto } from "./step-photo-url";
+import { deleteStepPhotoFiles, saveStepPhotoFromBase64 } from "./step-photo";
 import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
 import { notifyHandoverWhatsApp } from "./wa-notify";
@@ -457,7 +459,7 @@ function mapUnit(r: Row): Unit {
 }
 
 function mapStep(r: Row): JobStep {
-  return {
+  return attachStepPhotoUrl({
     id: String(r.id || ""),
     job_id: String(r.job_id || ""),
     name: String(r.name || ""),
@@ -469,7 +471,8 @@ function mapStep(r: Row): JobStep {
     std_minutes: Number(r.std_minutes || 0),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: String(r.note || ""),
-  };
+    photo_name: String(r.photo_name || ""),
+  });
 }
 
 function mapEvent(r: Row): JobEvent {
@@ -505,7 +508,10 @@ function mapHandover(r: Row): JobHandover {
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
+    from_name: String(r.from_name || ""),
+    from_user_id: String(r.from_user_id || ""),
     to_name: String(r.to_name || ""),
+    to_user_id: String(r.to_user_id || ""),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
     user_id: String(r.user_id || ""),
@@ -609,6 +615,7 @@ function stepToRow(s: JobStep): Row {
     std_minutes: Number(s.std_minutes || 0),
     technician_ids: serializeStepTechnicianIds(s.technician_ids),
     note: String(s.note || ""),
+    photo_name: String(s.photo_name || ""),
   };
 }
 
@@ -694,13 +701,17 @@ const STEP_HEADERS = [
   "std_minutes",
   "technician_ids",
   "note",
+  "photo_name",
 ];
 const HANDOVER_HEADERS = [
   "id",
   "job_id",
   "order",
   "title",
+  "from_name",
+  "from_user_id",
   "to_name",
+  "to_user_id",
   "done",
   "note",
   "user_id",
@@ -990,6 +1001,59 @@ function jobTechnicianNames(
     assignedIdsFromAssignees(job, assignees),
     techs
   );
+}
+
+function userDisplayLabel(u: AppUser): string {
+  return (u.name || u.username).trim();
+}
+
+type HandoverParty = { user_id: string; name: string; phone: string };
+
+function resolveHandoverParty(
+  users: AppUser[],
+  user_id?: string,
+  name?: string
+): HandoverParty {
+  const id = String(user_id || "").trim();
+  const label = String(name || "").trim();
+  const active = users.filter((u) => u.active === "1");
+  if (id) {
+    const u = active.find((x) => x.id === id);
+    if (u) {
+      return {
+        user_id: u.id,
+        name: userDisplayLabel(u).slice(0, 255),
+        phone: u.phone || "",
+      };
+    }
+  }
+  if (label) {
+    const needle = label.toLowerCase();
+    const matches = active.filter((u) => {
+      if (u.level !== "foreman") return false;
+      const display = userDisplayLabel(u).toLowerCase();
+      return display === needle || u.username.toLowerCase() === needle;
+    });
+    if (matches.length === 1) {
+      const u = matches[0];
+      return {
+        user_id: u.id,
+        name: userDisplayLabel(u).slice(0, 255),
+        phone: u.phone || "",
+      };
+    }
+    return { user_id: "", name: label.slice(0, 255), phone: "" };
+  }
+  return { user_id: "", name: "", phone: "" };
+}
+
+function resolveHandoverRecipient(
+  users: AppUser[],
+  to_user_id?: string,
+  to_name?: string
+): { to_user_id: string; to_name: string; phone: string } {
+  const party = resolveHandoverParty(users, to_user_id, to_name);
+  return { to_user_id: party.user_id, to_name: party.name, phone: party.phone };
 }
 
 function loadUnits(wb: MysqlWorkbook, jobs: Job[]): Unit[] {
@@ -1288,6 +1352,7 @@ export async function createJob(input: {
         duration_sec: 0,
         std_minutes: Number(def.std_minutes || 0),
         note: "",
+        photo_name: "",
       });
     });
 
@@ -1403,6 +1468,10 @@ export async function updateJob(
     if (canRewriteSteps && input.steps && input.steps.length > 0) {
       const tpl = job.template_id ? getJobTemplate(job.template_id) : null;
       const tplSteps = tpl ? stepsFromTemplate(tpl) : [];
+      const previous = steps.filter((s) => s.job_id === jobId);
+      for (const old of previous) {
+        await deleteStepPhotoFiles(old.id, old.photo_name);
+      }
       steps = steps.filter((s) => s.job_id !== jobId);
       input.steps.forEach((name, i) => {
         const fromTpl = tplSteps.find((t) => t.name === name) || tplSteps[i];
@@ -1417,6 +1486,7 @@ export async function updateJob(
           duration_sec: 0,
           std_minutes: Number(fromTpl?.std_minutes || 0),
           note: "",
+          photo_name: "",
         });
       });
     }
@@ -1573,7 +1643,10 @@ export async function createJobHandover(input: {
   id?: string;
   job_id: string;
   title: string;
+  from_name?: string;
+  from_user_id?: string;
   to_name?: string;
+  to_user_id?: string;
   note?: string;
   done?: boolean;
   actor?: AuditActor | null;
@@ -1608,12 +1681,33 @@ export async function createJobHandover(input: {
     const order =
       forJob.reduce((max, h) => Math.max(max, h.order), 0) + 1;
     const at = nowIso();
+    const users = readUsers(wb);
+    const recipient = resolveHandoverParty(
+      users,
+      input.to_user_id,
+      input.to_name
+    );
+    let sender = resolveHandoverParty(
+      users,
+      input.from_user_id,
+      input.from_name
+    );
+    if (!sender.user_id && !sender.name) {
+      sender = resolveHandoverParty(
+        users,
+        input.actor?.user_id,
+        input.actor?.user_name
+      );
+    }
     const row: JobHandover = {
       id: requestedId || uuidv4(),
       job_id: input.job_id,
       order,
       title,
-      to_name: (input.to_name || "").trim().slice(0, 255),
+      from_name: sender.name,
+      from_user_id: sender.user_id,
+      to_name: recipient.name,
+      to_user_id: recipient.user_id,
       done: input.done ? "1" : "0",
       note: (input.note || "").trim(),
       user_id: input.actor?.user_id || "",
@@ -1650,6 +1744,7 @@ export async function createJobHandover(input: {
       notify: true as const,
       job: { ...job },
       technicianNames: jobTechnicianNames(wb, job, assignees),
+      recipientPhone: recipient.phone,
     };
   });
   if (result.notify) {
@@ -1658,6 +1753,7 @@ export async function createJobHandover(input: {
       job: result.job,
       handover: result.row,
       technicianNames: result.technicianNames,
+      recipientPhone: result.recipientPhone,
     });
   }
   return result.row;
@@ -1667,7 +1763,10 @@ export async function updateJobHandover(
   handoverId: string,
   input: {
     title?: string;
+    from_name?: string;
+    from_user_id?: string;
     to_name?: string;
+    to_user_id?: string;
     note?: string;
     done?: boolean;
     actor?: AuditActor | null;
@@ -1701,7 +1800,25 @@ export async function updateJobHandover(
       if (!title) throw new Error("Judul handover wajib diisi");
       row.title = title;
     }
-    if (input.to_name !== undefined) row.to_name = input.to_name.trim().slice(0, 255);
+    const users = readUsers(wb);
+    if (input.from_user_id !== undefined || input.from_name !== undefined) {
+      const sender = resolveHandoverParty(
+        users,
+        input.from_user_id !== undefined ? input.from_user_id : row.from_user_id,
+        input.from_name !== undefined ? input.from_name : row.from_name
+      );
+      row.from_user_id = sender.user_id;
+      row.from_name = sender.name;
+    }
+    if (input.to_user_id !== undefined || input.to_name !== undefined) {
+      const recipient = resolveHandoverParty(
+        users,
+        input.to_user_id !== undefined ? input.to_user_id : row.to_user_id,
+        input.to_name !== undefined ? input.to_name : row.to_name
+      );
+      row.to_user_id = recipient.user_id;
+      row.to_name = recipient.name;
+    }
     if (input.note !== undefined) row.note = input.note.trim();
     if (input.done !== undefined) row.done = input.done ? "1" : "0";
     row.user_id = input.actor?.user_id || row.user_id;
@@ -1735,6 +1852,11 @@ export async function updateJobHandover(
       previous: beforeRow,
       job: { ...job },
       technicianNames: jobTechnicianNames(wb, job, assignees),
+      recipientPhone: resolveHandoverRecipient(
+        readUsers(wb),
+        row.to_user_id,
+        row.to_name
+      ).phone,
     };
   });
   notifyHandoverWhatsApp({
@@ -1743,6 +1865,7 @@ export async function updateJobHandover(
     handover: result.row,
     previous: result.previous,
     technicianNames: result.technicianNames,
+    recipientPhone: result.recipientPhone,
   });
   return result.row;
 }
@@ -1804,6 +1927,10 @@ export async function deleteJobHandover(
       job: job ? { ...job } : null,
       handover: { ...row },
       technicianNames: job ? jobTechnicianNames(wb, job, assignees) : "",
+      recipientPhone: job
+        ? resolveHandoverRecipient(readUsers(wb), row.to_user_id, row.to_name)
+            .phone
+        : "",
     };
   });
   if (result.job) {
@@ -1812,6 +1939,7 @@ export async function deleteJobHandover(
       job: result.job,
       handover: result.handover,
       technicianNames: result.technicianNames,
+      recipientPhone: result.recipientPhone,
     });
   }
   return { ok: true };
@@ -3041,9 +3169,31 @@ type JobAction =
   | "complete_step"
   | "set_step_technicians"
   | "set_step_note"
+  | "set_step_photo"
   | "complete"
   | "cancel"
   | "reopen";
+
+async function applyIncomingStepPhoto(
+  step: JobStep,
+  payload?: {
+    photo_base64?: string;
+    photo_mime?: string;
+    photo_name?: string;
+  }
+): Promise<boolean> {
+  const raw = String(payload?.photo_base64 || "").trim();
+  if (!raw) return false;
+  step.photo_name = await saveStepPhotoFromBase64(
+    step.id,
+    raw,
+    payload?.photo_mime,
+    payload?.photo_name
+  );
+  const withUrl = attachStepPhotoUrl(step);
+  step.photo_url = withUrl.photo_url;
+  return true;
+}
 
 export async function jobAction(
   jobId: string,
@@ -3059,6 +3209,9 @@ export async function jobAction(
     auto_start_first?: boolean;
     auto_next?: boolean;
     note?: string;
+    photo_base64?: string;
+    photo_mime?: string;
+    photo_name?: string;
     actor?: AuditActor | null;
     /** Frozen client clock (offline complete/pause) so sync does not recount from Date.now(). */
     duration_sec?: number;
@@ -3626,11 +3779,18 @@ export async function jobAction(
       };
       if (current.status === "done") {
         // Idempotent replay: step already completed on server.
+        await applyIncomingStepPhoto(current, payload);
         applyStepTechs();
         maybeAutoNext();
       } else if (current.status !== "in_progress") {
         throw new Error("Hanya step aktif yang bisa diselesaikan");
       } else {
+      await applyIncomingStepPhoto(current, payload);
+      if (!stepHasPhoto(current)) {
+        throw new Error(
+          "Foto bukti pekerjaan wajib sebelum menyelesaikan step"
+        );
+      }
       const now = Date.now();
       if (
         typeof payload?.duration_sec === "number" &&
@@ -3718,6 +3878,30 @@ export async function jobAction(
       );
     }
 
+    if (action === "set_step_photo") {
+      if (
+        !["queued", "assigned", "in_progress", "paused"].includes(job.status)
+      ) {
+        throw new Error("Foto step tidak bisa diubah pada status ini");
+      }
+      const stepId = String(payload?.step_id || "");
+      const step = jobSteps().find((s) => s.id === stepId);
+      if (!step) throw new Error("Step tidak ditemukan");
+      const saved = await applyIncomingStepPhoto(step, payload);
+      if (!saved) {
+        throw new Error("Pilih foto bukti pekerjaan");
+      }
+      pushEvent(
+        "updated",
+        `Foto bukti step ${step.order}. ${step.name}`
+      );
+      pushAudit(
+        "update",
+        `Foto bukti step ${step.order}. ${step.name}`,
+        step.id
+      );
+    }
+
     if (action === "complete") {
       if (!["in_progress", "paused"].includes(job.status)) {
         throw new Error("Job tidak bisa diselesaikan dari status ini");
@@ -3734,6 +3918,17 @@ export async function jobAction(
       const snapshots = payload?.step_snapshots || [];
       const byId = new Map(snapshots.map((s) => [s.id, s]));
       const completeAssignedIds = assignedIdsFromAssignees(job, assignees);
+      const missingPhoto = jobSteps().filter(
+        (s) => s.status !== "done" && !stepHasPhoto(s)
+      );
+      if (missingPhoto.length) {
+        const labels = missingPhoto
+          .map((s) => `${s.order}. ${s.name}`)
+          .join(", ");
+        throw new Error(
+          `Lengkapi foto bukti dulu untuk step: ${labels}`
+        );
+      }
       jobSteps().forEach((s) => {
         if (s.status !== "done") {
           if (s.status === "in_progress") {

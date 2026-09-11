@@ -7,6 +7,7 @@ import {
   formatDuration,
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
+import { stepHasPhoto } from "@/lib/step-photo-url";
 import { fmtFileStamp } from "@/lib/file-stamp";
 
 export type JobReportScope = "active" | "queue";
@@ -87,11 +88,12 @@ function stepsText(job: JobWithDetails): string {
           ? ` | STP/Std Hours: ${formatStdLabel(stpMin)}`
           : " | STP/Std Hours: —";
       const note = (s.note || "").trim();
+      const photo = stepHasPhoto(s) ? " | Bukti: Ya" : " | Bukti: Tidak";
       return `${s.order}. ${s.name}${stp} | [${s.status}] ${formatDuration(
         calcStepElapsedSec(s)
       )} | Teknisi: ${stepTechnicianNames(s, job) || "—"}${
         note ? ` | Note: ${note}` : ""
-      }`;
+      }${photo}`;
     })
     .join("\n");
 }
@@ -101,8 +103,10 @@ function handoversText(job: JobWithDetails): string {
     .map(
       (h) =>
         `${h.order}. ${h.title}${
-          h.to_name ? ` → ${h.to_name}` : ""
-        } · Done=${h.done === "1" ? "Yes" : "No"}${
+          h.from_name || h.user_name
+            ? ` dari ${h.from_name || h.user_name}`
+            : ""
+        }${h.to_name ? ` → ${h.to_name}` : ""} · Done=${h.done === "1" ? "Yes" : "No"}${
           h.note ? ` · Note=${h.note}` : ""
         }`
     )

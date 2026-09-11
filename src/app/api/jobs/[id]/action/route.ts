@@ -22,6 +22,7 @@ const ACTIONS = [
   "complete_step",
   "set_step_technicians",
   "set_step_note",
+  "set_step_photo",
   "complete",
   "cancel",
   "reopen",
@@ -58,6 +59,7 @@ export async function POST(
         "complete_step",
         "set_step_technicians",
         "set_step_note",
+        "set_step_photo",
         "complete",
       ].includes(action)
     ) {
@@ -88,6 +90,9 @@ export async function POST(
       auto_next:
         typeof body.auto_next === "boolean" ? body.auto_next : undefined,
       note: body.note,
+      photo_base64: body.photo_base64 ? String(body.photo_base64) : undefined,
+      photo_mime: body.photo_mime ? String(body.photo_mime) : undefined,
+      photo_name: body.photo_name ? String(body.photo_name) : undefined,
       delegate_user_id: body.delegate_user_id
         ? String(body.delegate_user_id)
         : undefined,

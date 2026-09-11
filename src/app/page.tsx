@@ -55,7 +55,11 @@ import { OfflineSyncChip } from "@/components/OfflineSyncChip";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { StepPhotoPicker } from "@/components/StepPhotoPicker";
 import { api } from "@/lib/api";
+import { stepHasPhoto } from "@/lib/step-photo-url";
+import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
+import type { StepPhotoDraft } from "@/lib/step-photo-client";
 import { useDashboard } from "@/hooks/useDashboard";
 import { writeCachedSession } from "@/lib/offline/session-cache";
 import {
@@ -105,6 +109,7 @@ type Modal =
   | { type: "complete-step"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "step-technicians"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "step-note"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
+  | { type: "step-photo"; job: JobWithDetails; step: JobWithDetails["steps"][0] }
   | { type: "print-pdf"; job: JobWithDetails }
   | { type: "complete-job"; job: JobWithDetails }
   | { type: "delegate-job"; job: JobWithDetails }
@@ -114,6 +119,7 @@ type Modal =
       job: JobWithDetails;
       target: "draft" | { key: string };
       current: string;
+      currentUserId: string;
     }
     | {
       type: "handover-delete";
@@ -1940,12 +1946,25 @@ export default function HomePage() {
   >({});
   const [stepTechnicianIds, setStepTechnicianIds] = useState<string[]>([]);
   const [stepNoteDraft, setStepNoteDraft] = useState("");
+  const [stepPhotoDraft, setStepPhotoDraft] = useState<StepPhotoDraft | null>(
+    null
+  );
   /** sequential = auto one-by-one; parallel = checkbox batch start. */
   const [stepModeByJob, setStepModeByJob] = useState<
     Record<string, "sequential" | "parallel">
   >({});
   const [handoverDraftByJob, setHandoverDraftByJob] = useState<
-    Record<string, { title: string; note: string; to_name: string }>
+    Record<
+      string,
+      {
+        title: string;
+        note: string;
+        from_name: string;
+        from_user_id: string;
+        to_name: string;
+        to_user_id: string;
+      }
+    >
   >({});
   /** Mode aksi handover per job: tampilkan UI sesuai pilihan. */
   const [handoverModeByJob, setHandoverModeByJob] = useState<
@@ -1964,6 +1983,9 @@ export default function HomePage() {
         id?: string;
         title: string;
         to_name: string;
+        to_user_id: string;
+        from_name: string;
+        from_user_id: string;
         note: string;
         done: boolean;
         order: number;
@@ -1976,6 +1998,9 @@ export default function HomePage() {
     id?: string;
     title: string;
     to_name: string;
+    to_user_id: string;
+    from_name: string;
+    from_user_id: string;
     note: string;
     done: boolean;
     order: number;
@@ -2150,18 +2175,43 @@ export default function HomePage() {
   function closeModal() {
     resetAssign();
     setHandoverToQuery("");
+    setStepPhotoDraft(null);
     setModal(null);
+  }
+
+  function currentHandoverFrom() {
+    return {
+      from_name: (session?.user?.name || displayName || "").trim(),
+      from_user_id: userId,
+    };
+  }
+
+  function emptyHandoverDraft() {
+    return {
+      title: "",
+      note: "",
+      to_name: "",
+      to_user_id: "",
+      ...currentHandoverFrom(),
+    };
   }
 
   async function openHandoverToPicker(
     job: JobWithDetails,
     target: "draft" | { key: string },
-    current: string
+    current: string,
+    currentUserId = ""
   ) {
     setError("");
     setHandoverToQuery("");
     setHandoverToLoading(true);
-    setModal({ type: "handover-to", job, target, current });
+    setModal({
+      type: "handover-to",
+      job,
+      target,
+      current,
+      currentUserId,
+    });
     try {
       const list = await api<AppUserPublic[]>("/api/users/foremen");
       setForemanOptions(list);
@@ -2175,37 +2225,58 @@ export default function HomePage() {
     }
   }
 
-  function applyHandoverToName(name: string) {
+  function applyHandoverTo(user: AppUserPublic | null) {
     if (modal?.type !== "handover-to") return;
     const { job, target } = modal;
-    const next = name.trim();
+    const nextName = user ? userDisplayName(user) : "";
+    const nextId = user ? user.id : "";
     if (target === "draft") {
       setHandoverDraftByJob((prev) => ({
         ...prev,
         [job.id]: {
           ...getHandoverDraft(job),
-          to_name: next,
+          to_name: nextName,
+          to_user_id: nextId,
         },
       }));
     } else {
       setHandoverLocal(job, (rows) =>
-        rows.map((r) => (r.key === target.key ? { ...r, to_name: next } : r))
+        rows.map((r) =>
+          r.key === target.key
+            ? { ...r, to_name: nextName, to_user_id: nextId }
+            : r
+        )
       );
     }
     closeModal();
   }
 
+  function renderHandoverFromField(value: string) {
+    return (
+      <input
+        className="handover-input"
+        value={value}
+        disabled
+        readOnly
+        tabIndex={-1}
+        aria-label={t("job.handoverFrom")}
+        placeholder={t("job.handoverFromPlaceholder")}
+      />
+    );
+  }
+
   function renderHandoverToTrigger(
     job: JobWithDetails,
     value: string,
-    target: "draft" | { key: string }
+    target: "draft" | { key: string },
+    userId = ""
   ) {
     return (
       <button
         type="button"
         className="handover-to-trigger"
         disabled={busy}
-        onClick={() => void openHandoverToPicker(job, target, value)}
+        onClick={() => void openHandoverToPicker(job, target, value, userId)}
         aria-haspopup="dialog"
         aria-label={t("job.handoverTo")}
       >
@@ -2425,7 +2496,7 @@ export default function HomePage() {
     setError("");
     try {
       await new Promise((r) => setTimeout(r, 80));
-      downloadJobPdf(job);
+      await downloadJobPdf(job);
       setModal({
         type: "process-alert",
         title: "Print PDF",
@@ -3160,10 +3231,14 @@ export default function HomePage() {
 
   function getHandoverDraft(job: JobWithDetails) {
     const d = handoverDraftByJob[job.id];
+    const fallback = currentHandoverFrom();
     return {
       title: d?.title || "",
       note: d?.note || "",
+      from_name: d ? d.from_name : fallback.from_name,
+      from_user_id: d ? d.from_user_id : fallback.from_user_id,
       to_name: d?.to_name || "",
+      to_user_id: d?.to_user_id || "",
     };
   }
 
@@ -3172,7 +3247,10 @@ export default function HomePage() {
       key: h.id,
       id: h.id,
       title: h.title,
+      from_name: h.from_name || h.user_name || "",
+      from_user_id: h.from_user_id || h.user_id || "",
       to_name: h.to_name || "",
+      to_user_id: h.to_user_id || "",
       note: h.note,
       done: h.done === "1",
       order: h.order,
@@ -3204,7 +3282,10 @@ export default function HomePage() {
       if (!s) return true;
       return (
         r.title.trim() !== s.title ||
+        r.from_name.trim() !== s.from_name.trim() ||
+        r.from_user_id.trim() !== s.from_user_id.trim() ||
         r.to_name.trim() !== s.to_name.trim() ||
+        r.to_user_id.trim() !== s.to_user_id.trim() ||
         r.note.trim() !== s.note ||
         r.done !== s.done
       );
@@ -3223,14 +3304,17 @@ export default function HomePage() {
         method: "POST",
         body: JSON.stringify({
           title,
+          from_name: draft.from_name.trim(),
+          from_user_id: draft.from_user_id.trim(),
           to_name: draft.to_name.trim(),
+          to_user_id: draft.to_user_id.trim(),
           note: draft.note.trim(),
           done: false,
         }),
       });
       setHandoverDraftByJob((prev) => ({
         ...prev,
-        [job.id]: { title: "", note: "", to_name: "" },
+        [job.id]: emptyHandoverDraft(),
       }));
       setHandoverComposeByJob((prev) => {
         const next = { ...prev };
@@ -3255,7 +3339,10 @@ export default function HomePage() {
       if (!s) return true;
       return (
         r.title.trim() !== s.title ||
+        r.from_name.trim() !== s.from_name.trim() ||
+        r.from_user_id.trim() !== s.from_user_id.trim() ||
         r.to_name.trim() !== s.to_name.trim() ||
+        r.to_user_id.trim() !== s.to_user_id.trim() ||
         r.note.trim() !== s.note ||
         r.done !== s.done
       );
@@ -3272,7 +3359,10 @@ export default function HomePage() {
           method: "PATCH",
           body: JSON.stringify({
             title: row.title.trim(),
+            from_name: row.from_name.trim(),
+            from_user_id: row.from_user_id.trim(),
             to_name: row.to_name.trim(),
+            to_user_id: row.to_user_id.trim(),
             note: row.note.trim(),
             done: row.done,
           }),
@@ -3891,6 +3981,44 @@ export default function HomePage() {
                         <path d="M8 17h5" />
                       </svg>
                     </button>
+                    <button
+                      type="button"
+                      className={`step-photo-btn${
+                        stepHasPhoto(s) || stepPhotoDisplayUrl(s)
+                          ? " has-photo"
+                          : ""
+                      }`}
+                      disabled={busy}
+                      onClick={() => {
+                        setStepPhotoDraft(null);
+                        setModal({ type: "step-photo", job, step: s });
+                      }}
+                      title={
+                        stepHasPhoto(s)
+                          ? t("job.stepPhotoEdit")
+                          : t("job.stepPhoto")
+                      }
+                      aria-label={t("job.stepPhoto")}
+                    >
+                      {stepPhotoDisplayUrl(s) ? (
+                        <img src={stepPhotoDisplayUrl(s)} alt="" />
+                      ) : (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                          <circle cx="12" cy="13" r="4" />
+                        </svg>
+                      )}
+                    </button>
                   </span>
                   {(() => {
                     const techLabel = stepTechnicianNames(s, job);
@@ -3944,6 +4072,7 @@ export default function HomePage() {
                           disabled={busy}
                           onClick={() => {
                             initStepTechnicianIds(job, s);
+                            setStepPhotoDraft(null);
                             setModal({ type: "complete-step", job, step: s });
                           }}
                           title="Selesaikan step ini"
@@ -4097,9 +4226,17 @@ export default function HomePage() {
                     setHandoverDraftByJob((prev) => ({
                       ...prev,
                       [job.id]: {
+                        ...emptyHandoverDraft(),
                         title: prev[job.id]?.title || "",
                         note: prev[job.id]?.note || "",
                         to_name: prev[job.id]?.to_name || "",
+                        to_user_id: prev[job.id]?.to_user_id || "",
+                        from_name:
+                          prev[job.id]?.from_name ||
+                          emptyHandoverDraft().from_name,
+                        from_user_id:
+                          prev[job.id]?.from_user_id ||
+                          emptyHandoverDraft().from_user_id,
                       },
                     }));
                   }}
@@ -4167,10 +4304,12 @@ export default function HomePage() {
                     }))
                   }
                 />
+                {renderHandoverFromField(getHandoverDraft(job).from_name)}
                 {renderHandoverToTrigger(
                   job,
                   getHandoverDraft(job).to_name,
-                  "draft"
+                  "draft",
+                  getHandoverDraft(job).to_user_id
                 )}
                 <input
                   className="handover-input"
@@ -4261,6 +4400,7 @@ export default function HomePage() {
                   <tr>
                     <th className="col-no">NO</th>
                     <th>Job Handover</th>
+                    <th>{t("job.handoverFrom")}</th>
                     <th>{t("job.handoverTo")}</th>
                     <th className="col-done">Done</th>
                     <th>Note</th>
@@ -4302,11 +4442,19 @@ export default function HomePage() {
                             h.title
                           )}
                         </td>
+                        <td data-label={t("job.handoverFrom")}>
+                          {canEdit
+                            ? renderHandoverFromField(h.from_name)
+                            : h.from_name || "—"}
+                        </td>
                         <td data-label={t("job.handoverTo")}>
                           {canEdit ? (
-                            renderHandoverToTrigger(job, h.to_name, {
-                              key: h.key,
-                            })
+                            renderHandoverToTrigger(
+                              job,
+                              h.to_name,
+                              { key: h.key },
+                              h.to_user_id
+                            )
                           ) : (
                             h.to_name || "—"
                           )}
@@ -6966,6 +7114,13 @@ export default function HomePage() {
                 )}
             </p>
             {renderStepTechnicianPicker(modal.job)}
+            <StepPhotoPicker
+              existingUrl={stepPhotoDisplayUrl(modal.step)}
+              draft={stepPhotoDraft}
+              onChange={setStepPhotoDraft}
+              disabled={busy || !modalProgressOk}
+              required
+            />
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 Tidak
@@ -6976,7 +7131,8 @@ export default function HomePage() {
                   busy ||
                   !modalProgressOk ||
                   ((modal.job.technicians?.length || 0) > 0 &&
-                    stepTechnicianIds.length === 0)
+                    stepTechnicianIds.length === 0) ||
+                  (!stepHasPhoto(modal.step) && !stepPhotoDraft)
                 }
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
@@ -6986,6 +7142,13 @@ export default function HomePage() {
                     auto_next: mode === "sequential",
                     ...(modal.job.technicians?.length
                       ? { technician_ids: stepTechnicianIds }
+                      : {}),
+                    ...(stepPhotoDraft
+                      ? {
+                          photo_base64: stepPhotoDraft.base64,
+                          photo_mime: stepPhotoDraft.mime,
+                          photo_name: stepPhotoDraft.name,
+                        }
                       : {}),
                   });
                 }}
@@ -7097,6 +7260,56 @@ export default function HomePage() {
         </div>
       )}
 
+      {modal?.type === "step-photo" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Memproses..." />}
+            <h3>{t("job.stepPhotoEdit")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 12px" }}>
+              {t("job.steps")}{" "}
+              <strong>
+                {modal.step.order}. {modal.step.name}
+              </strong>
+            </p>
+            <StepPhotoPicker
+              existingUrl={stepPhotoDisplayUrl(modal.step)}
+              draft={stepPhotoDraft}
+              onChange={setStepPhotoDraft}
+              disabled={busy || !modalProgressOk}
+              required
+            />
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                {t("job.cancelAction")}
+              </button>
+              {modalProgressOk && (
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !stepPhotoDraft}
+                  onClick={() =>
+                    runAction(modal.job.id, "set_step_photo", {
+                      step_id: modal.step.id,
+                      photo_base64: stepPhotoDraft?.base64,
+                      photo_mime: stepPhotoDraft?.mime,
+                      photo_name: stepPhotoDraft?.name,
+                    })
+                  }
+                >
+                  <BusyLabel
+                    busy={busy}
+                    idle={t("job.stepPhotoSave")}
+                    pending={t("job.saving")}
+                  />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "complete-job" && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -7110,13 +7323,30 @@ export default function HomePage() {
               <strong>completed</strong> di database dan dihapus dari daftar
               aktif. Teknisi akan dilepas.
             </p>
+            {modal.job.steps.some(
+              (s) => s.status !== "done" && !stepHasPhoto(s)
+            ) && (
+              <p className="field-hint" style={{ color: "var(--error-text)" }}>
+                {t("job.completeNeedPhotos")}{" "}
+                {modal.job.steps
+                  .filter((s) => s.status !== "done" && !stepHasPhoto(s))
+                  .map((s) => `${s.order}. ${s.name}`)
+                  .join(", ")}
+              </p>
+            )}
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 Tidak
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || !modalProgressOk}
+                disabled={
+                  busy ||
+                  !modalProgressOk ||
+                  modal.job.steps.some(
+                    (s) => s.status !== "done" && !stepHasPhoto(s)
+                  )
+                }
                 onClick={() => runAction(modal.job.id, "complete")}
               >
                 <BusyLabel busy={busy} idle="Ya, complete" pending="Memproses..." />
@@ -7200,10 +7430,11 @@ export default function HomePage() {
               {!handoverToLoading &&
                 handoverToFiltered.map((u) => {
                   const label = userDisplayName(u);
-                  const selected =
-                    label === modal.current ||
-                    u.username === modal.current ||
-                    (u.name || "").trim() === modal.current;
+                  const selected = modal.currentUserId
+                    ? u.id === modal.currentUserId
+                    : label === modal.current ||
+                      u.username === modal.current ||
+                      (u.name || "").trim() === modal.current;
                   const showUser =
                     u.username &&
                     u.username.toLowerCase() !== label.toLowerCase();
@@ -7214,7 +7445,7 @@ export default function HomePage() {
                       role="option"
                       aria-selected={selected}
                       className={`handover-to-option${selected ? " is-selected" : ""}`}
-                      onClick={() => applyHandoverToName(label)}
+                      onClick={() => applyHandoverTo(u)}
                     >
                       <span>{label}</span>
                       {showUser && (
@@ -7233,7 +7464,7 @@ export default function HomePage() {
               {modal.current ? (
                 <button
                   className="btn"
-                  onClick={() => applyHandoverToName("")}
+                  onClick={() => applyHandoverTo(null)}
                 >
                   {t("job.handoverToNone")}
                 </button>

@@ -153,6 +153,10 @@ export interface JobStep {
   technician_ids?: string[];
   /** Free-text catatan per step. */
   note?: string;
+  /** Stored filename in data/step-photos (empty = no evidence yet). */
+  photo_name?: string;
+  /** Public GET URL when photo_name is set. */
+  photo_url?: string;
 }
 
 export interface JobEvent {
@@ -184,8 +188,13 @@ export interface JobHandover {
   job_id: string;
   order: number;
   title: string;
+  /** Foreman the handover is from. */
+  from_name: string;
+  from_user_id: string;
   /** Free-text recipient (who the handover is directed to). */
   to_name: string;
+  /** Foreman user id for WhatsApp DM (stable even if the display name changes). */
+  to_user_id: string;
   /** "1" = Yes/done, "0" = No */
   done: string;
   note: string;

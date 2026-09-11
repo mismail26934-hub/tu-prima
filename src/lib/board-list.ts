@@ -2,6 +2,7 @@ import type mysql from "mysql2/promise";
 import { getPool } from "@/db/mysql-workbook";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
 import { parseStepTechnicianIds } from "@/lib/step-technicians";
+import { attachStepPhotoUrl } from "@/lib/step-photo-url";
 import type {
   DashboardData,
   Job,
@@ -95,7 +96,7 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
 }
 
 function mapStepRow(r: mysql.RowDataPacket): JobStep {
-  return {
+  return attachStepPhotoUrl({
     id: str(r.id),
     job_id: str(r.job_id),
     name: str(r.name),
@@ -107,7 +108,8 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     std_minutes: num(r.std_minutes),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: str(r.note),
-  };
+    photo_name: str(r.photo_name),
+  });
 }
 
 function mapEventRow(r: mysql.RowDataPacket): JobEvent {
@@ -139,7 +141,10 @@ function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
     job_id: str(r.job_id),
     order: num(r.handover_order),
     title: str(r.title),
+    from_name: str(r.from_name),
+    from_user_id: str(r.from_user_id),
     to_name: str(r.to_name),
+    to_user_id: str(r.to_user_id),
     done: num(r.done) ? "1" : "0",
     note: str(r.note),
     user_id: str(r.user_id),

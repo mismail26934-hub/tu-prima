@@ -25,6 +25,7 @@ import {
   parseStepTechnicianIds,
   serializeStepTechnicianIds,
 } from "@/lib/step-technicians";
+import { attachStepPhotoUrl } from "@/lib/step-photo-url";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const COMPLETED_JOBS_PATH = "mysql://completed";
@@ -78,6 +79,7 @@ const STEP_HEADERS = [
   "std_minutes",
   "technician_ids",
   "note",
+  "photo_name",
 ];
 
 const EVENT_HEADERS = [
@@ -109,7 +111,10 @@ const HANDOVER_HEADERS = [
   "job_id",
   "order",
   "title",
+  "from_name",
+  "from_user_id",
   "to_name",
+  "to_user_id",
   "done",
   "note",
   "user_id",
@@ -213,7 +218,7 @@ function mapJobRow(r: Row): Job {
 }
 
 function mapStepRow(r: Row): JobStep {
-  return {
+  return attachStepPhotoUrl({
     id: String(r.id || ""),
     job_id: String(r.job_id || ""),
     name: String(r.name || ""),
@@ -225,7 +230,8 @@ function mapStepRow(r: Row): JobStep {
     std_minutes: Number(r.std_minutes || 0),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: String(r.note || ""),
-  };
+    photo_name: String(r.photo_name || ""),
+  });
 }
 
 function mapEventRow(r: Row): JobEvent {
@@ -257,7 +263,10 @@ function mapHandoverRow(r: Row): JobHandover {
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
+    from_name: String(r.from_name || ""),
+    from_user_id: String(r.from_user_id || ""),
     to_name: String(r.to_name || ""),
+    to_user_id: String(r.to_user_id || ""),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
     user_id: String(r.user_id || ""),
@@ -351,6 +360,7 @@ export async function archiveCompletedJob(input: {
       std_minutes: s.std_minutes,
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
       note: s.note || "",
+      photo_name: s.photo_name || "",
     }))
   );
 
@@ -400,7 +410,10 @@ export async function archiveCompletedJob(input: {
       job_id: h.job_id,
       order: h.order,
       title: h.title,
+      from_name: h.from_name,
+      from_user_id: h.from_user_id,
       to_name: h.to_name,
+      to_user_id: h.to_user_id,
       done: h.done,
       note: h.note,
       user_id: h.user_id,

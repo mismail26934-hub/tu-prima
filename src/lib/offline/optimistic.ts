@@ -18,6 +18,8 @@ import type {
   Unit,
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
+import { attachStepPhotoUrl } from "@/lib/step-photo-url";
+import { cacheStepPhotoPreview } from "@/lib/offline/step-photo-preview";
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
 import {
   assignedTechnicianIds,
@@ -371,6 +373,17 @@ function templateStepDefs(template: JobTemplate): JobStepPayload[] {
     }));
 }
 
+function applyPhotoFromBody(step: JobStep, body: JsonRecord): JobStep {
+  const raw = String(body.photo_base64 || "").trim();
+  if (!raw) return step;
+  const mime = String(body.photo_mime || "image/jpeg").trim() || "image/jpeg";
+  cacheStepPhotoPreview(step.id, `data:${mime};base64,${raw}`);
+  return attachStepPhotoUrl({
+    ...step,
+    photo_name: String(body.photo_name || `${step.id}.jpg`),
+  });
+}
+
 function toJobSteps(jobId: string, defs: JobStepPayload[]): JobStep[] {
   return defs.map((def, i) => ({
     id: def.id,
@@ -384,6 +397,8 @@ function toJobSteps(jobId: string, defs: JobStepPayload[]): JobStep[] {
     std_minutes: Number(def.std_minutes || 0),
     technician_ids: [],
     note: "",
+    photo_name: "",
+    photo_url: "",
   }));
 }
 
@@ -628,28 +643,31 @@ function applyJobAction(
           typeof body.duration_sec === "number"
             ? Math.max(0, Math.floor(body.duration_sec))
             : freezeStepDuration(s);
-        return {
-          ...s,
-          status: "done" as const,
-          completed_at: at,
-          // Keep original start for history/payload; duration_sec is final.
-          // freezeStepDuration ignores started_at when status === "done".
-          started_at: String(body.started_at || s.started_at || at),
-          duration_sec: duration,
-          technician_ids: (() => {
-            try {
-              return (
-                selectedStepTechnicianIds(
-                  body.technician_ids,
-                  assignedTechnicianIds(j),
-                  parseStepTechnicianIds(s.technician_ids)
-                ) ?? s.technician_ids
-              );
-            } catch {
-              return s.technician_ids;
-            }
-          })(),
-        };
+        return applyPhotoFromBody(
+          {
+            ...s,
+            status: "done" as const,
+            completed_at: at,
+            // Keep original start for history/payload; duration_sec is final.
+            // freezeStepDuration ignores started_at when status === "done".
+            started_at: String(body.started_at || s.started_at || at),
+            duration_sec: duration,
+            technician_ids: (() => {
+              try {
+                return (
+                  selectedStepTechnicianIds(
+                    body.technician_ids,
+                    assignedTechnicianIds(j),
+                    parseStepTechnicianIds(s.technician_ids)
+                  ) ?? s.technician_ids
+                );
+              } catch {
+                return s.technician_ids;
+              }
+            })(),
+          },
+          body
+        );
       });
       if (autoNext) {
         const next = steps.find((s) => s.status === "pending");
@@ -695,6 +713,16 @@ function applyJobAction(
     return mapJob(data, jobId, (j) => ({
       ...j,
       steps: j.steps.map((s) => (s.id === stepId ? { ...s, note } : s)),
+    }));
+  }
+
+  if (action === "set_step_photo") {
+    const stepId = String(body.step_id || "");
+    return mapJob(data, jobId, (j) => ({
+      ...j,
+      steps: j.steps.map((s) =>
+        s.id === stepId ? applyPhotoFromBody(s, body) : s
+      ),
     }));
   }
 
@@ -1063,7 +1091,10 @@ export function applyOptimisticMutation(
       job_id: jobId,
       order: 0,
       title: String(body.title || ""),
+      from_name: String(body.from_name || ""),
+      from_user_id: String(body.from_user_id || ""),
       to_name: String(body.to_name || ""),
+      to_user_id: String(body.to_user_id || ""),
       done: body.done ? "1" : "0",
       note: String(body.note || ""),
       user_id: "",
@@ -1098,7 +1129,17 @@ export function applyOptimisticMutation(
               ? {
                   ...h,
                   title: body.title != null ? String(body.title) : h.title,
+                  from_name:
+                    body.from_name != null ? String(body.from_name) : h.from_name,
+                  from_user_id:
+                    body.from_user_id != null
+                      ? String(body.from_user_id)
+                      : h.from_user_id,
                   to_name: body.to_name != null ? String(body.to_name) : h.to_name,
+                  to_user_id:
+                    body.to_user_id != null
+                      ? String(body.to_user_id)
+                      : h.to_user_id,
                   note: body.note != null ? String(body.note) : h.note,
                   done:
                     typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
@@ -1115,7 +1156,17 @@ export function applyOptimisticMutation(
             ? {
                 ...h,
                 title: body.title != null ? String(body.title) : h.title,
+                from_name:
+                  body.from_name != null ? String(body.from_name) : h.from_name,
+                from_user_id:
+                  body.from_user_id != null
+                    ? String(body.from_user_id)
+                    : h.from_user_id,
                 to_name: body.to_name != null ? String(body.to_name) : h.to_name,
+                to_user_id:
+                  body.to_user_id != null
+                    ? String(body.to_user_id)
+                    : h.to_user_id,
                 note: body.note != null ? String(body.note) : h.note,
                 done:
                   typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,

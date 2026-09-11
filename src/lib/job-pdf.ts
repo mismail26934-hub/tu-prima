@@ -7,6 +7,8 @@ import {
   formatDuration,
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
+import { stepHasPhoto } from "@/lib/step-photo-url";
+import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import { fmtFileStamp } from "@/lib/file-stamp";
 
 function formatPdfStatus(status: string): string {
@@ -52,8 +54,41 @@ function safeFilePart(value: string): string {
     .slice(0, 48);
 }
 
+async function loadPdfImage(
+  url: string
+): Promise<{ data: string; format: "JPEG" | "PNG" } | null> {
+  if (!url) return null;
+  try {
+    let dataUrl = url;
+    let mime = "";
+    if (!url.startsWith("data:")) {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      mime = blob.type || "image/jpeg";
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("read failed"));
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      mime = url.slice(5, url.indexOf(";")) || "image/jpeg";
+    }
+    const base64 = dataUrl.split(",")[1];
+    if (!base64) return null;
+    if (mime.includes("png")) return { data: base64, format: "PNG" };
+    if (mime.includes("jpeg") || mime.includes("jpg") || mime.includes("webp")) {
+      return { data: base64, format: "JPEG" };
+    }
+    return { data: base64, format: "JPEG" };
+  } catch {
+    return null;
+  }
+}
+
 /** Generate and download a PDF report for one job. */
-export function downloadJobPdf(job: JobWithDetails): void {
+export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const margin = 14;
   const pageW = doc.internal.pageSize.getWidth();
@@ -171,7 +206,7 @@ export function downloadJobPdf(job: JobWithDetails): void {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note"]],
+    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note", "Bukti"]],
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
@@ -189,11 +224,53 @@ export function downloadJobPdf(job: JobWithDetails): void {
       formatDuration(calcStepElapsedSec(s)),
       stepTechnicianNames(s, job) || "—",
       (s.note || "").trim() || "—",
+      stepHasPhoto(s) || stepPhotoDisplayUrl(s) ? "Ya" : "Tidak",
     ]),
     ...tableTheme,
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
     .finalY + 6;
+
+  const photoSteps = (job.steps || []).filter(
+    (s) => stepHasPhoto(s) || stepPhotoDisplayUrl(s)
+  );
+  if (photoSteps.length) {
+    sectionTitle(`Bukti foto step (${photoSteps.length})`);
+    const imgW = pageW - margin * 2;
+    for (const s of photoSteps) {
+      const loaded = await loadPdfImage(
+        stepPhotoDisplayUrl(s) || s.photo_url || ""
+      );
+      ensureSpace(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${s.order}. ${s.name}`, margin, y);
+      y += 5;
+      if (!loaded) {
+        doc.setFont("helvetica", "normal");
+        doc.text("Foto tidak bisa dimuat.", margin, y);
+        y += 8;
+        continue;
+      }
+      let h = 70;
+      try {
+        const props = doc.getImageProperties(loaded.data);
+        const ratio =
+          props.width && props.height ? props.height / props.width : 0.75;
+        h = Math.min(70, imgW * ratio);
+      } catch {
+        h = 70;
+      }
+      ensureSpace(h + 6);
+      try {
+        doc.addImage(loaded.data, loaded.format, margin, y, imgW, h);
+        y += h + 8;
+      } catch {
+        doc.setFont("helvetica", "normal");
+        doc.text("Foto tidak bisa disematkan.", margin, y);
+        y += 8;
+      }
+    }
+  }
 
   sectionTitle(
     `Catatan handover (${(job.handovers || []).length})`
@@ -201,17 +278,18 @@ export function downloadJobPdf(job: JobWithDetails): void {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["NO", "Job Handover", "Ditujukan kepada", "Done", "Note"]],
+    head: [["NO", "Job Handover", "Dari", "Ditujukan kepada", "Done", "Note"]],
     body:
       (job.handovers || []).length > 0
         ? (job.handovers || []).map((h) => [
             String(h.order),
             h.title,
+            h.from_name || h.user_name || "—",
             h.to_name || "—",
             h.done === "1" ? "Yes" : "No",
             h.note || "—",
           ])
-        : [["—", "Belum ada catatan handover", "—", "—", "—"]],
+        : [["—", "Belum ada catatan handover", "—", "—", "—", "—"]],
     ...tableTheme,
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable

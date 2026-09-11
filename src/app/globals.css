@@ -1875,6 +1875,12 @@ html[data-theme="light"].menu-open .topbar-glass {
   cursor: pointer;
 }
 
+.handover-input:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
 .handover-add {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
@@ -1884,7 +1890,7 @@ html[data-theme="light"].menu-open .topbar-glass {
 }
 
 .handover-add.has-to-name {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr) auto auto;
 }
 
 .handover-add-actions {
@@ -2374,6 +2380,80 @@ html[data-theme="light"].menu-open .topbar-glass {
   background: color-mix(in srgb, var(--amber) 14%, transparent);
 }
 
+.step-photo-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: -2px 0 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.step-photo-btn.has-photo {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 50%, var(--line));
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+.step-photo-btn:hover:not(:disabled) {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.step-photo-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.step-photo-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.step-photo-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.step-photo-preview {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-0);
+}
+
+.step-photo-empty {
+  padding: 18px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.step-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.step-photo-actions .btn {
+  flex: 1 1 140px;
+}
+
 .step-note-btn:hover:not(:disabled) {
   border-color: var(--line);
   color: var(--text);
@@ -2397,7 +2477,8 @@ html[data-theme="light"].menu-open .topbar-glass {
 }
 
 @media (max-width: 720px) {
-  .step-note-btn {
+  .step-note-btn,
+  .step-photo-btn {
     width: 36px;
     height: 36px;
   }

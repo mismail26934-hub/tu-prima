@@ -78,14 +78,12 @@ async function dedupeJobActionOutbox(url: string, body: string | null) {
     if (!prevBody) continue;
     if (String(prevBody.action || "") !== nextAction) continue;
     if (
-      nextAction === "complete_step" &&
-      nextStepId &&
-      String(prevBody.step_id || "") !== nextStepId
-    ) {
-      continue;
-    }
-    if (
-      (nextAction === "start_step" || nextAction === "start_steps") &&
+      (nextAction === "complete_step" ||
+        nextAction === "start_step" ||
+        nextAction === "start_steps" ||
+        nextAction === "set_step_technicians" ||
+        nextAction === "set_step_note" ||
+        nextAction === "set_step_photo") &&
       nextStepId &&
       String(prevBody.step_id || "") !== nextStepId
     ) {

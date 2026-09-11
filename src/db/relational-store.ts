@@ -311,6 +311,7 @@ function stepHeaders(scope: JobScope): string[] {
     "std_minutes",
     "technician_ids",
     "note",
+    "photo_name",
   ];
 }
 
@@ -347,7 +348,10 @@ function handoverHeaders(scope: JobScope): string[] {
     "job_id",
     "order",
     "title",
+    "from_name",
+    "from_user_id",
     "to_name",
+    "to_user_id",
     "done",
     "note",
     "user_id",
@@ -393,6 +397,7 @@ function stepRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       std_minutes: num(r.std_minutes),
       technician_ids: str(r.technician_ids),
       note: str(r.note),
+      photo_name: str(r.photo_name),
     },
     scope
   );
@@ -442,7 +447,10 @@ function handoverRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       job_id: str(r.job_id),
       order: num(r.handover_order),
       title: str(r.title),
+      from_name: str(r.from_name),
+      from_user_id: str(r.from_user_id),
       to_name: str(r.to_name),
+      to_user_id: str(r.to_user_id),
       done: flag01(r.done) ? "1" : "0",
       note: str(r.note),
       user_id: str(r.user_id),
@@ -544,8 +552,8 @@ async function saveScopedJobs(
   const insertSteps = wb.getWorksheet(SCOPE_STEP_SHEET[scope])?.rows ?? [];
   for (const row of insertSteps) {
     await conn.query(
-      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note, photo_name)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -558,6 +566,7 @@ async function saveScopedJobs(
         num(row.std_minutes),
         str(row.technician_ids),
         str(row.note),
+        str(row.photo_name),
       ]
     );
   }
@@ -600,14 +609,17 @@ async function saveScopedJobs(
   const insertHandovers = wb.getWorksheet(SCOPE_HANDOVER_SHEET[scope])?.rows ?? [];
   for (const row of insertHandovers) {
     await conn.query(
-      `INSERT INTO job_handovers (id, job_id, handover_order, title, to_name, done, note, user_id, user_name, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_handovers (id, job_id, handover_order, title, from_name, from_user_id, to_name, to_user_id, done, note, user_id, user_name, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
         num(row.order),
         str(row.title),
+        str(row.from_name),
+        str(row.from_user_id),
         str(row.to_name),
+        str(row.to_user_id),
         flag01(row.done),
         str(row.note),
         str(row.user_id),
@@ -1050,6 +1062,7 @@ export async function ensureRelationalSchema() {
       std_minutes INT NOT NULL DEFAULT 0,
       technician_ids TEXT,
       note TEXT,
+      photo_name VARCHAR(255) NOT NULL DEFAULT '',
       KEY idx_job_steps_job (job_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_events (
@@ -1068,7 +1081,10 @@ export async function ensureRelationalSchema() {
       job_id VARCHAR(64) NOT NULL,
       handover_order INT NOT NULL DEFAULT 0,
       title VARCHAR(255) NOT NULL DEFAULT '',
+      from_name VARCHAR(255) NOT NULL DEFAULT '',
+      from_user_id VARCHAR(64) NOT NULL DEFAULT '',
       to_name VARCHAR(255) NOT NULL DEFAULT '',
+      to_user_id VARCHAR(64) NOT NULL DEFAULT '',
       done TINYINT(1) NOT NULL DEFAULT 0,
       note TEXT,
       user_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -1178,7 +1194,19 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS note TEXT`
   );
   await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS photo_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_user_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS from_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS from_user_id VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await p.query(
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority VARCHAR(16) NOT NULL DEFAULT ''`

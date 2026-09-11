@@ -57,7 +57,7 @@ import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { StepPhotoPicker } from "@/components/StepPhotoPicker";
 import { api } from "@/lib/api";
-import { stepHasPhoto } from "@/lib/step-photo-url";
+import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import type { StepPhotoDraft } from "@/lib/step-photo-client";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -1946,9 +1946,10 @@ export default function HomePage() {
   >({});
   const [stepTechnicianIds, setStepTechnicianIds] = useState<string[]>([]);
   const [stepNoteDraft, setStepNoteDraft] = useState("");
-  const [stepPhotoDraft, setStepPhotoDraft] = useState<StepPhotoDraft | null>(
-    null
+  const [stepPhotoDrafts, setStepPhotoDrafts] = useState<StepPhotoDraft[]>(
+    []
   );
+  const [stepPhotoRemoveIds, setStepPhotoRemoveIds] = useState<string[]>([]);
   /** sequential = auto one-by-one; parallel = checkbox batch start. */
   const [stepModeByJob, setStepModeByJob] = useState<
     Record<string, "sequential" | "parallel">
@@ -2175,8 +2176,31 @@ export default function HomePage() {
   function closeModal() {
     resetAssign();
     setHandoverToQuery("");
-    setStepPhotoDraft(null);
+    setStepPhotoDrafts([]);
+    setStepPhotoRemoveIds([]);
     setModal(null);
+  }
+
+  function visibleStepPhotos(step: JobWithDetails["steps"][0]) {
+    return (step.photos || []).filter(
+      (p) => !stepPhotoRemoveIds.includes(p.id)
+    );
+  }
+
+  function stepHasEvidence(step: JobWithDetails["steps"][0]) {
+    return visibleStepPhotos(step).length + stepPhotoDrafts.length > 0;
+  }
+
+  function stepPhotoActionPayload() {
+    return {
+      photos: stepPhotoDrafts.map((d) => ({
+        photo_base64: d.base64,
+        thumb_base64: d.thumb_base64,
+        photo_mime: d.mime,
+        photo_name: d.name,
+      })),
+      remove_photo_ids: stepPhotoRemoveIds,
+    };
   }
 
   function currentHandoverFrom() {
@@ -3990,7 +4014,8 @@ export default function HomePage() {
                       }`}
                       disabled={busy}
                       onClick={() => {
-                        setStepPhotoDraft(null);
+                        setStepPhotoDrafts([]);
+                        setStepPhotoRemoveIds([]);
                         setModal({ type: "step-photo", job, step: s });
                       }}
                       title={
@@ -4000,8 +4025,20 @@ export default function HomePage() {
                       }
                       aria-label={t("job.stepPhoto")}
                     >
-                      {stepPhotoDisplayUrl(s) ? (
-                        <img src={stepPhotoDisplayUrl(s)} alt="" />
+                      {stepPhotoDisplayUrl(s) || firstStepThumbUrl(s) ? (
+                        <>
+                          <img
+                            src={stepPhotoDisplayUrl(s) || firstStepThumbUrl(s)}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                          />
+                          {stepPhotoCount(s) > 1 ? (
+                            <span className="step-photo-count">
+                              {stepPhotoCount(s)}
+                            </span>
+                          ) : null}
+                        </>
                       ) : (
                         <svg
                           width="16"
@@ -4072,7 +4109,8 @@ export default function HomePage() {
                           disabled={busy}
                           onClick={() => {
                             initStepTechnicianIds(job, s);
-                            setStepPhotoDraft(null);
+                            setStepPhotoDrafts([]);
+                            setStepPhotoRemoveIds([]);
                             setModal({ type: "complete-step", job, step: s });
                           }}
                           title="Selesaikan step ini"
@@ -7115,9 +7153,17 @@ export default function HomePage() {
             </p>
             {renderStepTechnicianPicker(modal.job)}
             <StepPhotoPicker
-              existingUrl={stepPhotoDisplayUrl(modal.step)}
-              draft={stepPhotoDraft}
-              onChange={setStepPhotoDraft}
+              existing={visibleStepPhotos(modal.step)}
+              drafts={stepPhotoDrafts}
+              onDraftsChange={setStepPhotoDrafts}
+              onRemoveExisting={
+                modalProgressOk
+                  ? (id) =>
+                      setStepPhotoRemoveIds((prev) =>
+                        prev.includes(id) ? prev : [...prev, id]
+                      )
+                  : undefined
+              }
               disabled={busy || !modalProgressOk}
               required
             />
@@ -7132,7 +7178,7 @@ export default function HomePage() {
                   !modalProgressOk ||
                   ((modal.job.technicians?.length || 0) > 0 &&
                     stepTechnicianIds.length === 0) ||
-                  (!stepHasPhoto(modal.step) && !stepPhotoDraft)
+                  !stepHasEvidence(modal.step)
                 }
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
@@ -7143,13 +7189,7 @@ export default function HomePage() {
                     ...(modal.job.technicians?.length
                       ? { technician_ids: stepTechnicianIds }
                       : {}),
-                    ...(stepPhotoDraft
-                      ? {
-                          photo_base64: stepPhotoDraft.base64,
-                          photo_mime: stepPhotoDraft.mime,
-                          photo_name: stepPhotoDraft.name,
-                        }
-                      : {}),
+                    ...stepPhotoActionPayload(),
                   });
                 }}
               >
@@ -7275,9 +7315,17 @@ export default function HomePage() {
               </strong>
             </p>
             <StepPhotoPicker
-              existingUrl={stepPhotoDisplayUrl(modal.step)}
-              draft={stepPhotoDraft}
-              onChange={setStepPhotoDraft}
+              existing={visibleStepPhotos(modal.step)}
+              drafts={stepPhotoDrafts}
+              onDraftsChange={setStepPhotoDrafts}
+              onRemoveExisting={
+                modalProgressOk
+                  ? (id) =>
+                      setStepPhotoRemoveIds((prev) =>
+                        prev.includes(id) ? prev : [...prev, id]
+                      )
+                  : undefined
+              }
               disabled={busy || !modalProgressOk}
               required
             />
@@ -7288,13 +7336,15 @@ export default function HomePage() {
               {modalProgressOk && (
                 <button
                   className="btn btn-primary"
-                  disabled={busy || !stepPhotoDraft}
+                  disabled={
+                    busy ||
+                    (stepPhotoDrafts.length === 0 &&
+                      stepPhotoRemoveIds.length === 0)
+                  }
                   onClick={() =>
                     runAction(modal.job.id, "set_step_photo", {
                       step_id: modal.step.id,
-                      photo_base64: stepPhotoDraft?.base64,
-                      photo_mime: stepPhotoDraft?.mime,
-                      photo_name: stepPhotoDraft?.name,
+                      ...stepPhotoActionPayload(),
                     })
                   }
                 >

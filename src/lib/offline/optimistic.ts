@@ -18,8 +18,8 @@ import type {
   Unit,
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
-import { attachStepPhotoUrl } from "@/lib/step-photo-url";
-import { cacheStepPhotoPreview } from "@/lib/offline/step-photo-preview";
+import { attachStepPhotoUrl, parseStepPhotos } from "@/lib/step-photo-url";
+import { cacheStepPhotoPreviews } from "@/lib/offline/step-photo-preview";
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
 import {
   assignedTechnicianIds,
@@ -374,13 +374,38 @@ function templateStepDefs(template: JobTemplate): JobStepPayload[] {
 }
 
 function applyPhotoFromBody(step: JobStep, body: JsonRecord): JobStep {
-  const raw = String(body.photo_base64 || "").trim();
-  if (!raw) return step;
-  const mime = String(body.photo_mime || "image/jpeg").trim() || "image/jpeg";
-  cacheStepPhotoPreview(step.id, `data:${mime};base64,${raw}`);
+  const incoming = Array.isArray(body.photos)
+    ? (body.photos as JsonRecord[])
+    : String(body.photo_base64 || "").trim()
+      ? [body]
+      : [];
+  const removeIds = new Set(
+    (Array.isArray(body.remove_photo_ids) ? body.remove_photo_ids : []).map(
+      (id) => String(id || "")
+    )
+  );
+  let current = parseStepPhotos(step.photos, step.photo_name).filter(
+    (p) => !removeIds.has(p.id)
+  );
+  const previews: string[] = [];
+  incoming.forEach((item, i) => {
+    const raw = String(item.photo_base64 || "").trim();
+    if (!raw) return;
+    const mime = String(item.photo_mime || "image/jpeg").trim() || "image/jpeg";
+    const thumb = String(item.thumb_base64 || "").trim();
+    previews.push(
+      thumb ? `data:image/jpeg;base64,${thumb}` : `data:${mime};base64,${raw}`
+    );
+    current.push({
+      id: `${step.id}-ox-${current.length}-${i}`,
+      name: String(item.photo_name || `${step.id}.jpg`),
+    });
+  });
+  cacheStepPhotoPreviews(step.id, previews);
   return attachStepPhotoUrl({
     ...step,
-    photo_name: String(body.photo_name || `${step.id}.jpg`),
+    photos: current,
+    photo_name: current[0]?.name || "",
   });
 }
 
@@ -399,6 +424,7 @@ function toJobSteps(jobId: string, defs: JobStepPayload[]): JobStep[] {
     note: "",
     photo_name: "",
     photo_url: "",
+    photos: [],
   }));
 }
 

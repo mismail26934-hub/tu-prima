@@ -91,8 +91,27 @@ export async function POST(
         typeof body.auto_next === "boolean" ? body.auto_next : undefined,
       note: body.note,
       photo_base64: body.photo_base64 ? String(body.photo_base64) : undefined,
+      thumb_base64: body.thumb_base64 ? String(body.thumb_base64) : undefined,
       photo_mime: body.photo_mime ? String(body.photo_mime) : undefined,
       photo_name: body.photo_name ? String(body.photo_name) : undefined,
+      photos: Array.isArray(body.photos)
+        ? body.photos.map(
+            (row: {
+              photo_base64?: string;
+              thumb_base64?: string;
+              photo_mime?: string;
+              photo_name?: string;
+            }) => ({
+              photo_base64: row.photo_base64 ? String(row.photo_base64) : undefined,
+              thumb_base64: row.thumb_base64 ? String(row.thumb_base64) : undefined,
+              photo_mime: row.photo_mime ? String(row.photo_mime) : undefined,
+              photo_name: row.photo_name ? String(row.photo_name) : undefined,
+            })
+          )
+        : undefined,
+      remove_photo_ids: Array.isArray(body.remove_photo_ids)
+        ? body.remove_photo_ids.map(String)
+        : undefined,
       delegate_user_id: body.delegate_user_id
         ? String(body.delegate_user_id)
         : undefined,

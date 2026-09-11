@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS job_steps (
   technician_ids TEXT,
   note         TEXT,
   photo_name   VARCHAR(255) NOT NULL DEFAULT '',
+  photos       TEXT,
   KEY idx_job_steps_job (job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

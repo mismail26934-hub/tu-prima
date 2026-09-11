@@ -35,8 +35,12 @@ import {
   stampEmptyTechnicianIds,
   technicianNamesByIds,
 } from "./step-technicians";
-import { attachStepPhotoUrl, stepHasPhoto } from "./step-photo-url";
-import { deleteStepPhotoFiles, saveStepPhotoFromBase64 } from "./step-photo";
+import { attachStepPhotoUrl, MAX_STEP_PHOTOS, parseStepPhotos, serializeStepPhotos, stepHasPhoto } from "./step-photo-url";
+import {
+  deleteOneStepPhoto,
+  deleteStepPhotoFiles,
+  saveStepPhotoFromBase64,
+} from "./step-photo";
 import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
 import { notifyHandoverWhatsApp } from "./wa-notify";
@@ -472,6 +476,7 @@ function mapStep(r: Row): JobStep {
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: String(r.note || ""),
     photo_name: String(r.photo_name || ""),
+    photos: parseStepPhotos(r.photos, String(r.photo_name || "")),
   });
 }
 
@@ -616,6 +621,7 @@ function stepToRow(s: JobStep): Row {
     technician_ids: serializeStepTechnicianIds(s.technician_ids),
     note: String(s.note || ""),
     photo_name: String(s.photo_name || ""),
+    photos: serializeStepPhotos(parseStepPhotos(s.photos, s.photo_name)),
   };
 }
 
@@ -702,6 +708,7 @@ const STEP_HEADERS = [
   "technician_ids",
   "note",
   "photo_name",
+  "photos",
 ];
 const HANDOVER_HEADERS = [
   "id",
@@ -1353,6 +1360,7 @@ export async function createJob(input: {
         std_minutes: Number(def.std_minutes || 0),
         note: "",
         photo_name: "",
+        photos: [],
       });
     });
 
@@ -1470,7 +1478,7 @@ export async function updateJob(
       const tplSteps = tpl ? stepsFromTemplate(tpl) : [];
       const previous = steps.filter((s) => s.job_id === jobId);
       for (const old of previous) {
-        await deleteStepPhotoFiles(old.id, old.photo_name);
+        await deleteStepPhotoFiles(old.id, old.photos || old.photo_name);
       }
       steps = steps.filter((s) => s.job_id !== jobId);
       input.steps.forEach((name, i) => {
@@ -1487,6 +1495,7 @@ export async function updateJob(
           std_minutes: Number(fromTpl?.std_minutes || 0),
           note: "",
           photo_name: "",
+          photos: [],
         });
       });
     }
@@ -3174,25 +3183,69 @@ type JobAction =
   | "cancel"
   | "reopen";
 
+type StepPhotoPayload = {
+  photo_base64?: string;
+  thumb_base64?: string;
+  photo_mime?: string;
+  photo_name?: string;
+};
+
 async function applyIncomingStepPhoto(
   step: JobStep,
   payload?: {
     photo_base64?: string;
+    thumb_base64?: string;
     photo_mime?: string;
     photo_name?: string;
+    photos?: StepPhotoPayload[];
+    remove_photo_ids?: string[];
   }
 ): Promise<boolean> {
-  const raw = String(payload?.photo_base64 || "").trim();
-  if (!raw) return false;
-  step.photo_name = await saveStepPhotoFromBase64(
-    step.id,
-    raw,
-    payload?.photo_mime,
-    payload?.photo_name
-  );
-  const withUrl = attachStepPhotoUrl(step);
-  step.photo_url = withUrl.photo_url;
-  return true;
+  const incoming: StepPhotoPayload[] = [];
+  if (Array.isArray(payload?.photos) && payload.photos.length) {
+    incoming.push(...payload.photos);
+  } else if (String(payload?.photo_base64 || "").trim()) {
+    incoming.push({
+      photo_base64: payload?.photo_base64,
+      thumb_base64: payload?.thumb_base64,
+      photo_mime: payload?.photo_mime,
+      photo_name: payload?.photo_name,
+    });
+  }
+  const removeIds = (payload?.remove_photo_ids || [])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+  let current = parseStepPhotos(step.photos, step.photo_name);
+  for (const id of removeIds) {
+    const hit = current.find((p) => p.id === id);
+    if (hit) await deleteOneStepPhoto(hit);
+    current = current.filter((p) => p.id !== id);
+  }
+  for (const item of incoming) {
+    const raw = String(item.photo_base64 || "").trim();
+    if (!raw) continue;
+    if (current.length >= MAX_STEP_PHOTOS) {
+      throw new Error(`Maksimal ${MAX_STEP_PHOTOS} foto per step`);
+    }
+    current.push(
+      await saveStepPhotoFromBase64(
+        step.id,
+        raw,
+        item.photo_mime,
+        item.photo_name,
+        item.thumb_base64
+      )
+    );
+  }
+  const attached = attachStepPhotoUrl({
+    ...step,
+    photos: current,
+    photo_name: current[0]?.name || "",
+  });
+  step.photos = attached.photos;
+  step.photo_name = attached.photo_name;
+  step.photo_url = attached.photo_url;
+  return incoming.length > 0 || removeIds.length > 0;
 }
 
 export async function jobAction(
@@ -3210,8 +3263,16 @@ export async function jobAction(
     auto_next?: boolean;
     note?: string;
     photo_base64?: string;
+    thumb_base64?: string;
     photo_mime?: string;
     photo_name?: string;
+    photos?: Array<{
+      photo_base64?: string;
+      thumb_base64?: string;
+      photo_mime?: string;
+      photo_name?: string;
+    }>;
+    remove_photo_ids?: string[];
     actor?: AuditActor | null;
     /** Frozen client clock (offline complete/pause) so sync does not recount from Date.now(). */
     duration_sec?: number;
@@ -3891,13 +3952,14 @@ export async function jobAction(
       if (!saved) {
         throw new Error("Pilih foto bukti pekerjaan");
       }
+      const count = parseStepPhotos(step.photos, step.photo_name).length;
       pushEvent(
         "updated",
-        `Foto bukti step ${step.order}. ${step.name}`
+        `Foto bukti step ${step.order}. ${step.name} (${count})`
       );
       pushAudit(
         "update",
-        `Foto bukti step ${step.order}. ${step.name}`,
+        `Foto bukti step ${step.order}. ${step.name} (${count})`,
         step.id
       );
     }

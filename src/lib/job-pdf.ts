@@ -7,9 +7,13 @@ import {
   formatDuration,
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
-import { stepHasPhoto } from "@/lib/step-photo-url";
-import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
+import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
+import { getStepPhotoPreviews, stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import { fmtFileStamp } from "@/lib/file-stamp";
+
+/** Light-mode brand: black bars, CAT orange text. */
+const PDF_INK = [0, 0, 0] as [number, number, number];
+const PDF_ORANGE = [255, 184, 28] as [number, number, number];
 
 function formatPdfStatus(status: string): string {
   switch (String(status || "").trim()) {
@@ -54,9 +58,85 @@ function safeFilePart(value: string): string {
     .slice(0, 48);
 }
 
-async function loadPdfImage(
-  url: string
-): Promise<{ data: string; format: "JPEG" | "PNG" } | null> {
+type PdfImage = {
+  data: string;
+  format: "JPEG" | "PNG";
+  width: number;
+  height: number;
+};
+
+function uniqueUrls(values: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const url = String(value || "").trim();
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+  }
+  return out;
+}
+
+function measureImageSize(
+  dataUrl: string
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      if (!width || !height) {
+        reject(new Error("no size"));
+        return;
+      }
+      resolve({ width, height });
+    };
+    img.onerror = () => reject(new Error("measure failed"));
+    img.src = dataUrl;
+  });
+}
+
+function fitImageBox(
+  natW: number,
+  natH: number,
+  maxW: number,
+  maxH: number
+): { w: number; h: number } {
+  const ratio = natW / Math.max(1, natH);
+  let w = maxW;
+  let h = w / ratio;
+  if (h > maxH) {
+    h = maxH;
+    w = h * ratio;
+  }
+  return { w, h };
+}
+
+function stepEvidenceUrls(step: {
+  id: string;
+  photos?: Array<{ url?: string }>;
+  photo_url?: string;
+}): string[] {
+  const saved = uniqueUrls([
+    ...(step.photos || []).map((p) => p.url),
+    step.photo_url,
+  ]);
+  return saved.length ? saved : uniqueUrls(getStepPhotoPreviews(step.id));
+}
+
+type EvidenceCard = {
+  image: PdfImage | null;
+  indexInStep: number;
+  totalInStep: number;
+};
+
+type EvidenceGroup = {
+  stepOrder: number;
+  stepName: string;
+  cards: EvidenceCard[];
+};
+
+async function loadPdfImage(url: string): Promise<PdfImage | null> {
   if (!url) return null;
   try {
     let dataUrl = url;
@@ -77,11 +157,17 @@ async function loadPdfImage(
     }
     const base64 = dataUrl.split(",")[1];
     if (!base64) return null;
-    if (mime.includes("png")) return { data: base64, format: "PNG" };
-    if (mime.includes("jpeg") || mime.includes("jpg") || mime.includes("webp")) {
-      return { data: base64, format: "JPEG" };
+    const format: "JPEG" | "PNG" = mime.includes("png") ? "PNG" : "JPEG";
+    let width = 0;
+    let height = 0;
+    try {
+      const size = await measureImageSize(dataUrl);
+      width = size.width;
+      height = size.height;
+    } catch {
+      /* keep 0 — caller falls back to a square box */
     }
-    return { data: base64, format: "JPEG" };
+    return { data: base64, format, width, height };
   } catch {
     return null;
   }
@@ -186,18 +272,18 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       fontStyle: "bold" as const,
       fontSize: 9,
       cellPadding: 1.8,
-      textColor: [0, 0, 0] as [number, number, number],
-      lineColor: [40, 48, 62] as [number, number, number],
-      lineWidth: 0.25,
+      textColor: PDF_INK,
+      lineColor: PDF_INK,
+      lineWidth: 0.3,
     },
     headStyles: {
-      fillColor: [40, 48, 62] as [number, number, number],
-      textColor: 255,
+      fillColor: PDF_INK,
+      textColor: PDF_ORANGE,
       fontStyle: "bold" as const,
       fontSize: 9,
     },
     bodyStyles: {
-      textColor: [0, 0, 0] as [number, number, number],
+      textColor: PDF_INK,
       fontStyle: "bold" as const,
     },
   };
@@ -205,8 +291,11 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   sectionTitle("Tahapan (Steps)");
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
-    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note", "Bukti"]],
+    margin: { left: margin, right: margin, bottom: 14 },
+    head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note", "Bukti\nFoto"]],
+    columnStyles: {
+      7: { cellWidth: 16, halign: "center", valign: "middle" },
+    },
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
@@ -224,60 +313,21 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       formatDuration(calcStepElapsedSec(s)),
       stepTechnicianNames(s, job) || "—",
       (s.note || "").trim() || "—",
-      stepHasPhoto(s) || stepPhotoDisplayUrl(s) ? "Ya" : "Tidak",
+      stepHasPhoto(s) || stepPhotoDisplayUrl(s) || getStepPhotoPreviews(s.id).length
+        ? String(Math.max(1, stepPhotoCount(s) || getStepPhotoPreviews(s.id).length))
+        : "—",
     ]),
     ...tableTheme,
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
     .finalY + 6;
 
-  const photoSteps = (job.steps || []).filter(
-    (s) => stepHasPhoto(s) || stepPhotoDisplayUrl(s)
-  );
-  if (photoSteps.length) {
-    sectionTitle(`Bukti foto step (${photoSteps.length})`);
-    const imgW = pageW - margin * 2;
-    for (const s of photoSteps) {
-      const loaded = await loadPdfImage(
-        stepPhotoDisplayUrl(s) || s.photo_url || ""
-      );
-      ensureSpace(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${s.order}. ${s.name}`, margin, y);
-      y += 5;
-      if (!loaded) {
-        doc.setFont("helvetica", "normal");
-        doc.text("Foto tidak bisa dimuat.", margin, y);
-        y += 8;
-        continue;
-      }
-      let h = 70;
-      try {
-        const props = doc.getImageProperties(loaded.data);
-        const ratio =
-          props.width && props.height ? props.height / props.width : 0.75;
-        h = Math.min(70, imgW * ratio);
-      } catch {
-        h = 70;
-      }
-      ensureSpace(h + 6);
-      try {
-        doc.addImage(loaded.data, loaded.format, margin, y, imgW, h);
-        y += h + 8;
-      } catch {
-        doc.setFont("helvetica", "normal");
-        doc.text("Foto tidak bisa disematkan.", margin, y);
-        y += 8;
-      }
-    }
-  }
-
   sectionTitle(
     `Catatan handover (${(job.handovers || []).length})`
   );
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, bottom: 14 },
     head: [["NO", "Job Handover", "Dari", "Ditujukan kepada", "Done", "Note"]],
     body:
       (job.handovers || []).length > 0
@@ -300,7 +350,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   );
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, bottom: 14 },
     head: [["NO", "Part yang dipinjam", "Status", "Note"]],
     body:
       (job.part_loans || []).length > 0
@@ -313,6 +363,222 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
         : [["—", "Belum ada catatan peminjaman part", "—", "—"]],
     ...tableTheme,
   });
+  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
+    .finalY + 6;
+
+  const photoSteps = (job.steps || []).filter(
+    (s) => stepHasPhoto(s) || getStepPhotoPreviews(s.id).length > 0
+  );
+  const evidenceGroups: EvidenceGroup[] = [];
+  for (const s of photoSteps) {
+    const urls = stepEvidenceUrls(s);
+    const totalInStep = Math.max(1, urls.length);
+    const cards: EvidenceCard[] = [];
+    if (!urls.length) {
+      cards.push({ image: null, indexInStep: 1, totalInStep: 1 });
+    } else {
+      for (let i = 0; i < urls.length; i++) {
+        cards.push({
+          image: await loadPdfImage(urls[i]),
+          indexInStep: i + 1,
+          totalInStep,
+        });
+      }
+    }
+    evidenceGroups.push({
+      stepOrder: s.order,
+      stepName: s.name,
+      cards,
+    });
+  }
+  const evidencePhotoCount = evidenceGroups.reduce(
+    (n, g) => n + g.cards.length,
+    0
+  );
+
+  if (evidenceGroups.length) {
+    const pageH = doc.internal.pageSize.getHeight();
+    const footerReserve = 12;
+    const colGap = 6;
+    const contentW = pageW - margin * 2;
+    const cardW = (contentW - colGap) / 2;
+    const frameH = 58;
+    const captionH = 10;
+    const cardH = frameH + 3 + captionH;
+    const rowGap = 5;
+    const groupGap = 8;
+
+    const drawLampiranBanner = (continued: boolean) => {
+      y = margin;
+      doc.setFillColor(...PDF_INK);
+      doc.rect(margin, y, contentW, 11, "F");
+      doc.setTextColor(...PDF_ORANGE);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text(
+        continued
+          ? "Lampiran — Bukti foto (lanjutan)"
+          : "Lampiran — Bukti foto",
+        margin + 3,
+        y + 7.4
+      );
+      doc.setTextColor(0);
+      y += 15;
+      if (!continued) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...PDF_INK);
+        const sub = [
+          job.unit,
+          job.title,
+          `${evidenceGroups.length} step  ·  ${evidencePhotoCount} foto`,
+        ]
+          .map((part) => String(part || "").trim())
+          .filter(Boolean)
+          .join("  ·  ");
+        const subLines = doc.splitTextToSize(sub, contentW);
+        doc.text(subLines, margin, y);
+        y += subLines.length * 4.5 + 5;
+      }
+    };
+
+    const stepHeaderHeight = (name: string, continued: boolean) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      const label = continued
+        ? `Step ${name}  (lanjutan)`
+        : name;
+      const lines = doc.splitTextToSize(label, contentW - 32);
+      return Math.max(9, 5 + lines.length * 4.2);
+    };
+
+    const drawStepHeader = (group: EvidenceGroup, continued: boolean) => {
+      const title = continued
+        ? `Step ${group.stepOrder}. ${group.stepName}  (lanjutan)`
+        : `Step ${group.stepOrder}. ${group.stepName}`;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      const titleLines = doc.splitTextToSize(title, contentW - 32);
+      const h = Math.max(9, 5 + titleLines.length * 4.2);
+      doc.setFillColor(...PDF_INK);
+      doc.rect(margin, y, contentW, h, "F");
+      doc.setTextColor(...PDF_ORANGE);
+      doc.text(titleLines, margin + 3, y + 5.6);
+      doc.setFontSize(8);
+      const countLabel = `${group.cards.length} foto`;
+      doc.text(countLabel, margin + contentW - 3, y + 5.8, { align: "right" });
+      doc.setTextColor(0);
+      y += h + 3.5;
+    };
+
+    const drawCard = (card: EvidenceCard, col: number, rowY: number) => {
+      const x = margin + col * (cardW + colGap);
+      doc.setFillColor(246, 247, 250);
+      doc.setDrawColor(...PDF_INK);
+      doc.setLineWidth(0.28);
+      doc.rect(x, rowY, cardW, frameH, "FD");
+      if (card.image) {
+        const pad = 2.2;
+        const { w, h } = fitImageBox(
+          card.image.width || 4,
+          card.image.height || 3,
+          cardW - pad * 2,
+          frameH - pad * 2
+        );
+        const ix = x + (cardW - w) / 2;
+        const iy = rowY + (frameH - h) / 2;
+        try {
+          doc.addImage(
+            card.image.data,
+            card.image.format,
+            ix,
+            iy,
+            w,
+            h,
+            undefined,
+            "FAST"
+          );
+        } catch {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(120);
+          doc.text("Foto tidak bisa disematkan.", x + cardW / 2, rowY + frameH / 2, {
+            align: "center",
+          });
+          doc.setTextColor(0);
+        }
+      } else {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text("Foto tidak bisa dimuat.", x + cardW / 2, rowY + frameH / 2, {
+          align: "center",
+        });
+        doc.setTextColor(0);
+      }
+      const caption =
+        card.totalInStep > 1
+          ? `Foto ${card.indexInStep} dari ${card.totalInStep}`
+          : "Foto 1";
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...PDF_INK);
+      doc.text(caption, x, rowY + frameH + 4.5);
+      doc.setTextColor(0);
+    };
+
+    doc.addPage();
+    drawLampiranBanner(false);
+
+    for (let g = 0; g < evidenceGroups.length; g++) {
+      const group = evidenceGroups[g];
+      const headH = stepHeaderHeight(
+        `Step ${group.stepOrder}. ${group.stepName}`,
+        false
+      );
+      if (y + headH + 3.5 + cardH > pageH - footerReserve) {
+        doc.addPage();
+        drawLampiranBanner(true);
+      }
+      drawStepHeader(group, false);
+
+      for (let i = 0; i < group.cards.length; i += 2) {
+        if (y + cardH > pageH - footerReserve) {
+          doc.addPage();
+          drawLampiranBanner(true);
+          drawStepHeader(group, true);
+        }
+        const rowY = y;
+        drawCard(group.cards[i], 0, rowY);
+        if (group.cards[i + 1]) drawCard(group.cards[i + 1], 1, rowY);
+        y = rowY + cardH + rowGap;
+      }
+
+      if (g < evidenceGroups.length - 1) {
+        y += groupGap;
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.2);
+        doc.line(margin, y - 3, pageW - margin, y - 3);
+      }
+    }
+  }
+
+  const pageCount = doc.getNumberOfPages();
+  const pageH = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(210, 214, 220);
+    doc.setLineWidth(0.2);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(120);
+    doc.text("TU-PRIMA  ·  Job Report", margin, pageH - 6);
+    doc.text(`Halaman ${i} dari ${pageCount}`, pageW - margin, pageH - 6, {
+      align: "right",
+    });
+    doc.setTextColor(0);
+  }
 
   const fileName = `job_${safeFilePart(job.unit || job.id)}_${safeFilePart(
     job.title || "report"

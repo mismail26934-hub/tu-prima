@@ -1,27 +1,32 @@
 import { NextResponse } from "next/server";
-import { getJobById } from "@/lib/board-list";
 import { requirePermission } from "@/lib/access";
-import { readStepPhotoFile } from "@/lib/step-photo";
+import { lookupStepPhotoAccess, readStepPhotoFile } from "@/lib/step-photo";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string; stepId: string }> }
 ) {
   const denied = await requirePermission("job", "read");
   if (denied) return denied;
   try {
     const { id, stepId } = await ctx.params;
-    const found = await getJobById(id);
-    if (!found) {
-      return NextResponse.json({ error: "Job tidak ditemukan" }, { status: 404 });
-    }
-    const step = found.job.steps.find((s) => s.id === stepId);
-    if (!step) {
+    const url = new URL(req.url);
+    const photoId = String(url.searchParams.get("id") || stepId).trim();
+    const size = url.searchParams.get("size") === "thumb" ? "thumb" : "full";
+    const meta = await lookupStepPhotoAccess(id, stepId);
+    if (!meta) {
       return NextResponse.json({ error: "Step tidak ditemukan" }, { status: 404 });
     }
-    const file = await readStepPhotoFile(step.id, step.photo_name || `${step.id}.jpg`);
+    const allowed =
+      !meta.photos.length ||
+      meta.photos.some((p) => p.id === photoId) ||
+      photoId === stepId;
+    if (!allowed) {
+      return NextResponse.json({ error: "Foto bukti belum ada" }, { status: 404 });
+    }
+    const file = await readStepPhotoFile(stepId, photoId, size);
     if (!file) {
       return NextResponse.json({ error: "Foto bukti belum ada" }, { status: 404 });
     }
@@ -30,7 +35,10 @@ export async function GET(
       headers: {
         "Content-Type": file.mime,
         "Content-Length": String(file.bytes.length),
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control":
+          size === "thumb"
+            ? "private, max-age=86400"
+            : "private, max-age=3600",
         "Content-Disposition": `inline; filename="${file.fileName}"`,
       },
     });

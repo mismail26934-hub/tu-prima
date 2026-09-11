@@ -2385,6 +2385,7 @@ html[data-theme="light"].menu-open .topbar-glass {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   width: 28px;
   height: 28px;
   margin: -2px 0 0;
@@ -2417,6 +2418,58 @@ html[data-theme="light"].menu-open .topbar-glass {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.step-photo-count {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 4px 0 0 0;
+  background: color-mix(in srgb, var(--green) 88%, #000);
+  color: #fff;
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 700;
+}
+
+.step-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.step-photo-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-0);
+}
+
+.step-photo-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.step-photo-tile-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: #0009;
+  color: #fff;
+  font-size: 16px;
+  line-height: 22px;
+  cursor: pointer;
 }
 
 .step-photo-picker {

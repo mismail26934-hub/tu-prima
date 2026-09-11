@@ -155,8 +155,15 @@ export interface JobStep {
   note?: string;
   /** Stored filename in data/step-photos (empty = no evidence yet). */
   photo_name?: string;
-  /** Public GET URL when photo_name is set. */
+  /** Public GET URL of the first photo when present. */
   photo_url?: string;
+  /** Evidence photos for this step (one or more). */
+  photos?: Array<{
+    id: string;
+    name: string;
+    url?: string;
+    thumb_url?: string;
+  }>;
 }
 
 export interface JobEvent {

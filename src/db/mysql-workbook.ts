@@ -86,7 +86,13 @@ export async function ensureDatabaseExists() {
           ` Pastikan host bisa dijangkau, firewall mengizinkan, dan DATABASE_URL memakai port MySQL (default 3306).`
       );
     }
-    throw err;
+    if (e.code === 'ER_HOST_NOT_PRIVILEGED') {
+      throw new Error(
+        `MariaDB menolak host ini (${(err as { sqlMessage?: string }).sqlMessage || e.message}). ` +
+          `Kalau MySQL ada di PC yang sama, set DATABASE_URL ke 127.0.0.1 (bukan IP LAN). ` +
+          `Kalau MySQL di mesin lain, GRANT user untuk host/IP PC ini.`
+      );
+    }
   }
   try {
     await conn.query(

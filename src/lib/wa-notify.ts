@@ -15,6 +15,7 @@ export type HandoverNotifyPayload = {
   handover: JobHandover;
   technicianNames?: string;
   previous?: JobHandover | null;
+  recipientPhone?: string;
 };
 
 type FonnteGroup = { id?: string; name?: string };
@@ -47,8 +48,26 @@ function enabled(): boolean {
   return Boolean(token());
 }
 
+function notifyForemanDirect(): boolean {
+  const flag = env("FONNTE_NOTIFY_FOREMAN").toLowerCase();
+  if (flag === "0" || flag === "false" || flag === "off") return false;
+  return true;
+}
+
 export function isWaNotifyConfigured(): boolean {
-  return enabled() && Boolean(env("FONNTE_GROUP_ID") || env("FONNTE_GROUP_NAME"));
+  return enabled();
+}
+
+/** Fonnte-friendly Indonesian mobile: 628xxxxxxxxxx */
+export function normalizeWhatsAppPhone(raw: string): string {
+  let digits = String(raw || "").replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) digits = digits.slice(1);
+  digits = digits.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("62")) return digits;
+  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
+  if (digits.startsWith("8") && digits.length >= 9) return `62${digits}`;
+  return "";
 }
 
 function waPlain(value: unknown, fallback = "—"): string {
@@ -109,9 +128,44 @@ function headingFor(payload: HandoverNotifyPayload): string {
   return "PEMBARUAN HANDOVER";
 }
 
-function introFor(payload: HandoverNotifyPayload): string {
+function introFor(
+  payload: HandoverNotifyPayload,
+  audience: "group" | "direct"
+): string {
+  const from = waPlain(payload.handover.from_name || payload.handover.user_name, "");
+  const to = waPlain(payload.handover.to_name, "");
+  const fromTo =
+    from && to
+      ? ` dari ${from} kepada ${to}`
+      : from
+        ? ` dari ${from}`
+        : to
+          ? ` kepada ${to}`
+          : "";
+
+  if (audience === "direct") {
+    if (payload.action === "create") {
+      return from
+        ? `Catatan handover dari ${from} ditujukan kepada Anda. Mohon ditindaklanjuti.`
+        : "Catatan handover ini ditujukan kepada Anda. Mohon ditindaklanjuti.";
+    }
+    if (payload.action === "delete") {
+      return "Catatan handover yang ditujukan kepada Anda telah dihapus.";
+    }
+    const before = payload.previous?.done === "1";
+    const after = payload.handover.done === "1";
+    if (!before && after) {
+      return "Catatan handover yang ditujukan kepada Anda telah ditandai selesai.";
+    }
+    if (before && !after) {
+      return "Status selesai pada catatan handover yang ditujukan kepada Anda telah dibatalkan.";
+    }
+    return "Catatan handover yang ditujukan kepada Anda telah diperbarui.";
+  }
   if (payload.action === "create") {
-    return "Catatan handover baru telah dicatat pada job berikut.";
+    return fromTo
+      ? `Catatan handover${fromTo} telah dicatat pada job berikut.`
+      : "Catatan handover baru telah dicatat pada job berikut.";
   }
   if (payload.action === "delete") {
     return "Catatan handover berikut telah dihapus dari job.";
@@ -128,7 +182,8 @@ function introFor(payload: HandoverNotifyPayload): string {
 }
 
 export function buildHandoverWhatsAppMessage(
-  payload: HandoverNotifyPayload
+  payload: HandoverNotifyPayload,
+  audience: "group" | "direct" = "group"
 ): string {
   const { job, handover } = payload;
   const note = clip(waPlain(handover.note, "Tidak ada catatan tambahan."), MAX_NOTE_CHARS);
@@ -140,7 +195,7 @@ export function buildHandoverWhatsAppMessage(
     `*${headingFor(payload)}*`,
     "────────────────────",
     "",
-    introFor(payload),
+    introFor(payload, audience),
     "",
     "*Job*",
     waPlain(job.title),
@@ -164,6 +219,9 @@ export function buildHandoverWhatsAppMessage(
     "",
     "*Handover*",
     `#${handover.order}  ${waPlain(handover.title)}`,
+    "",
+    "*Dari*",
+    waPlain(handover.from_name || handover.user_name, "Tidak disebutkan"),
     "",
     "*Ditujukan kepada*",
     waPlain(handover.to_name, "Tidak disebutkan"),
@@ -275,26 +333,74 @@ async function resolveTarget(): Promise<string> {
   return id;
 }
 
+async function sendToTarget(
+  target: string,
+  message: string
+): Promise<void> {
+  const body = new URLSearchParams();
+  body.set("target", target);
+  body.set("message", message);
+  const json = await fonntePost(FONNTE_SEND_URL, body);
+  if (json.status === false || json.status === "false") {
+    throw new Error(
+      String(json.reason || json.detail || "Fonnte menolak pengiriman")
+    );
+  }
+}
+
 async function sendHandoverNotification(
   payload: HandoverNotifyPayload
 ): Promise<void> {
   if (!enabled()) return;
-  const target = await resolveTarget();
-  if (!target) {
+
+  const groupId = await resolveTarget().catch((err) => {
+    console.error(
+      "[wa-notify] gagal resolve grup:",
+      err instanceof Error ? err.message : err
+    );
+    return "";
+  });
+  const phone =
+    notifyForemanDirect()
+      ? normalizeWhatsAppPhone(payload.recipientPhone || "")
+      : "";
+
+  if (!groupId && !phone) {
     console.warn(
-      "[wa-notify] dilewati: atur FONNTE_GROUP_ID atau FONNTE_GROUP_NAME di .env.local"
+      "[wa-notify] dilewati: atur FONNTE_GROUP_ID/FONNTE_GROUP_NAME, atau isi nomor HP foreman tujuan"
     );
     return;
   }
 
-  const message = buildHandoverWhatsAppMessage(payload);
-  const body = new URLSearchParams();
-  body.set("target", target);
-  body.set("message", message);
+  const errors: string[] = [];
+  if (groupId) {
+    try {
+      await sendToTarget(groupId, buildHandoverWhatsAppMessage(payload, "group"));
+    } catch (err) {
+      errors.push(
+        `grup: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (phone && phone !== groupId) {
+    try {
+      await sendToTarget(
+        phone,
+        buildHandoverWhatsAppMessage(payload, "direct")
+      );
+    } catch (err) {
+      errors.push(
+        `foreman: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  } else if (notifyForemanDirect() && (payload.handover.to_name || payload.handover.to_user_id) && !phone) {
+    console.warn(
+      "[wa-notify] nomor HP foreman tujuan kosong — hanya grup yang dikirimi"
+    );
+  }
 
-  const json = await fonntePost(FONNTE_SEND_URL, body);
-  if (json.status === false || json.status === "false") {
-    throw new Error(String(json.reason || json.detail || "Fonnte menolak pengiriman"));
+  if (errors.length) {
+    throw new Error(errors.join("; "));
   }
 }
 

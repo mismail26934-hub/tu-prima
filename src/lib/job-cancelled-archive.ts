@@ -25,7 +25,11 @@ import {
   parseStepTechnicianIds,
   serializeStepTechnicianIds,
 } from "@/lib/step-technicians";
-import { attachStepPhotoUrl } from "@/lib/step-photo-url";
+import {
+  attachStepPhotoUrl,
+  parseStepPhotos,
+  serializeStepPhotos,
+} from "@/lib/step-photo-url";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const CANCELLED_JOBS_PATH = "mysql://cancelled";
@@ -80,6 +84,7 @@ const STEP_HEADERS = [
   "technician_ids",
   "note",
   "photo_name",
+  "photos",
 ];
 
 const EVENT_HEADERS = [
@@ -231,6 +236,7 @@ function mapStepRow(r: Row): JobStep {
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: String(r.note || ""),
     photo_name: String(r.photo_name || ""),
+    photos: String(r.photos || ""),
   });
 }
 
@@ -361,6 +367,7 @@ export async function archiveCancelledJob(input: {
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
       note: s.note || "",
       photo_name: s.photo_name || "",
+      photos: serializeStepPhotos(parseStepPhotos(s.photos, s.photo_name)),
     }))
   );
 

@@ -109,6 +109,7 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: str(r.note),
     photo_name: str(r.photo_name),
+    photos: str(r.photos),
   });
 }
 

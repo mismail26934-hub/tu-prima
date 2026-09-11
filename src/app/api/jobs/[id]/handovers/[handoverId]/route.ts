@@ -19,7 +19,11 @@ export async function PATCH(
     const actor = await getCurrentActor();
     const row = await updateJobHandover(handoverId, {
       title: body.title != null ? String(body.title) : undefined,
+      from_name: body.from_name != null ? String(body.from_name) : undefined,
+      from_user_id:
+        body.from_user_id != null ? String(body.from_user_id) : undefined,
       to_name: body.to_name != null ? String(body.to_name) : undefined,
+      to_user_id: body.to_user_id != null ? String(body.to_user_id) : undefined,
       note: body.note != null ? String(body.note) : undefined,
       done: typeof body.done === "boolean" ? body.done : undefined,
       actor,

@@ -7,7 +7,7 @@ import {
   formatDuration,
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
-import { stepHasPhoto } from "@/lib/step-photo-url";
+import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import { fmtFileStamp } from "@/lib/file-stamp";
 
 export type JobReportScope = "active" | "queue";
@@ -88,7 +88,10 @@ function stepsText(job: JobWithDetails): string {
           ? ` | STP/Std Hours: ${formatStdLabel(stpMin)}`
           : " | STP/Std Hours: —";
       const note = (s.note || "").trim();
-      const photo = stepHasPhoto(s) ? " | Bukti: Ya" : " | Bukti: Tidak";
+      const n = stepPhotoCount(s);
+      const photo = stepHasPhoto(s)
+        ? ` | Bukti: ${n} foto`
+        : " | Bukti: Tidak";
       return `${s.order}. ${s.name}${stp} | [${s.status}] ${formatDuration(
         calcStepElapsedSec(s)
       )} | Teknisi: ${stepTechnicianNames(s, job) || "—"}${

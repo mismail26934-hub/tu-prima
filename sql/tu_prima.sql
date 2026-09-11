@@ -170,6 +170,7 @@ CREATE TABLE `job_handovers` (
   `handover_order` int(11) NOT NULL DEFAULT 0,
   `title` varchar(255) NOT NULL DEFAULT '',
   `to_name` varchar(255) NOT NULL DEFAULT '',
+  `to_user_id` varchar(64) NOT NULL DEFAULT '',
   `done` tinyint(1) NOT NULL DEFAULT 0,
   `note` text DEFAULT NULL,
   `user_id` varchar(64) NOT NULL DEFAULT '',

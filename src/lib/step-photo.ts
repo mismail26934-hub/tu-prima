@@ -1,5 +1,11 @@
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
+import { getPool } from "@/db/mysql-workbook";
+import {
+  attachStepPhotoUrl,
+  parseStepPhotos,
+  type StepPhotoRef,
+} from "@/lib/step-photo-url";
 
 export const STEP_PHOTO_MAX_BYTES = 2_500_000;
 const ALLOWED_MIME: Record<string, string> = {
@@ -13,10 +19,10 @@ function photosDir(): string {
   return path.join(process.cwd(), "data", "step-photos");
 }
 
-function safeStepId(stepId: string): string {
-  const id = String(stepId || "").trim();
+function safeToken(value: string, label: string): string {
+  const id = String(value || "").trim();
   if (!/^[A-Za-z0-9._-]+$/.test(id)) {
-    throw new Error("Step id foto tidak valid");
+    throw new Error(`${label} foto tidak valid`);
   }
   return id;
 }
@@ -36,15 +42,21 @@ export function mimeFromPhotoName(photoName: string): string {
   return "image/jpeg";
 }
 
-function filePathFor(stepId: string, photoName: string): string {
-  const id = safeStepId(stepId);
-  const ext = String(photoName || "").split(".").pop()?.toLowerCase() || "jpg";
-  const safeExt = ext === "png" || ext === "webp" || ext === "jpg" || ext === "jpeg"
-    ? ext === "jpeg"
-      ? "jpg"
-      : ext
-    : "jpg";
-  return path.join(photosDir(), `${id}.${safeExt}`);
+function photoBelongsToStep(stepId: string, photoId: string): boolean {
+  return photoId === stepId || photoId.startsWith(`${stepId}-`);
+}
+
+function filePathForName(fileName: string): string {
+  const base = path.basename(String(fileName || "").trim());
+  return path.join(photosDir(), safeToken(base, "Nama file"));
+}
+
+function newPhotoId(stepId: string): string {
+  const rand =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 8)
+      : Math.random().toString(36).slice(2, 10);
+  return `${safeToken(stepId, "Step id")}-${rand}`;
 }
 
 export function decodePhotoBase64(
@@ -82,59 +94,106 @@ export async function saveStepPhotoFromBase64(
   stepId: string,
   base64: string,
   mimeHint?: string,
-  _originalName?: string
-): Promise<string> {
+  _originalName?: string,
+  thumbBase64?: string
+): Promise<StepPhotoRef> {
   const { bytes, mime } = decodePhotoBase64(base64, mimeHint);
-  const id = safeStepId(stepId);
+  const id = newPhotoId(stepId);
   const ext = extFromMime(mime);
-  const fileName = `${id}.${ext}`;
+  const name = `${id}.${ext}`;
   await mkdir(photosDir(), { recursive: true });
-  for (const oldExt of ["jpg", "jpeg", "png", "webp"]) {
-    if (oldExt === ext || (oldExt === "jpeg" && ext === "jpg")) continue;
+  await writeFile(filePathForName(name), bytes);
+  if (thumbBase64) {
     try {
-      await unlink(path.join(photosDir(), `${id}.${oldExt}`));
+      const thumb = decodePhotoBase64(thumbBase64, "image/jpeg");
+      await writeFile(filePathForName(`${id}.thumb.jpg`), thumb.bytes);
+    } catch {
+      /* thumb optional */
+    }
+  }
+  return { id, name };
+}
+
+/** Legacy single-file names used before multi-photo. */
+async function deleteLegacyStepFiles(stepId: string): Promise<void> {
+  const id = String(stepId || "").trim();
+  if (!/^[A-Za-z0-9._-]+$/.test(id)) return;
+  for (const name of [`${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`, `${id}.thumb.jpg`]) {
+    try {
+      await unlink(filePathForName(name));
     } catch {
       /* missing */
     }
   }
-  await writeFile(filePathFor(id, fileName), bytes);
-  return fileName;
 }
 
-export async function readStepPhotoFile(
-  stepId: string,
-  photoName: string
-): Promise<{ bytes: Buffer; mime: string; fileName: string } | null> {
-  const name = String(photoName || "").trim();
-  if (!name) return null;
-  try {
-    const bytes = await readFile(filePathFor(stepId, name));
-    return {
-      bytes,
-      mime: mimeFromPhotoName(name),
-      fileName: name,
-    };
-  } catch {
-    return null;
+export async function deleteOneStepPhoto(photo: StepPhotoRef): Promise<void> {
+  const id = String(photo.id || "").trim();
+  const name = String(photo.name || "").trim();
+  for (const file of [name, id ? `${id}.thumb.jpg` : ""].filter(Boolean)) {
+    try {
+      await unlink(filePathForName(file));
+    } catch {
+      /* missing */
+    }
   }
 }
 
 export async function deleteStepPhotoFiles(
   stepId: string,
-  photoName?: string
+  photoNameOrList?: string | StepPhotoRef[]
 ): Promise<void> {
-  const id = String(stepId || "").trim();
-  if (!/^[A-Za-z0-9._-]+$/.test(id)) return;
-  const names = new Set<string>();
-  if (photoName) names.add(photoName);
-  for (const ext of ["jpg", "jpeg", "png", "webp"]) {
-    names.add(`${id}.${ext}`);
+  const listed = Array.isArray(photoNameOrList)
+    ? photoNameOrList
+    : parseStepPhotos(undefined, String(photoNameOrList || ""));
+  for (const photo of listed) {
+    await deleteOneStepPhoto(photo);
   }
-  for (const name of names) {
+  await deleteLegacyStepFiles(stepId);
+}
+
+export async function readStepPhotoFile(
+  stepId: string,
+  photoId: string,
+  size: "full" | "thumb" = "full"
+): Promise<{ bytes: Buffer; mime: string; fileName: string } | null> {
+  const id = String(photoId || stepId || "").trim();
+  if (!id || !photoBelongsToStep(stepId, id)) return null;
+  const tryNames =
+    size === "thumb"
+      ? [`${id}.thumb.jpg`, `${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`]
+      : [`${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`];
+  for (const fileName of tryNames) {
     try {
-      await unlink(filePathFor(id, name));
+      const bytes = await readFile(filePathForName(fileName));
+      return { bytes, mime: mimeFromPhotoName(fileName), fileName };
     } catch {
-      /* missing */
+      /* next */
     }
   }
+  return null;
+}
+
+export async function lookupStepPhotoAccess(
+  jobId: string,
+  stepId: string
+): Promise<{ photos: StepPhotoRef[] } | null> {
+  const p = getPool();
+  const [rows] = await p.query(
+    `SELECT id, job_id, photo_name, photos
+     FROM job_steps
+     WHERE id = ? AND job_id = ?
+     LIMIT 1`,
+    [stepId, jobId]
+  );
+  const row = Array.isArray(rows) ? (rows[0] as Record<string, unknown> | undefined) : undefined;
+  if (!row) return null;
+  return {
+    photos: attachStepPhotoUrl({
+      id: String(row.id || stepId),
+      job_id: String(row.job_id || jobId),
+      photo_name: String(row.photo_name || ""),
+      photos: row.photos as string,
+    }).photos,
+  };
 }

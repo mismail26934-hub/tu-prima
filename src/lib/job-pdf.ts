@@ -19,6 +19,16 @@ import { fmtFileStamp } from "@/lib/file-stamp";
 const PDF_INK = [0, 0, 0] as [number, number, number];
 const PDF_ORANGE = [255, 184, 28] as [number, number, number];
 
+function formatStdMinutes(minutes: number): string {
+  if (!(Number(minutes) > 0)) return "—";
+  const total = Math.round(Number(minutes));
+  const h = Math.floor(total / 60);
+  const rem = total % 60;
+  if (rem === 0) return `${h} jam`;
+  if (h <= 0) return `${rem} mnt`;
+  return `${h} jam ${rem} mnt`;
+}
+
 function formatPdfStatus(status: string): string {
   switch (String(status || "").trim()) {
     case "in_progress":
@@ -137,6 +147,11 @@ type EvidenceCard = {
 type EvidenceGroup = {
   stepOrder: number;
   stepName: string;
+  status: string;
+  stp: string;
+  duration: string;
+  technicians: string;
+  notes: string;
   cards: EvidenceCard[];
 };
 
@@ -297,16 +312,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
-      Number(s.std_minutes || 0) > 0
-        ? (() => {
-            const total = Math.round(Number(s.std_minutes));
-            const h = Math.floor(total / 60);
-            const rem = total % 60;
-            if (rem === 0) return `${h} jam`;
-            if (h <= 0) return `${rem} mnt`;
-            return `${h} jam ${rem} mnt`;
-          })()
-        : "—",
+      formatStdMinutes(Number(s.std_minutes || 0)),
       formatPdfStatus(s.status),
       formatDuration(calcStepElapsedSec(s)),
       stepTechnicianNames(s, job) || "—",
@@ -394,6 +400,11 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     evidenceGroups.push({
       stepOrder: s.order,
       stepName: s.name,
+      status: formatPdfStatus(s.status),
+      stp: formatStdMinutes(Number(s.std_minutes || 0)),
+      duration: formatDuration(calcStepElapsedSec(s)),
+      technicians: stepTechnicianNames(s, job) || "—",
+      notes: formatStepNotesReport(hydrateStepNotes(s)).trim(),
       cards,
     });
   }
@@ -451,11 +462,43 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     const stepHeaderHeight = (name: string, continued: boolean) => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      const label = continued
-        ? `Step ${name}  (lanjutan)`
-        : name;
+      const label = continued ? `Step ${name}  (lanjutan)` : name;
       const lines = doc.splitTextToSize(label, contentW - 32);
       return Math.max(9, 5 + lines.length * 4.2);
+    };
+
+    const stepDetailBlock = (group: EvidenceGroup) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      const meta = [
+        `Status: ${group.status}    STP: ${group.stp}    Durasi: ${group.duration}`,
+        `Teknisi: ${group.technicians}`,
+      ].flatMap((line) => doc.splitTextToSize(line, contentW));
+      const notes = group.notes
+        ? doc.splitTextToSize(group.notes, contentW)
+        : [];
+      return { meta, notes };
+    };
+
+    const stepDetailHeight = (group: EvidenceGroup) => {
+      const { meta, notes } = stepDetailBlock(group);
+      const noteH = notes.length ? 2.5 + notes.length * 4.5 : 0;
+      return meta.length * 4.5 + noteH + 3;
+    };
+
+    const drawStepDetails = (group: EvidenceGroup) => {
+      const { meta, notes } = stepDetailBlock(group);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...PDF_INK);
+      doc.text(meta, margin, y);
+      y += meta.length * 4.5;
+      if (notes.length) {
+        y += 2.5;
+        doc.text(notes, margin, y);
+        y += notes.length * 4.5;
+      }
+      y += 3;
     };
 
     const drawStepHeader = (group: EvidenceGroup, continued: boolean) => {
@@ -474,7 +517,8 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       const countLabel = `${group.cards.length} foto`;
       doc.text(countLabel, margin + contentW - 3, y + 5.8, { align: "right" });
       doc.setTextColor(0);
-      y += h + 3.5;
+      y += h + (continued ? 3.5 : 4.5);
+      if (!continued) drawStepDetails(group);
     };
 
     const drawCard = (card: EvidenceCard, col: number, rowY: number) => {
@@ -542,7 +586,8 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
         `Step ${group.stepOrder}. ${group.stepName}`,
         false
       );
-      if (y + headH + 3.5 + cardH > pageH - footerReserve) {
+      const detailH = stepDetailHeight(group);
+      if (y + headH + detailH + cardH > pageH - footerReserve) {
         doc.addPage();
         drawLampiranBanner(true);
       }
@@ -562,9 +607,6 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
 
       if (g < evidenceGroups.length - 1) {
         y += groupGap;
-        doc.setDrawColor(0);
-        doc.setLineWidth(0.2);
-        doc.line(margin, y - 3, pageW - margin, y - 3);
       }
     }
   }
@@ -573,9 +615,6 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   const pageH = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setDrawColor(210, 214, 220);
-    doc.setLineWidth(0.2);
-    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(120);

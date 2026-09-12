@@ -732,6 +732,8 @@ function AccountAvatar({ url, size = 28 }: { url: string; size?: number }) {
   );
 }
 
+let lastDeepLinkScrolledId = "";
+
 export default function HomePage() {
   const t = useT();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
@@ -3456,25 +3458,43 @@ export default function HomePage() {
   }, [activeJobs, queuedJobs, sliderJobs, completedJobs, historyJobs]);
 
   useEffect(() => {
-    if (!jobDeepLink.jobId || !jobDeepLink.ready) return;
-    const nodes = document.querySelectorAll(
-      `#job-${CSS.escape(jobDeepLink.jobId)}`
-    );
-    const el =
-      [...nodes].find((node) => {
-        const html = node as HTMLElement;
-        return html.offsetParent !== null || html.getClientRects().length > 0;
-      }) || nodes[0];
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [
-    jobDeepLink.jobId,
-    jobDeepLink.ready,
-    activeJobs,
-    queuedJobs,
-    completedJobs,
-    historyJobs,
-  ]);
+    const jobId = jobDeepLink.jobId;
+    if (!jobId) {
+      lastDeepLinkScrolledId = "";
+      return;
+    }
+    if (!jobDeepLink.ready) return;
+    if (lastDeepLinkScrolledId === jobId) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const findEl = () => {
+      const nodes = document.querySelectorAll(
+        `#job-${CSS.escape(jobId)}`
+      );
+      return (
+        [...nodes].find((node) => {
+          const html = node as HTMLElement;
+          return html.offsetParent !== null || html.getClientRects().length > 0;
+        }) || (nodes[0] as HTMLElement | undefined)
+      );
+    };
+    const tryScroll = () => {
+      if (cancelled || lastDeepLinkScrolledId === jobId) return;
+      const el = findEl();
+      if (el) {
+        lastDeepLinkScrolledId = jobId;
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      attempts += 1;
+      if (attempts < 40) window.setTimeout(tryScroll, 50);
+    };
+    tryScroll();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobDeepLink.jobId, jobDeepLink.ready]);
 
   useEffect(() => {
     setActiveJobPage(1);

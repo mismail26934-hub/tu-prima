@@ -12,7 +12,7 @@ import {
 type Props = {
   enabled: boolean;
   variant?: "bar" | "menu";
-  onOpenJob: (jobId: string) => void;
+  onOpenJob: (jobId: string, kind?: NavAlertItem["kind"]) => void;
   onBeforeOpen?: () => void;
 };
 
@@ -27,7 +27,7 @@ function AlertSection({
   count: number;
   items: NavAlertItem[];
   empty: string;
-  onPick: (jobId: string) => void;
+  onPick: (item: NavAlertItem) => void;
 }) {
   return (
     <section className="nav-alerts-section">
@@ -41,7 +41,7 @@ function AlertSection({
             key={`${item.kind}-${item.jobId}-${item.subtitle}`}
             type="button"
             className="nav-alerts-item"
-            onClick={() => onPick(item.jobId)}
+            onClick={() => onPick(item)}
           >
             <strong>
               {item.unit ? `${item.unit} — ${item.title}` : item.title}
@@ -89,9 +89,9 @@ export function NavAlerts({
 
   if (!enabled) return null;
 
-  const pick = (jobId: string) => {
+  const pick = (item: NavAlertItem) => {
     setOpen(false);
-    onOpenJob(jobId);
+    onOpenJob(item.jobId, item.kind);
   };
 
   const list = (

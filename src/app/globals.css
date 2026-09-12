@@ -1864,6 +1864,7 @@ html[data-theme="light"].menu-open .topbar-glass {
   position: relative;
   min-width: 0;
   container-type: inline-size;
+  scroll-margin-top: calc(var(--topbar-offset, 72px) + 8px);
 }
 
 .handover-panel.is-busy {

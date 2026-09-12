@@ -95,7 +95,13 @@ import {
   useJobsList,
   useTechniciansList,
 } from "@/hooks/useBoardLists";
-import { useJobDeepLink } from "@/hooks/useJobDeepLink";
+import {
+  useJobDeepLink,
+  deepLinkScrollKey,
+  peekDeepLinkScrollKey,
+  markDeepLinkScrolled,
+  clearDeepLinkScroll,
+} from "@/hooks/useJobDeepLink";
 
 type Modal =
   | null
@@ -731,8 +737,6 @@ function AccountAvatar({ url, size = 28 }: { url: string; size?: number }) {
     />
   );
 }
-
-let lastDeepLinkScrolledId = "";
 
 export default function HomePage() {
   const t = useT();
@@ -3460,18 +3464,17 @@ export default function HomePage() {
   useEffect(() => {
     const jobId = jobDeepLink.jobId;
     if (!jobId) {
-      lastDeepLinkScrolledId = "";
+      clearDeepLinkScroll();
       return;
     }
     if (!jobDeepLink.ready) return;
-    if (lastDeepLinkScrolledId === jobId) return;
+    const key = deepLinkScrollKey(jobId, jobDeepLink.focus);
+    if (peekDeepLinkScrollKey() === key) return;
 
     let cancelled = false;
     let attempts = 0;
-    const findEl = () => {
-      const nodes = document.querySelectorAll(
-        `#job-${CSS.escape(jobId)}`
-      );
+    const visible = (id: string) => {
+      const nodes = document.querySelectorAll(`#${CSS.escape(id)}`);
       return (
         [...nodes].find((node) => {
           const html = node as HTMLElement;
@@ -3479,11 +3482,17 @@ export default function HomePage() {
         }) || (nodes[0] as HTMLElement | undefined)
       );
     };
+    const findEl = () => {
+      if (jobDeepLink.focus === "handover") {
+        return visible(`job-handover-${jobId}`) || visible(`job-${jobId}`);
+      }
+      return visible(`job-${jobId}`);
+    };
     const tryScroll = () => {
-      if (cancelled || lastDeepLinkScrolledId === jobId) return;
+      if (cancelled || peekDeepLinkScrollKey() === key) return;
       const el = findEl();
       if (el) {
-        lastDeepLinkScrolledId = jobId;
+        markDeepLinkScrolled(key);
         el.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
@@ -3494,7 +3503,12 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [jobDeepLink.jobId, jobDeepLink.ready]);
+  }, [
+    jobDeepLink.jobId,
+    jobDeepLink.ready,
+    jobDeepLink.focus,
+    jobDeepLink.scrollGen,
+  ]);
 
   useEffect(() => {
     setActiveJobPage(1);
@@ -4615,6 +4629,7 @@ export default function HomePage() {
 
         {["in_progress", "paused", "done"].includes(job.status) && (
           <div
+            id={`job-handover-${job.id}`}
             className={`handover-panel${
               isNotePanelBusy(job.id, "handover") ? " is-busy" : ""
             }`}
@@ -5484,10 +5499,12 @@ export default function HomePage() {
                   setManageOpen(false);
                   setSessionOpen(false);
                 }}
-                onOpenJob={(jobId) => {
+                onOpenJob={(jobId, kind) => {
                   setManageOpen(false);
                   setSessionOpen(false);
-                  jobDeepLink.open(jobId);
+                  jobDeepLink.open(jobId, {
+                    focus: kind === "handover" ? "handover" : "",
+                  });
                 }}
               />
               <div className="nav-session">
@@ -5603,9 +5620,11 @@ export default function HomePage() {
             <NavAlerts
               enabled={showNavAlerts}
               onBeforeOpen={() => setSessionOpen(false)}
-              onOpenJob={(jobId) => {
+              onOpenJob={(jobId, kind) => {
                 setMobileMenuOpen(false);
-                jobDeepLink.open(jobId);
+                jobDeepLink.open(jobId, {
+                  focus: kind === "handover" ? "handover" : "",
+                });
               }}
             />
             <button
@@ -5702,10 +5721,12 @@ export default function HomePage() {
             <NavAlerts
               enabled={showNavAlerts}
               variant="menu"
-              onOpenJob={(jobId) => {
+              onOpenJob={(jobId, kind) => {
                 setMobileMenuOpen(false);
                 setSessionOpen(false);
-                jobDeepLink.open(jobId);
+                jobDeepLink.open(jobId, {
+                  focus: kind === "handover" ? "handover" : "",
+                });
               }}
             />
             <p className="nav-menu-label">{t("nav.language")}</p>

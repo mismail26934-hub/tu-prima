@@ -536,7 +536,7 @@ html[data-theme="light"].menu-open .topbar-glass {
   cursor: not-allowed;
 }
 
-.nav-session {
+.nav-end {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -545,8 +545,14 @@ html[data-theme="light"].menu-open .topbar-glass {
   border-left: 1px solid var(--line);
 }
 
-.top-actions-panel--bar .nav-session {
+.top-actions-panel--bar .nav-end {
   order: 1;
+}
+
+.nav-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .nav-session-menu {

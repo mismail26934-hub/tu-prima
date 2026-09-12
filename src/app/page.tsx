@@ -5431,94 +5431,6 @@ export default function HomePage() {
                 <path d="M21 3v6h-6" />
               </svg>
             </button>
-            <NavAlerts
-              enabled={showNavAlerts}
-              onBeforeOpen={() => {
-                setManageOpen(false);
-                setSessionOpen(false);
-              }}
-              onOpenJob={(jobId) => {
-                setManageOpen(false);
-                setSessionOpen(false);
-                jobDeepLink.open(jobId);
-              }}
-            />
-            <div className="nav-session">
-              {isLoggedIn ? (
-                <div
-                  className={`nav-session-menu${sessionOpen ? " is-open" : ""}`}
-                  ref={sessionRef}
-                >
-                  <button
-                    className="btn nav-account"
-                    type="button"
-                    disabled={busy || loggingOut}
-                    aria-label={t("nav.accountMenu")}
-                    aria-haspopup="menu"
-                    aria-expanded={sessionOpen}
-                    title={`${displayName} · ${userLevel}`}
-                    onClick={() => {
-                      setManageOpen(false);
-                      setSessionOpen((open) => !open);
-                    }}
-                  >
-                    <span className="nav-user">
-                      <span className="nav-user-name">{displayNameShort}</span>
-                      <span className="nav-user-level">{userLevel}</span>
-                    </span>
-                    <AccountAvatar url={avatarUrl} size={28} />
-                  </button>
-                  {sessionOpen && (
-                    <div className="nav-manage-menu" role="menu">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="nav-manage-item"
-                        disabled={busy || loggingOut}
-                        onClick={() => {
-                          setSessionOpen(false);
-                          void openEditProfile();
-                        }}
-                      >
-                        {t("nav.editProfile")}
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="nav-manage-item"
-                        disabled={busy || loggingOut}
-                        onClick={() => {
-                          setSessionOpen(false);
-                          openChangePassword();
-                        }}
-                      >
-                        {t("nav.editPassword")}
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="nav-manage-item"
-                        disabled={busy || loggingOut}
-                        onClick={() => {
-                          setSessionOpen(false);
-                          openLogoutConfirm();
-                        }}
-                      >
-                        {t("nav.logout")}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <button
-                  className="btn"
-                  disabled={busy || sessionStatus === "loading" || loggingOut}
-                  onClick={handleAuthClick}
-                >
-                  {t("nav.login")}
-                </button>
-              )}
-            </div>
             <LanguageToggle />
             <button
               className="btn btn-icon"
@@ -5545,6 +5457,96 @@ export default function HomePage() {
             >
               {t("nav.newJob")}
             </button>
+            <div className="nav-end">
+              <NavAlerts
+                enabled={showNavAlerts}
+                onBeforeOpen={() => {
+                  setManageOpen(false);
+                  setSessionOpen(false);
+                }}
+                onOpenJob={(jobId) => {
+                  setManageOpen(false);
+                  setSessionOpen(false);
+                  jobDeepLink.open(jobId);
+                }}
+              />
+              <div className="nav-session">
+                {isLoggedIn ? (
+                  <div
+                    className={`nav-session-menu${sessionOpen ? " is-open" : ""}`}
+                    ref={sessionRef}
+                  >
+                    <button
+                      className="btn nav-account"
+                      type="button"
+                      disabled={busy || loggingOut}
+                      aria-label={t("nav.accountMenu")}
+                      aria-haspopup="menu"
+                      aria-expanded={sessionOpen}
+                      title={`${displayName} · ${userLevel}`}
+                      onClick={() => {
+                        setManageOpen(false);
+                        setSessionOpen((open) => !open);
+                      }}
+                    >
+                      <span className="nav-user">
+                        <span className="nav-user-name">{displayNameShort}</span>
+                        <span className="nav-user-level">{userLevel}</span>
+                      </span>
+                      <AccountAvatar url={avatarUrl} size={28} />
+                    </button>
+                    {sessionOpen && (
+                      <div className="nav-manage-menu" role="menu">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="nav-manage-item"
+                          disabled={busy || loggingOut}
+                          onClick={() => {
+                            setSessionOpen(false);
+                            void openEditProfile();
+                          }}
+                        >
+                          {t("nav.editProfile")}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="nav-manage-item"
+                          disabled={busy || loggingOut}
+                          onClick={() => {
+                            setSessionOpen(false);
+                            openChangePassword();
+                          }}
+                        >
+                          {t("nav.editPassword")}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="nav-manage-item"
+                          disabled={busy || loggingOut}
+                          onClick={() => {
+                            setSessionOpen(false);
+                            openLogoutConfirm();
+                          }}
+                        >
+                          {t("nav.logout")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    className="btn"
+                    disabled={busy || sessionStatus === "loading" || loggingOut}
+                    onClick={handleAuthClick}
+                  >
+                    {t("nav.login")}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="top-actions-mobile">

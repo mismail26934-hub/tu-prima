@@ -230,25 +230,22 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     ["Selesai", fmtDate(job.completed_at)],
   ];
 
-  doc.setFontSize(9);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
   for (const [label, value] of meta) {
-    doc.setFont("helvetica", "bold");
     doc.text(`${label}:`, margin, y);
-    doc.setFont("helvetica", "normal");
     const lines = doc.splitTextToSize(String(value), pageW - margin * 2 - 32);
     doc.text(lines, margin + 32, y);
-    y += Math.max(5, lines.length * 4.5);
+    y += Math.max(5.5, lines.length * 5);
   }
 
   if (job.description?.trim()) {
     y += 2;
-    doc.setFont("helvetica", "bold");
     doc.text("Deskripsi:", margin, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
+    y += 5.5;
     const desc = doc.splitTextToSize(job.description.trim(), pageW - margin * 2);
     doc.text(desc, margin, y);
-    y += desc.length * 4.5 + 4;
+    y += desc.length * 5 + 4;
   }
 
   const ensureSpace = (need: number) => {

@@ -2074,8 +2074,11 @@ export default function HomePage() {
   ]);
 
   const jobOwnershipFilter = useMemo(
-    () => resolveJobOwnershipFilter(jobOwnershipMine, jobOwnershipDelegated),
-    [jobOwnershipMine, jobOwnershipDelegated]
+    () =>
+      userLevel === "teknisi"
+        ? "all"
+        : resolveJobOwnershipFilter(jobOwnershipMine, jobOwnershipDelegated),
+    [userLevel, jobOwnershipMine, jobOwnershipDelegated]
   );
 
   const JOB_PAGE_SIZE = 5;
@@ -6083,7 +6086,7 @@ export default function HomePage() {
                       </select>
                     </label>
                   )}
-                  {isLoggedIn && userId && (
+                  {isLoggedIn && userId && userLevel !== "teknisi" && (
                     <div
                       className="panel-filter panel-filter--ownership"
                       role="group"

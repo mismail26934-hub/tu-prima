@@ -49,6 +49,41 @@ function str(v: unknown): string {
   return v == null ? "" : String(v);
 }
 
+/** Technician row linked to a login user, or "" if none. */
+export async function technicianIdByUserId(userId: string): Promise<string> {
+  const id = String(userId || "").trim();
+  if (!id) return "";
+  const p = getPool();
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT id FROM technicians WHERE user_id = ? LIMIT 1`,
+    [id]
+  );
+  return str(rows[0]?.id);
+}
+
+/**
+ * For user level teknisi, the assigned technician id (possibly "").
+ * Other levels return undefined (no assignee restriction).
+ */
+export async function viewerAssignedTechnicianId(): Promise<string | undefined> {
+  const { auth } = await import("@/auth");
+  const session = await auth();
+  if (session?.user?.level !== "teknisi") return undefined;
+  return technicianIdByUserId(String(session.user.id || ""));
+}
+
+function technicianAssigneeWhere(assignedTechnicianId: string | undefined): {
+  sql: string;
+  params: unknown[];
+} {
+  if (assignedTechnicianId === undefined) return { sql: "", params: [] };
+  if (!assignedTechnicianId) return { sql: "1 = 0", params: [] };
+  return {
+    sql: `(technician_id = ? OR EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.technician_id = ?))`,
+    params: [assignedTechnicianId, assignedTechnicianId],
+  };
+}
+
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -219,7 +254,8 @@ function buildJobWhere(
   ownership: JobOwnershipFilter,
   userId: string,
   priority: JobPriorityFilter = "",
-  jobId = ""
+  jobId = "",
+  assignedTechnicianId?: string
 ): { sql: string; params: unknown[] } {
   const { jobScope, statuses } = sectionScope(section);
   const parts = ["job_scope = ?"];
@@ -228,6 +264,12 @@ function buildJobWhere(
   if (statuses?.length) {
     parts.push(`status IN (${statuses.map(() => "?").join(",")})`);
     params.push(...statuses);
+  }
+
+  const assignee = technicianAssigneeWhere(assignedTechnicianId);
+  if (assignee.sql) {
+    parts.push(assignee.sql);
+    params.push(...assignee.params);
   }
 
   const exactId = jobId.trim();
@@ -468,7 +510,11 @@ export async function listJobsPaginated(input: {
   const page = Math.max(1, Math.floor(input.page || 1));
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit || 10)));
   const q = input.q || "";
-  const ownership = input.ownership || "all";
+  const assignedTechnicianId = await viewerAssignedTechnicianId();
+  const ownership =
+    assignedTechnicianId !== undefined
+      ? "all"
+      : input.ownership || "all";
   const priority = normalizeJobPriority(input.priority);
   const userId = input.userId || "";
   const { fromArchive } = sectionScope(input.section);
@@ -478,7 +524,8 @@ export async function listJobsPaginated(input: {
     ownership,
     userId,
     priority,
-    input.jobId || ""
+    input.jobId || "",
+    assignedTechnicianId
   );
   const p = getPool();
   const useKeyset = ARCHIVE_SECTIONS.has(input.section);
@@ -553,10 +600,14 @@ export type JobLookupResult = {
 export async function getJobById(id: string): Promise<JobLookupResult | null> {
   const jobId = String(id || "").trim();
   if (!jobId) return null;
+  const assignedTechnicianId = await viewerAssignedTechnicianId();
+  const assignee = technicianAssigneeWhere(assignedTechnicianId);
   const p = getPool();
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT * FROM jobs WHERE id = ? AND job_scope <> 'deleted' LIMIT 1`,
-    [jobId]
+    `SELECT * FROM jobs WHERE id = ? AND job_scope <> 'deleted'${
+      assignee.sql ? ` AND ${assignee.sql}` : ""
+    } LIMIT 1`,
+    [jobId, ...assignee.params]
   );
   const row = rows[0];
   if (!row) return null;
@@ -575,13 +626,17 @@ export async function listJobsForExport(
 ): Promise<JobWithDetails[]> {
   const unique = [...new Set(statuses.filter(Boolean))];
   if (!unique.length) return [];
+  const assignedTechnicianId = await viewerAssignedTechnicianId();
+  const assignee = technicianAssigneeWhere(assignedTechnicianId);
   const p = getPool();
   const ph = unique.map(() => "?").join(",");
   const [rows] = await p.query<mysql.RowDataPacket[]>(
     `SELECT * FROM jobs
-     WHERE job_scope = 'active' AND status IN (${ph})
+     WHERE job_scope = 'active' AND status IN (${ph})${
+       assignee.sql ? ` AND ${assignee.sql}` : ""
+     }
      ORDER BY created_at ASC, id ASC`,
-    unique
+    [...unique, ...assignee.params]
   );
   return enrichJobsBatch(rows.map(mapJobRow), false);
 }
@@ -644,6 +699,10 @@ export async function listTechniciansPaginated(input: {
 export async function fetchDashboardSummary(): Promise<DashboardData["summary"]> {
   const p = getPool();
   const today = new Date().toISOString().slice(0, 10);
+  const assignedTechnicianId = await viewerAssignedTechnicianId();
+  const assignee = technicianAssigneeWhere(assignedTechnicianId);
+  const jobAnd = assignee.sql ? ` AND ${assignee.sql}` : "";
+  const jobParams = assignee.params;
 
   const [[techRows], [activeRow], [queueRow], [completedRow], [cancelledRow], [doneTodayRows]] =
     await Promise.all([
@@ -651,22 +710,26 @@ export async function fetchDashboardSummary(): Promise<DashboardData["summary"]>
         `SELECT status, COUNT(*) AS cnt FROM technicians GROUP BY status`
       ),
       p.query<mysql.RowDataPacket[]>(
-        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'active' AND status IN ('in_progress','paused','assigned')`
+        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'active' AND status IN ('in_progress','paused','assigned')${jobAnd}`,
+        jobParams
       ),
       p.query<mysql.RowDataPacket[]>(
-        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'active' AND status = 'queued'`
+        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'active' AND status = 'queued'${jobAnd}`,
+        jobParams
       ),
       p.query<mysql.RowDataPacket[]>(
-        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'completed'`
+        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'completed'${jobAnd}`,
+        jobParams
       ),
       p.query<mysql.RowDataPacket[]>(
-        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'cancelled'`
+        `SELECT COUNT(*) AS cnt FROM jobs WHERE job_scope = 'cancelled'${jobAnd}`,
+        jobParams
       ),
       p.query<mysql.RowDataPacket[]>(
         `SELECT total_paused_sec, started_at, completed_at, paused_at, status
          FROM jobs
-         WHERE job_scope = 'completed' AND completed_at LIKE ?`,
-        [`${today}%`]
+         WHERE job_scope = 'completed' AND completed_at LIKE ?${jobAnd}`,
+        [`${today}%`, ...jobParams]
       ),
     ]);
 

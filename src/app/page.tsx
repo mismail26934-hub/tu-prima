@@ -24,12 +24,15 @@ import {
   canAssignJob,
   canAssignTechnicians,
   canDelegateJob,
+  canDeleteJobNotes,
+  canEditStepEvidence,
   canManageActiveJob,
-  canManageHandover,
   canManageJobProgress,
   canOperateJobProgress,
   canReopenJob,
   canSetTechnicianPresence,
+  canWriteJobNotes,
+  technicianIdForUser,
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import {
@@ -719,13 +722,13 @@ export default function HomePage() {
   const isLoggedIn = sessionStatus === "authenticated";
   const userLevel = session?.user?.level || "guest";
   const userId = String(session?.user?.id || "");
+  const [myTechnicianId, setMyTechnicianId] = useState("");
   const canJobCreate = canAccess(userLevel, "job", "create");
   const canJobUpdate = canAccess(userLevel, "job", "update");
   const canJobDelete = canAccess(userLevel, "job", "delete");
   const canJobAssign = canAssignJob(userLevel);
   const canJobProgress = canManageJobProgress(userLevel);
   const canJobReopen = canReopenJob(userLevel);
-  const canHandoverWrite = canManageHandover(userLevel);
   const canUserCreate = canAccess(userLevel, "user", "create");
   const canUserUpdate = canAccess(userLevel, "user", "update");
   const canUserDelete = canAccess(userLevel, "user", "delete");
@@ -776,11 +779,48 @@ export default function HomePage() {
     );
   }
 
-  function canHandoverForJob(job: JobWithDetails): boolean {
+  function actorTechnicianIdForJob(job: JobWithDetails): string {
     return (
-      canManageHandover(userLevel) &&
-      canManageJob(job) &&
-      !job.from_archive
+      myTechnicianId ||
+      technicianIdForUser(userId, job.technicians || []) ||
+      technicianIdForUser(userId, job.technician_index || [])
+    );
+  }
+
+  function canEvidenceForStep(
+    job: JobWithDetails,
+    step: JobWithDetails["steps"][0]
+  ): boolean {
+    return canEditStepEvidence(
+      userLevel,
+      userId,
+      job,
+      step,
+      assignedTechnicianIds(job),
+      actorTechnicianIdForJob(job),
+      jobAssigneeCount(job)
+    );
+  }
+
+  function canNotesWriteForJob(job: JobWithDetails): boolean {
+    if (job.from_archive) return false;
+    return canWriteJobNotes(
+      userLevel,
+      userId,
+      job,
+      assignedTechnicianIds(job),
+      actorTechnicianIdForJob(job),
+      jobAssigneeCount(job)
+    );
+  }
+
+  function canNotesDeleteForJob(job: JobWithDetails): boolean {
+    if (job.from_archive) return false;
+    return canDeleteJobNotes(
+      userLevel,
+      userId,
+      job,
+      jobAssigneeCount(job)
     );
   }
 
@@ -808,6 +848,13 @@ export default function HomePage() {
       ? (modal as { job: JobWithDetails }).job
       : null;
   const modalProgressOk = modalJob ? canProgressForJob(modalJob) : false;
+  const modalEvidenceOk =
+    modalJob && modal && "step" in modal
+      ? canEvidenceForStep(
+          modalJob,
+          (modal as { step: JobWithDetails["steps"][0] }).step
+        )
+      : false;
   const modalManageOk = modalJob ? canManageJob(modalJob) : false;
   const [busy, setBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -825,6 +872,9 @@ export default function HomePage() {
   const [jobBackupsIncludeUndone, setJobBackupsIncludeUndone] = useState(false);
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
+  const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
+    AppUserPublic[]
+  >([]);
   const [handoverToQuery, setHandoverToQuery] = useState("");
   const [handoverToLoading, setHandoverToLoading] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -1016,15 +1066,20 @@ export default function HomePage() {
   useEffect(() => {
     if (!isLoggedIn || !userId) {
       setAvatarUrl("");
+      setMyTechnicianId("");
       return;
     }
     let cancelled = false;
     void api<AppUserPublic>("/api/account/profile")
       .then((me) => {
-        if (!cancelled) setAvatarUrl(me.photo_url || "");
+        if (cancelled) return;
+        setAvatarUrl(me.photo_url || "");
+        setMyTechnicianId(me.technician_id || "");
       })
       .catch(() => {
-        if (!cancelled) setAvatarUrl("");
+        if (cancelled) return;
+        setAvatarUrl("");
+        setMyTechnicianId("");
       });
     return () => {
       cancelled = true;
@@ -2327,13 +2382,29 @@ export default function HomePage() {
       currentUserId,
     });
     try {
-      const list = await api<AppUserPublic[]>("/api/users/foremen");
-      setForemanOptions(list);
+      const list = await api<AppUserPublic[]>("/api/users/handover-recipients");
+      const assignedUserIds = new Set(
+        (job.technicians || [])
+          .map((t) => String(t.user_id || "").trim())
+          .filter(Boolean)
+      );
+      const rank = (u: AppUserPublic) => {
+        if (u.level === "teknisi" && assignedUserIds.has(u.id)) return 0;
+        if (u.level === "teknisi") return 1;
+        return 2;
+      };
+      setHandoverRecipientOptions(
+        [...list].sort((a, b) => {
+          const byRank = rank(a) - rank(b);
+          if (byRank !== 0) return byRank;
+          return userDisplayName(a).localeCompare(userDisplayName(b), "id");
+        })
+      );
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Gagal memuat daftar penerima"
       );
-      setForemanOptions([]);
+      setHandoverRecipientOptions([]);
     } finally {
       setHandoverToLoading(false);
     }
@@ -2955,14 +3026,14 @@ export default function HomePage() {
 
   const handoverToFiltered = useMemo(() => {
     const q = handoverToQuery.trim().toLowerCase();
-    if (!q) return foremanOptions;
-    return foremanOptions.filter((u) =>
-      [u.name, u.username, u.email, u.phone]
+    if (!q) return handoverRecipientOptions;
+    return handoverRecipientOptions.filter((u) =>
+      [u.name, u.username, u.email, u.phone, u.level]
         .join(" ")
         .toLowerCase()
         .includes(q)
     );
-  }, [foremanOptions, handoverToQuery]);
+  }, [handoverRecipientOptions, handoverToQuery]);
 
   const filteredMasterTemplates = useMemo(() => {
     const q = templateQuery.trim().toLowerCase();
@@ -3883,7 +3954,9 @@ export default function HomePage() {
     const manage = canManageJob(job);
     const assignOk = canAssignForJob(job);
     const progressOk = canProgressForJob(job);
-    const handoverOk = canHandoverForJob(job);
+    const notesWriteOk = canNotesWriteForJob(job);
+    const notesDeleteOk = canNotesDeleteForJob(job);
+    const handoverOk = notesWriteOk;
     const delegateOk = canDelegateForJob(job);
     const jobMapLocal = jobMap;
     const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
@@ -4253,7 +4326,22 @@ export default function HomePage() {
                     }}
                     title={t("job.stepNoteEdit")}
                   >
-                    {t("job.stepNote")}: {(s.note || "").trim() || "—"}
+                    <span className="step-note-byline">
+                      {t("job.stepNote")}
+                      {s.note_updated_by_name ? (
+                        <>
+                          <span className="step-note-byline-sep">
+                            ·
+                          </span>
+                          <span className="step-note-byline-name">
+                            {s.note_updated_by_name}
+                          </span>
+                        </>
+                      ) : null}
+                    </span>
+                    <span className="step-note-body">
+                      {(s.note || "").trim() || "—"}
+                    </span>
                   </button>
                 </span>
                 <span className="step-meta">
@@ -4450,7 +4538,11 @@ export default function HomePage() {
                   <span>Aksi</span>
                   <select
                     className="handover-select"
-                    value={getHandoverMode(job.id)}
+                    value={
+                      getHandoverMode(job.id) === "hapus" && !notesDeleteOk
+                        ? "ubah"
+                        : getHandoverMode(job.id)
+                    }
                     disabled={busy}
                     onChange={(e) =>
                       setHandoverMode(
@@ -4461,7 +4553,7 @@ export default function HomePage() {
                   >
                     <option value="tambah">Tambah</option>
                     <option value="ubah">Ubah</option>
-                    <option value="hapus">Hapus</option>
+                    {notesDeleteOk ? <option value="hapus">Hapus</option> : null}
                   </select>
                 </label>
               ) : (
@@ -4586,7 +4678,7 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            {handoverOk &&
+            {notesDeleteOk &&
               getHandoverLocal(job).length > 0 &&
               getHandoverMode(job.id) === "hapus" && (
               <div className="handover-actions">
@@ -4606,7 +4698,7 @@ export default function HomePage() {
                     <th>{t("job.handoverTo")}</th>
                     <th className="col-done">Done</th>
                     <th>Note</th>
-                    {handoverOk &&
+                    {notesDeleteOk &&
                       getHandoverMode(job.id) === "hapus" && (
                         <th className="col-act" />
                       )}
@@ -4710,7 +4802,7 @@ export default function HomePage() {
                             h.note || "—"
                           )}
                         </td>
-                        {handoverOk &&
+                        {notesDeleteOk &&
                           getHandoverMode(job.id) === "hapus" && (
                             <td className="col-act" data-label="Aksi">
                               <button
@@ -4780,7 +4872,11 @@ export default function HomePage() {
                   <span>Aksi</span>
                   <select
                     className="handover-select"
-                    value={getPartLoanMode(job.id)}
+                    value={
+                      getPartLoanMode(job.id) === "hapus" && !notesDeleteOk
+                        ? "ubah"
+                        : getPartLoanMode(job.id)
+                    }
                     disabled={busy}
                     onChange={(e) =>
                       setPartLoanMode(
@@ -4791,7 +4887,7 @@ export default function HomePage() {
                   >
                     <option value="tambah">Tambah</option>
                     <option value="ubah">Ubah</option>
-                    <option value="hapus">Hapus</option>
+                    {notesDeleteOk ? <option value="hapus">Hapus</option> : null}
                   </select>
                 </label>
               ) : (
@@ -4893,7 +4989,7 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            {handoverOk &&
+            {notesDeleteOk &&
               getPartLoanLocal(job).length > 0 &&
               getPartLoanMode(job.id) === "hapus" && (
               <div className="handover-actions">
@@ -4911,7 +5007,7 @@ export default function HomePage() {
                     <th>Part yang dipinjam</th>
                     <th className="col-done">Status</th>
                     <th>Note</th>
-                    {handoverOk &&
+                    {notesDeleteOk &&
                       getPartLoanMode(job.id) === "hapus" && (
                         <th className="col-act" />
                       )}
@@ -4997,7 +5093,7 @@ export default function HomePage() {
                             p.note || "—"
                           )}
                         </td>
-                        {handoverOk &&
+                        {notesDeleteOk &&
                           getPartLoanMode(job.id) === "hapus" && (
                             <td className="col-act" data-label="Aksi">
                               <button
@@ -7567,6 +7663,19 @@ export default function HomePage() {
                 {modal.step.order}. {modal.step.name}
               </strong>
             </p>
+            <p className="step-note-byline" style={{ margin: "0 0 8px" }}>
+              {t("job.stepNote")}
+              {modal.step.note_updated_by_name ? (
+                <>
+                  <span className="step-note-byline-sep">
+                    ·
+                  </span>
+                  <span className="step-note-byline-name">
+                    {modal.step.note_updated_by_name}
+                  </span>
+                </>
+              ) : null}
+            </p>
             <p className="field-hint" style={{ marginTop: 0 }}>
               {t("job.stepNoteHint")} {t("job.stepNoteRequired")}
             </p>
@@ -7574,7 +7683,7 @@ export default function HomePage() {
               className="step-note-field"
               value={stepNoteDraft}
               placeholder={t("job.stepNotePlaceholder")}
-              disabled={busy || !modalProgressOk}
+              disabled={busy || !modalEvidenceOk}
               maxLength={4000}
               rows={6}
               onChange={(e) => setStepNoteDraft(e.target.value)}
@@ -7583,7 +7692,7 @@ export default function HomePage() {
               <button className="btn" onClick={closeModal} disabled={busy}>
                 {t("job.cancelAction")}
               </button>
-              {modalProgressOk && (
+              {modalEvidenceOk && (
                 <button
                   className="btn btn-primary"
                   disabled={
@@ -7629,21 +7738,26 @@ export default function HomePage() {
               drafts={stepPhotoDrafts}
               onDraftsChange={setStepPhotoDrafts}
               onRemoveExisting={
-                modalProgressOk
+                modalEvidenceOk
                   ? (id) =>
                       setStepPhotoRemoveIds((prev) =>
                         prev.includes(id) ? prev : [...prev, id]
                       )
                   : undefined
               }
-              disabled={busy || !modalProgressOk}
+              disabled={busy || !modalEvidenceOk}
               required
             />
+            {modal.step.photo_updated_by_name ? (
+              <p className="field-hint">
+                {t("job.stepPhotoBy", { name: modal.step.photo_updated_by_name })}
+              </p>
+            ) : null}
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 {t("job.cancelAction")}
               </button>
-              {modalProgressOk && (
+              {modalEvidenceOk && (
                 <button
                   className="btn btn-primary"
                   disabled={
@@ -7812,6 +7926,10 @@ export default function HomePage() {
                   const showUser =
                     u.username &&
                     u.username.toLowerCase() !== label.toLowerCase();
+                  const levelLabel =
+                    u.level === "teknisi"
+                      ? t("job.handoverToLevelTeknisi")
+                      : t("job.handoverToLevelForeman");
                   return (
                     <button
                       type="button"
@@ -7822,11 +7940,10 @@ export default function HomePage() {
                       onClick={() => applyHandoverTo(u)}
                     >
                       <span>{label}</span>
-                      {showUser && (
-                        <span className="handover-to-option-meta">
-                          {u.username}
-                        </span>
-                      )}
+                      <span className="handover-to-option-meta">
+                        {showUser ? `${u.username} · ` : ""}
+                        {levelLabel}
+                      </span>
                     </button>
                   );
                 })}
@@ -7877,7 +7994,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-danger"
-                disabled={busy || !canHandoverWrite}
+                disabled={busy || !canNotesDeleteForJob(modal.job)}
                 onClick={() =>
                   removeHandover(
                     modal.job.id,
@@ -7922,7 +8039,7 @@ export default function HomePage() {
               </button>
               <button
                 className="btn btn-danger"
-                disabled={busy || !canHandoverWrite}
+                disabled={busy || !canNotesDeleteForJob(modal.job)}
                 onClick={() =>
                   removePartLoan(modal.job.id, modal.loanKey, modal.loanId)
                 }
@@ -9003,6 +9120,9 @@ export default function HomePage() {
                         ? ` · Superior: ${t.superior_user_name}`
                         : ""}
                       {` · ${t.status}`}
+                      {t.user_id
+                        ? ` · ${t("tech.loginReady", { username: t.sn })}`
+                        : ` · ${t("tech.loginMissing")}`}
                     </div>
                   </div>
                   <div className="actions" style={{ marginTop: 0 }}>
@@ -9231,6 +9351,9 @@ export default function HomePage() {
                   required
                 />
               </label>
+              <p className="field-hint" style={{ marginTop: 0 }}>
+                {t("tech.loginHint")}
+              </p>
               <label>
                 No. ID Badge *
                 <input

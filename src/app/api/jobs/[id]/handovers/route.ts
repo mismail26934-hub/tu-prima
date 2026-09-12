@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createJobHandover } from "@/lib/excel";
 import {
   getCurrentActor,
-  requireHandoverWritePermission,
+  requireJobNotesWritePermission,
 } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireHandoverWritePermission();
+  const denied = await requireJobNotesWritePermission();
   if (denied) return denied;
   try {
     const { id } = await ctx.params;

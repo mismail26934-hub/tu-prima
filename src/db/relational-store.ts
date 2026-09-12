@@ -313,6 +313,12 @@ function stepHeaders(scope: JobScope): string[] {
     "note",
     "photo_name",
     "photos",
+    "note_updated_by_user_id",
+    "note_updated_by_name",
+    "note_updated_at",
+    "photo_updated_by_user_id",
+    "photo_updated_by_name",
+    "photo_updated_at",
   ];
 }
 
@@ -400,6 +406,12 @@ function stepRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       note: str(r.note),
       photo_name: str(r.photo_name),
       photos: str(r.photos),
+      note_updated_by_user_id: str(r.note_updated_by_user_id),
+      note_updated_by_name: str(r.note_updated_by_name),
+      note_updated_at: str(r.note_updated_at),
+      photo_updated_by_user_id: str(r.photo_updated_by_user_id),
+      photo_updated_by_name: str(r.photo_updated_by_name),
+      photo_updated_at: str(r.photo_updated_at),
     },
     scope
   );
@@ -554,8 +566,8 @@ async function saveScopedJobs(
   const insertSteps = wb.getWorksheet(SCOPE_STEP_SHEET[scope])?.rows ?? [];
   for (const row of insertSteps) {
     await conn.query(
-      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note, photo_name, photos)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note, photo_name, photos, note_updated_by_user_id, note_updated_by_name, note_updated_at, photo_updated_by_user_id, photo_updated_by_name, photo_updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -570,6 +582,12 @@ async function saveScopedJobs(
         str(row.note),
         str(row.photo_name),
         str(row.photos),
+        str(row.note_updated_by_user_id),
+        str(row.note_updated_by_name),
+        str(row.note_updated_at),
+        str(row.photo_updated_by_user_id),
+        str(row.photo_updated_by_name),
+        str(row.photo_updated_at),
       ]
     );
   }
@@ -727,7 +745,7 @@ export async function loadRelationalWorkbook(
     const [techs] = await p.query<mysql.RowDataPacket[]>(
       `SELECT * FROM technicians ORDER BY name`
     );
-    setSheet(wb, "Technicians", ["id", "name", "sn", "badge_id", "email", "status", "current_job_id", "phone", "superior_user_id", "superior_user_name"], techs.map((r) => ({
+    setSheet(wb, "Technicians", ["id", "name", "sn", "badge_id", "email", "status", "current_job_id", "phone", "superior_user_id", "superior_user_name", "user_id"], techs.map((r) => ({
       id: str(r.id),
       name: str(r.name),
       sn: str(r.sn),
@@ -738,6 +756,7 @@ export async function loadRelationalWorkbook(
       phone: str(r.phone),
       superior_user_id: str(r.superior_user_id),
       superior_user_name: str(r.superior_user_name),
+      user_id: str(r.user_id),
     })));
 
     const [units] = await p.query<mysql.RowDataPacket[]>(
@@ -873,7 +892,7 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
         await conn.query(`DELETE FROM technicians`);
         for (const row of wb.getWorksheet("Technicians")?.rows ?? []) {
           await conn.query(
-            `INSERT INTO technicians (id, name, sn, badge_id, email, status, current_job_id, phone, superior_user_id, superior_user_name) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO technicians (id, name, sn, badge_id, email, status, current_job_id, phone, superior_user_id, superior_user_name, user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             [
               str(row.id),
               str(row.name),
@@ -885,6 +904,7 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
               str(row.phone),
               str(row.superior_user_id),
               str(row.superior_user_name),
+              str(row.user_id),
             ]
           );
         }
@@ -1003,7 +1023,8 @@ export async function ensureRelationalSchema() {
       current_job_id VARCHAR(64) NOT NULL DEFAULT '',
       phone VARCHAR(64) NOT NULL DEFAULT '',
       superior_user_id VARCHAR(64) NOT NULL DEFAULT '',
-      superior_user_name VARCHAR(255) NOT NULL DEFAULT ''
+      superior_user_name VARCHAR(255) NOT NULL DEFAULT '',
+      user_id VARCHAR(64) NOT NULL DEFAULT ''
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS units (
       id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -1070,6 +1091,12 @@ export async function ensureRelationalSchema() {
       note TEXT,
       photo_name VARCHAR(255) NOT NULL DEFAULT '',
       photos TEXT,
+      note_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      note_updated_by_name VARCHAR(255) NOT NULL DEFAULT '',
+      note_updated_at VARCHAR(64) NOT NULL DEFAULT '',
+      photo_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      photo_updated_by_name VARCHAR(255) NOT NULL DEFAULT '',
+      photo_updated_at VARCHAR(64) NOT NULL DEFAULT '',
       KEY idx_job_steps_job (job_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_events (
@@ -1189,6 +1216,9 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS superior_user_name VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await p.query(
+    `ALTER TABLE technicians ADD COLUMN IF NOT EXISTS user_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await p.query(
@@ -1208,6 +1238,24 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS photos TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS note_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS note_updated_by_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS note_updated_at VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS photo_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS photo_updated_by_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS photo_updated_at VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_name VARCHAR(255) NOT NULL DEFAULT ''`
@@ -1234,6 +1282,7 @@ async function ensureListIndexes(p: mysql.Pool) {
     { table: "jobs", name: "idx_jobs_assigned_by", columns: "assigned_by_user_id, job_scope" },
     { table: "jobs", name: "idx_jobs_delegated_to", columns: "delegated_to_user_id, job_scope" },
     { table: "technicians", name: "idx_technicians_status_name", columns: "status, name" },
+    { table: "technicians", name: "idx_technicians_user_id", columns: "user_id" },
     { table: "job_assignees", name: "idx_job_assignees_technician", columns: "technician_id" },
   ];
   for (const idx of indexes) {

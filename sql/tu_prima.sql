@@ -232,7 +232,8 @@ CREATE TABLE `technicians` (
   `badge_id` varchar(64) NOT NULL DEFAULT '',
   `email` varchar(255) NOT NULL DEFAULT '',
   `superior_user_id` varchar(64) NOT NULL DEFAULT '',
-  `superior_user_name` varchar(255) NOT NULL DEFAULT ''
+  `superior_user_name` varchar(255) NOT NULL DEFAULT '',
+  `user_id` varchar(64) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

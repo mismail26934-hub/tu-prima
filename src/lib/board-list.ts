@@ -65,6 +65,7 @@ function mapTechnicianRow(r: mysql.RowDataPacket): Technician {
     phone: str(r.phone),
     superior_user_id: str(r.superior_user_id),
     superior_user_name: str(r.superior_user_name),
+    user_id: str(r.user_id),
   };
 }
 
@@ -110,6 +111,12 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     note: str(r.note),
     photo_name: str(r.photo_name),
     photos: str(r.photos),
+    note_updated_by_user_id: str(r.note_updated_by_user_id),
+    note_updated_by_name: str(r.note_updated_by_name),
+    note_updated_at: str(r.note_updated_at),
+    photo_updated_by_user_id: str(r.photo_updated_by_user_id),
+    photo_updated_by_name: str(r.photo_updated_by_name),
+    photo_updated_at: str(r.photo_updated_at),
   });
 }
 
@@ -273,7 +280,7 @@ async function loadTechniciansByIds(ids: string[]): Promise<Technician[]> {
   const ph = unique.map(() => "?").join(",");
   const p = getPool();
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT id, name, sn, badge_id, email, status, current_job_id, phone, superior_user_id, superior_user_name FROM technicians WHERE id IN (${ph})`,
+    `SELECT id, name, sn, badge_id, email, status, current_job_id, phone, superior_user_id, superior_user_name, user_id FROM technicians WHERE id IN (${ph})`,
     unique
   );
   return rows.map(mapTechnicianRow);
@@ -605,7 +612,7 @@ export async function listTechniciansPaginated(input: {
   const total = num(countRows[0]?.cnt);
 
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, t.superior_user_id, t.superior_user_name, j.title AS current_job_title
+    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, t.superior_user_id, t.superior_user_name, t.user_id, j.title AS current_job_title
      FROM technicians t
      LEFT JOIN jobs j ON j.id = t.current_job_id AND j.job_scope = 'active'
      ${where}

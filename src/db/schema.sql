@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS technicians (
   phone          VARCHAR(64)  NOT NULL DEFAULT '',
   superior_user_id   VARCHAR(64)  NOT NULL DEFAULT '',
   superior_user_name VARCHAR(255) NOT NULL DEFAULT '',
-  KEY idx_technicians_status_name (status, name)
+  user_id            VARCHAR(64)  NOT NULL DEFAULT '',
+  KEY idx_technicians_status_name (status, name),
+  KEY idx_technicians_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS units (
@@ -107,6 +109,12 @@ CREATE TABLE IF NOT EXISTS job_steps (
   note         TEXT,
   photo_name   VARCHAR(255) NOT NULL DEFAULT '',
   photos       TEXT,
+  note_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+  note_updated_by_name VARCHAR(255) NOT NULL DEFAULT '',
+  note_updated_at VARCHAR(64) NOT NULL DEFAULT '',
+  photo_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+  photo_updated_by_name VARCHAR(255) NOT NULL DEFAULT '',
+  photo_updated_at VARCHAR(64) NOT NULL DEFAULT '',
   KEY idx_job_steps_job (job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

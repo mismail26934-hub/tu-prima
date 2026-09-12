@@ -72,6 +72,17 @@ export async function requireAssignPermission(): Promise<NextResponse | null> {
   return null;
 }
 
+export async function requireLogin(): Promise<NextResponse | null> {
+  const actor = await getCurrentActor();
+  if (!actor) {
+    return NextResponse.json(
+      { error: "Silakan login untuk melakukan aksi ini" },
+      { status: 401 }
+    );
+  }
+  return null;
+}
+
 export async function requireJobProgressPermission(): Promise<NextResponse | null> {
   const level = await getCurrentLevel();
   if (!canManageJobProgress(level)) {
@@ -91,19 +102,37 @@ export async function requireJobProgressPermission(): Promise<NextResponse | nul
   return null;
 }
 
-/** Catatan handover add/update/delete: hanya foreman. */
+/** Catatan handover / peminjaman part: tambah & ubah (foreman atau teknisi). */
+export async function requireJobNotesWritePermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (level === "foreman" || level === "teknisi") return null;
+  if (level === "guest") {
+    return NextResponse.json(
+      { error: "Silakan login untuk menambah/ubah catatan handover atau peminjaman part" },
+      { status: 401 }
+    );
+  }
+  return NextResponse.json(
+    {
+      error: `Tambah/ubah catatan handover / peminjaman part hanya untuk foreman atau teknisi (level Anda: ${level})`,
+    },
+    { status: 403 }
+  );
+}
+
+/** Hapus catatan handover / peminjaman part: hanya foreman. */
 export async function requireHandoverWritePermission(): Promise<NextResponse | null> {
   const level = await getCurrentLevel();
   if (!canManageHandover(level)) {
     if (level === "guest") {
       return NextResponse.json(
-        { error: "Silakan login untuk menambah/ubah catatan handover" },
+        { error: "Silakan login untuk menghapus catatan handover atau peminjaman part" },
         { status: 401 }
       );
     }
     return NextResponse.json(
       {
-        error: `Tambah/ubah/hapus catatan handover hanya untuk level foreman (level Anda: ${level})`,
+        error: `Hapus catatan handover / peminjaman part hanya untuk level foreman (level Anda: ${level})`,
       },
       { status: 403 }
     );

@@ -47,6 +47,8 @@ export interface Technician {
   /** Foreman user who is this technician's superior. */
   superior_user_id: string;
   superior_user_name: string;
+  /** Linked login account (users.id). Empty until a login is provisioned. */
+  user_id?: string;
 }
 
 export interface Unit {
@@ -164,6 +166,12 @@ export interface JobStep {
     url?: string;
     thumb_url?: string;
   }>;
+  note_updated_by_user_id?: string;
+  note_updated_by_name?: string;
+  note_updated_at?: string;
+  photo_updated_by_user_id?: string;
+  photo_updated_by_name?: string;
+  photo_updated_at?: string;
 }
 
 export interface JobEvent {
@@ -292,6 +300,8 @@ export interface AppUser {
 /** User payload without password (for API / UI). */
 export type AppUserPublic = Omit<AppUser, "password"> & {
   photo_url?: string;
+  /** Set when this user is the auto-created login for a master technician. */
+  technician_id?: string;
 };
 
 /** Row from backup-jobs.xlsx ChangeLog (superuser undo). */

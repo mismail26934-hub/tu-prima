@@ -3,6 +3,7 @@ import { deleteJobHandover, updateJobHandover } from "@/lib/excel";
 import {
   getCurrentActor,
   requireHandoverWritePermission,
+  requireJobNotesWritePermission,
 } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string; handoverId: string }> }
 ) {
-  const denied = await requireHandoverWritePermission();
+  const denied = await requireJobNotesWritePermission();
   if (denied) return denied;
   try {
     const { handoverId } = await ctx.params;

@@ -1,4 +1,5 @@
-import type { Job, UserLevel } from "@/lib/types";
+import type { Job, JobStep, UserLevel } from "@/lib/types";
+import { displayStepTechnicianIds } from "@/lib/step-technicians";
 
 export type AccessLevel = UserLevel | "guest";
 export type AccessResource =
@@ -111,9 +112,53 @@ export function canManageJobProgress(level: AccessLevel | undefined): boolean {
   return level === "superuser" || level === "foreman";
 }
 
-/** Add/update/delete catatan handover: hanya foreman. */
+/** Hapus catatan handover / peminjaman part: hanya foreman. */
 export function canManageHandover(level: AccessLevel | undefined): boolean {
   return level === "foreman";
+}
+
+const JOB_NOTES_STATUSES = new Set(["in_progress", "paused", "done"]);
+
+/** Foreman who controls the job, or a technician assigned to it, may add/edit notes. */
+export function canWriteJobNotes(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  assignedIds: string[],
+  actorTechnicianId: string,
+  assigneeCount = 0
+): boolean {
+  if (canManageHandover(level) && canManageActiveJob(level, userId, job, assigneeCount)) {
+    return true;
+  }
+  if (level !== "teknisi" || !userId || !actorTechnicianId) return false;
+  if (!JOB_NOTES_STATUSES.has(job.status)) return false;
+  return assignedIds.includes(actorTechnicianId);
+}
+
+/** Delete handover / part-loan rows: controlling foreman only. */
+export function canDeleteJobNotes(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  assigneeCount = 0
+): boolean {
+  return (
+    canManageHandover(level) &&
+    canManageActiveJob(level, userId, job, assigneeCount)
+  );
 }
 
 /** Buka kembali job done → paused: hanya superuser. */
@@ -220,4 +265,42 @@ export function canDelegateJob(
   const controller = jobControllerUserId(job);
   if (!controller) return false;
   return userId === controller;
+}
+
+export function technicianIdForUser(
+  userId: string | undefined,
+  technicians: Array<{ id: string; user_id?: string }>
+): string {
+  if (!userId) return "";
+  return (
+    technicians.find((t) => String(t.user_id || "").trim() === userId)?.id || ""
+  );
+}
+
+const STEP_EVIDENCE_JOB_STATUSES = new Set([
+  "assigned",
+  "in_progress",
+  "paused",
+]);
+
+/** Foreman/superuser who controls the job, or a logged-in technician assigned to this step. */
+export function canEditStepEvidence(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  step: Pick<JobStep, "technician_ids" | "status">,
+  assignedIds: string[],
+  actorTechnicianId: string,
+  assigneeCount = 0
+): boolean {
+  if (canOperateJobProgress(level, userId, job, assigneeCount)) return true;
+  if (level !== "teknisi" || !userId || !actorTechnicianId) return false;
+  if (!STEP_EVIDENCE_JOB_STATUSES.has(job.status)) return false;
+  return displayStepTechnicianIds(step, assignedIds).includes(actorTechnicianId);
 }

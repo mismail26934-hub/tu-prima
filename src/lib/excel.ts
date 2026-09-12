@@ -100,8 +100,12 @@ import {
 import {
   canAssignTechnicians,
   canDelegateJob,
+  canDeleteJobNotes,
+  canEditStepEvidence,
   canManageActiveJob,
   canOperateJobProgress,
+  canWriteJobNotes,
+  technicianIdForUser,
   JOB_MANAGE_DENIED_MSG,
   type AccessLevel,
 } from "./permissions";
@@ -378,6 +382,7 @@ function mapTechnician(r: Row): Technician {
     phone: String(r.phone || ""),
     superior_user_id: String(r.superior_user_id || ""),
     superior_user_name: String(r.superior_user_name || ""),
+    user_id: String(r.user_id || ""),
   };
 }
 
@@ -431,6 +436,45 @@ function assertJobManagePermission(
   const level = (actor?.user_level || "guest") as AccessLevel;
   if (!canManageActiveJob(level, actor?.user_id, job, assigneeCount)) {
     throw new Error(JOB_MANAGE_DENIED_MSG);
+  }
+}
+
+function assertJobNotesWritePermission(
+  job: Job,
+  actor: AuditActor | null | undefined,
+  assignees: JobAssignee[],
+  techs: Technician[]
+) {
+  const assignedIds = assignedIdsFromAssignees(job, assignees);
+  const level = (actor?.user_level || "guest") as AccessLevel;
+  const actorTechId = technicianIdForUser(actor?.user_id, techs);
+  if (
+    canWriteJobNotes(
+      level,
+      actor?.user_id,
+      job,
+      assignedIds,
+      actorTechId,
+      assigneesForJob(assignees, job.id).length
+    )
+  ) {
+    return;
+  }
+  throw new Error(
+    "Hanya teknisi yang di-assign ke job ini, atau pengendali job, yang boleh mengubah catatan handover / peminjaman part"
+  );
+}
+
+function assertJobNotesDeletePermission(
+  job: Job,
+  actor: AuditActor | null | undefined,
+  assigneeCount: number
+) {
+  const level = (actor?.user_level || "guest") as AccessLevel;
+  if (!canDeleteJobNotes(level, actor?.user_id, job, assigneeCount)) {
+    throw new Error(
+      "Hanya foreman pengendali job yang boleh menghapus catatan handover / peminjaman part"
+    );
   }
 }
 
@@ -493,6 +537,12 @@ function mapStep(r: Row): JobStep {
     note: String(r.note || ""),
     photo_name: String(r.photo_name || ""),
     photos: parseStepPhotos(r.photos, String(r.photo_name || "")),
+    note_updated_by_user_id: String(r.note_updated_by_user_id || ""),
+    note_updated_by_name: String(r.note_updated_by_name || ""),
+    note_updated_at: String(r.note_updated_at || ""),
+    photo_updated_by_user_id: String(r.photo_updated_by_user_id || ""),
+    photo_updated_by_name: String(r.photo_updated_by_name || ""),
+    photo_updated_at: String(r.photo_updated_at || ""),
   });
 }
 
@@ -642,6 +692,12 @@ function stepToRow(s: JobStep): Row {
     note: String(s.note || ""),
     photo_name: String(s.photo_name || ""),
     photos: serializeStepPhotos(parseStepPhotos(s.photos, s.photo_name)),
+    note_updated_by_user_id: String(s.note_updated_by_user_id || ""),
+    note_updated_by_name: String(s.note_updated_by_name || ""),
+    note_updated_at: String(s.note_updated_at || ""),
+    photo_updated_by_user_id: String(s.photo_updated_by_user_id || ""),
+    photo_updated_by_name: String(s.photo_updated_by_name || ""),
+    photo_updated_at: String(s.photo_updated_at || ""),
   };
 }
 
@@ -688,6 +744,7 @@ const TECH_HEADERS = [
   "phone",
   "superior_user_id",
   "superior_user_name",
+  "user_id",
 ];
 const UNIT_HEADERS = ["id", "code", "name", "serial_number", "active"];
 const JOB_HEADERS = [
@@ -729,6 +786,12 @@ const STEP_HEADERS = [
   "note",
   "photo_name",
   "photos",
+  "note_updated_by_user_id",
+  "note_updated_by_name",
+  "note_updated_at",
+  "photo_updated_by_user_id",
+  "photo_updated_by_name",
+  "photo_updated_at",
 ];
 const HANDOVER_HEADERS = [
   "id",
@@ -807,6 +870,152 @@ function readUsers(wb: MysqlWorkbook): AppUser[] {
   return readRows(getSheet(wb, SHEETS.users))
     .map(mapUser)
     .filter((u) => u.id && u.username);
+}
+
+function technicianLoginUsername(sn: string): string {
+  return sn.trim().replace(/\s+/g, "");
+}
+
+function newUserId(users: AppUser[]): string {
+  for (let i = 0; i < 8; i++) {
+    const id = `U-${uuidv4().slice(0, 8)}`;
+    if (!users.some((u) => u.id === id)) return id;
+  }
+  return `U-${uuidv4()}`;
+}
+
+function stampStepEvidence(
+  step: JobStep,
+  kind: "note" | "photo",
+  actor: AuditActor | null | undefined,
+  technicianName?: string
+) {
+  const at = nowIso();
+  const name = (technicianName || actor?.user_name || "").trim();
+  const userId = actor?.user_id || "";
+  if (kind === "note") {
+    step.note_updated_at = at;
+    step.note_updated_by_user_id = userId;
+    step.note_updated_by_name = name;
+  } else {
+    step.photo_updated_at = at;
+    step.photo_updated_by_user_id = userId;
+    step.photo_updated_by_name = name;
+  }
+}
+
+async function ensureTechnicianLoginUser(
+  techs: Technician[],
+  users: AppUser[],
+  tech: Technician,
+  opts?: { previousSn?: string; throwOnSkip?: boolean; reactivate?: boolean }
+): Promise<boolean> {
+  const username = technicianLoginUsername(tech.sn);
+  const badge = String(tech.badge_id || "").trim();
+  if (!username) {
+    if (opts?.throwOnSkip) throw new Error("SN/Pernr wajib untuk akun login");
+    return false;
+  }
+
+  const persistLinked = (user: AppUser) => {
+    user.name = tech.name;
+    user.email = tech.email || user.email;
+    user.phone = tech.phone || user.phone;
+    if (opts?.throwOnSkip || opts?.reactivate) user.active = "1";
+    tech.user_id = user.id;
+  };
+
+  if (tech.user_id) {
+    const linked = users.find((u) => u.id === tech.user_id);
+    if (linked) {
+      persistLinked(linked);
+      const prevSn = opts?.previousSn
+        ? technicianLoginUsername(opts.previousSn)
+        : "";
+      if (
+        prevSn &&
+        linked.username.toLowerCase() === prevSn.toLowerCase() &&
+        username.toLowerCase() !== linked.username.toLowerCase()
+      ) {
+        const clash = users.find(
+          (u) =>
+            u.id !== linked.id &&
+            u.username.toLowerCase() === username.toLowerCase()
+        );
+        if (clash) {
+          throw new Error(
+            `Username "${username}" sudah dipakai akun ${clash.username}`
+          );
+        }
+        linked.username = username;
+      }
+      return true;
+    }
+    tech.user_id = "";
+  }
+
+  const existing = users.find(
+    (u) => u.username.toLowerCase() === username.toLowerCase()
+  );
+  if (existing) {
+    const other = techs.find(
+      (t) => t.id !== tech.id && t.user_id === existing.id
+    );
+    if (other) {
+      const msg = `Username "${username}" sudah tertaut ke teknisi ${other.name}`;
+      if (opts?.throwOnSkip) throw new Error(msg);
+      return false;
+    }
+    if (existing.level !== "teknisi") {
+      const msg = `Tidak bisa buat akun login: username "${username}" sudah dipakai akun ${existing.level}`;
+      if (opts?.throwOnSkip) throw new Error(msg);
+      return false;
+    }
+    persistLinked(existing);
+    return true;
+  }
+
+  if (!badge) {
+    if (opts?.throwOnSkip) {
+      throw new Error("Badge ID wajib untuk password awal akun login");
+    }
+    return false;
+  }
+
+  const user: AppUser = {
+    id: newUserId(users),
+    username,
+    password: await hashPassword(badge),
+    name: tech.name,
+    email: tech.email || "",
+    phone: tech.phone || "",
+    photo_name: "",
+    level: "teknisi",
+    active: "1",
+    created_at: nowIso(),
+  };
+  users.push(user);
+  tech.user_id = user.id;
+  return true;
+}
+
+let technicianLoginsBackfilled = false;
+
+async function backfillTechnicianLogins(
+  wb: MysqlWorkbook,
+  techs: Technician[]
+): Promise<boolean> {
+  if (technicianLoginsBackfilled) return false;
+  const users = readUsers(wb);
+  let changed = false;
+  for (const tech of techs) {
+    if (await ensureTechnicianLoginUser(techs, users, tech)) changed = true;
+  }
+  technicianLoginsBackfilled = true;
+  if (!changed) return false;
+  writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+  writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
+  return true;
 }
 
 /** Rename Technicians.skill → sn in workbook if still on old header. */
@@ -1094,7 +1303,7 @@ function resolveHandoverParty(
   if (label) {
     const needle = label.toLowerCase();
     const matches = active.filter((u) => {
-      if (u.level !== "foreman") return false;
+      if (u.level !== "foreman" && u.level !== "teknisi") return false;
       const display = userDisplayLabel(u).toLowerCase();
       return display === needle || u.username.toLowerCase() === needle;
     });
@@ -1236,11 +1445,16 @@ export async function getDashboard(): Promise<DashboardData> {
     const unitSerialMigrated = migrateUnitSerialNumberColumn(wb);
     const stepStdMigrated = migrateJobStepStdMinutes(wb, jobs, steps);
     steps = stepStdMigrated.steps;
+    const techsFresh = techSnMigrated
+      ? readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician)
+      : techs;
+    const loginBackfilled = await backfillTechnicianLogins(wb, techsFresh);
     if (
       (!hadUnits && units.length > 0) ||
       techSnMigrated ||
       unitSerialMigrated ||
-      stepStdMigrated.changed
+      stepStdMigrated.changed ||
+      loginBackfilled
     ) {
       if (!hadUnits && units.length > 0) {
         writeSheet(wb, SHEETS.units, UNIT_HEADERS, units.map(unitToRow));
@@ -1248,10 +1462,6 @@ export async function getDashboard(): Promise<DashboardData> {
       }
       await saveWorkbook(wb);
     }
-
-    const techsFresh = techSnMigrated
-      ? readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician)
-      : techs;
     void techsFresh;
     void events;
     void assignees;
@@ -1728,11 +1938,8 @@ export async function createJobHandover(input: {
       );
     }
     const assignees = loadAssignees(wb, jobs);
-    assertJobManagePermission(
-      job,
-      input.actor,
-      assigneesForJob(assignees, job.id).length
-    );
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    assertJobNotesWritePermission(job, input.actor, assignees, techs);
     const title = input.title.trim();
     if (!title) throw new Error("Judul handover wajib diisi");
 
@@ -1853,11 +2060,8 @@ export async function updateJobHandover(
       );
     }
     const assignees = loadAssignees(wb, jobs);
-    assertJobManagePermission(
-      job,
-      input.actor,
-      assigneesForJob(assignees, job.id).length
-    );
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    assertJobNotesWritePermission(job, input.actor, assignees, techs);
 
     const beforeRow = { ...row };
 
@@ -1958,7 +2162,7 @@ export async function deleteJobHandover(
     }
     const assignees = job ? loadAssignees(wb, jobs) : [];
     if (job) {
-      assertJobManagePermission(
+      assertJobNotesDeletePermission(
         job,
         actor,
         assigneesForJob(assignees, job.id).length
@@ -2030,11 +2234,8 @@ export async function createJobPartLoan(input: {
       );
     }
     const assignees = loadAssignees(wb, jobs);
-    assertJobManagePermission(
-      job,
-      input.actor,
-      assigneesForJob(assignees, job.id).length
-    );
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    assertJobNotesWritePermission(job, input.actor, assignees, techs);
     const part_name = input.part_name.trim();
     if (!part_name) throw new Error("Nama part wajib diisi");
 
@@ -2115,11 +2316,8 @@ export async function updateJobPartLoan(
       );
     }
     const assignees = loadAssignees(wb, jobs);
-    assertJobManagePermission(
-      job,
-      input.actor,
-      assigneesForJob(assignees, job.id).length
-    );
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    assertJobNotesWritePermission(job, input.actor, assignees, techs);
 
     const beforeRow = { ...row };
 
@@ -2184,7 +2382,7 @@ export async function deleteJobPartLoan(
     }
     if (job) {
       const assignees = loadAssignees(wb, jobs);
-      assertJobManagePermission(
+      assertJobNotesDeletePermission(
         job,
         actor,
         assigneesForJob(assignees, job.id).length
@@ -2644,9 +2842,13 @@ export async function createTechnician(input: {
       phone: fields.phone,
       superior_user_id: superior.superior_user_id,
       superior_user_name: superior.superior_user_name,
+      user_id: "",
     };
     techs.push(tech);
+    const users = readUsers(wb);
+    await ensureTechnicianLoginUser(techs, users, tech, { throwOnSkip: true });
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
     return tech;
   });
@@ -2982,7 +3184,12 @@ export async function commitTechniciansImport(
           : "Tidak ada baris yang berhasil disimpan"
       );
     }
+    const users = readUsers(wb);
+    for (const t of techs) {
+      await ensureTechnicianLoginUser(techs, users, t, { reactivate: true });
+    }
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
     return { imported, updated, skipped: skipped.slice(0, 50) };
   });
@@ -3123,7 +3330,12 @@ export async function importTechniciansFromBuffer(
       throw new Error("Tidak ada baris data teknisi yang bisa diimpor");
     }
     if (changed) {
+      const users = readUsers(wb);
+      for (const t of techs) {
+        await ensureTechnicianLoginUser(techs, users, t, { reactivate: true });
+      }
       writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+      writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
       await saveWorkbook(wb);
     }
     return {
@@ -3152,6 +3364,7 @@ export async function updateTechnician(
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     const tech = techs.find((t) => t.id === techId);
     if (!tech) throw new Error("Technician not found");
+    const previousSn = tech.sn;
     const fields = validateTechnicianFields(
       {
         name: input.name,
@@ -3178,7 +3391,13 @@ export async function updateTechnician(
       tech.status = input.status;
       tech.current_job_id = "";
     }
+    const users = readUsers(wb);
+    await ensureTechnicianLoginUser(techs, users, tech, {
+      previousSn,
+      throwOnSkip: true,
+    });
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
     return tech;
   });
@@ -3215,7 +3434,13 @@ export async function deleteTechnician(techId: string): Promise<{ ok: true }> {
     jobs.forEach((j) => {
       if (j.technician_id === techId) j.technician_id = "";
     });
+    const users = readUsers(wb);
+    if (tech.user_id) {
+      const linked = users.find((u) => u.id === tech.user_id);
+      if (linked) linked.active = "0";
+    }
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
     writeSheet(wb, SHEETS.assignees, ASSIGNEE_HEADERS, assignees.map(assigneeToRow));
     await saveWorkbook(wb);
@@ -3570,6 +3795,29 @@ export async function jobAction(
       assertJobManagePermission(job, actor, jobAssigneeCount);
     }
 
+    const actorTechnicianId = technicianIdForUser(actor?.user_id, techs);
+    const actorTechnicianName =
+      techs.find((t) => t.id === actorTechnicianId)?.name || "";
+    const assertStepEvidencePermission = (step: JobStep) => {
+      const assignedIds = assignedIdsFromAssignees(job, assignees);
+      const level = (actor?.user_level || "guest") as AccessLevel;
+      if (
+        !canEditStepEvidence(
+          level,
+          actor?.user_id,
+          job,
+          step,
+          assignedIds,
+          actorTechnicianId,
+          jobAssigneeCount
+        )
+      ) {
+        throw new Error(
+          "Hanya teknisi yang dipilih di step ini (setelah login), atau pengendali job, yang boleh mengubah catatan/foto"
+        );
+      }
+    };
+
     const beforeBundle = buildJobChangeBundle(
       jobId,
       jobs,
@@ -3915,6 +4163,8 @@ export async function jobAction(
       if (!String(current.note || "").trim()) {
         throw new Error("Catatan step wajib sebelum menyelesaikan step");
       }
+      stampStepEvidence(current, "note", actor, actorTechnicianName);
+      stampStepEvidence(current, "photo", actor, actorTechnicianName);
       const now = Date.now();
       if (
         typeof payload?.duration_sec === "number" &&
@@ -3988,7 +4238,9 @@ export async function jobAction(
       if (!nextNote) {
         throw new Error("Catatan step wajib diisi");
       }
+      assertStepEvidencePermission(step);
       step.note = nextNote;
+      stampStepEvidence(step, "note", actor, actorTechnicianName);
       const preview = nextNote
         ? nextNote.length > 80
           ? `${nextNote.slice(0, 80)}…`
@@ -4014,10 +4266,12 @@ export async function jobAction(
       const stepId = String(payload?.step_id || "");
       const step = jobSteps().find((s) => s.id === stepId);
       if (!step) throw new Error("Step tidak ditemukan");
+      assertStepEvidencePermission(step);
       const saved = await applyIncomingStepPhoto(step, payload);
       if (!saved) {
         throw new Error("Pilih foto bukti pekerjaan");
       }
+      stampStepEvidence(step, "photo", actor, actorTechnicianName);
       const count = parseStepPhotos(step.photos, step.photo_name).length;
       pushEvent(
         "updated",
@@ -5005,6 +5259,27 @@ export async function listForemanUsers(): Promise<AppUserPublic[]> {
   });
 }
 
+export async function listHandoverRecipientUsers(): Promise<AppUserPublic[]> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    return readUsers(wb)
+      .filter(
+        (u) =>
+          u.active === "1" &&
+          (u.level === "foreman" || u.level === "teknisi")
+      )
+      .map(toPublicUser)
+      .sort((a, b) => {
+        const rank = (level: string) => (level === "teknisi" ? 0 : 1);
+        const byRole = rank(a.level) - rank(b.level);
+        if (byRole !== 0) return byRole;
+        const an = (a.name || a.username).toLowerCase();
+        const bn = (b.name || b.username).toLowerCase();
+        return an.localeCompare(bn) || a.username.localeCompare(b.username);
+      });
+  });
+}
+
 export async function authenticateUser(
   username: string,
   password: string
@@ -5081,7 +5356,12 @@ export async function getUserById(userId: string): Promise<AppUserPublic | null>
   return withDbLock(async () => {
     const wb = await loadWorkbook();
     const user = readUsers(wb).find((u) => u.id === userId && u.active === "1");
-    return user ? toPublicUser(user) : null;
+    if (!user) return null;
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    return {
+      ...toPublicUser(user),
+      technician_id: technicianIdForUser(user.id, techs),
+    };
   });
 }
 

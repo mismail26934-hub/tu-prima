@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { jobAction } from "@/lib/excel";
 import {
-  getCurrentActor,
-  requireAssignPermission,
-  requireJobProgressPermission,
-  requirePermission,
-  requireReopenPermission,
+    getCurrentActor,
+    requireAssignPermission,
+    requireJobProgressPermission,
+    requireLogin,
+    requirePermission,
+    requireReopenPermission,
 } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,8 @@ export async function POST(
       denied = await requireAssignPermission();
     } else if (action === "reopen") {
       denied = await requireReopenPermission();
+    } else if (action === "set_step_note" || action === "set_step_photo") {
+      denied = await requireLogin();
     } else if (
       [
         "start",
@@ -58,8 +61,6 @@ export async function POST(
         "start_steps",
         "complete_step",
         "set_step_technicians",
-        "set_step_note",
-        "set_step_photo",
         "complete",
       ].includes(action)
     ) {

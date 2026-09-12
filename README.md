@@ -60,8 +60,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
 - Setiap step menampilkan **STP/Std Hours** (`std_minutes` dari template)
 - Estimasi di kartu: `Est. N mnt / H jam M mnt · Progress P%` (di bawah deskripsi job)
-- **Catatan handover** + loading tambah/ubah/hapus (foreman write)
-- **Catatan peminjaman part** + loading tambah/ubah/hapus (foreman write)
+- **Catatan handover** + loading tambah/ubah (foreman pengendali **atau** teknisi assigned) / hapus (foreman pengendali)
+- **Catatan peminjaman part** + loading tambah/ubah (foreman pengendali **atau** teknisi assigned) / hapus (foreman pengendali)
 - **Print PDF** per job (modal loading/success/error)
 - **Export to excel** (menu Kelola): satu menu → popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), kolom **stp_std_hours** + STP per step
 - **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke tabel `job_change_backups`
@@ -116,14 +116,14 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 
 ### Status job
 
-| Status        | Arti                                       | Penyimpanan runtime (`jobs.job_scope`)       |
-| ------------- | ------------------------------------------ | -------------------------------------------- |
-| `queued`      | Baru dibuat, belum di-assign / belum start | `active`                                     |
-| `assigned`    | Sudah punya teknisi, siap di-start         | `active`                                     |
-| `in_progress` | Sedang dikerjakan                          | `active`                                     |
-| `paused`      | Di-pause (timer job & step di-freeze)      | `active`                                     |
-| `done`        | Selesai                                    | **`completed`** (setelah Complete)         |
-| `cancelled`   | Dibatalkan                                 | **`cancelled`** (setelah Cancel)             |
+| Status        | Arti                                       | Penyimpanan runtime (`jobs.job_scope`) |
+| ------------- | ------------------------------------------ | -------------------------------------- |
+| `queued`      | Baru dibuat, belum di-assign / belum start | `active`                               |
+| `assigned`    | Sudah punya teknisi, siap di-start         | `active`                               |
+| `in_progress` | Sedang dikerjakan                          | `active`                               |
+| `paused`      | Di-pause (timer job & step di-freeze)      | `active`                               |
+| `done`        | Selesai                                    | **`completed`** (setelah Complete)     |
+| `cancelled`   | Dibatalkan                                 | **`cancelled`** (setelah Cancel)       |
 
 ### Status step
 
@@ -223,13 +223,13 @@ Sync offline memakai `started_at` / `next_started_at` dari client, bukan jam ser
 
 Field **Selected Item Priority Job (optional)** di form Create / Edit, tepat di bawah Judul.
 
-| Nilai      | Arti                 |
-| ---------- | -------------------- |
-| _(kosong)_ | Tidak ada prioritas  |
-| `URGENT`   | Urgent               |
-| `P1`       | Priority 1           |
-| `P2`       | Priority 2           |
-| `P3`       | Priority 3           |
+| Nilai      | Arti                |
+| ---------- | ------------------- |
+| _(kosong)_ | Tidak ada prioritas |
+| `URGENT`   | Urgent              |
+| `P1`       | Priority 1          |
+| `P2`       | Priority 2          |
+| `P3`       | Priority 3          |
 
 - Tersimpan di kolom **`jobs.priority`** (`VARCHAR(16)`, default `''`)
 - Nilai selain daftar di atas diabaikan (dinormalisasi ke kosong)
@@ -273,7 +273,8 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** 
   - **Ubah** — tabel editable + tombol **Save**
   - **Hapus** — tombol Hapus per baris
 - Saat proses: **overlay loading** + spinner di tombol (Menambah… / Menyimpan… / Menghapus…)
-- **Add / update / delete hanya foreman**; level lain hanya lihat read-only
+- **Tambah / Ubah**: foreman pengendali job, atau **teknisi yang di-assign** ke job tersebut
+- **Hapus**: hanya foreman pengendali job; level lain (termasuk teknisi) hanya lihat read-only untuk hapus
 - Pada job dari archive (`from_archive`), catatan **read-only**
 - Tersimpan di tabel **`job_handovers`**; aksi tercatat di **`audit_log`**
 
@@ -292,7 +293,8 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan peminjaman 
 - Pola UI sama handover: aksi **Tambah / Ubah / Hapus** + loading overlay
 - Status default **open** saat tambah; ubah ke **closed** lewat mode Ubah
 - Judul menampilkan jumlah, mis. `Catatan peminjaman part (2)`
-- Write hanya **foreman**; archive completed/cancelled = read-only
+- **Tambah / Ubah**: foreman pengendali job, atau **teknisi yang di-assign** ke job tersebut
+- **Hapus**: hanya foreman pengendali job; archive completed/cancelled = read-only
 - Tersimpan di tabel **`job_part_loans`** + **`audit_log`**
 
 API: `POST /api/jobs/[id]/part-loans` · `PATCH|DELETE /api/jobs/[id]/part-loans/[loanId]`
@@ -343,20 +345,20 @@ Setiap create / update / delete job, assign, start/pause/resume/step/complete/ca
 
 Database: **`tu_prima`** (via `DATABASE_URL`). Schema lengkap: `src/db/schema.sql` · migrasi otomatis: `src/db/relational-store.ts`.
 
-| Tabel              | Isi utama                                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `technicians`      | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email                                               |
-| `units`            | id, code, name, serial_number, active                                                                               |
-| `jobs`             | id, **job_scope**, title, **priority** (`URGENT`/`P1`/`P2`/`P3` atau kosong), unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
-| `job_assignees`    | job_id, technician_id, is_lead, assigned_at                                                                         |
-| `job_steps`        | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                |
-| `job_events`       | timeline + **user_id / user_name / user_level**                                                                     |
-| `job_handovers`    | catatan serah terima job aktif (order, title, done, note, user)                                                     |
-| `job_part_loans`   | catatan peminjaman part (order, part_name, status open/closed, note, user)                                          |
-| `attendance`       | date, technician_id, pernr, status, dws, check_in/out, …                                                            |
-| `users`            | username, password_hash, name, **email**, **phone**, level, active                                                  |
-| `audit_log`        | jejak aksi user (tahan delete)                                                                                      |
-| `job_change_backups` | snapshot before/after untuk undo                                                                                  |
+| Tabel                | Isi utama                                                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `technicians`        | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email                                                                                            |
+| `units`              | id, code, name, serial_number, active                                                                                                                            |
+| `jobs`               | id, **job_scope**, title, **priority** (`URGENT`/`P1`/`P2`/`P3` atau kosong), unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
+| `job_assignees`      | job_id, technician_id, is_lead, assigned_at                                                                                                                      |
+| `job_steps`          | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                                                             |
+| `job_events`         | timeline + **user_id / user_name / user_level**                                                                                                                  |
+| `job_handovers`      | catatan serah terima job aktif (order, title, done, note, user)                                                                                                  |
+| `job_part_loans`     | catatan peminjaman part (order, part_name, status open/closed, note, user)                                                                                       |
+| `attendance`         | date, technician_id, pernr, status, dws, check_in/out, …                                                                                                         |
+| `users`              | username, password_hash, name, **email**, **phone**, level, active                                                                                               |
+| `audit_log`          | jejak aksi user (tahan delete)                                                                                                                                   |
+| `job_change_backups` | snapshot before/after untuk undo                                                                                                                                 |
 
 Detail archive: lihat [Archive job](#archive-job-complete--cancel--hapus).
 
@@ -426,7 +428,7 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 | --------- | ---- | ---- | ------- | ---- | -------- | ------------ | ------ | -------------------------------- | -------------- | ------ |
 | superuser | CRUD | CRUD | CRUD    | CRUD | CRUD     | CRUD         | Ya     | Ya                               | —              | Ya     |
 | inputer   | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
-| teknisi   | R    | R    | R       | —    | R        | R            | —      | —                                | —              | —      |
+| teknisi   | R    | R    | R       | —    | R        | R            | —      | —                                | Tambah/Ubah*   | —      |
 | foreman   | CRUD | R    | R       | CRUD | CRUD     | R            | Ya     | Ya                               | Ya             | —      |
 | spv       | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
 | hrd       | R    | R    | R       | R    | R        | CRUD         | —      | —                                | —              | —      |
@@ -437,7 +439,8 @@ Catatan:
 - Enforce di **UI** dan **API** (`401` / `403`).
 - `guest` & `teknisi` tidak mendapat data Unit di dashboard.
 - Minimal satu `superuser` aktif harus tersisa.
-- **Handover write** (add/update/delete) hanya `foreman`; level lain tetap bisa melihat tabel read-only.
+- **Handover / peminjaman part Tambah & Ubah**: `foreman` pengendali job, atau `teknisi` yang di-assign ke job tersebut (`*`).
+- **Handover / peminjaman part Hapus**: hanya `foreman` pengendali job; level lain tetap bisa melihat tabel read-only.
 - **Reopen** (completed/cancelled dari archive) hanya `superuser`.
 
 ---
@@ -519,7 +522,7 @@ data/
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                                     |
 | PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                             |
 | GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                            |
-| GET          | `/api/backups/jobs`                                               | List ChangeLog `job_change_backups` (**superuser**)                                                                  |
+| GET          | `/api/backups/jobs`                                               | List ChangeLog `job_change_backups` (**superuser**)                                                                |
 | POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                                          |
 | \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                                    |
 | POST         | `/api/attendance/sync-sharepoint`                                 | Meals Request → presence: No. ID Badge = SN; ada → available, tidak ada → offline (upload file atau Graph)         |
@@ -608,12 +611,12 @@ Production: [https://prima.strakin.tech](https://prima.strakin.tech)
 
 ### Environment variables (hPanel → Deployments → Settings)
 
-| Key | Contoh / catatan |
-| --- | ---------------- |
-| `AUTH_SECRET` | String acak panjang (wajib) |
-| `AUTH_URL` | `https://prima.strakin.tech` |
-| `DATABASE_URL` | `mysql://USER:PASSWORD@srv1858.hstgr.io:3306/u925538922_tu_prima` |
-| `APP_USERNAME` / `APP_PASSWORD` | Seed superuser jika DB kosong |
+| Key                             | Contoh / catatan                                                  |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `AUTH_SECRET`                   | String acak panjang (wajib)                                       |
+| `AUTH_URL`                      | `https://prima.strakin.tech`                                      |
+| `DATABASE_URL`                  | `mysql://USER:PASSWORD@srv1858.hstgr.io:3306/u925538922_tu_prima` |
+| `APP_USERNAME` / `APP_PASSWORD` | Seed superuser jika DB kosong                                     |
 
 **Format `DATABASE_URL`:**
 
@@ -626,11 +629,11 @@ Production: [https://prima.strakin.tech](https://prima.strakin.tech)
 
 Hostinger WAF sering memblokir path `/login` dan `/api/auth/error`. Project ini memakai:
 
-| Asli (sering diblok) | Pengganti |
-| -------------------- | --------- |
-| `/login`             | `/sign-in`  |
-| `/api/auth/*`        | `/api/session/*` |
-| error default NextAuth | `/auth-gagal` |
+| Asli (sering diblok)   | Pengganti        |
+| ---------------------- | ---------------- |
+| `/login`               | `/sign-in`       |
+| `/api/auth/*`          | `/api/session/*` |
+| error default NextAuth | `/auth-gagal`    |
 
 File `.htaccess` di root (jika tidak ditimpa deploy) menonaktifkan ModSecurity:
 
@@ -645,11 +648,11 @@ Hostinger menjalankan `npm run build` lalu `npm start` (custom server + WebSocke
 
 ### Troubleshooting
 
-| Gejala | Kemungkinan penyebab |
-| ------ | -------------------- |
-| 403 di login / auth | WAF — pastikan path `/sign-in` dan `/api/session` |
-| "Server configuration" error | `AUTH_SECRET` atau `DATABASE_URL` kosong/salah |
-| Data tidak tampil | `DATABASE_URL` salah host/password; DB belum di-seed |
+| Gejala                         | Kemungkinan penyebab                                                        |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| 403 di login / auth            | WAF — pastikan path `/sign-in` dan `/api/session`                           |
+| "Server configuration" error   | `AUTH_SECRET` atau `DATABASE_URL` kosong/salah                              |
+| Data tidak tampil              | `DATABASE_URL` salah host/password; DB belum di-seed                        |
 | WebSocket tidak sync antar tab | Pastikan `npm start` (bukan `next start`); hub pakai `globalThis` singleton |
 
 ---
@@ -772,7 +775,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 - Kolom wajib: **No. ID Badge**, idealnya juga **Nama Karyawan**
 - Sheet sumber lebih baik **Formula** (tab shift sering hanya `FILTER` dari Formula)
-- Parser membaca semua sheet yang punya header badge; mengutamakan sheet bernama Formula
+  - Parser membaca semua sheet yang punya header badge; mengutamakan sheet bernama Formula
 
 ### API
 

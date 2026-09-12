@@ -130,12 +130,14 @@ const id = {
   "job.handoverFromPlaceholder": "Pilih pengirim",
   "job.handoverTo": "Ditujukan kepada",
   "job.handoverToPlaceholder": "Pilih penerima",
-  "job.handoverToSearch": "Cari nama atau username…",
+  "job.handoverToSearch": "Cari nama, username, atau teknisi…",
   "job.handoverToEmpty": "Tidak ada yang cocok",
   "job.handoverToNone": "Kosongkan",
   "job.handoverToLoading": "Memuat daftar…",
+  "job.handoverToLevelForeman": "foreman",
+  "job.handoverToLevelTeknisi": "teknisi",
   "job.handoverWaHint":
-    "Grup operasional dan foreman tujuan (jika nomor HP terisi) akan menerima notifikasi WhatsApp. Pesan mencantumkan dari siapa dan kepada siapa.",
+    "Grup operasional dan penerima tujuan (foreman/teknisi, jika nomor HP terisi) akan menerima notifikasi WhatsApp. Pesan mencantumkan dari siapa dan kepada siapa.",
   "job.deepLinkHint":
     "Menampilkan job dari tautan. Filter lain dinonaktifkan sementara.",
   "job.deepLinkMissing": "Job dari tautan tidak ditemukan atau sudah dihapus.",
@@ -207,6 +209,12 @@ const id = {
   "job.stepPhotoMax": "Maksimal {max} foto per step.",
   "job.completeNeedPhotos":
     "Lengkapi foto bukti dulu untuk step yang belum selesai:",
+  "job.stepNoteBy": "{name}",
+  "job.stepPhotoBy": "Foto oleh: {name}",
+  "tech.loginHint":
+    "Akun login otomatis: username = SN/Pernr, password awal = Badge ID. Ganti password setelah login pertama.",
+  "tech.loginReady": "Login: {username}",
+  "tech.loginMissing": "Belum ada akun login (lengkapi SN dan Badge ID).",
   "job.stepPhotoYes": "Ada",
   "job.stepPhotoNo": "Tidak",
 
@@ -431,12 +439,14 @@ const en: Record<MessageKey, string> = {
   "job.handoverFromPlaceholder": "Select sender",
   "job.handoverTo": "Directed to",
   "job.handoverToPlaceholder": "Select recipient",
-  "job.handoverToSearch": "Search name or username…",
+  "job.handoverToSearch": "Search name, username, or technician…",
   "job.handoverToEmpty": "No matches",
   "job.handoverToNone": "Clear",
   "job.handoverToLoading": "Loading list…",
+  "job.handoverToLevelForeman": "foreman",
+  "job.handoverToLevelTeknisi": "technician",
   "job.handoverWaHint":
-    "The operations group and the receiving foreman (if a phone number is set) get a WhatsApp notification. The message includes who it is from and who it is for.",
+    "The operations group and the receiving foreman or technician (if a phone number is set) get a WhatsApp notification. The message includes who it is from and who it is for.",
   "job.deepLinkHint":
     "Showing the job from the link. Other filters are paused.",
   "job.deepLinkMissing": "The linked job was not found or has been deleted.",
@@ -508,6 +518,12 @@ const en: Record<MessageKey, string> = {
   "job.stepPhotoMax": "Maximum {max} photos per step.",
   "job.completeNeedPhotos":
     "Add evidence photos first for unfinished steps:",
+  "job.stepNoteBy": "{name}",
+  "job.stepPhotoBy": "Photos by: {name}",
+  "tech.loginHint":
+    "A login is created automatically: username = SN/Pernr, initial password = Badge ID. Change the password after the first sign-in.",
+  "tech.loginReady": "Login: {username}",
+  "tech.loginMissing": "No login yet (fill SN and Badge ID).",
   "job.stepPhotoYes": "Yes",
   "job.stepPhotoNo": "No",
 

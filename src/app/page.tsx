@@ -56,6 +56,7 @@ import {
 import { useT } from "@/i18n/useT";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { OfflineSyncChip } from "@/components/OfflineSyncChip";
+import { NavAlerts } from "@/components/NavAlerts";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -737,6 +738,7 @@ export default function HomePage() {
   const isLoggedIn = sessionStatus === "authenticated";
   const userLevel = session?.user?.level || "guest";
   const userId = String(session?.user?.id || "");
+  const showNavAlerts = userLevel === "foreman" || userLevel === "teknisi";
   const [myTechnicianId, setMyTechnicianId] = useState("");
   const canJobCreate = canAccess(userLevel, "job", "create");
   const canJobUpdate = canAccess(userLevel, "job", "update");
@@ -5429,6 +5431,18 @@ export default function HomePage() {
                 <path d="M21 3v6h-6" />
               </svg>
             </button>
+            <NavAlerts
+              enabled={showNavAlerts}
+              onBeforeOpen={() => {
+                setManageOpen(false);
+                setSessionOpen(false);
+              }}
+              onOpenJob={(jobId) => {
+                setManageOpen(false);
+                setSessionOpen(false);
+                jobDeepLink.open(jobId);
+              }}
+            />
             <div className="nav-session">
               {isLoggedIn ? (
                 <div
@@ -5564,6 +5578,14 @@ export default function HomePage() {
                 <path d="M21 3v6h-6" />
               </svg>
             </button>
+            <NavAlerts
+              enabled={showNavAlerts}
+              onBeforeOpen={() => setSessionOpen(false)}
+              onOpenJob={(jobId) => {
+                setMobileMenuOpen(false);
+                jobDeepLink.open(jobId);
+              }}
+            />
             <button
               className="btn btn-icon top-menu-toggle"
               type="button"
@@ -5655,6 +5677,15 @@ export default function HomePage() {
                 </button>
               </div>
             )}
+            <NavAlerts
+              enabled={showNavAlerts}
+              variant="menu"
+              onOpenJob={(jobId) => {
+                setMobileMenuOpen(false);
+                setSessionOpen(false);
+                jobDeepLink.open(jobId);
+              }}
+            />
             <p className="nav-menu-label">{t("nav.language")}</p>
             <div className="nav-menu-prefs">
               <LanguageToggle />

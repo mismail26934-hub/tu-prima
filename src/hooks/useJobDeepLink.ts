@@ -65,5 +65,21 @@ export function useJobDeepLink() {
     window.history.replaceState(null, "", next);
   }, []);
 
-  return { jobId, section, missing, ready, clear };
+  const open = useCallback((id: string) => {
+    const nextId = String(id || "").trim();
+    if (!nextId) return;
+    setJobId(nextId);
+    setMissing(false);
+    setReady(false);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("job", nextId);
+    window.history.replaceState(
+      null,
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  }, []);
+
+  return { jobId, section, missing, ready, clear, open };
 }

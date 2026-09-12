@@ -22,6 +22,11 @@ import type {
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
 import type { JobPriority } from "@/lib/types";
+import {
+  EMPTY_NAV_ALERTS,
+  type NavAlertItem,
+  type NavAlertsPayload,
+} from "@/lib/nav-alerts";
 
 export type JobListSection = "active" | "queue" | "done" | "cancelled";
 export type JobOwnershipFilter =
@@ -72,14 +77,14 @@ export async function viewerAssignedTechnicianId(): Promise<string | undefined> 
   return technicianIdByUserId(String(session.user.id || ""));
 }
 
-function technicianAssigneeWhere(assignedTechnicianId: string | undefined): {
-  sql: string;
-  params: unknown[];
-} {
+function technicianAssigneeWhere(
+  assignedTechnicianId: string | undefined,
+  alias = "jobs"
+): { sql: string; params: unknown[] } {
   if (assignedTechnicianId === undefined) return { sql: "", params: [] };
   if (!assignedTechnicianId) return { sql: "1 = 0", params: [] };
   return {
-    sql: `(technician_id = ? OR EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.technician_id = ?))`,
+    sql: `(${alias}.technician_id = ? OR EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = ${alias}.id AND ja.technician_id = ?))`,
     params: [assignedTechnicianId, assignedTechnicianId],
   };
 }
@@ -763,5 +768,201 @@ export async function fetchDashboardSummary(): Promise<DashboardData["summary"]>
     completed_jobs: num(completedRow[0]?.cnt),
     cancelled_jobs: num(cancelledRow[0]?.cnt),
     avg_duration_sec: avg,
+  };
+}
+
+const ALERT_LIST_LIMIT = 8;
+const OPEN_JOB_STATUSES = ["in_progress", "paused", "assigned"] as const;
+const URGENT_JOB_STATUSES = [
+  "in_progress",
+  "paused",
+  "assigned",
+  "queued",
+] as const;
+
+async function viewerAlertJobScope(): Promise<{
+  allowed: boolean;
+  sql: string;
+  params: unknown[];
+  aliasSql: (alias: string) => { sql: string; params: unknown[] };
+}> {
+  const { auth } = await import("@/auth");
+  const session = await auth();
+  const level = session?.user?.level;
+  const userId = String(session?.user?.id || "");
+  if (level !== "teknisi" && level !== "foreman") {
+    return {
+      allowed: false,
+      sql: "",
+      params: [],
+      aliasSql: () => ({ sql: "", params: [] }),
+    };
+  }
+  if (level === "teknisi") {
+    const techId = await technicianIdByUserId(userId);
+    const scoped = technicianAssigneeWhere(techId || "", "jobs");
+    return {
+      allowed: true,
+      sql: scoped.sql,
+      params: scoped.params,
+      aliasSql: (alias: string) => technicianAssigneeWhere(techId || "", alias),
+    };
+  }
+  return {
+    allowed: true,
+    sql: "(jobs.assigned_by_user_id = ? OR jobs.delegated_to_user_id = ?)",
+    params: [userId, userId],
+    aliasSql: (alias: string) => ({
+      sql: `(${alias}.assigned_by_user_id = ? OR ${alias}.delegated_to_user_id = ?)`,
+      params: [userId, userId],
+    }),
+  };
+}
+
+function alertStatusLabel(status: string): string {
+  switch (String(status || "").trim()) {
+    case "in_progress":
+      return "In progress";
+    case "paused":
+      return "Paused";
+    case "assigned":
+      return "Assigned";
+    case "queued":
+      return "Queued";
+    default:
+      return status || "—";
+  }
+}
+
+function mapAlertJob(
+  row: mysql.RowDataPacket,
+  kind: NavAlertItem["kind"],
+  subtitle: string
+): NavAlertItem {
+  return {
+    kind,
+    jobId: str(row.id || row.job_id),
+    title: str(row.title || row.job_title),
+    unit: str(row.unit_label || row.unit),
+    subtitle,
+  };
+}
+
+export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
+  const scope = await viewerAlertJobScope();
+  if (!scope.allowed) return EMPTY_NAV_ALERTS;
+
+  const p = getPool();
+  const openPh = OPEN_JOB_STATUSES.map(() => "?").join(",");
+  const urgentPh = URGENT_JOB_STATUSES.map(() => "?").join(",");
+  const jScope = scope.aliasSql("j");
+  const jobsScopeSql = scope.sql ? ` AND ${scope.sql}` : "";
+  const jScopeSql = jScope.sql ? ` AND ${jScope.sql}` : "";
+
+  const [
+    [handoverCountRows],
+    [handoverRows],
+    [openCountRows],
+    [openRows],
+    [priorityCountRows],
+    [priorityRows],
+  ] = await Promise.all([
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS cnt
+       FROM job_handovers h
+       INNER JOIN jobs j ON j.id = h.job_id
+       WHERE h.done = 0 AND j.job_scope = 'active'${jScopeSql}`,
+      jScope.params
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT h.id, h.job_id, h.title, h.to_name, j.title AS job_title, j.unit_label
+       FROM job_handovers h
+       INNER JOIN jobs j ON j.id = h.job_id
+       WHERE h.done = 0 AND j.job_scope = 'active'${jScopeSql}
+       ORDER BY h.updated_at DESC, h.handover_order DESC
+       LIMIT ?`,
+      [...jScope.params, ALERT_LIST_LIMIT]
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS cnt
+       FROM jobs
+       WHERE job_scope = 'active' AND status IN (${openPh})${jobsScopeSql}`,
+      [...OPEN_JOB_STATUSES, ...scope.params]
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT id, title, unit_label, status
+       FROM jobs
+       WHERE job_scope = 'active' AND status IN (${openPh})${jobsScopeSql}
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`,
+      [...OPEN_JOB_STATUSES, ...scope.params, ALERT_LIST_LIMIT]
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT UPPER(priority) AS pri, COUNT(*) AS cnt
+       FROM jobs
+       WHERE job_scope = 'active'
+         AND status IN (${urgentPh})
+         AND UPPER(priority) IN ('URGENT','P1','P2','P3')${jobsScopeSql}
+       GROUP BY UPPER(priority)`,
+      [...URGENT_JOB_STATUSES, ...scope.params]
+    ),
+    p.query<mysql.RowDataPacket[]>(
+      `SELECT id, title, unit_label, status, priority
+       FROM jobs
+       WHERE job_scope = 'active'
+         AND status IN (${urgentPh})
+         AND UPPER(priority) IN ('URGENT','P1','P2','P3')${jobsScopeSql}
+       ORDER BY created_at DESC, id DESC`,
+      [...URGENT_JOB_STATUSES, ...scope.params]
+    ),
+  ]);
+
+  const priorityCount: Record<string, number> = {
+    URGENT: 0,
+    P1: 0,
+    P2: 0,
+    P3: 0,
+  };
+  for (const row of priorityCountRows) {
+    const pri = str(row.pri).toUpperCase();
+    if (pri in priorityCount) priorityCount[pri] = num(row.cnt);
+  }
+  const pickPriority = (
+    pri: "URGENT" | "P1" | "P2" | "P3",
+    kind: NavAlertItem["kind"]
+  ) =>
+    priorityRows
+      .filter((row) => str(row.priority).toUpperCase() === pri)
+      .slice(0, ALERT_LIST_LIMIT)
+      .map((row) => mapAlertJob(row, kind, pri));
+
+  return {
+    openHandovers: num(handoverCountRows[0]?.cnt),
+    openJobs: num(openCountRows[0]?.cnt),
+    urgentJobs: priorityCount.URGENT,
+    p1Jobs: priorityCount.P1,
+    p2Jobs: priorityCount.P2,
+    p3Jobs: priorityCount.P3,
+    items: {
+      handover: handoverRows.map((row) => ({
+        kind: "handover" as const,
+        jobId: str(row.job_id),
+        title: str(row.job_title),
+        unit: str(row.unit_label),
+        subtitle: [
+          str(row.title),
+          str(row.to_name) ? `→ ${str(row.to_name)}` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      })),
+      openJob: openRows.map((row) =>
+        mapAlertJob(row, "open_job", alertStatusLabel(str(row.status)))
+      ),
+      urgent: pickPriority("URGENT", "urgent"),
+      p1: pickPriority("P1", "p1"),
+      p2: pickPriority("P2", "p2"),
+      p3: pickPriority("P3", "p3"),
+    },
   };
 }

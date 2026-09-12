@@ -49,6 +49,10 @@ export async function PATCH(req: Request) {
       name: body.name != null ? String(body.name) : undefined,
       email: body.email != null ? String(body.email) : undefined,
       phone: body.phone != null ? String(body.phone) : undefined,
+      photo_base64:
+        body.photo_base64 != null ? String(body.photo_base64) : undefined,
+      photo_mime: body.photo_mime != null ? String(body.photo_mime) : undefined,
+      remove_photo: body.remove_photo === true,
     });
     return NextResponse.json(user);
   } catch (error) {

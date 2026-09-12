@@ -283,13 +283,16 @@ export interface AppUser {
   name: string;
   email: string;
   phone: string;
+  photo_name: string;
   level: UserLevel;
   active: string; // "1" | "0"
   created_at: string;
 }
 
 /** User payload without password (for API / UI). */
-export type AppUserPublic = Omit<AppUser, "password">;
+export type AppUserPublic = Omit<AppUser, "password"> & {
+  photo_url?: string;
+};
 
 /** Row from backup-jobs.xlsx ChangeLog (superuser undo). */
 export interface JobChangeBackup {

@@ -1252,7 +1252,8 @@ CREATE TABLE `users` (
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` varchar(64) NOT NULL DEFAULT '',
   `email` varchar(255) NOT NULL DEFAULT '',
-  `phone` varchar(64) NOT NULL DEFAULT ''
+  `phone` varchar(64) NOT NULL DEFAULT '',
+  `photo_name` varchar(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

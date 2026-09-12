@@ -60,6 +60,7 @@ import { api } from "@/lib/api";
 import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import type { StepPhotoDraft } from "@/lib/step-photo-client";
+import { compressAvatarFile } from "@/lib/step-photo-client";
 import { useDashboard } from "@/hooks/useDashboard";
 import { writeCachedSession } from "@/lib/offline/session-cache";
 import {
@@ -661,6 +662,57 @@ function ArchivePager({
   );
 }
 
+function PersonIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function AccountAvatar({ url, size = 28 }: { url: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [url]);
+  if (!url || failed) {
+    return (
+      <span
+        className="nav-avatar"
+        style={{
+          width: size,
+          height: size,
+          display: "grid",
+          placeItems: "center",
+        }}
+      >
+        <PersonIcon size={Math.max(14, Math.round(size * 0.55))} />
+      </span>
+    );
+  }
+  return (
+    <img
+      className="nav-avatar"
+      src={url}
+      alt=""
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function HomePage() {
   const t = useT();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
@@ -907,6 +959,15 @@ export default function HomePage() {
     phone: "",
   });
   const [profileChangeMsg, setProfileChangeMsg] = useState("");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
+  const [profilePhotoDraft, setProfilePhotoDraft] = useState<{
+    previewUrl: string;
+    base64: string;
+    mime: string;
+  } | null>(null);
+  const [profilePhotoRemoved, setProfilePhotoRemoved] = useState(false);
+  const profilePhotoInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [hideTechPanel, setHideTechPanel] = useState(false);
   const [hideJobPanel, setHideJobPanel] = useState(false);
   const topbarRef = useRef<HTMLElement>(null);
@@ -951,6 +1012,24 @@ export default function HomePage() {
       document.removeEventListener("keydown", onKey);
     };
   }, [sessionOpen, mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !userId) {
+      setAvatarUrl("");
+      return;
+    }
+    let cancelled = false;
+    void api<AppUserPublic>("/api/account/profile")
+      .then((me) => {
+        if (!cancelled) setAvatarUrl(me.photo_url || "");
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarUrl("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, userId]);
 
   useEffect(() => {
     if (mobileMenuOpen) {
@@ -2198,6 +2277,10 @@ export default function HomePage() {
     return visibleStepPhotos(step).length + stepPhotoDrafts.length > 0;
   }
 
+  function stepHasNoteText(step: JobWithDetails["steps"][0], draft = "") {
+    return Boolean((draft || step.note || "").trim());
+  }
+
   function stepPhotoActionPayload() {
     return {
       photos: stepPhotoDrafts.map((d) => ({
@@ -2616,6 +2699,9 @@ export default function HomePage() {
     setError("");
     setProfileChangeMsg("");
     setProfileForm({ name: "", email: "", phone: "" });
+    setProfilePhotoUrl("");
+    setProfilePhotoDraft(null);
+    setProfilePhotoRemoved(false);
     setModal({ type: "edit-profile" });
     setBusy(true);
     try {
@@ -2625,6 +2711,7 @@ export default function HomePage() {
         email: me.email || "",
         phone: me.phone || "",
       });
+      setProfilePhotoUrl(me.photo_url || "");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("profile.loadError"));
     } finally {
@@ -2640,19 +2727,44 @@ export default function HomePage() {
     try {
       const saved = await api<AppUserPublic>("/api/account/profile", {
         method: "PATCH",
-        body: JSON.stringify(profileForm),
+        body: JSON.stringify({
+          ...profileForm,
+          photo_base64: profilePhotoDraft?.base64,
+          photo_mime: profilePhotoDraft?.mime,
+          remove_photo: profilePhotoRemoved && !profilePhotoDraft,
+        }),
       });
       setProfileForm({
         name: saved.name || "",
         email: saved.email || "",
         phone: saved.phone || "",
       });
+      setProfilePhotoUrl(saved.photo_url || "");
+      setProfilePhotoDraft(null);
+      setProfilePhotoRemoved(false);
+      setAvatarUrl(saved.photo_url || "");
       await updateSession({ name: saved.name || saved.username });
       setProfileChangeMsg(t("profile.success"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("profile.saveError"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onPickProfilePhoto(file: File | undefined) {
+    if (!file) return;
+    setError("");
+    setBusy(true);
+    try {
+      const draft = await compressAvatarFile(file);
+      setProfilePhotoDraft(draft);
+      setProfilePhotoRemoved(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("profile.saveError"));
+    } finally {
+      setBusy(false);
+      if (profilePhotoInputRef.current) profilePhotoInputRef.current.value = "";
     }
   }
 
@@ -4162,6 +4274,7 @@ export default function HomePage() {
                             initStepTechnicianIds(job, s);
                             setStepPhotoDrafts([]);
                             setStepPhotoRemoveIds([]);
+                            setStepNoteDraft(s.note || "");
                             setModal({ type: "complete-step", job, step: s });
                           }}
                           title="Selesaikan step ini"
@@ -5136,20 +5249,7 @@ export default function HomePage() {
                       <span className="nav-user-name">{displayNameShort}</span>
                       <span className="nav-user-level">{userLevel}</span>
                     </span>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
+                    <AccountAvatar url={avatarUrl} size={28} />
                   </button>
                   {sessionOpen && (
                     <div className="nav-manage-menu" role="menu">
@@ -5302,7 +5402,7 @@ export default function HomePage() {
                 {isLoggedIn && (
                   <button
                     className="btn btn-icon"
-                    style={{ width: 28, height: 28, minWidth: 28 }}
+                    style={{ width: 28, height: 28, minWidth: 28, padding: 0, overflow: "hidden" }}
                     type="button"
                     disabled={busy || loggingOut}
                     aria-label={t("nav.accountMenu")}
@@ -5310,20 +5410,7 @@ export default function HomePage() {
                     title={t("nav.accountMenu")}
                     onClick={() => setSessionOpen((open) => !open)}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
+                    <AccountAvatar url={avatarUrl} size={28} />
                   </button>
                 )}
               </div>
@@ -6381,6 +6468,60 @@ export default function HomePage() {
               </p>
             )}
             <div className="form">
+              <div>
+                <span style={{ display: "block", marginBottom: 8 }}>
+                  {t("profile.photo")}
+                </span>
+                <div className="profile-photo-row">
+                  <div className="profile-photo-preview">
+                    {profilePhotoDraft?.previewUrl ||
+                    (!profilePhotoRemoved && profilePhotoUrl) ? (
+                      <img
+                        src={
+                          profilePhotoDraft?.previewUrl || profilePhotoUrl
+                        }
+                        alt=""
+                      />
+                    ) : (
+                      <PersonIcon size={32} />
+                    )}
+                  </div>
+                  <div className="profile-photo-actions">
+                    <input
+                      ref={profilePhotoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      hidden
+                      onChange={(e) =>
+                        void onPickProfilePhoto(e.target.files?.[0])
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => profilePhotoInputRef.current?.click()}
+                    >
+                      {t("profile.photoPick")}
+                    </button>
+                    {(profilePhotoDraft ||
+                      (!profilePhotoRemoved && profilePhotoUrl)) && (
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => {
+                          setProfilePhotoDraft(null);
+                          setProfilePhotoRemoved(true);
+                        }}
+                      >
+                        {t("profile.photoRemove")}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <span className="field-hint">{t("profile.photoHint")}</span>
+              </div>
               <label>
                 {t("profile.name")}
                 <input
@@ -7303,6 +7444,21 @@ export default function HomePage() {
                 )}
             </p>
             {renderStepTechnicianPicker(modal.job)}
+            <label className="field-hint" style={{ display: "block", margin: "0 0 6px" }}>
+              {t("job.stepNote")} *
+            </label>
+            <p className="field-hint" style={{ marginTop: 0 }}>
+              {t("job.stepNoteRequired")}
+            </p>
+            <textarea
+              className="step-note-field"
+              value={stepNoteDraft}
+              placeholder={t("job.stepNotePlaceholder")}
+              disabled={busy || !modalProgressOk}
+              maxLength={4000}
+              rows={4}
+              onChange={(e) => setStepNoteDraft(e.target.value)}
+            />
             <StepPhotoPicker
               existing={visibleStepPhotos(modal.step)}
               drafts={stepPhotoDrafts}
@@ -7329,7 +7485,8 @@ export default function HomePage() {
                   !modalProgressOk ||
                   ((modal.job.technicians?.length || 0) > 0 &&
                     stepTechnicianIds.length === 0) ||
-                  !stepHasEvidence(modal.step)
+                  !stepHasEvidence(modal.step) ||
+                  !stepNoteDraft.trim()
                 }
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
@@ -7337,6 +7494,7 @@ export default function HomePage() {
                     step_id: modal.step.id,
                     step_mode: mode,
                     auto_next: mode === "sequential",
+                    note: stepNoteDraft.trim().slice(0, 4000),
                     ...(modal.job.technicians?.length
                       ? { technician_ids: stepTechnicianIds }
                       : {}),
@@ -7410,7 +7568,7 @@ export default function HomePage() {
               </strong>
             </p>
             <p className="field-hint" style={{ marginTop: 0 }}>
-              {t("job.stepNoteHint")}
+              {t("job.stepNoteHint")} {t("job.stepNoteRequired")}
             </p>
             <textarea
               className="step-note-field"
@@ -7430,6 +7588,7 @@ export default function HomePage() {
                   className="btn btn-primary"
                   disabled={
                     busy ||
+                    !stepNoteDraft.trim() ||
                     stepNoteDraft.trim() === (modal.step.note || "").trim()
                   }
                   onClick={() =>
@@ -7535,6 +7694,17 @@ export default function HomePage() {
                   .join(", ")}
               </p>
             )}
+            {modal.job.steps.some(
+              (s) => s.status !== "done" && !stepHasNoteText(s)
+            ) && (
+              <p className="field-hint" style={{ color: "var(--error-text)" }}>
+                {t("job.completeNeedNotes")}{" "}
+                {modal.job.steps
+                  .filter((s) => s.status !== "done" && !stepHasNoteText(s))
+                  .map((s) => `${s.order}. ${s.name}`)
+                  .join(", ")}
+              </p>
+            )}
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 Tidak
@@ -7546,6 +7716,9 @@ export default function HomePage() {
                   !modalProgressOk ||
                   modal.job.steps.some(
                     (s) => s.status !== "done" && !stepHasPhoto(s)
+                  ) ||
+                  modal.job.steps.some(
+                    (s) => s.status !== "done" && !stepHasNoteText(s)
                   )
                 }
                 onClick={() => runAction(modal.job.id, "complete")}

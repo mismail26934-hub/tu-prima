@@ -49,6 +49,11 @@ import {
   deleteStepPhotoFiles,
   saveStepPhotoFromBase64,
 } from "./step-photo";
+import {
+  deleteUserPhotoFiles,
+  saveUserPhotoFromBase64,
+  userPhotoPublicUrl,
+} from "./user-photo";
 import { fetchDashboardSummary } from "@/lib/board-list";
 import { broadcastDashboardChanged } from "./realtime/hub";
 import {
@@ -594,6 +599,7 @@ function mapUser(r: Row): AppUser {
     name: String(r.name || "").trim(),
     email: String(r.email || "").trim(),
     phone: String(r.phone || "").trim(),
+    photo_name: String(r.photo_name || "").trim(),
     level: USER_LEVELS.includes(rawLevel as UserLevel)
       ? (rawLevel as UserLevel)
       : fallbackLevel,
@@ -608,7 +614,10 @@ function userToRow(u: AppUser): Row {
 
 function toPublicUser(u: AppUser): AppUserPublic {
   const { password: _password, ...rest } = u;
-  return rest;
+  return {
+    ...rest,
+    photo_url: userPhotoPublicUrl(rest.photo_name),
+  };
 }
 
 function techToRow(t: Technician): Row {
@@ -788,6 +797,7 @@ const USER_HEADERS = [
   "name",
   "email",
   "phone",
+  "photo_name",
   "level",
   "active",
   "created_at",
@@ -3894,10 +3904,16 @@ export async function jobAction(
         throw new Error("Hanya step aktif yang bisa diselesaikan");
       } else {
       await applyIncomingStepPhoto(current, payload);
+      if (payload?.note != null) {
+        current.note = String(payload.note).trim().slice(0, 4000);
+      }
       if (!stepHasPhoto(current)) {
         throw new Error(
           "Foto bukti pekerjaan wajib sebelum menyelesaikan step"
         );
+      }
+      if (!String(current.note || "").trim()) {
+        throw new Error("Catatan step wajib sebelum menyelesaikan step");
       }
       const now = Date.now();
       if (
@@ -3969,6 +3985,9 @@ export async function jobAction(
       const step = jobSteps().find((s) => s.id === stepId);
       if (!step) throw new Error("Step tidak ditemukan");
       const nextNote = String(payload?.note ?? "").trim().slice(0, 4000);
+      if (!nextNote) {
+        throw new Error("Catatan step wajib diisi");
+      }
       step.note = nextNote;
       const preview = nextNote
         ? nextNote.length > 80
@@ -4036,6 +4055,17 @@ export async function jobAction(
           .join(", ");
         throw new Error(
           `Lengkapi foto bukti dulu untuk step: ${labels}`
+        );
+      }
+      const missingNote = jobSteps().filter(
+        (s) => s.status !== "done" && !String(s.note || "").trim()
+      );
+      if (missingNote.length) {
+        const labels = missingNote
+          .map((s) => `${s.order}. ${s.name}`)
+          .join(", ");
+        throw new Error(
+          `Lengkapi catatan step dulu untuk step: ${labels}`
         );
       }
       jobSteps().forEach((s) => {
@@ -5057,7 +5087,14 @@ export async function getUserById(userId: string): Promise<AppUserPublic | null>
 
 export async function updateOwnProfile(
   userId: string,
-  input: { name?: string; email?: string; phone?: string }
+  input: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    photo_base64?: string;
+    photo_mime?: string;
+    remove_photo?: boolean;
+  }
 ): Promise<AppUserPublic> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
@@ -5077,6 +5114,16 @@ export async function updateOwnProfile(
     }
     if (input.phone != null) {
       user.phone = input.phone.replace(/\s+/g, " ").trim();
+    }
+    if (String(input.photo_base64 || "").trim()) {
+      user.photo_name = await saveUserPhotoFromBase64(
+        user.id,
+        String(input.photo_base64),
+        input.photo_mime
+      );
+    } else if (input.remove_photo) {
+      await deleteUserPhotoFiles(user.id);
+      user.photo_name = "";
     }
 
     writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
@@ -5115,6 +5162,7 @@ export async function createUser(input: {
       name,
       email,
       phone,
+      photo_name: "",
       level: input.level && USER_LEVELS.includes(input.level)
         ? input.level
         : "teknisi",
@@ -5232,6 +5280,7 @@ export async function deleteUser(userId: string): Promise<{ ok: true }> {
     }
     writeSheet(wb, SHEETS.users, USER_HEADERS, remaining.map(userToRow));
     await saveWorkbook(wb);
+    await deleteUserPhotoFiles(target.id);
     return { ok: true };
   });
 }

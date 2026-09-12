@@ -674,10 +674,12 @@ function applyJobAction(
             ...s,
             status: "done" as const,
             completed_at: at,
-            // Keep original start for history/payload; duration_sec is final.
-            // freezeStepDuration ignores started_at when status === "done".
             started_at: String(body.started_at || s.started_at || at),
             duration_sec: duration,
+            note:
+              body.note != null
+                ? String(body.note).trim().slice(0, 4000)
+                : s.note,
             technician_ids: (() => {
               try {
                 return (

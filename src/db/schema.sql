@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(255) NOT NULL DEFAULT '',
   email         VARCHAR(255) NOT NULL DEFAULT '',
   phone         VARCHAR(64)  NOT NULL DEFAULT '',
+  photo_name    VARCHAR(255) NOT NULL DEFAULT '',
   level         VARCHAR(32)  NOT NULL DEFAULT 'teknisi',
   active        TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    VARCHAR(64)  NOT NULL DEFAULT '',

@@ -108,3 +108,45 @@ export async function compressStepPhotoFiles(files: File[]): Promise<StepPhotoDr
   if (!out.length) throw new Error("Pilih foto bukti pekerjaan");
   return out;
 }
+
+export async function compressAvatarFile(file: File): Promise<{
+  previewUrl: string;
+  base64: string;
+  mime: string;
+}> {
+  if (!file || !file.size) throw new Error("Pilih foto profil");
+  if (!String(file.type || "").startsWith("image/")) {
+    throw new Error("File harus berupa gambar");
+  }
+  const originalUrl = await fileToDataUrl(file);
+  let img: HTMLImageElement;
+  try {
+    img = await loadImage(originalUrl);
+  } catch {
+    throw new Error("Tidak bisa membaca foto. Pakai JPEG atau PNG.");
+  }
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) throw new Error("Foto tidak valid");
+  const side = Math.min(w, h);
+  const sx = Math.floor((w - side) / 2);
+  const sy = Math.floor((h - side) / 2);
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Gagal kompres foto");
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, 256, 256);
+  let quality = 0.82;
+  let blob = await canvasToJpegBlob(canvas, quality);
+  while (blob.size > 180_000 && quality > 0.45) {
+    quality -= 0.1;
+    blob = await canvasToJpegBlob(canvas, quality);
+  }
+  const dataUrl = await fileToDataUrl(blob);
+  return {
+    previewUrl: dataUrl,
+    base64: dataUrlToBase64(dataUrl).base64,
+    mime: "image/jpeg",
+  };
+}

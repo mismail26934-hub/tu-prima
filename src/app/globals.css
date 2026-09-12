@@ -2582,7 +2582,6 @@ html[data-theme="light"].menu-open .topbar-glass {
 .steps .step-techs,
 .steps .step-note-text {
   display: inline-flex;
-  align-items: flex-start;
   align-self: start;
   gap: 4px;
   border: 0;
@@ -2595,6 +2594,14 @@ html[data-theme="light"].menu-open .topbar-glass {
   text-align: left;
   cursor: pointer;
   word-break: break-word;
+}
+
+.steps .step-techs {
+  align-items: center;
+}
+
+.steps .step-note-text {
+  align-items: flex-start;
 }
 
 .steps .step-note-text {
@@ -2623,16 +2630,19 @@ html[data-theme="light"].menu-open .topbar-glass {
 }
 
 .meta-icon {
-  font-size: 0.78em;
+  font-size: 1em;
   line-height: 1;
-  display: inline-block;
-  vertical-align: 0.08em;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -0.15em;
   margin-right: 0.28em;
   font-style: normal;
   font-weight: 400;
 }
 
 .step-note-head {
+  display: inline-flex;
+  align-items: center;
   font-weight: 600;
   color: var(--muted);
 }

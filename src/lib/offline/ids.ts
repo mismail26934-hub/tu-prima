@@ -85,5 +85,16 @@ export function ensureMutationIds(
     next.id = newEntityId("L");
   }
 
+  if (path.match(/^\/api\/jobs\/[^/]+\/action$/)) {
+    const action = String(next.action || "");
+    if (
+      (action === "set_step_note" || action === "complete_step") &&
+      String(next.note || "").trim() &&
+      !String(next.note_id || "").trim()
+    ) {
+      next.note_id = newEntityId("SN");
+    }
+  }
+
   return next;
 }

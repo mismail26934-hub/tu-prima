@@ -26,6 +26,7 @@ import {
   canDelegateJob,
   canDeleteJobNotes,
   canEditStepEvidence,
+  canCompleteStep,
   canManageActiveJob,
   canManageJobProgress,
   canOperateJobProgress,
@@ -61,6 +62,12 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { StepPhotoPicker } from "@/components/StepPhotoPicker";
 import { api } from "@/lib/api";
 import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
+import {
+  formatStepNoteAt,
+  hydrateStepNotes,
+  stepHasNote,
+} from "@/lib/step-notes";
+import { newEntityId } from "@/lib/offline/ids";
 import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import type { StepPhotoDraft } from "@/lib/step-photo-client";
 import { compressAvatarFile } from "@/lib/step-photo-client";
@@ -665,6 +672,14 @@ function ArchivePager({
   );
 }
 
+function MetaIcon({ children }: { children: string }) {
+  return (
+    <span className="meta-icon" aria-hidden>
+      {children}
+    </span>
+  );
+}
+
 function PersonIcon({ size = 16 }: { size?: number }) {
   return (
     <svg
@@ -802,6 +817,21 @@ export default function HomePage() {
     );
   }
 
+  function canCompleteForStep(
+    job: JobWithDetails,
+    step: JobWithDetails["steps"][0]
+  ): boolean {
+    return canCompleteStep(
+      userLevel,
+      userId,
+      job,
+      step,
+      assignedTechnicianIds(job),
+      actorTechnicianIdForJob(job),
+      jobAssigneeCount(job)
+    );
+  }
+
   function canNotesWriteForJob(job: JobWithDetails): boolean {
     if (job.from_archive) return false;
     return canWriteJobNotes(
@@ -854,6 +884,10 @@ export default function HomePage() {
           modalJob,
           (modal as { step: JobWithDetails["steps"][0] }).step
         )
+      : false;
+  const modalCompleteOk =
+    modal?.type === "complete-step"
+      ? canCompleteForStep(modal.job, modal.step)
       : false;
   const modalManageOk = modalJob ? canManageJob(modalJob) : false;
   const [busy, setBusy] = useState(false);
@@ -2087,6 +2121,7 @@ export default function HomePage() {
   >({});
   const [stepTechnicianIds, setStepTechnicianIds] = useState<string[]>([]);
   const [stepNoteDraft, setStepNoteDraft] = useState("");
+  const [stepNoteEditingId, setStepNoteEditingId] = useState("");
   const [stepPhotoDrafts, setStepPhotoDrafts] = useState<StepPhotoDraft[]>(
     []
   );
@@ -2319,6 +2354,8 @@ export default function HomePage() {
     setHandoverToQuery("");
     setStepPhotoDrafts([]);
     setStepPhotoRemoveIds([]);
+    setStepNoteDraft("");
+    setStepNoteEditingId("");
     setModal(null);
   }
 
@@ -2333,7 +2370,78 @@ export default function HomePage() {
   }
 
   function stepHasNoteText(step: JobWithDetails["steps"][0], draft = "") {
-    return Boolean((draft || step.note || "").trim());
+    return Boolean(draft.trim() || stepHasNote(step));
+  }
+
+  function renderStepNoteThread(
+    step: JobWithDetails["steps"][0],
+    opts?: { allowEdit?: boolean; job?: JobWithDetails }
+  ) {
+    const notes = hydrateStepNotes(step);
+    if (!notes.length) {
+      return (
+        <span className="step-note-body">—</span>
+      );
+    }
+    const canEdit =
+      Boolean(opts?.allowEdit && opts.job && canNotesDeleteForJob(opts.job));
+    return notes.map((n) => {
+      const when = formatStepNoteAt(n.created_at);
+      const who = String(n.user_name || "").trim();
+      const edited = n.edited_at
+        ? n.edited_by_name
+          ? ` (${t("job.stepNoteEditedBy", { name: n.edited_by_name })})`
+          : ` (${t("job.stepNoteEdited")})`
+        : "";
+      return (
+        <span
+          className={`step-note-entry${
+            stepNoteEditingId === n.id ? " is-editing" : ""
+          }`}
+          key={n.id}
+        >
+          <span className="step-note-entry-head">
+            <span className="step-note-byline">
+              {when ? (
+                <>
+                  <MetaIcon>📅</MetaIcon>
+                  {when}
+                </>
+              ) : null}
+              {when && (who || edited) ? (
+                <span className="step-note-byline-sep">|</span>
+              ) : null}
+              {who ? (
+                <>
+                  <MetaIcon>👷</MetaIcon>
+                  <span className="step-note-byline-name">
+                    {who}
+                    {edited}
+                  </span>
+                </>
+              ) : (
+                edited.trim()
+              )}
+              {!when && !who && !edited ? t("job.stepNote") : null}
+            </span>
+            {canEdit ? (
+              <button
+                type="button"
+                className="step-note-edit-btn"
+                disabled={busy}
+                onClick={() => {
+                  setStepNoteEditingId(n.id);
+                  setStepNoteDraft(n.body);
+                }}
+              >
+                {t("job.stepNoteChange")}
+              </button>
+            ) : null}
+          </span>
+          <span className="step-note-body">{n.body}</span>
+        </span>
+      );
+    });
   }
 
   function stepPhotoActionPayload() {
@@ -3437,7 +3545,10 @@ export default function HomePage() {
     );
   }
 
-  function renderStepTechnicianPicker(job: JobWithDetails) {
+  function renderStepTechnicianPicker(
+    job: JobWithDetails,
+    opts?: { locked?: boolean }
+  ) {
     const assigned = new Set(assignedTechnicianIds(job));
     const byId = new Map<string, (typeof job.technicians)[number]>();
     for (const t of job.technician_index || []) {
@@ -3460,7 +3571,7 @@ export default function HomePage() {
             <input
               type="checkbox"
               checked={stepTechnicianIds.includes(tech.id)}
-              disabled={busy}
+              disabled={busy || Boolean(opts?.locked)}
               onChange={() => toggleStepTechnician(tech.id)}
             />
             <span>
@@ -4210,15 +4321,16 @@ export default function HomePage() {
                     <button
                       type="button"
                       className={`step-note-btn${
-                        (s.note || "").trim() ? " has-note" : ""
+                        stepHasNote(s) ? " has-note" : ""
                       }`}
                       disabled={busy}
                       onClick={() => {
-                        setStepNoteDraft(s.note || "");
+                        setStepNoteDraft("");
+                        setStepNoteEditingId("");
                         setModal({ type: "step-note", job, step: s });
                       }}
                       title={
-                        (s.note || "").trim()
+                        stepHasNote(s)
                           ? t("job.stepNoteEdit")
                           : t("job.stepNote")
                       }
@@ -4312,6 +4424,7 @@ export default function HomePage() {
                           : t("job.stepTechnicians")
                       }
                     >
+                      <MetaIcon>👷</MetaIcon>
                       {t("job.technician")}: {techLabel || "—"}
                     </button>
                     );
@@ -4321,27 +4434,17 @@ export default function HomePage() {
                     className="step-note-text"
                     disabled={busy}
                     onClick={() => {
-                      setStepNoteDraft(s.note || "");
+                      setStepNoteDraft("");
+                      setStepNoteEditingId("");
                       setModal({ type: "step-note", job, step: s });
                     }}
                     title={t("job.stepNoteEdit")}
                   >
-                    <span className="step-note-byline">
+                    <span className="step-note-head">
+                      <MetaIcon>📝</MetaIcon>
                       {t("job.stepNote")}
-                      {s.note_updated_by_name ? (
-                        <>
-                          <span className="step-note-byline-sep">
-                            ·
-                          </span>
-                          <span className="step-note-byline-name">
-                            {s.note_updated_by_name}
-                          </span>
-                        </>
-                      ) : null}
                     </span>
-                    <span className="step-note-body">
-                      {(s.note || "").trim() || "—"}
-                    </span>
+                    {renderStepNoteThread(s)}
                   </button>
                 </span>
                 <span className="step-meta">
@@ -4352,8 +4455,8 @@ export default function HomePage() {
                     }
                   />
                   {job.status === "in_progress" &&
-                    progressOk &&
-                    s.status === "in_progress" && (
+                    s.status === "in_progress" &&
+                    canCompleteForStep(job, s) && (
                       <span className="step-actions">
                         <button
                           className="btn btn-step btn-primary"
@@ -4362,7 +4465,8 @@ export default function HomePage() {
                             initStepTechnicianIds(job, s);
                             setStepPhotoDrafts([]);
                             setStepPhotoRemoveIds([]);
-                            setStepNoteDraft(s.note || "");
+                            setStepNoteDraft("");
+                            setStepNoteEditingId("");
                             setModal({ type: "complete-step", job, step: s });
                           }}
                           title="Selesaikan step ini"
@@ -7539,9 +7643,19 @@ export default function HomePage() {
                   </>
                 )}
             </p>
-            {renderStepTechnicianPicker(modal.job)}
-            <label className="field-hint" style={{ display: "block", margin: "0 0 6px" }}>
-              {t("job.stepNote")} *
+            {renderStepTechnicianPicker(modal.job, {
+              locked: !modalProgressOk,
+            })}
+            <div className="step-note-thread step-note-thread--modal">
+              <span className="step-note-head">
+                <MetaIcon>📝</MetaIcon>
+                {t("job.stepNote")}
+              </span>
+              {renderStepNoteThread(modal.step)}
+            </div>
+            <label className="field-hint" style={{ display: "block", margin: "12px 0 6px" }}>
+              {t("job.stepNoteAdd")}
+              {!stepHasNote(modal.step) ? " *" : ""}
             </label>
             <p className="field-hint" style={{ marginTop: 0 }}>
               {t("job.stepNoteRequired")}
@@ -7550,7 +7664,7 @@ export default function HomePage() {
               className="step-note-field"
               value={stepNoteDraft}
               placeholder={t("job.stepNotePlaceholder")}
-              disabled={busy || !modalProgressOk}
+              disabled={busy || !modalCompleteOk}
               maxLength={4000}
               rows={4}
               onChange={(e) => setStepNoteDraft(e.target.value)}
@@ -7560,14 +7674,14 @@ export default function HomePage() {
               drafts={stepPhotoDrafts}
               onDraftsChange={setStepPhotoDrafts}
               onRemoveExisting={
-                modalProgressOk
+                modalCompleteOk
                   ? (id) =>
                       setStepPhotoRemoveIds((prev) =>
                         prev.includes(id) ? prev : [...prev, id]
                       )
                   : undefined
               }
-              disabled={busy || !modalProgressOk}
+              disabled={busy || !modalCompleteOk}
               required
             />
             <div className="actions">
@@ -7578,20 +7692,24 @@ export default function HomePage() {
                 className="btn btn-primary"
                 disabled={
                   busy ||
-                  !modalProgressOk ||
-                  ((modal.job.technicians?.length || 0) > 0 &&
+                  !modalCompleteOk ||
+                  (modalProgressOk &&
+                    (modal.job.technicians?.length || 0) > 0 &&
                     stepTechnicianIds.length === 0) ||
                   !stepHasEvidence(modal.step) ||
-                  !stepNoteDraft.trim()
+                  !stepHasNoteText(modal.step, stepNoteDraft)
                 }
                 onClick={() => {
                   const mode = getStepMode(modal.job.id);
+                  const extraNote = stepNoteDraft.trim().slice(0, 4000);
                   runAction(modal.job.id, "complete_step", {
                     step_id: modal.step.id,
                     step_mode: mode,
                     auto_next: mode === "sequential",
-                    note: stepNoteDraft.trim().slice(0, 4000),
-                    ...(modal.job.technicians?.length
+                    ...(extraNote
+                      ? { note: extraNote, note_id: newEntityId("SN") }
+                      : {}),
+                    ...(modalProgressOk && modal.job.technicians?.length
                       ? { technician_ids: stepTechnicianIds }
                       : {}),
                     ...stepPhotoActionPayload(),
@@ -7663,56 +7781,112 @@ export default function HomePage() {
                 {modal.step.order}. {modal.step.name}
               </strong>
             </p>
-            <p className="step-note-byline" style={{ margin: "0 0 8px" }}>
-              {t("job.stepNote")}
-              {modal.step.note_updated_by_name ? (
-                <>
-                  <span className="step-note-byline-sep">
-                    ·
-                  </span>
-                  <span className="step-note-byline-name">
-                    {modal.step.note_updated_by_name}
-                  </span>
-                </>
-              ) : null}
-            </p>
-            <p className="field-hint" style={{ marginTop: 0 }}>
-              {t("job.stepNoteHint")} {t("job.stepNoteRequired")}
-            </p>
+            <div className="step-note-thread step-note-thread--modal">
+              <span className="step-note-head">
+                <MetaIcon>📝</MetaIcon>
+                {t("job.stepNote")}
+              </span>
+              {renderStepNoteThread(modal.step, {
+                allowEdit: true,
+                job: modal.job,
+              })}
+            </div>
+            {stepNoteEditingId ? (
+              <p className="field-hint" style={{ marginTop: 0 }}>
+                {t("job.stepNoteChangeHint")}
+              </p>
+            ) : (
+              <p className="field-hint" style={{ marginTop: 0 }}>
+                {t("job.stepNoteHint")} {t("job.stepNoteRequired")}
+              </p>
+            )}
+            <label
+              className="field-hint"
+              style={{ display: "block", margin: "0 0 6px" }}
+            >
+              {stepNoteEditingId
+                ? t("job.stepNoteChange")
+                : t("job.stepNoteAdd")}
+            </label>
             <textarea
               className="step-note-field"
               value={stepNoteDraft}
               placeholder={t("job.stepNotePlaceholder")}
-              disabled={busy || !modalEvidenceOk}
+              disabled={
+                busy ||
+                (stepNoteEditingId
+                  ? !canNotesDeleteForJob(modal.job)
+                  : !modalEvidenceOk)
+              }
               maxLength={4000}
-              rows={6}
+              rows={4}
               onChange={(e) => setStepNoteDraft(e.target.value)}
             />
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 {t("job.cancelAction")}
               </button>
-              {modalEvidenceOk && (
-                <button
-                  className="btn btn-primary"
-                  disabled={
-                    busy ||
-                    !stepNoteDraft.trim() ||
-                    stepNoteDraft.trim() === (modal.step.note || "").trim()
-                  }
-                  onClick={() =>
-                    runAction(modal.job.id, "set_step_note", {
-                      step_id: modal.step.id,
-                      note: stepNoteDraft.trim().slice(0, 4000),
-                    })
-                  }
-                >
-                  <BusyLabel
-                    busy={busy}
-                    idle={t("job.stepNoteSave")}
-                    pending={t("job.saving")}
-                  />
-                </button>
+              {stepNoteEditingId ? (
+                <>
+                  <button
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => {
+                      setStepNoteEditingId("");
+                      setStepNoteDraft("");
+                    }}
+                  >
+                    {t("job.stepNoteChangeCancel")}
+                  </button>
+                  {canNotesDeleteForJob(modal.job) && (
+                    <button
+                      className="btn btn-primary"
+                      disabled={
+                        busy ||
+                        !stepNoteDraft.trim() ||
+                        stepNoteDraft.trim() ===
+                          (hydrateStepNotes(modal.step).find(
+                            (n) => n.id === stepNoteEditingId
+                          )?.body || "")
+                      }
+                      onClick={() =>
+                        runAction(modal.job.id, "edit_step_note", {
+                          step_id: modal.step.id,
+                          note_id: stepNoteEditingId,
+                          note: stepNoteDraft.trim().slice(0, 4000),
+                          edited_by_name: displayName,
+                          edited_by_user_id: userId,
+                        })
+                      }
+                    >
+                      <BusyLabel
+                        busy={busy}
+                        idle={t("job.stepNoteChangeSave")}
+                        pending={t("job.saving")}
+                      />
+                    </button>
+                  )}
+                </>
+              ) : (
+                modalEvidenceOk && (
+                  <button
+                    className="btn btn-primary"
+                    disabled={busy || !stepNoteDraft.trim()}
+                    onClick={() =>
+                      runAction(modal.job.id, "set_step_note", {
+                        step_id: modal.step.id,
+                        note: stepNoteDraft.trim().slice(0, 4000),
+                        note_id: newEntityId("SN"),
+                      })
+                    }
+                  >
+                    <BusyLabel
+                      busy={busy}
+                      idle={t("job.stepNoteSave")}
+                      pending={t("job.saving")}
+                    />
+                  </button>
+                )
               )}
             </div>
           </div>

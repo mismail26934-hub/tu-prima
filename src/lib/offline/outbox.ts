@@ -77,12 +77,12 @@ async function dedupeJobActionOutbox(url: string, body: string | null) {
     const prevBody = parseOutboxBody(row.body);
     if (!prevBody) continue;
     if (String(prevBody.action || "") !== nextAction) continue;
+    if (nextAction === "set_step_note" || nextAction === "edit_step_note") continue;
     if (
       (nextAction === "complete_step" ||
         nextAction === "start_step" ||
         nextAction === "start_steps" ||
         nextAction === "set_step_technicians" ||
-        nextAction === "set_step_note" ||
         nextAction === "set_step_photo") &&
       nextStepId &&
       String(prevBody.step_id || "") !== nextStepId

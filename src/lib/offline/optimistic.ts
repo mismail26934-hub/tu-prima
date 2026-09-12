@@ -19,6 +19,7 @@ import type {
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
 import { attachStepPhotoUrl, parseStepPhotos } from "@/lib/step-photo-url";
+import { withAppendedStepNote, withUpdatedStepNote } from "@/lib/step-notes";
 import { cacheStepPhotoPreviews } from "@/lib/offline/step-photo-preview";
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
 import {
@@ -669,33 +670,33 @@ function applyJobAction(
           typeof body.duration_sec === "number"
             ? Math.max(0, Math.floor(body.duration_sec))
             : freezeStepDuration(s);
-        return applyPhotoFromBody(
-          {
-            ...s,
-            status: "done" as const,
-            completed_at: at,
-            started_at: String(body.started_at || s.started_at || at),
-            duration_sec: duration,
-            note:
-              body.note != null
-                ? String(body.note).trim().slice(0, 4000)
-                : s.note,
-            technician_ids: (() => {
-              try {
-                return (
-                  selectedStepTechnicianIds(
-                    body.technician_ids,
-                    assignedTechnicianIds(j),
-                    parseStepTechnicianIds(s.technician_ids)
-                  ) ?? s.technician_ids
-                );
-              } catch {
-                return s.technician_ids;
-              }
-            })(),
-          },
-          body
-        );
+        let nextStep: JobStep = {
+          ...s,
+          status: "done" as const,
+          completed_at: at,
+          started_at: String(body.started_at || s.started_at || at),
+          duration_sec: duration,
+          technician_ids: (() => {
+            try {
+              return (
+                selectedStepTechnicianIds(
+                  body.technician_ids,
+                  assignedTechnicianIds(j),
+                  parseStepTechnicianIds(s.technician_ids)
+                ) ?? s.technician_ids
+              );
+            } catch {
+              return s.technician_ids;
+            }
+          })(),
+        };
+        if (String(body.note || "").trim()) {
+          nextStep = withAppendedStepNote(nextStep, {
+            id: String(body.note_id || ""),
+            body: String(body.note),
+          });
+        }
+        return applyPhotoFromBody(nextStep, body);
       });
       if (autoNext) {
         const next = steps.find((s) => s.status === "pending");
@@ -738,9 +739,37 @@ function applyJobAction(
   if (action === "set_step_note") {
     const stepId = String(body.step_id || "");
     const note = String(body.note ?? "").trim().slice(0, 4000);
+    if (!note) return data;
     return mapJob(data, jobId, (j) => ({
       ...j,
-      steps: j.steps.map((s) => (s.id === stepId ? { ...s, note } : s)),
+      steps: j.steps.map((s) =>
+        s.id === stepId
+          ? withAppendedStepNote(s, {
+              id: String(body.note_id || ""),
+              body: note,
+            })
+          : s
+      ),
+    }));
+  }
+
+  if (action === "edit_step_note") {
+    const stepId = String(body.step_id || "");
+    const noteId = String(body.note_id || "").trim();
+    const note = String(body.note ?? "").trim().slice(0, 4000);
+    if (!stepId || !noteId || !note) return data;
+    return mapJob(data, jobId, (j) => ({
+      ...j,
+      steps: j.steps.map((s) =>
+        s.id === stepId
+          ? withUpdatedStepNote(s, {
+              id: noteId,
+              body: note,
+              edited_by_name: String(body.edited_by_name || ""),
+              edited_by_user_id: String(body.edited_by_user_id || ""),
+            })
+          : s
+      ),
     }));
   }
 

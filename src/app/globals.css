@@ -2607,9 +2607,8 @@ html[data-theme="light"].menu-open .topbar-glass {
   display: block;
   font-weight: 600;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
   max-width: 100%;
 }
 
@@ -2621,6 +2620,79 @@ html[data-theme="light"].menu-open .topbar-glass {
 
 .step-note-byline-name {
   font-weight: 500;
+}
+
+.meta-icon {
+  font-size: 0.78em;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: 0.08em;
+  margin-right: 0.28em;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.step-note-head {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.step-note-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.step-note-entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.step-note-entry.is-editing {
+  outline: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.step-note-edit-btn {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: var(--amber);
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-note-edit-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.step-note-edit-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.step-note-edited {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.step-note-thread--modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.step-note-thread--modal .step-note-byline {
+  white-space: normal;
 }
 
 .step-note-body {

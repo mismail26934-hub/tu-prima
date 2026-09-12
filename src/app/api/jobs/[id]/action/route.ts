@@ -3,6 +3,7 @@ import { jobAction } from "@/lib/excel";
 import {
     getCurrentActor,
     requireAssignPermission,
+    requireEditStepNotePermission,
     requireJobProgressPermission,
     requireLogin,
     requirePermission,
@@ -23,6 +24,7 @@ const ACTIONS = [
   "complete_step",
   "set_step_technicians",
   "set_step_note",
+  "edit_step_note",
   "set_step_photo",
   "complete",
   "cancel",
@@ -50,7 +52,13 @@ export async function POST(
       denied = await requireAssignPermission();
     } else if (action === "reopen") {
       denied = await requireReopenPermission();
-    } else if (action === "set_step_note" || action === "set_step_photo") {
+    } else if (action === "edit_step_note") {
+      denied = await requireEditStepNotePermission();
+    } else if (
+      action === "complete_step" ||
+      action === "set_step_note" ||
+      action === "set_step_photo"
+    ) {
       denied = await requireLogin();
     } else if (
       [
@@ -59,7 +67,6 @@ export async function POST(
         "resume",
         "start_step",
         "start_steps",
-        "complete_step",
         "set_step_technicians",
         "complete",
       ].includes(action)
@@ -91,6 +98,7 @@ export async function POST(
       auto_next:
         typeof body.auto_next === "boolean" ? body.auto_next : undefined,
       note: body.note,
+      note_id: body.note_id ? String(body.note_id) : undefined,
       photo_base64: body.photo_base64 ? String(body.photo_base64) : undefined,
       thumb_base64: body.thumb_base64 ? String(body.thumb_base64) : undefined,
       photo_mime: body.photo_mime ? String(body.photo_mime) : undefined,

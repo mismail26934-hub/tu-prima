@@ -30,6 +30,12 @@ import {
   parseStepPhotos,
   serializeStepPhotos,
 } from "@/lib/step-photo-url";
+import {
+  attachStepNotes,
+  hydrateStepNotes,
+  parseStepNotes,
+  serializeStepNotes,
+} from "@/lib/step-notes";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const COMPLETED_JOBS_PATH = "mysql://completed";
@@ -83,6 +89,7 @@ const STEP_HEADERS = [
   "std_minutes",
   "technician_ids",
   "note",
+  "notes",
   "photo_name",
   "photos",
 ];
@@ -223,8 +230,10 @@ function mapJobRow(r: Row): Job {
 }
 
 function mapStepRow(r: Row): JobStep {
-  return attachStepPhotoUrl({
-    id: String(r.id || ""),
+  const id = String(r.id || "");
+  return attachStepNotes(
+    attachStepPhotoUrl({
+    id,
     job_id: String(r.job_id || ""),
     name: String(r.name || ""),
     order: Number(r.order || 0),
@@ -235,9 +244,14 @@ function mapStepRow(r: Row): JobStep {
     std_minutes: Number(r.std_minutes || 0),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: String(r.note || ""),
+    notes: parseStepNotes(r.notes, {
+      stepId: id,
+      note: String(r.note || ""),
+    }),
     photo_name: String(r.photo_name || ""),
     photos: String(r.photos || ""),
-  });
+    })
+  ) as JobStep;
 }
 
 function mapEventRow(r: Row): JobEvent {
@@ -366,6 +380,7 @@ export async function archiveCompletedJob(input: {
       std_minutes: s.std_minutes,
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
       note: s.note || "",
+      notes: serializeStepNotes(hydrateStepNotes(s)),
       photo_name: s.photo_name || "",
       photos: serializeStepPhotos(parseStepPhotos(s.photos, s.photo_name)),
     }))

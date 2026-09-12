@@ -1,4 +1,5 @@
 import { formatDuration } from "./duration";
+import { formatStepNoteAt } from "./step-notes";
 import type {
   Job,
   JobHandover,
@@ -11,17 +12,24 @@ const FONNTE_SEND_URL = "https://api.fonnte.com/send";
 const FONNTE_GET_GROUP_URL = "https://api.fonnte.com/get-whatsapp-group";
 const FONNTE_FETCH_GROUP_URL = "https://api.fonnte.com/fetch-group";
 const TIME_ZONE = "Asia/Makassar";
-const MAX_NOTE_CHARS = 800;
 const MAX_DESC_CHARS = 240;
 const SEND_TIMEOUT_MS = 15_000;
 
 export type HandoverNotifyAction = "create" | "update" | "delete";
+
+export type HandoverNotifyStepNote = {
+  body: string;
+  user_name?: string;
+  created_at?: string;
+  edited_by_name?: string;
+};
 
 export type HandoverNotifyStep = {
   order: number;
   name: string;
   status: StepStatus;
   note?: string;
+  notes?: HandoverNotifyStepNote[];
   technicianNames?: string;
   elapsedLabel?: string;
 };
@@ -38,6 +46,7 @@ export type HandoverNotifySnapshot = {
   technicianNames: string;
   steps: HandoverNotifyStep[];
   partLoans: HandoverNotifyPartLoan[];
+  handovers: JobHandover[];
   progressPct: number;
   elapsedSec: number;
 };
@@ -51,6 +60,7 @@ export type HandoverNotifyPayload = {
   recipientPhone?: string;
   steps?: HandoverNotifyStep[];
   partLoans?: HandoverNotifyPartLoan[];
+  handovers?: JobHandover[];
   progressPct?: number;
   elapsedSec?: number;
 };
@@ -180,35 +190,106 @@ function headingFor(payload: HandoverNotifyPayload): string {
   return `*${action}*`;
 }
 
-function handoverFromToLine(payload: HandoverNotifyPayload): string {
-  const from = waPlain(
-    payload.handover.from_name || payload.handover.user_name,
-    ""
-  );
-  const to = waPlain(payload.handover.to_name, "");
-  if (from && from !== "—" && to && to !== "—") {
-    return `Handover dari ${from} ke *${to}*`;
-  }
-  if (from && from !== "—") return `Handover dari ${from}`;
-  if (to && to !== "—") return `Handover ke *${to}*`;
-  return "Handover";
+function handoverDoneLabel(handover: JobHandover): string {
+  return handover.done === "1" ? "✅ Selesai" : "⚠️ Belum";
 }
 
-function splitStepName(name: string): { phase: string; label: string } {
-  const idx = name.indexOf(": ");
-  if (idx > 0) {
-    return {
-      phase: name.slice(0, idx).trim(),
-      label: name.slice(idx + 2).trim() || name,
-    };
+function handoverFromToLine(handover: JobHandover): string {
+  const from = waPlain(handover.from_name || handover.user_name, "");
+  const to = waPlain(handover.to_name, "");
+  const status = handoverDoneLabel(handover);
+  if (from && from !== "—" && to && to !== "—") {
+    return `📌 HANDOVER: ${from} kepada ${to} · ${status}`;
   }
-  return { phase: "", label: name };
+  if (from && from !== "—") return `📌 HANDOVER: ${from} · ${status}`;
+  if (to && to !== "—") return `📌 HANDOVER: kepada ${to} · ${status}`;
+  return `📌 HANDOVER · ${status}`;
+}
+
+function splitHandoverTitleItems(title: string): string[] {
+  const text = waPlain(title, "").replace(/\s+/g, " ").trim();
+  if (!text || text === "—") return [];
+  const parts = text
+    .split(/(?<=\.)\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [text];
+}
+
+function appendHandoverCard(lines: string[], handover: JobHandover): void {
+  const border = "▫️".repeat(18);
+  const note = waPlain(handover.note, "");
+  const items = splitHandoverTitleItems(handover.title);
+  lines.push("", border);
+  lines.push(handoverFromToLine(handover));
+  items.forEach((item, i) => {
+    lines.push(`${i + 1}. ${item}`);
+  });
+  if (note && note !== "—") {
+    const noteLines = note.split("\n");
+    lines.push("", `📥 ${noteLines[0]}`);
+    for (const extra of noteLines.slice(1)) {
+      lines.push(extra);
+    }
+  }
+  lines.push(border);
+}
+
+function handoverCardsForNotify(payload: HandoverNotifyPayload): JobHandover[] {
+  const list = [...(payload.handovers || [])].sort(
+    (a, b) => a.order - b.order || a.updated_at.localeCompare(b.updated_at)
+  );
+  if (list.length) return list;
+  return [payload.handover];
 }
 
 function stepIcon(status: StepStatus | string): string {
   if (status === "done") return "✅";
   if (status === "in_progress") return "▶️";
   return "○";
+}
+
+function pushIndented(lines: string[], text: string, indent = "    "): void {
+  const body = waPlain(text, "");
+  if (!body || body === "—") return;
+  for (const line of body.split("\n")) {
+    lines.push(`${indent}${line}`);
+  }
+}
+
+function pushStarNote(lines: string[], prefix: string, text: string): void {
+  const body = waPlain(text, "");
+  if (!body || body === "—") return;
+  const bodyLines = body.split("\n");
+  const first = bodyLines[0] || "";
+  lines.push(prefix ? `* ${prefix} : 📝 ${first}` : `* 📝 ${first}`);
+  for (const extra of bodyLines.slice(1)) {
+    lines.push(extra);
+  }
+}
+
+function appendStepNoteLines(
+  lines: string[],
+  step: HandoverNotifyStep
+): void {
+  const notes = (step.notes || []).filter((n) => String(n.body || "").trim());
+  if (notes.length) {
+    for (const note of notes) {
+      const who = waPlain(note.user_name, "");
+      const at = formatStepNoteAt(String(note.created_at || ""));
+      const editor = waPlain(note.edited_by_name, "");
+      const edited =
+        editor && editor !== "—" ? ` (diedit oleh ${editor})` : "";
+      const whoBit = who && who !== "—" ? who + edited : edited.trim();
+      const meta = [at, whoBit].filter(Boolean).join(" | ");
+      pushStarNote(lines, meta, note.body);
+    }
+    return;
+  }
+  const fallback = waPlain(step.note, "");
+  if (fallback && fallback !== "—") {
+    pushStarNote(lines, "", fallback);
+  }
 }
 
 function appendStepLines(lines: string[], steps: HandoverNotifyStep[]): void {
@@ -221,23 +302,18 @@ function appendStepLines(lines: string[], steps: HandoverNotifyStep[]): void {
     `*Step* (${done} Selesai • ${active} Sedang dikerjakan • ${pending} Belum dimulai)`
   );
 
-  let lastPhase = "\0";
   for (const step of steps) {
-    const { phase, label } = splitStepName(step.name);
-    if (phase && phase !== lastPhase) {
-      lines.push("", `*${waPlain(phase)}*`);
-      lastPhase = phase;
-    } else if (!phase && lastPhase !== "") {
-      lastPhase = "";
-    }
-    lines.push(`${stepIcon(step.status)} ${step.order}. ${waPlain(label)}`);
+    const name = waPlain(step.name);
+    const activeLabel = step.status === "in_progress" ? " (aktif)" : "";
+    const elapsed = String(step.elapsedLabel || "").trim();
+    const title = `${stepIcon(step.status)} ${step.order}. ${name}${activeLabel}`;
+    lines.push(elapsed ? `${title} · ${elapsed}` : title);
     if (step.status === "pending") continue;
-    const detail = [
-      waPlain(step.technicianNames, ""),
-      clip(waPlain(step.note, ""), 160),
-      String(step.elapsedLabel || "").trim(),
-    ].filter((part) => part && part !== "—");
-    if (detail.length) lines.push(`    ${detail.join(" · ")}`);
+    const techs = waPlain(step.technicianNames, "");
+    if (techs && techs !== "—") {
+      lines.push(`• Teknisi: ${techs}`);
+    }
+    appendStepNoteLines(lines, step);
   }
 }
 
@@ -253,13 +329,15 @@ function appendPartLoanLines(
       `${open ? "▶️" : "✅"} ${loan.order}. ${waPlain(loan.part_name)}`
     );
     const fallback = open ? "Masih dipinjam" : "Sudah dikembalikan";
-    const note = clip(waPlain(loan.note, ""), 160);
+    const note = waPlain(loan.note, "");
     const who = waPlain(loan.user_name, "");
-    const detail = [
-      note && note !== "—" ? note : fallback,
-      who && who !== "—" ? who : "",
-    ].filter(Boolean);
-    if (detail.length) lines.push(`    ${detail.join(" · ")}`);
+    if (note && note !== "—") {
+      pushIndented(lines, note);
+      if (who && who !== "—") lines.push(`    ${who}`);
+    } else {
+      const detail = [fallback, who && who !== "—" ? who : ""].filter(Boolean);
+      if (detail.length) lines.push(`    ${detail.join(" · ")}`);
+    }
   }
 }
 
@@ -276,7 +354,6 @@ export function buildHandoverWhatsAppMessage(
   const priority = priorityLabel(String(job.priority || ""));
   const statusLine = priority ? `${status} · ${priority}` : status;
   const desc = clip(waPlain(job.description, ""), MAX_DESC_CHARS);
-  const note = clip(waPlain(handover.note, ""), MAX_NOTE_CHARS);
   const steps = payload.steps || [];
   const doneCount = steps.filter((s) => s.status === "done").length;
   const progressBits: string[] = [];
@@ -284,7 +361,7 @@ export function buildHandoverWhatsAppMessage(
     progressBits.push(`Progress ${payload.progressPct}%`);
   }
   if (steps.length) {
-    progressBits.push(`${doneCount}/${steps.length} step selesai`);
+    progressBits.push(`${doneCount}/${steps.length} step`);
   }
   if (
     typeof payload.elapsedSec === "number" &&
@@ -297,13 +374,8 @@ export function buildHandoverWhatsAppMessage(
   if (desc && desc !== "—") lines.push(desc);
   if (progressBits.length) lines.push(progressBits.join(" · "));
 
-  lines.push(
-    "",
-    handoverFromToLine(payload),
-    `#${handover.order} ${waPlain(handover.title)}`
-  );
-  if (note && note !== "—") {
-    lines.push("", note);
+  for (const card of handoverCardsForNotify(payload)) {
+    appendHandoverCard(lines, card);
   }
 
   const ownerBits: string[] = [];

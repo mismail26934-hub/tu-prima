@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS job_steps (
   std_minutes  INT          NOT NULL DEFAULT 0,
   technician_ids TEXT,
   note         TEXT,
+  notes        TEXT,
   photo_name   VARCHAR(255) NOT NULL DEFAULT '',
   photos       TEXT,
   note_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',

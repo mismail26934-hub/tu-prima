@@ -140,6 +140,26 @@ export async function requireHandoverWritePermission(): Promise<NextResponse | n
   return null;
 }
 
+/** Ubah catatan step yang sudah tersimpan: hanya foreman. */
+export async function requireEditStepNotePermission(): Promise<NextResponse | null> {
+  const level = await getCurrentLevel();
+  if (!canManageHandover(level)) {
+    if (level === "guest") {
+      return NextResponse.json(
+        { error: "Silakan login untuk mengubah catatan step" },
+        { status: 401 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: `Ubah catatan step hanya untuk level foreman (level Anda: ${level})`,
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
 /** Buka kembali job done: hanya superuser. */
 export async function requireReopenPermission(): Promise<NextResponse | null> {
   const level = await getCurrentLevel();

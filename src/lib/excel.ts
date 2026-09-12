@@ -45,6 +45,16 @@ import {
 } from "./step-technicians";
 import { attachStepPhotoUrl, MAX_STEP_PHOTOS, parseStepPhotos, serializeStepPhotos, stepHasPhoto } from "./step-photo-url";
 import {
+  attachStepNotes,
+  formatStepNotesPlain,
+  hydrateStepNotes,
+  parseStepNotes,
+  serializeStepNotes,
+  stepHasNote,
+  withAppendedStepNote,
+  withUpdatedStepNote,
+} from "./step-notes";
+import {
   deleteOneStepPhoto,
   deleteStepPhotoFiles,
   saveStepPhotoFromBase64,
@@ -101,7 +111,9 @@ import {
   canAssignTechnicians,
   canDelegateJob,
   canDeleteJobNotes,
+  canEditExistingStepNote,
   canEditStepEvidence,
+  canCompleteStep,
   canManageActiveJob,
   canOperateJobProgress,
   canWriteJobNotes,
@@ -523,8 +535,10 @@ function mapUnit(r: Row): Unit {
 }
 
 function mapStep(r: Row): JobStep {
-  return attachStepPhotoUrl({
-    id: String(r.id || ""),
+  const id = String(r.id || "");
+  return attachStepNotes(
+    attachStepPhotoUrl({
+    id,
     job_id: String(r.job_id || ""),
     name: String(r.name || ""),
     order: Number(r.order || 0),
@@ -535,6 +549,13 @@ function mapStep(r: Row): JobStep {
     std_minutes: Number(r.std_minutes || 0),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: String(r.note || ""),
+    notes: parseStepNotes(r.notes, {
+      stepId: id,
+      note: String(r.note || ""),
+      user_id: String(r.note_updated_by_user_id || ""),
+      user_name: String(r.note_updated_by_name || ""),
+      at: String(r.note_updated_at || ""),
+    }),
     photo_name: String(r.photo_name || ""),
     photos: parseStepPhotos(r.photos, String(r.photo_name || "")),
     note_updated_by_user_id: String(r.note_updated_by_user_id || ""),
@@ -543,7 +564,8 @@ function mapStep(r: Row): JobStep {
     photo_updated_by_user_id: String(r.photo_updated_by_user_id || ""),
     photo_updated_by_name: String(r.photo_updated_by_name || ""),
     photo_updated_at: String(r.photo_updated_at || ""),
-  });
+    })
+  ) as JobStep;
 }
 
 function mapEvent(r: Row): JobEvent {
@@ -690,6 +712,7 @@ function stepToRow(s: JobStep): Row {
     std_minutes: Number(s.std_minutes || 0),
     technician_ids: serializeStepTechnicianIds(s.technician_ids),
     note: String(s.note || ""),
+    notes: serializeStepNotes(hydrateStepNotes(s)),
     photo_name: String(s.photo_name || ""),
     photos: serializeStepPhotos(parseStepPhotos(s.photos, s.photo_name)),
     note_updated_by_user_id: String(s.note_updated_by_user_id || ""),
@@ -784,6 +807,7 @@ const STEP_HEADERS = [
   "std_minutes",
   "technician_ids",
   "note",
+  "notes",
   "photo_name",
   "photos",
   "note_updated_by_user_id",
@@ -902,6 +926,57 @@ function stampStepEvidence(
     step.photo_updated_by_user_id = userId;
     step.photo_updated_by_name = name;
   }
+}
+
+function updateNoteOnStep(
+  step: JobStep,
+  noteId: string | undefined,
+  rawNote: string | undefined,
+  actor: AuditActor | null | undefined
+): boolean {
+  const id = String(noteId || "").trim();
+  const body = String(rawNote ?? "").trim();
+  if (!id || !body) return false;
+  const before = hydrateStepNotes(step);
+  const current = before.find((n) => n.id === id);
+  if (!current) throw new Error("Catatan step tidak ditemukan");
+  if (current.body === body) return false;
+  const next = withUpdatedStepNote(step, {
+    id,
+    body,
+    edited_by_user_id: actor?.user_id || "",
+    edited_by_name: actor?.user_name || "",
+  });
+  step.notes = next.notes;
+  step.note = next.note;
+  step.note_updated_by_user_id = next.note_updated_by_user_id;
+  step.note_updated_by_name = next.note_updated_by_name;
+  step.note_updated_at = next.note_updated_at;
+  return true;
+}
+
+function appendNoteToStep(
+  step: JobStep,
+  rawNote: string | undefined,
+  actor: AuditActor | null | undefined,
+  technicianName?: string,
+  noteId?: string
+): boolean {
+  const body = String(rawNote ?? "").trim();
+  if (!body) return false;
+  const before = hydrateStepNotes(step);
+  const next = withAppendedStepNote(step, {
+    id: noteId,
+    body,
+    user_id: actor?.user_id || "",
+    user_name: (technicianName || actor?.user_name || "").trim(),
+  });
+  step.notes = next.notes;
+  step.note = next.note;
+  step.note_updated_by_user_id = next.note_updated_by_user_id;
+  step.note_updated_by_name = next.note_updated_by_name;
+  step.note_updated_at = next.note_updated_at;
+  return hydrateStepNotes(step).length > before.length;
 }
 
 async function ensureTechnicianLoginUser(
@@ -1244,10 +1319,16 @@ function handoverNotifySnapshot(
     .sort(
       (a, b) => a.order - b.order || a.updated_at.localeCompare(b.updated_at)
     );
+  const handovers = loadHandovers(wb)
+    .filter((h) => h.job_id === job.id)
+    .sort(
+      (a, b) => a.order - b.order || a.updated_at.localeCompare(b.updated_at)
+    );
   return {
     technicianNames: technicianNamesByIds(assignedIds, techs),
     progressPct: calcProgressPct(steps),
     elapsedSec: calcElapsedSec(job),
+    handovers,
     steps: steps.map((s) => {
       const names = technicianNamesByIds(
         displayStepTechnicianIds(s, assignedIds),
@@ -1257,11 +1338,18 @@ function handoverNotifySnapshot(
         s.status === "done" || s.status === "in_progress"
           ? formatDuration(calcStepElapsedSec(s))
           : "";
+      const notes = hydrateStepNotes(s);
       return {
         order: s.order,
         name: s.name,
         status: s.status,
-        note: s.note || "",
+        note: formatStepNotesPlain(notes) || s.note || "",
+        notes: notes.map((n) => ({
+          body: n.body,
+          user_name: n.user_name,
+          created_at: n.created_at,
+          edited_by_name: n.edited_by_name,
+        })),
         technicianNames: names,
         elapsedLabel: elapsed,
       };
@@ -3460,6 +3548,7 @@ type JobAction =
   | "complete_step"
   | "set_step_technicians"
   | "set_step_note"
+  | "edit_step_note"
   | "set_step_photo"
   | "complete"
   | "cancel"
@@ -3544,6 +3633,7 @@ export async function jobAction(
     auto_start_first?: boolean;
     auto_next?: boolean;
     note?: string;
+    note_id?: string;
     photo_base64?: string;
     thumb_base64?: string;
     photo_mime?: string;
@@ -3785,7 +3875,6 @@ export async function jobAction(
         "resume",
         "start_step",
         "start_steps",
-        "complete_step",
         "set_step_technicians",
         "complete",
       ].includes(action)
@@ -3793,6 +3882,25 @@ export async function jobAction(
       assertProgressPermission(job, actor, jobAssigneeCount);
     } else if (action === "cancel") {
       assertJobManagePermission(job, actor, jobAssigneeCount);
+    } else if (action === "edit_step_note") {
+      if (
+        !["queued", "assigned", "in_progress", "paused"].includes(job.status)
+      ) {
+        throw new Error("Catatan step tidak bisa diubah setelah job selesai");
+      }
+      const level = (actor?.user_level || "guest") as AccessLevel;
+      if (
+        !canEditExistingStepNote(
+          level,
+          actor?.user_id,
+          job,
+          jobAssigneeCount
+        )
+      ) {
+        throw new Error(
+          "Hanya pengendali job (foreman) yang boleh mengubah catatan yang sudah tersimpan"
+        );
+      }
     }
 
     const actorTechnicianId = technicianIdForUser(actor?.user_id, techs);
@@ -4114,8 +4222,34 @@ export async function jobAction(
         ? jobSteps().find((s) => s.id === stepId)
         : jobSteps().find((s) => s.status === "in_progress");
       if (!current) throw new Error("Step tidak ditemukan");
+      const level = (actor?.user_level || "guest") as AccessLevel;
+      const assignedIds = assignedIdsFromAssignees(job, assignees);
+      if (
+        !canCompleteStep(
+          level,
+          actor?.user_id,
+          job,
+          current,
+          assignedIds,
+          actorTechnicianId,
+          jobAssigneeCount
+        )
+      ) {
+        throw new Error(
+          "Hanya teknisi yang dipilih di step ini, atau pengendali job, yang boleh menandai step selesai"
+        );
+      }
+      const canEditStepTechs = canOperateJobProgress(
+        level,
+        actor?.user_id,
+        job,
+        jobAssigneeCount
+      );
       const applyStepTechs = () => {
-        const assignedIds = assignedIdsFromAssignees(job, assignees);
+        if (!canEditStepTechs) {
+          stampEmptyTechnicianIds(current, assignedIds);
+          return;
+        }
         const nextTechIds = selectedStepTechnicianIds(
           payload?.technician_ids,
           assignedIds,
@@ -4152,18 +4286,21 @@ export async function jobAction(
         throw new Error("Hanya step aktif yang bisa diselesaikan");
       } else {
       await applyIncomingStepPhoto(current, payload);
-      if (payload?.note != null) {
-        current.note = String(payload.note).trim().slice(0, 4000);
-      }
+      appendNoteToStep(
+        current,
+        payload?.note,
+        actor,
+        actorTechnicianName,
+        payload?.note_id
+      );
       if (!stepHasPhoto(current)) {
         throw new Error(
           "Foto bukti pekerjaan wajib sebelum menyelesaikan step"
         );
       }
-      if (!String(current.note || "").trim()) {
+      if (!stepHasNote(current)) {
         throw new Error("Catatan step wajib sebelum menyelesaikan step");
       }
-      stampStepEvidence(current, "note", actor, actorTechnicianName);
       stampStepEvidence(current, "photo", actor, actorTechnicianName);
       const now = Date.now();
       if (
@@ -4239,8 +4376,13 @@ export async function jobAction(
         throw new Error("Catatan step wajib diisi");
       }
       assertStepEvidencePermission(step);
-      step.note = nextNote;
-      stampStepEvidence(step, "note", actor, actorTechnicianName);
+      appendNoteToStep(
+        step,
+        nextNote,
+        actor,
+        actorTechnicianName,
+        payload?.note_id
+      );
       const preview = nextNote
         ? nextNote.length > 80
           ? `${nextNote.slice(0, 80)}…`
@@ -4255,6 +4397,39 @@ export async function jobAction(
         `Catatan step ${step.order}. ${step.name}: ${preview}`,
         step.id
       );
+    }
+
+    if (action === "edit_step_note") {
+      if (
+        !["queued", "assigned", "in_progress", "paused"].includes(job.status)
+      ) {
+        throw new Error("Catatan step tidak bisa diubah setelah job selesai");
+      }
+      const stepId = String(payload?.step_id || "");
+      const step = jobSteps().find((s) => s.id === stepId);
+      if (!step) throw new Error("Step tidak ditemukan");
+      const nextNote = String(payload?.note ?? "").trim().slice(0, 4000);
+      if (!nextNote) {
+        throw new Error("Catatan step wajib diisi");
+      }
+      const noteId = String(payload?.note_id || "").trim();
+      if (!noteId) {
+        throw new Error("Catatan step tidak ditemukan");
+      }
+      const changed = updateNoteOnStep(step, noteId, nextNote, actor);
+      if (changed) {
+        const preview =
+          nextNote.length > 80 ? `${nextNote.slice(0, 80)}…` : nextNote;
+        pushEvent(
+          "updated",
+          `Ubah catatan step ${step.order}. ${step.name}: ${preview}`
+        );
+        pushAudit(
+          "update",
+          `Ubah catatan step ${step.order}. ${step.name}: ${preview}`,
+          step.id
+        );
+      }
     }
 
     if (action === "set_step_photo") {
@@ -4312,7 +4487,7 @@ export async function jobAction(
         );
       }
       const missingNote = jobSteps().filter(
-        (s) => s.status !== "done" && !String(s.note || "").trim()
+        (s) => s.status !== "done" && !stepHasNote(s)
       );
       if (missingNote.length) {
         const labels = missingNote

@@ -137,6 +137,18 @@ export interface JobAssignee {
   is_lead: string; // "1" | "0" as Excel-friendly flag
 }
 
+export interface JobStepNote {
+  id: string;
+  body: string;
+  user_id: string;
+  user_name: string;
+  created_at: string;
+  /** Set when a controlling foreman edits an existing entry. */
+  edited_at?: string;
+  edited_by_user_id?: string;
+  edited_by_name?: string;
+}
+
 export interface JobStep {
   id: string;
   job_id: string;
@@ -153,8 +165,10 @@ export interface JobStep {
    * Empty / omitted = all technicians assigned to the job.
    */
   technician_ids?: string[];
-  /** Free-text catatan per step. */
+  /** Free-text catatan per step (isi entri terakhir, untuk kompatibilitas). */
   note?: string;
+  /** Thread catatan step (tambah = append; ubah isi lama = pengendali job). */
+  notes?: JobStepNote[];
   /** Stored filename in data/step-photos (empty = no evidence yet). */
   photo_name?: string;
   /** Public GET URL of the first photo when present. */

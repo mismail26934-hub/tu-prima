@@ -4,6 +4,7 @@
  */
 import type mysql from "mysql2/promise";
 import { getPool, type DbRow, MysqlWorkbook, MysqlSheet } from "./mysql-workbook";
+import { parseStepNotes, serializeStepNotes } from "@/lib/step-notes";
 
 export type JobScope = "active" | "completed" | "cancelled" | "deleted";
 
@@ -311,6 +312,7 @@ function stepHeaders(scope: JobScope): string[] {
     "std_minutes",
     "technician_ids",
     "note",
+    "notes",
     "photo_name",
     "photos",
     "note_updated_by_user_id",
@@ -404,6 +406,7 @@ function stepRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       std_minutes: num(r.std_minutes),
       technician_ids: str(r.technician_ids),
       note: str(r.note),
+      notes: str(r.notes),
       photo_name: str(r.photo_name),
       photos: str(r.photos),
       note_updated_by_user_id: str(r.note_updated_by_user_id),
@@ -566,8 +569,8 @@ async function saveScopedJobs(
   const insertSteps = wb.getWorksheet(SCOPE_STEP_SHEET[scope])?.rows ?? [];
   for (const row of insertSteps) {
     await conn.query(
-      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note, photo_name, photos, note_updated_by_user_id, note_updated_by_name, note_updated_at, photo_updated_by_user_id, photo_updated_by_name, photo_updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_steps (id, job_id, name, step_order, status, started_at, completed_at, duration_sec, std_minutes, technician_ids, note, notes, photo_name, photos, note_updated_by_user_id, note_updated_by_name, note_updated_at, photo_updated_by_user_id, photo_updated_by_name, photo_updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -580,6 +583,7 @@ async function saveScopedJobs(
         num(row.std_minutes),
         str(row.technician_ids),
         str(row.note),
+        str(row.notes),
         str(row.photo_name),
         str(row.photos),
         str(row.note_updated_by_user_id),
@@ -1089,6 +1093,7 @@ export async function ensureRelationalSchema() {
       std_minutes INT NOT NULL DEFAULT 0,
       technician_ids TEXT,
       note TEXT,
+      notes TEXT,
       photo_name VARCHAR(255) NOT NULL DEFAULT '',
       photos TEXT,
       note_updated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -1258,6 +1263,10 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS photo_updated_at VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await p.query(
+    `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS notes TEXT`
+  );
+  await backfillStepNotes(p);
+  await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_name VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await p.query(
@@ -1273,6 +1282,29 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority VARCHAR(16) NOT NULL DEFAULT ''`
   );
   await ensureListIndexes(p);
+}
+
+async function backfillStepNotes(p: mysql.Pool) {
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT id, note, notes, note_updated_by_user_id, note_updated_by_name, note_updated_at
+     FROM job_steps
+     WHERE TRIM(IFNULL(note, '')) <> ''
+       AND (notes IS NULL OR notes = '' OR notes = '[]')`
+  );
+  for (const row of rows) {
+    const notes = parseStepNotes(row.notes, {
+      stepId: str(row.id),
+      note: str(row.note),
+      user_id: str(row.note_updated_by_user_id),
+      user_name: str(row.note_updated_by_name),
+      at: str(row.note_updated_at),
+    });
+    if (!notes.length) continue;
+    await p.query(`UPDATE job_steps SET notes = ? WHERE id = ?`, [
+      serializeStepNotes(notes),
+      str(row.id),
+    ]);
+  }
 }
 
 async function ensureListIndexes(p: mysql.Pool) {

@@ -8,6 +8,10 @@ import {
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
 import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
+import {
+  formatStepNotesReport,
+  hydrateStepNotes,
+} from "@/lib/step-notes";
 import { getStepPhotoPreviews, stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import { fmtFileStamp } from "@/lib/file-stamp";
 
@@ -293,9 +297,6 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     startY: y,
     margin: { left: margin, right: margin, bottom: 14 },
     head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note", "Bukti\nFoto"]],
-    columnStyles: {
-      7: { cellWidth: 16, halign: "center", valign: "middle" },
-    },
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
@@ -312,12 +313,20 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       formatPdfStatus(s.status),
       formatDuration(calcStepElapsedSec(s)),
       stepTechnicianNames(s, job) || "—",
-      (s.note || "").trim() || "—",
+      formatStepNotesReport(hydrateStepNotes(s)).trim() || "—",
       stepHasPhoto(s) || stepPhotoDisplayUrl(s) || getStepPhotoPreviews(s.id).length
         ? String(Math.max(1, stepPhotoCount(s) || getStepPhotoPreviews(s.id).length))
         : "—",
     ]),
     ...tableTheme,
+    columnStyles: {
+      6: { valign: "top", fontStyle: "bold" },
+      7: { cellWidth: 16, halign: "center", valign: "middle" },
+    },
+    bodyStyles: {
+      ...tableTheme.bodyStyles,
+      valign: "top",
+    },
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
     .finalY + 6;

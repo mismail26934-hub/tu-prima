@@ -3,6 +3,7 @@ import { getPool } from "@/db/mysql-workbook";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
 import { parseStepTechnicianIds } from "@/lib/step-technicians";
 import { attachStepPhotoUrl } from "@/lib/step-photo-url";
+import { attachStepNotes, parseStepNotes } from "@/lib/step-notes";
 import type {
   DashboardData,
   Job,
@@ -97,8 +98,10 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
 }
 
 function mapStepRow(r: mysql.RowDataPacket): JobStep {
-  return attachStepPhotoUrl({
-    id: str(r.id),
+  const id = str(r.id);
+  return attachStepNotes(
+    attachStepPhotoUrl({
+    id,
     job_id: str(r.job_id),
     name: str(r.name),
     order: num(r.step_order),
@@ -109,6 +112,13 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     std_minutes: num(r.std_minutes),
     technician_ids: parseStepTechnicianIds(r.technician_ids),
     note: str(r.note),
+    notes: parseStepNotes(r.notes, {
+      stepId: id,
+      note: str(r.note),
+      user_id: str(r.note_updated_by_user_id),
+      user_name: str(r.note_updated_by_name),
+      at: str(r.note_updated_at),
+    }),
     photo_name: str(r.photo_name),
     photos: str(r.photos),
     note_updated_by_user_id: str(r.note_updated_by_user_id),
@@ -117,7 +127,8 @@ function mapStepRow(r: mysql.RowDataPacket): JobStep {
     photo_updated_by_user_id: str(r.photo_updated_by_user_id),
     photo_updated_by_name: str(r.photo_updated_by_name),
     photo_updated_at: str(r.photo_updated_at),
-  });
+    })
+  ) as JobStep;
 }
 
 function mapEventRow(r: mysql.RowDataPacket): JobEvent {

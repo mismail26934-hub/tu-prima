@@ -20,6 +20,10 @@ import type {
 } from "@/lib/types";
 import { serializeStepTechnicianIds } from "@/lib/step-technicians";
 import { parseStepPhotos, serializeStepPhotos } from "@/lib/step-photo-url";
+import {
+  hydrateStepNotes,
+  serializeStepNotes,
+} from "@/lib/step-notes";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const DELETED_JOBS_PATH = "mysql://deleted";
@@ -73,6 +77,7 @@ const STEP_HEADERS = [
   "std_minutes",
   "technician_ids",
   "note",
+  "notes",
   "photo_name",
   "photos",
 ];
@@ -237,6 +242,7 @@ export async function archiveDeletedJob(input: {
       std_minutes: s.std_minutes,
       technician_ids: serializeStepTechnicianIds(s.technician_ids),
       note: s.note || "",
+      notes: serializeStepNotes(hydrateStepNotes(s)),
       photo_name: s.photo_name || "",
       photos: serializeStepPhotos(parseStepPhotos(s.photos, s.photo_name)),
     }))

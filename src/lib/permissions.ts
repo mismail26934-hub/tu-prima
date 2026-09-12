@@ -107,7 +107,7 @@ export function canAssignJob(level: AccessLevel | undefined): boolean {
   return level === "superuser" || level === "foreman";
 }
 
-/** Start/pause/resume, selesaikan step, dan complete job: hanya superuser & foreman. */
+/** Start/pause/resume, start step, dan complete job: hanya superuser & foreman. */
 export function canManageJobProgress(level: AccessLevel | undefined): boolean {
   return level === "superuser" || level === "foreman";
 }
@@ -140,6 +140,22 @@ export function canWriteJobNotes(
   if (level !== "teknisi" || !userId || !actorTechnicianId) return false;
   if (!JOB_NOTES_STATUSES.has(job.status)) return false;
   return assignedIds.includes(actorTechnicianId);
+}
+
+/** Ubah isi catatan step yang sudah tersimpan: hanya pengendali job (foreman). Terkunci setelah complete. */
+export function canEditExistingStepNote(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  assigneeCount = 0
+): boolean {
+  return canDeleteJobNotes(level, userId, job, assigneeCount);
 }
 
 /** Delete handover / part-loan rows: controlling foreman only. */
@@ -302,5 +318,27 @@ export function canEditStepEvidence(
   if (canOperateJobProgress(level, userId, job, assigneeCount)) return true;
   if (level !== "teknisi" || !userId || !actorTechnicianId) return false;
   if (!STEP_EVIDENCE_JOB_STATUSES.has(job.status)) return false;
+  return displayStepTechnicianIds(step, assignedIds).includes(actorTechnicianId);
+}
+
+/** Selesaikan step aktif: pengendali job, atau teknisi yang dipilih di step itu. */
+export function canCompleteStep(
+  level: AccessLevel | undefined,
+  userId: string | undefined,
+  job: Pick<
+    Job,
+    | "status"
+    | "technician_id"
+    | "assigned_by_user_id"
+    | "delegated_to_user_id"
+  >,
+  step: Pick<JobStep, "technician_ids" | "status">,
+  assignedIds: string[],
+  actorTechnicianId: string,
+  assigneeCount = 0
+): boolean {
+  if (job.status !== "in_progress") return false;
+  if (canOperateJobProgress(level, userId, job, assigneeCount)) return true;
+  if (level !== "teknisi" || !userId || !actorTechnicianId) return false;
   return displayStepTechnicianIds(step, assignedIds).includes(actorTechnicianId);
 }

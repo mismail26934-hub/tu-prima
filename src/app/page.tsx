@@ -37,6 +37,11 @@ import {
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import {
+  isRemainAlertOwner,
+  playRemainAlertWithSpeech,
+  remainAlertTransition,
+} from "@/lib/remain-alert-sound";
+import {
   assignedTechnicianIds,
   displayStepTechnicianIds,
   stepTechnicianNames,
@@ -54,9 +59,11 @@ import {
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
+import { useRemainAlertStore } from "@/store/remainAlertStore";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { OfflineSyncChip } from "@/components/OfflineSyncChip";
 import { NavAlerts } from "@/components/NavAlerts";
+import { RemainAlertMuteToggle } from "@/components/RemainAlertMuteToggle";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -293,7 +300,14 @@ function LiveTimer({ job }: { job: JobWithDetails }) {
 /** Remaining vs estimate; card tone from remaining % of estimate. */
 function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   const t = useT();
+  const { data: session } = useSession();
+  const userId = String(session?.user?.id || "");
+  const muted = useRemainAlertStore((s) => s.muted);
+  const hydrateRemainAlert = useRemainAlertStore((s) => s.hydrate);
   const [elapsed, setElapsed] = useState(() => calcElapsedSec(job));
+  useEffect(() => {
+    hydrateRemainAlert();
+  }, [hydrateRemainAlert]);
   useEffect(() => {
     setElapsed(calcElapsedSec(job));
     if (!["in_progress", "paused"].includes(job.status)) return;
@@ -311,6 +325,29 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   if (estimateSec <= 0 || remainingSec <= 0 || remainingPct <= 20) tone = "red";
   else if (remainingPct >= 50) tone = "green";
   else tone = "orange"; // 20% < sisa < 50%
+
+  useEffect(() => {
+    if (muted) return;
+    if (job.status === "done" || job.status === "cancelled") return;
+    if (!isRemainAlertOwner(job, userId)) return;
+    const next = remainAlertTransition(job.id, tone);
+    if (!next) return;
+    playRemainAlertWithSpeech(
+      next,
+      job,
+      remainingSec,
+      remainingPct,
+      estimateSec
+    );
+  }, [
+    tone,
+    muted,
+    userId,
+    job,
+    remainingSec,
+    remainingPct,
+    estimateSec,
+  ]);
 
   const value =
     remainingSec >= 0
@@ -5493,6 +5530,7 @@ export default function HomePage() {
               {t("nav.newJob")}
             </button>
             <div className="nav-end">
+              {isLoggedIn ? <RemainAlertMuteToggle /> : null}
               <NavAlerts
                 enabled={showNavAlerts}
                 onBeforeOpen={() => {
@@ -5617,6 +5655,7 @@ export default function HomePage() {
                 <path d="M21 3v6h-6" />
               </svg>
             </button>
+            {isLoggedIn ? <RemainAlertMuteToggle /> : null}
             <NavAlerts
               enabled={showNavAlerts}
               onBeforeOpen={() => setSessionOpen(false)}
@@ -5731,6 +5770,7 @@ export default function HomePage() {
             />
             <p className="nav-menu-label">{t("nav.language")}</p>
             <div className="nav-menu-prefs">
+              {isLoggedIn ? <RemainAlertMuteToggle /> : null}
               <LanguageToggle />
               <button
                 className="btn btn-icon"

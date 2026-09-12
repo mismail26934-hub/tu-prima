@@ -62,6 +62,8 @@ const id = {
   "nav.alertsP2Empty": "Tidak ada job P2",
   "nav.alertsP3": "Job P3",
   "nav.alertsP3Empty": "Tidak ada job P3",
+  "nav.alertSoundOff": "Matikan suara alert sisa estimasi",
+  "nav.alertSoundOn": "Nyalakan suara alert sisa estimasi",
 
   "summary.technicians": "Teknisi",
   "summary.available": "Available",
@@ -392,6 +394,8 @@ const en: Record<MessageKey, string> = {
   "nav.alertsP2Empty": "No P2 jobs",
   "nav.alertsP3": "P3 jobs",
   "nav.alertsP3Empty": "No P3 jobs",
+  "nav.alertSoundOff": "Mute remaining-estimate alerts",
+  "nav.alertSoundOn": "Unmute remaining-estimate alerts",
 
   "summary.technicians": "Technicians",
   "summary.available": "Available",

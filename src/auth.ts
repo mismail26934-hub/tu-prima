@@ -29,22 +29,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id || "";
         token.level = user.level;
+        token.name = user.name;
       } else if (!token.level && token.email) {
         const storedUser = await getUserByUsername(token.email);
         if (storedUser) {
           token.id = storedUser.id;
           token.level = storedUser.level;
+          token.name = storedUser.name || storedUser.username;
         }
+      }
+      if (trigger === "update" && session && typeof session.name === "string") {
+        token.name = session.name;
       }
       return token;
     },
     session({ session, token }) {
       session.user.id = String(token.id || "");
       session.user.level = token.level as UserLevel;
+      if (token.name) session.user.name = String(token.name);
       return session;
     },
   },

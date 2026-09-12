@@ -5047,6 +5047,44 @@ export async function getUserByUsername(
   });
 }
 
+export async function getUserById(userId: string): Promise<AppUserPublic | null> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const user = readUsers(wb).find((u) => u.id === userId && u.active === "1");
+    return user ? toPublicUser(user) : null;
+  });
+}
+
+export async function updateOwnProfile(
+  userId: string,
+  input: { name?: string; email?: string; phone?: string }
+): Promise<AppUserPublic> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const users = readUsers(wb);
+    const user = users.find((item) => item.id === userId && item.active === "1");
+    if (!user) throw new Error("User tidak ditemukan atau sudah nonaktif");
+
+    if (input.name != null) {
+      user.name = input.name.trim() || user.username;
+    }
+    if (input.email != null) {
+      const email = input.email.trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error("Format email tidak valid");
+      }
+      user.email = email;
+    }
+    if (input.phone != null) {
+      user.phone = input.phone.replace(/\s+/g, " ").trim();
+    }
+
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
+    await saveWorkbook(wb);
+    return toPublicUser(user);
+  });
+}
+
 export async function createUser(input: {
   username: string;
   password: string;

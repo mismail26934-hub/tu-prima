@@ -49,6 +49,7 @@ export function canQueueMutation(
   if (path.startsWith("/api/session")) return false;
   if (path.startsWith("/api/auth")) return false;
   if (path.startsWith("/api/account/password")) return false;
+  if (path.startsWith("/api/account/profile")) return false;
   if (path.startsWith("/api/reports")) return false;
   if (path.startsWith("/api/backups")) return false;
   if (path.startsWith("/api/users")) return false;

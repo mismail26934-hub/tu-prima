@@ -208,6 +208,7 @@ type Modal =
     }
   | { type: "delete-user"; user: AppUserPublic }
   | { type: "change-password" }
+  | { type: "edit-profile" }
   | { type: "logout" }
   | { type: "settings" }
   | { type: "export-jobs" }
@@ -662,7 +663,7 @@ function ArchivePager({
 
 export default function HomePage() {
   const t = useT();
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const isLoggedIn = sessionStatus === "authenticated";
   const userLevel = session?.user?.level || "guest";
   const userId = String(session?.user?.id || "");
@@ -900,6 +901,12 @@ export default function HomePage() {
     confirmPassword: "",
   });
   const [passwordChangeMsg, setPasswordChangeMsg] = useState("");
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+  });
+  const [profileChangeMsg, setProfileChangeMsg] = useState("");
   const [hideTechPanel, setHideTechPanel] = useState(false);
   const [hideJobPanel, setHideJobPanel] = useState(false);
   const topbarRef = useRef<HTMLElement>(null);
@@ -2603,6 +2610,50 @@ export default function HomePage() {
       confirmPassword: "",
     });
     setModal({ type: "change-password" });
+  }
+
+  async function openEditProfile() {
+    setError("");
+    setProfileChangeMsg("");
+    setProfileForm({ name: "", email: "", phone: "" });
+    setModal({ type: "edit-profile" });
+    setBusy(true);
+    try {
+      const me = await api<AppUserPublic>("/api/account/profile");
+      setProfileForm({
+        name: me.name || "",
+        email: me.email || "",
+        phone: me.phone || "",
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("profile.loadError"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveOwnProfile() {
+    if (modal?.type !== "edit-profile") return;
+    setBusy(true);
+    setError("");
+    setProfileChangeMsg("");
+    try {
+      const saved = await api<AppUserPublic>("/api/account/profile", {
+        method: "PATCH",
+        body: JSON.stringify(profileForm),
+      });
+      setProfileForm({
+        name: saved.name || "",
+        email: saved.email || "",
+        phone: saved.phone || "",
+      });
+      await updateSession({ name: saved.name || saved.username });
+      setProfileChangeMsg(t("profile.success"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("profile.saveError"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveOwnPassword() {
@@ -5109,6 +5160,18 @@ export default function HomePage() {
                         disabled={busy || loggingOut}
                         onClick={() => {
                           setSessionOpen(false);
+                          void openEditProfile();
+                        }}
+                      >
+                        {t("nav.editProfile")}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="nav-manage-item"
+                        disabled={busy || loggingOut}
+                        onClick={() => {
+                          setSessionOpen(false);
                           openChangePassword();
                         }}
                       >
@@ -5267,6 +5330,17 @@ export default function HomePage() {
             )}
             {isLoggedIn && sessionOpen && (
               <div className="nav-session-actions">
+                <button
+                  className="btn"
+                  disabled={busy || loggingOut}
+                  onClick={() => {
+                    setSessionOpen(false);
+                    setMobileMenuOpen(false);
+                    void openEditProfile();
+                  }}
+                >
+                  {t("nav.editProfile")}
+                </button>
                 <button
                   className="btn"
                   disabled={busy || loggingOut}
@@ -6279,6 +6353,83 @@ export default function HomePage() {
                   pending={t("logout.leavingShort")}
                 />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "edit-profile" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && (
+              <BusyOverlay
+                label={
+                  profileForm.name || profileForm.email || profileForm.phone
+                    ? t("profile.saving")
+                    : t("profile.loading")
+                }
+              />
+            )}
+            <h3>{t("profile.title")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {t("profile.hint")}
+            </p>
+            {error && <div className="error">{error}</div>}
+            {profileChangeMsg && (
+              <p style={{ color: "var(--green)", marginTop: 0 }}>
+                {profileChangeMsg}
+              </p>
+            )}
+            <div className="form">
+              <label>
+                {t("profile.name")}
+                <input
+                  value={profileForm.name}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, name: e.target.value })
+                  }
+                  autoComplete="name"
+                  autoFocus
+                />
+              </label>
+              <label>
+                {t("profile.email")}
+                <input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, email: e.target.value })
+                  }
+                  autoComplete="email"
+                />
+              </label>
+              <label>
+                {t("profile.phone")}
+                <input
+                  type="tel"
+                  value={profileForm.phone}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, phone: e.target.value })
+                  }
+                  autoComplete="tel"
+                />
+              </label>
+              <div className="actions">
+                <button className="btn" onClick={closeModal} disabled={busy}>
+                  Tutup
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => void saveOwnProfile()}
+                >
+                  <BusyLabel
+                    busy={busy}
+                    idle={t("profile.save")}
+                    pending={t("profile.saving")}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>

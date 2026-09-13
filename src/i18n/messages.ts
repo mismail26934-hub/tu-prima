@@ -64,6 +64,9 @@ const id = {
   "nav.alertsP3Empty": "Tidak ada job P3",
   "nav.alertSoundOff": "Matikan suara alert sisa estimasi",
   "nav.alertSoundOn": "Nyalakan suara alert sisa estimasi",
+  "nav.alertSoundSettings": "Pengaturan suara alert",
+  "nav.alertPctStep": "Ulang tiap turun (%)",
+  "nav.alertOvertimeHours": "Overtime tiap (jam)",
 
   "summary.technicians": "Teknisi",
   "summary.available": "Available",
@@ -396,6 +399,9 @@ const en: Record<MessageKey, string> = {
   "nav.alertsP3Empty": "No P3 jobs",
   "nav.alertSoundOff": "Mute remaining-estimate alerts",
   "nav.alertSoundOn": "Unmute remaining-estimate alerts",
+  "nav.alertSoundSettings": "Alert sound settings",
+  "nav.alertPctStep": "Repeat every drop (%)",
+  "nav.alertOvertimeHours": "Overtime every (hours)",
 
   "summary.technicians": "Technicians",
   "summary.available": "Available",

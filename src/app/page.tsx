@@ -39,7 +39,8 @@ import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/durati
 import {
   isRemainAlertOwner,
   playRemainAlertWithSpeech,
-  remainAlertTransition,
+  remainAlertTick,
+  stopRemainAlertForJob,
 } from "@/lib/remain-alert-sound";
 import {
   assignedTechnicianIds,
@@ -303,15 +304,21 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   const { data: session } = useSession();
   const userId = String(session?.user?.id || "");
   const muted = useRemainAlertStore((s) => s.muted);
+  const pctStep = useRemainAlertStore((s) => s.pctStep);
+  const overtimeHours = useRemainAlertStore((s) => s.overtimeHours);
   const hydrateRemainAlert = useRemainAlertStore((s) => s.hydrate);
   const [elapsed, setElapsed] = useState(() => calcElapsedSec(job));
+  const [clock, setClock] = useState(0);
   useEffect(() => {
     hydrateRemainAlert();
   }, [hydrateRemainAlert]);
   useEffect(() => {
     setElapsed(calcElapsedSec(job));
     if (!["in_progress", "paused"].includes(job.status)) return;
-    const id = setInterval(() => setElapsed(calcElapsedSec(job)), 1000);
+    const id = setInterval(() => {
+      setElapsed(calcElapsedSec(job));
+      setClock((n) => n + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, [job]);
 
@@ -327,11 +334,22 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   else tone = "orange"; // 20% < sisa < 50%
 
   useEffect(() => {
-    if (muted) return;
-    if (job.status === "done" || job.status === "cancelled") return;
+    if (job.status === "done" || job.status === "cancelled") {
+      stopRemainAlertForJob(job.id);
+      return;
+    }
     if (!isRemainAlertOwner(job, userId)) return;
-    const next = remainAlertTransition(job.id, tone);
-    if (!next) return;
+    const next = remainAlertTick({
+      jobId: job.id,
+      status: job.status,
+      tone,
+      remainingPct,
+      remainingSec,
+      estimateSec,
+      pctStep,
+      overtimeMs: overtimeHours * 60 * 60 * 1000,
+    });
+    if (muted || !next) return;
     playRemainAlertWithSpeech(
       next,
       job,
@@ -347,6 +365,9 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
     remainingSec,
     remainingPct,
     estimateSec,
+    pctStep,
+    overtimeHours,
+    clock,
   ]);
 
   const value =
@@ -5820,9 +5841,9 @@ export default function HomePage() {
                 });
               }}
             />
+            {isLoggedIn ? <RemainAlertMuteToggle variant="menu" /> : null}
             <p className="nav-menu-label">{t("nav.language")}</p>
             <div className="nav-menu-prefs">
-              {isLoggedIn ? <RemainAlertMuteToggle /> : null}
               <LanguageToggle />
               <button
                 className="btn btn-icon"

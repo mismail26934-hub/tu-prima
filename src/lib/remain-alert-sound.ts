@@ -6,10 +6,25 @@ import type { Locale } from "@/i18n/messages";
 
 export type RemainTone = "green" | "orange" | "red";
 
+const PCT_STEP = 5;
+const OVERTIME_MS = 60 * 60 * 1000;
+
+type TickState = { lastPct: number; lastOvertimeAt: number | null };
+type AlertItem = {
+  jobId: string;
+  tone: RemainTone;
+  job: JobWithDetails;
+  remainingSec: number;
+  remainingPct: number;
+  estimateSec: number;
+};
+
 let audioCtx: AudioContext | null = null;
-const lastToneByJob = new Map<string, RemainTone>();
-const lastPlayAt = new Map<string, number>();
-let speakTimer: number | null = null;
+const tickByJob = new Map<string, TickState>();
+let alertQueue: AlertItem[] = [];
+let draining = false;
+let speakGen = 0;
+let currentJobId: string | null = null;
 let spokenUtterances: SpeechSynthesisUtterance[] = [];
 
 function getAudioContext(): AudioContext | null {
@@ -30,12 +45,24 @@ export function unlockRemainAlertAudio(): void {
 
 export function stopRemainAlertSpeech(): void {
   if (typeof window === "undefined") return;
-  if (speakTimer != null) {
-    window.clearTimeout(speakTimer);
-    speakTimer = null;
-  }
+  speakGen += 1;
+  alertQueue = [];
+  currentJobId = null;
   window.speechSynthesis?.cancel();
   spokenUtterances = [];
+}
+
+export function stopRemainAlertForJob(jobId: string): void {
+  const id = String(jobId || "").trim();
+  if (!id) return;
+  tickByJob.delete(id);
+  alertQueue = alertQueue.filter((item) => item.jobId !== id);
+  if (currentJobId === id) {
+    speakGen += 1;
+    currentJobId = null;
+    window.speechSynthesis?.cancel();
+    spokenUtterances = [];
+  }
 }
 
 function beep(
@@ -57,19 +84,19 @@ function beep(
   osc.stop(start + duration + 0.03);
 }
 
-function playBeep(tone: "orange" | "red"): void {
+function playBeep(tone: RemainTone): void {
   const ctx = getAudioContext();
   if (!ctx) return;
   void ctx.resume();
   const t0 = ctx.currentTime + 0.02;
-  if (tone === "orange") {
-    beep(ctx, 740, t0, 0.16);
-    beep(ctx, 740, t0 + 0.22, 0.16);
+  if (tone === "red") {
+    beep(ctx, 523, t0, 0.18);
+    beep(ctx, 415, t0 + 0.2, 0.18);
+    beep(ctx, 349, t0 + 0.4, 0.3);
     return;
   }
-  beep(ctx, 523, t0, 0.18);
-  beep(ctx, 415, t0 + 0.2, 0.18);
-  beep(ctx, 349, t0 + 0.4, 0.3);
+  beep(ctx, 740, t0, 0.16);
+  beep(ctx, 740, t0 + 0.22, 0.16);
 }
 
 function waitVoices(): Promise<SpeechSynthesisVoice[]> {
@@ -270,7 +297,7 @@ function speakAsWritten(text: string): string {
 
 export function buildRemainAlertSpeech(
   job: JobWithDetails,
-  tone: "orange" | "red",
+  tone: RemainTone,
   remainingSec: number,
   remainingPct: number,
   estimateSec: number,
@@ -301,9 +328,18 @@ export function buildRemainAlertSpeech(
   const progress = Math.round(Number(job.progress_pct || 0));
   const remainAbs = formatSpokenDuration(remainingSec, locale);
   const pct = Math.max(0, remainingPct).toFixed(0);
-  const level = locale === "id"
-    ? tone === "orange" ? "oranye" : "merah"
-    : tone === "orange" ? "orange" : "red";
+  const level =
+    locale === "id"
+      ? tone === "red"
+        ? "merah"
+        : tone === "orange"
+          ? "oranye"
+          : "hijau"
+      : tone === "red"
+        ? "red"
+        : tone === "orange"
+          ? "orange"
+          : "green";
 
   let remainLine: string;
   if (estimateSec <= 0) {
@@ -348,12 +384,49 @@ export function buildRemainAlertSpeech(
   ].join(" ");
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function waitUntilQuiet(gen: number): Promise<void> {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const tick = () => {
+      if (gen !== speakGen) {
+        resolve();
+        return;
+      }
+      const synth = window.speechSynthesis;
+      if (!synth.speaking && !synth.pending) {
+        resolve();
+        return;
+      }
+      if (Date.now() - started > 90_000) {
+        resolve();
+        return;
+      }
+      window.setTimeout(tick, 80);
+    };
+    tick();
+  });
+}
+
 function speakOnce(
   text: string,
   voice: SpeechSynthesisVoice | undefined,
-  lang: string
+  lang: string,
+  gen: number
 ): Promise<void> {
   return new Promise((resolve) => {
+    if (gen !== speakGen) {
+      resolve();
+      return;
+    }
     if (!text.trim() || typeof window === "undefined" || !window.speechSynthesis) {
       resolve();
       return;
@@ -369,78 +442,166 @@ function speakOnce(
     utter.rate = 1;
     utter.pitch = 1.05;
     const fallback = window.setTimeout(() => resolve(), 90_000);
-    utter.onend = () => {
+    const finish = () => {
       window.clearTimeout(fallback);
       resolve();
     };
-    utter.onerror = () => {
-      window.clearTimeout(fallback);
-      resolve();
-    };
+    utter.onend = finish;
+    utter.onerror = finish;
     window.speechSynthesis.speak(utter);
   });
 }
 
-async function speakJobAlert(idText: string, enText: string): Promise<void> {
+async function speakJobAlert(
+  idText: string,
+  enText: string,
+  gen: number
+): Promise<void> {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
+  if (gen !== speakGen) return;
   const voices = await waitVoices();
+  if (gen !== speakGen) return;
   const idVoice = pickIdVoice(voices);
   const enVoice = pickEnVoice(voices);
   spokenUtterances = [];
-  await speakOnce(idText, idVoice, "id-ID");
-  await new Promise((resolve) => window.setTimeout(resolve, 280));
-  await speakOnce(enText, enVoice, "en-GB");
+  await speakOnce(idText, idVoice, "id-ID", gen);
+  if (gen !== speakGen) return;
+  await waitUntilQuiet(gen);
+  if (gen !== speakGen) return;
+  await delay(280);
+  if (gen !== speakGen) return;
+  await speakOnce(enText, enVoice, "en-GB", gen);
+  if (gen !== speakGen) return;
+  await waitUntilQuiet(gen);
+}
+
+async function playQueuedItem(item: AlertItem, gen: number): Promise<void> {
+  if (gen !== speakGen) return;
+  unlockRemainAlertAudio();
+  playBeep(item.tone);
+  await delay(item.tone === "red" ? 900 : 550);
+  if (gen !== speakGen) return;
+  const idText = buildRemainAlertSpeech(
+    item.job,
+    item.tone,
+    item.remainingSec,
+    item.remainingPct,
+    item.estimateSec,
+    "id"
+  );
+  const enText = buildRemainAlertSpeech(
+    item.job,
+    item.tone,
+    item.remainingSec,
+    item.remainingPct,
+    item.estimateSec,
+    "en"
+  );
+  await speakJobAlert(idText, enText, gen);
+}
+
+async function drainAlertQueue(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  try {
+    while (alertQueue.length) {
+      const item = alertQueue.shift();
+      if (!item) break;
+      const gen = speakGen;
+      currentJobId = item.jobId;
+      await playQueuedItem(item, gen);
+      if (gen !== speakGen) continue;
+      currentJobId = null;
+    }
+  } finally {
+    draining = false;
+    if (speakGen && currentJobId && !alertQueue.length) {
+      currentJobId = null;
+    }
+    if (alertQueue.length) void drainAlertQueue();
+  }
 }
 
 export function playRemainAlertWithSpeech(
-  tone: "orange" | "red",
+  tone: RemainTone,
   job: JobWithDetails,
   remainingSec: number,
   remainingPct: number,
   estimateSec: number
 ): void {
-  unlockRemainAlertAudio();
-  playBeep(tone);
-  if (speakTimer != null) window.clearTimeout(speakTimer);
-  const idText = buildRemainAlertSpeech(
-    job,
+  const jobId = String(job.id || "").trim();
+  if (!jobId) return;
+  const item: AlertItem = {
+    jobId,
     tone,
+    job,
     remainingSec,
     remainingPct,
     estimateSec,
-    "id"
-  );
-  const enText = buildRemainAlertSpeech(
-    job,
-    tone,
-    remainingSec,
-    remainingPct,
-    estimateSec,
-    "en"
-  );
-  const delay = tone === "red" ? 900 : 550;
-  speakTimer = window.setTimeout(() => {
-    speakTimer = null;
-    void speakJobAlert(idText, enText);
-  }, delay);
+  };
+  alertQueue = alertQueue.filter((row) => row.jobId !== jobId);
+  if (currentJobId === jobId) {
+    speakGen += 1;
+    window.speechSynthesis?.cancel();
+    spokenUtterances = [];
+  }
+  alertQueue.push(item);
+  void drainAlertQueue();
 }
 
-/** First observation is silent. Later orange/red changes return the tone to play. */
-export function remainAlertTransition(
-  jobId: string,
-  tone: RemainTone
-): "orange" | "red" | null {
-  const id = String(jobId || "").trim();
+/** First look is silent. Later: every 5% remaining drop, last 0% alert, then hourly overtime. */
+export function remainAlertTick(input: {
+  jobId: string;
+  status: string;
+  tone: RemainTone;
+  remainingPct: number;
+  remainingSec: number;
+  estimateSec: number;
+  pctStep?: number;
+  overtimeMs?: number;
+}): RemainTone | null {
+  const id = String(input.jobId || "").trim();
   if (!id) return null;
-  const prev = lastToneByJob.get(id);
-  lastToneByJob.set(id, tone);
-  if (prev == null || prev === tone) return null;
-  if (tone !== "orange" && tone !== "red") return null;
-  const key = `${id}:${tone}`;
-  const now = Date.now();
-  if (now - (lastPlayAt.get(key) || 0) < 4000) return null;
-  lastPlayAt.set(key, now);
-  return tone;
+  if (input.status === "done" || input.status === "cancelled") {
+    stopRemainAlertForJob(id);
+    return null;
+  }
+  if (input.estimateSec <= 0) return null;
+  const step = Math.max(1, Math.round(input.pctStep ?? PCT_STEP));
+  const overtimeMs = Math.max(60_000, input.overtimeMs ?? OVERTIME_MS);
+  const pct =
+    input.remainingSec <= 0
+      ? 0
+      : Math.max(0, Math.min(100, input.remainingPct));
+  const prev = tickByJob.get(id);
+  if (!prev) {
+    tickByJob.set(id, {
+      lastPct: pct,
+      lastOvertimeAt: input.remainingSec <= 0 ? Date.now() : null,
+    });
+    return null;
+  }
+
+  if (input.remainingSec <= 0) {
+    if (prev.lastPct > 0) {
+      prev.lastPct = 0;
+      prev.lastOvertimeAt = Date.now();
+      return "red";
+    }
+    const from = prev.lastOvertimeAt ?? Date.now();
+    if (Date.now() - from >= overtimeMs) {
+      prev.lastOvertimeAt = Date.now();
+      return "red";
+    }
+    return null;
+  }
+
+  prev.lastOvertimeAt = null;
+  if (pct <= prev.lastPct - step) {
+    prev.lastPct = pct;
+    return input.tone;
+  }
+  return null;
 }
 
 export function isRemainAlertOwner(

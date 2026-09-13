@@ -571,6 +571,77 @@ html[data-theme="light"].menu-open .topbar-glass {
   color: var(--muted);
 }
 
+.remain-alert-settings {
+  position: relative;
+}
+
+.remain-alert-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(260px, calc(100vw - 32px));
+  padding: 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  z-index: 120;
+}
+
+.remain-alert-pop-title {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.remain-alert-settings--menu .remain-alert-fields {
+  margin-bottom: 8px;
+}
+
+.remain-alert-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.remain-alert-mute-row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.remain-alert-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.remain-alert-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-0);
+  color: var(--text);
+  font: inherit;
+}
+
 .nav-alerts-badge {
   position: absolute;
   top: -3px;

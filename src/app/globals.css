@@ -1707,35 +1707,60 @@ html[data-theme="light"].menu-open .topbar-glass {
   flex-shrink: 0;
   font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   line-height: 1;
-  padding: 4px 8px;
+  padding: 5px 9px;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: 2px solid transparent;
+  text-transform: uppercase;
 }
 
 .job-priority-pill--urgent {
-  color: #ffd7d2;
-  background: #5a221c;
-  border-color: #e05a4a;
+  color: #fff;
+  background: #e11d48;
+  border-color: #fb7185;
 }
 
 .job-priority-pill--p1 {
-  color: #ffe7c2;
-  background: #5a3a12;
-  border-color: #e8a317;
+  color: #fff;
+  background: #ea580c;
+  border-color: #fb923c;
 }
 
 .job-priority-pill--p2 {
-  color: #efe6c4;
-  background: #3d3820;
-  border-color: #b8a85a;
+  color: #1a1400;
+  background: #eab308;
+  border-color: #facc15;
 }
 
 .job-priority-pill--p3 {
-  color: #d5e6f4;
-  background: #243444;
-  border-color: #4aa3d9;
+  color: #fff;
+  background: #2563eb;
+  border-color: #60a5fa;
+}
+
+html[data-theme="light"] .job-priority-pill--urgent {
+  color: #fff;
+  background: #be123c;
+  border-color: #9f1239;
+}
+
+html[data-theme="light"] .job-priority-pill--p1 {
+  color: #fff;
+  background: #c2410c;
+  border-color: #9a3412;
+}
+
+html[data-theme="light"] .job-priority-pill--p2 {
+  color: #422006;
+  background: #ca8a04;
+  border-color: #a16207;
+}
+
+html[data-theme="light"] .job-priority-pill--p3 {
+  color: #fff;
+  background: #1d4ed8;
+  border-color: #1e40af;
 }
 
 .job-unit {
@@ -2092,8 +2117,8 @@ html[data-theme="light"].menu-open .topbar-glass {
 .handover-to-list {
   display: grid;
   gap: 4px;
-  max-height: 280px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   margin: 0 0 12px;
   padding: 6px;
   background: var(--bg-0);
@@ -2283,7 +2308,7 @@ html[data-theme="light"].menu-open .topbar-glass {
   }
 
   .handover-to-list {
-    max-height: min(50dvh, 320px);
+    max-height: none;
   }
 }
 
@@ -3170,15 +3195,9 @@ html[data-theme="light"].menu-open .topbar-glass {
   padding: 10px;
 }
 
-.check-list {
-  display: grid;
-  gap: 8px;
-  max-height: 240px;
-  overflow: auto;
-  padding: 8px;
-  background: var(--bg-0);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.check-list-paged {
+  max-height: none;
+  overflow: visible;
 }
 
 .assign-check-meta {
@@ -4399,5 +4418,9 @@ html[data-theme="light"].active-job-slider-mode .active-job-slider-screen {
     margin-left: 0;
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .active-job-slider-dots {
+    display: none;
   }
 }

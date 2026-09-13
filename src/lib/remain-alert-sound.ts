@@ -86,31 +86,68 @@ function waitVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
-/** Prefer Google female for a language: id-ID first, then en-US / en-GB. */
-function pickVoiceForLang(
-  voices: SpeechSynthesisVoice[],
-  prefix: "id" | "en"
+const FEMALE_VOICE_RE =
+  /female|wanita|zira|jenny|aria|sonia|andika|gadis|samantha|victoria|karen|moira|tessa|hazel|susan|linda|catherine|heera|natasha|mega|damayanti|michelle|eva|anna/;
+const MALE_VOICE_RE =
+  /male|pria|david|mark|guy|ryan|ardian|daniel|fred|james|george|ravi|steffan|andrew/;
+
+function voiceLang(voice: SpeechSynthesisVoice): string {
+  return String(voice.lang || "")
+    .toLowerCase()
+    .replace("_", "-");
+}
+
+function voiceName(voice: SpeechSynthesisVoice): string {
+  return String(voice.name || "").toLowerCase();
+}
+
+function isFemaleEnglishVoice(voice: SpeechSynthesisVoice): boolean {
+  const name = voiceName(voice);
+  if (!voiceLang(voice).startsWith("en")) return false;
+  if (name.includes("google") && /us english/.test(name)) return false;
+  if (FEMALE_VOICE_RE.test(name)) return true;
+  if (MALE_VOICE_RE.test(name)) return false;
+  return false;
+}
+
+/** Google Bahasa Indonesia, then Gadis / Andika. */
+function pickIdVoice(
+  voices: SpeechSynthesisVoice[]
 ): SpeechSynthesisVoice | undefined {
-  const score = (voice: SpeechSynthesisVoice) => {
-    const lang = String(voice.lang || "")
-      .toLowerCase()
-      .replace("_", "-");
-    if (!lang.startsWith(prefix)) return -1;
-    const name = String(voice.name || "").toLowerCase();
-    const google = name.includes("google");
-    const female = /female|wanita/.test(name) || (google && prefix === "id");
-    let n = 0;
-    if (prefix === "id" && lang.startsWith("id")) n += 400;
-    if (prefix === "en" && lang.startsWith("en-us")) n += 400;
-    else if (prefix === "en" && (lang.startsWith("en-gb") || lang === "en")) n += 300;
-    if (google) n += 80;
-    if (female) n += 50;
-    return n;
-  };
-  return [...voices]
-    .map((voice) => ({ voice, n: score(voice) }))
-    .filter((row) => row.n >= 0)
-    .sort((a, b) => b.n - a.n)[0]?.voice;
+  const googleId = voices.find((voice) => {
+    const name = voiceName(voice);
+    const lang = voiceLang(voice);
+    return (
+      lang.startsWith("id") &&
+      name.includes("google") &&
+      (name.includes("indonesia") || name.includes("bahasa") || lang === "id-id")
+    );
+  });
+  if (googleId) return googleId;
+
+  const named = voices.find((voice) => {
+    const name = voiceName(voice);
+    return voiceLang(voice).startsWith("id") && /gadis|andika/.test(name);
+  });
+  if (named) return named;
+
+  return voices.find((voice) => voiceLang(voice).startsWith("id"));
+}
+
+/** Google UK English Female, then Zira. Never Google US English (male). */
+function pickEnVoice(
+  voices: SpeechSynthesisVoice[]
+): SpeechSynthesisVoice | undefined {
+  const googleUkFemale = voices.find((voice) => {
+    const name = voiceName(voice);
+    return name.includes("google") && name.includes("uk") && name.includes("female");
+  });
+  if (googleUkFemale) return googleUkFemale;
+
+  const zira = voices.find((voice) => voiceName(voice).includes("zira"));
+  if (zira) return zira;
+
+  return voices.find((voice) => isFemaleEnglishVoice(voice));
 }
 
 function formatSpokenDuration(totalSec: number, locale: Locale): string {
@@ -164,6 +201,73 @@ function spokenStatus(status: string, locale: Locale): string {
   }
 }
 
+function spokenPriority(raw: unknown, locale: Locale): string {
+  const priority = normalizeJobPriority(raw);
+  if (locale === "id") {
+    switch (priority) {
+      case "URGENT":
+        return "urgent";
+      case "P1":
+        return "prioritas satu";
+      case "P2":
+        return "prioritas dua";
+      case "P3":
+        return "prioritas tiga";
+      default:
+        return "tidak ada";
+    }
+  }
+  switch (priority) {
+    case "URGENT":
+      return "urgent";
+    case "P1":
+      return "priority one";
+    case "P2":
+      return "priority two";
+    case "P3":
+      return "priority three";
+    default:
+      return "none";
+  }
+}
+
+const LETTER_SAY: Record<string, string> = {
+  a: "a",
+  b: "be",
+  c: "ce",
+  d: "de",
+  e: "e",
+  f: "ef",
+  g: "ge",
+  h: "ha",
+  i: "i",
+  j: "je",
+  k: "ka",
+  l: "el",
+  m: "em",
+  n: "en",
+  o: "o",
+  p: "pe",
+  q: "kiu",
+  r: "er",
+  s: "es",
+  t: "te",
+  u: "u",
+  v: "ve",
+  w: "we",
+  x: "ex",
+  y: "ye",
+  z: "zet",
+};
+
+/** Stop TTS expanding codes like 16M into "16 meter". */
+function speakAsWritten(text: string): string {
+  return text.replace(/(\d+)\s*([A-Za-z])\b/g, (_, num: string, letter: string) => {
+    const say = LETTER_SAY[letter.toLowerCase()] || letter.toLowerCase();
+    return `${num} ${say}`;
+  });
+}
+
 export function buildRemainAlertSpeech(
   job: JobWithDetails,
   tone: "orange" | "red",
@@ -173,18 +277,27 @@ export function buildRemainAlertSpeech(
   locale: Locale
 ): string {
   const rawTitle = String(job.title || "").trim();
-  const title = (rawTitle || (locale === "id" ? "tanpa judul" : "untitled")).toLowerCase();
-  const unit = String(job.unit || "").trim() || (locale === "id" ? "tanpa unit" : "no unit");
-  const priority = normalizeJobPriority(job.priority) || (locale === "id" ? "tidak ada" : "none");
-  const techs = job.technicians?.length
-    ? job.technicians.map((tech) => tech.name).filter(Boolean).join(", ")
-    : job.technician?.name || (locale === "id" ? "belum di-assign" : "not assigned");
-  const assigner =
+  const title = speakAsWritten(
+    (rawTitle || (locale === "id" ? "tanpa judul" : "untitled")).toLowerCase()
+  );
+  const rawUnit = String(job.unit || "").trim();
+  const unit = speakAsWritten(
+    (rawUnit || (locale === "id" ? "tanpa unit" : "no unit")).toLowerCase()
+  );
+  const priority = spokenPriority(job.priority, locale);
+  const techs = speakAsWritten(
+    job.technicians?.length
+      ? job.technicians.map((tech) => tech.name).filter(Boolean).join(", ")
+      : job.technician?.name || (locale === "id" ? "belum di-assign" : "not assigned")
+  );
+  const assigner = speakAsWritten(
     String(job.assigned_by_user_name || "").trim() ||
-    (locale === "id" ? "tidak ada" : "none");
-  const delegate =
+      (locale === "id" ? "tidak ada" : "none")
+  );
+  const delegate = speakAsWritten(
     String(job.delegated_to_user_name || "").trim() ||
-    (locale === "id" ? "tidak ada" : "none");
+      (locale === "id" ? "tidak ada" : "none")
+  );
   const progress = Math.round(Number(job.progress_pct || 0));
   const remainAbs = formatSpokenDuration(remainingSec, locale);
   const pct = Math.max(0, remainingPct).toFixed(0);
@@ -271,12 +384,12 @@ function speakOnce(
 async function speakJobAlert(idText: string, enText: string): Promise<void> {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   const voices = await waitVoices();
-  const idVoice = pickVoiceForLang(voices, "id");
-  const enVoice = pickVoiceForLang(voices, "en");
+  const idVoice = pickIdVoice(voices);
+  const enVoice = pickEnVoice(voices);
   spokenUtterances = [];
   await speakOnce(idText, idVoice, "id-ID");
   await new Promise((resolve) => window.setTimeout(resolve, 280));
-  await speakOnce(enText, enVoice, "en-US");
+  await speakOnce(enText, enVoice, "en-GB");
 }
 
 export function playRemainAlertWithSpeech(

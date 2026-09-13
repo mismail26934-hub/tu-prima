@@ -955,7 +955,9 @@ export default function HomePage() {
     AppUserPublic[]
   >([]);
   const [handoverToQuery, setHandoverToQuery] = useState("");
+  const [handoverToPage, setHandoverToPage] = useState(1);
   const [handoverToLoading, setHandoverToLoading] = useState(false);
+  const [assignPickerPage, setAssignPickerPage] = useState(1);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -2400,6 +2402,8 @@ export default function HomePage() {
   function closeModal() {
     resetAssign();
     setHandoverToQuery("");
+    setHandoverToPage(1);
+    setAssignPickerPage(1);
     setStepPhotoDrafts([]);
     setStepPhotoRemoveIds([]);
     setStepNoteDraft("");
@@ -2529,6 +2533,7 @@ export default function HomePage() {
   ) {
     setError("");
     setHandoverToQuery("");
+    setHandoverToPage(1);
     setHandoverToLoading(true);
     setModal({
       type: "handover-to",
@@ -3089,6 +3094,31 @@ export default function HomePage() {
       });
   }, [assignTechLookup, assignQuery, assignTechIds, modal, userId]);
 
+  useEffect(() => {
+    setAssignPickerPage(1);
+  }, [assignQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(assignSelectableTechs.length / TECH_PAGE_SIZE)
+    );
+    setAssignPickerPage((p) => (p > totalPages ? totalPages : p));
+  }, [assignSelectableTechs.length, TECH_PAGE_SIZE]);
+
+  const assignPickerTotalPages = Math.max(
+    1,
+    Math.ceil(assignSelectableTechs.length / TECH_PAGE_SIZE)
+  );
+  const assignPickerPageSafe = Math.min(
+    assignPickerPage,
+    assignPickerTotalPages
+  );
+  const pagedAssignTechs = assignSelectableTechs.slice(
+    (assignPickerPageSafe - 1) * TECH_PAGE_SIZE,
+    assignPickerPageSafe * TECH_PAGE_SIZE
+  );
+
   const attendanceTechListQuery = useTechniciansList({
     status: "all",
     page: 1,
@@ -3190,6 +3220,28 @@ export default function HomePage() {
         .includes(q)
     );
   }, [handoverRecipientOptions, handoverToQuery]);
+
+  useEffect(() => {
+    setHandoverToPage(1);
+  }, [handoverToQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(handoverToFiltered.length / TECH_PAGE_SIZE)
+    );
+    setHandoverToPage((p) => (p > totalPages ? totalPages : p));
+  }, [handoverToFiltered.length, TECH_PAGE_SIZE]);
+
+  const handoverToTotalPages = Math.max(
+    1,
+    Math.ceil(handoverToFiltered.length / TECH_PAGE_SIZE)
+  );
+  const handoverToPageSafe = Math.min(handoverToPage, handoverToTotalPages);
+  const pagedHandoverTo = handoverToFiltered.slice(
+    (handoverToPageSafe - 1) * TECH_PAGE_SIZE,
+    handoverToPageSafe * TECH_PAGE_SIZE
+  );
 
   const filteredMasterTemplates = useMemo(() => {
     const q = templateQuery.trim().toLowerCase();
@@ -7331,7 +7383,7 @@ export default function HomePage() {
                   )}
                 </div>
               </label>
-              <div className="check-list">
+              <div className="check-list check-list-paged">
                 {assignPoolQuery.isLoading && assignSelectableTechs.length === 0 && (
                   <span style={{ color: "var(--muted)" }}>Memuat...</span>
                 )}
@@ -7342,7 +7394,7 @@ export default function HomePage() {
                       : "Tidak ada teknisi available"}
                   </span>
                 )}
-                {assignSelectableTechs.map((t) => {
+                {pagedAssignTechs.map((t) => {
                   const checked = assignTechIds.includes(t.id);
                   return (
                     <label className="check-item" key={t.id}>
@@ -7360,6 +7412,13 @@ export default function HomePage() {
                   );
                 })}
               </div>
+              {assignSelectableTechs.length > TECH_PAGE_SIZE && (
+                <Pager
+                  page={assignPickerPageSafe}
+                  totalPages={assignPickerTotalPages}
+                  onChange={setAssignPickerPage}
+                />
+              )}
               <div className="assign-check-meta">
                 <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
                   Teknisi pertama yang dicentang menjadi lead. Dipilih: {assignTechIds.length}
@@ -8207,7 +8266,7 @@ export default function HomePage() {
                   </span>
                 )}
               {!handoverToLoading &&
-                handoverToFiltered.map((u) => {
+                pagedHandoverTo.map((u) => {
                   const label = userDisplayName(u);
                   const selected = modal.currentUserId
                     ? u.id === modal.currentUserId
@@ -8239,6 +8298,13 @@ export default function HomePage() {
                   );
                 })}
             </div>
+            {handoverToFiltered.length > TECH_PAGE_SIZE && (
+              <Pager
+                page={handoverToPageSafe}
+                totalPages={handoverToTotalPages}
+                onChange={setHandoverToPage}
+              />
+            )}
             <div className="actions">
               <button className="btn" onClick={closeModal}>
                 {t("job.cancelAction")}
@@ -9388,9 +9454,9 @@ export default function HomePage() {
               {masterTechTotal > 0 && pagedMasterTechs.length === 0 && !masterTechListQuery.isLoading && (
                 <span style={{ color: "var(--muted)" }}>Tidak ada teknisi yang cocok.</span>
               )}
-              {pagedMasterTechs.map((t) => (
+              {pagedMasterTechs.map((tech) => (
                 <div
-                  key={t.id}
+                  key={tech.id}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -9401,18 +9467,18 @@ export default function HomePage() {
                   }}
                 >
                   <div>
-                    <strong>{t.name}</strong>
+                    <strong>{tech.name}</strong>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      Pernr: {t.sn}
-                      {t.badge_id ? ` · Badge: ${t.badge_id}` : ""}
-                      {t.email ? ` · ${t.email}` : ""}
-                      {t.phone ? ` · ${t.phone}` : ""}
-                      {t.superior_user_name
-                        ? ` · Superior: ${t.superior_user_name}`
+                      Pernr: {tech.sn}
+                      {tech.badge_id ? ` · Badge: ${tech.badge_id}` : ""}
+                      {tech.email ? ` · ${tech.email}` : ""}
+                      {tech.phone ? ` · ${tech.phone}` : ""}
+                      {tech.superior_user_name
+                        ? ` · Superior: ${tech.superior_user_name}`
                         : ""}
-                      {` · ${t.status}`}
-                      {t.user_id
-                        ? ` · ${t("tech.loginReady", { username: t.sn })}`
+                      {` · ${tech.status}`}
+                      {tech.user_id
+                        ? ` · ${t("tech.loginReady", { username: tech.sn })}`
                         : ` · ${t("tech.loginMissing")}`}
                     </div>
                   </div>
@@ -9421,15 +9487,15 @@ export default function HomePage() {
                       className="btn"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
                       disabled={busy || !canTechUpdate}
-                      onClick={() => openTechEdit(t)}
+                      onClick={() => openTechEdit(tech)}
                     >
                       Edit
                     </button>
                     <button
                       className="btn btn-danger"
                       style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canTechDelete || t.status === "busy"}
-                      onClick={() => setModal({ type: "delete-tech", tech: t })}
+                      disabled={busy || !canTechDelete || tech.status === "busy"}
+                      onClick={() => setModal({ type: "delete-tech", tech })}
                     >
                       Hapus
                     </button>

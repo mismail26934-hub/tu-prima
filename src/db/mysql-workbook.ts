@@ -93,6 +93,7 @@ export async function ensureDatabaseExists() {
           `Kalau MySQL di mesin lain, GRANT user untuk host/IP PC ini.`
       );
     }
+    throw err;
   }
   try {
     await conn.query(

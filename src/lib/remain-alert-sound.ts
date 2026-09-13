@@ -6,6 +6,17 @@ import type { Locale } from "@/i18n/messages";
 
 export type RemainTone = "green" | "orange" | "red";
 
+/** Hijau: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime. */
+export function remainToneFor(
+  estimateSec: number,
+  remainingSec: number,
+  remainingPct: number
+): RemainTone {
+  if (estimateSec <= 0 || remainingSec <= 0 || remainingPct <= 20) return "red";
+  if (remainingPct >= 50) return "green";
+  return "orange";
+}
+
 const PCT_STEP = 5;
 const OVERTIME_MS = 60 * 60 * 1000;
 

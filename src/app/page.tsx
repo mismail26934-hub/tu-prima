@@ -37,10 +37,7 @@ import {
 } from "@/lib/permissions";
 import { calcElapsedSec, calcStepElapsedSec, formatDuration } from "@/lib/duration";
 import {
-  isRemainAlertOwner,
-  playRemainAlertWithSpeech,
-  remainAlertTick,
-  stopRemainAlertForJob,
+  remainToneFor,
 } from "@/lib/remain-alert-sound";
 import {
   assignedTechnicianIds,
@@ -60,11 +57,11 @@ import {
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
-import { useRemainAlertStore } from "@/store/remainAlertStore";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { OfflineSyncChip } from "@/components/OfflineSyncChip";
 import { NavAlerts } from "@/components/NavAlerts";
 import { RemainAlertMuteToggle } from "@/components/RemainAlertMuteToggle";
+import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -301,24 +298,11 @@ function LiveTimer({ job }: { job: JobWithDetails }) {
 /** Remaining vs estimate; card tone from remaining % of estimate. */
 function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   const t = useT();
-  const { data: session } = useSession();
-  const userId = String(session?.user?.id || "");
-  const muted = useRemainAlertStore((s) => s.muted);
-  const pctStep = useRemainAlertStore((s) => s.pctStep);
-  const overtimeHours = useRemainAlertStore((s) => s.overtimeHours);
-  const hydrateRemainAlert = useRemainAlertStore((s) => s.hydrate);
   const [elapsed, setElapsed] = useState(() => calcElapsedSec(job));
-  const [clock, setClock] = useState(0);
-  useEffect(() => {
-    hydrateRemainAlert();
-  }, [hydrateRemainAlert]);
   useEffect(() => {
     setElapsed(calcElapsedSec(job));
     if (!["in_progress", "paused"].includes(job.status)) return;
-    const id = setInterval(() => {
-      setElapsed(calcElapsedSec(job));
-      setClock((n) => n + 1);
-    }, 1000);
+    const id = setInterval(() => setElapsed(calcElapsedSec(job)), 1000);
     return () => clearInterval(id);
   }, [job]);
 
@@ -326,49 +310,7 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   const remainingSec = estimateSec - elapsed;
   const remainingPct =
     estimateSec > 0 ? (Math.max(0, remainingSec) / estimateSec) * 100 : 0;
-
-  // Hijau: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime
-  let tone: "green" | "orange" | "red" = "green";
-  if (estimateSec <= 0 || remainingSec <= 0 || remainingPct <= 20) tone = "red";
-  else if (remainingPct >= 50) tone = "green";
-  else tone = "orange"; // 20% < sisa < 50%
-
-  useEffect(() => {
-    if (job.status === "done" || job.status === "cancelled") {
-      stopRemainAlertForJob(job.id);
-      return;
-    }
-    if (!isRemainAlertOwner(job, userId)) return;
-    const next = remainAlertTick({
-      jobId: job.id,
-      status: job.status,
-      tone,
-      remainingPct,
-      remainingSec,
-      estimateSec,
-      pctStep,
-      overtimeMs: overtimeHours * 60 * 60 * 1000,
-    });
-    if (muted || !next) return;
-    playRemainAlertWithSpeech(
-      next,
-      job,
-      remainingSec,
-      remainingPct,
-      estimateSec
-    );
-  }, [
-    tone,
-    muted,
-    userId,
-    job,
-    remainingSec,
-    remainingPct,
-    estimateSec,
-    pctStep,
-    overtimeHours,
-    clock,
-  ]);
+  const tone = remainToneFor(estimateSec, remainingSec, remainingPct);
 
   const value =
     remainingSec >= 0
@@ -3540,7 +3482,7 @@ export default function HomePage() {
     ownership: jobOwnershipFilter,
     priority: jobPriorityFilter,
     jobId: jobDeepLink.jobId,
-    enabled: showActiveJobs,
+    enabled: isLoggedIn,
   });
 
   const activeJobs = activeJobsQuery.data?.items || [];
@@ -6315,6 +6257,7 @@ export default function HomePage() {
                   <PanelToggleIcon collapsed={false} />
                 </button>
               </div>
+              {isLoggedIn ? <RemainAlertWatcher jobs={sliderJobs} /> : null}
               <ActiveJobSlider jobs={sliderJobs} renderJob={renderJob}>
                 <div className="panel-head">
                   <div className="panel-head-title-row">

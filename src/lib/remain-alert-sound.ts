@@ -9,7 +9,11 @@ export type RemainTone = "green" | "orange" | "red";
 const PCT_STEP = 5;
 const OVERTIME_MS = 60 * 60 * 1000;
 
-type TickState = { lastPct: number; lastOvertimeAt: number | null };
+type TickState = {
+  lastPct: number;
+  lastTone: RemainTone;
+  lastOvertimeAt: number | null;
+};
 type AlertItem = {
   jobId: string;
   tone: RemainTone;
@@ -549,7 +553,7 @@ export function playRemainAlertWithSpeech(
   void drainAlertQueue();
 }
 
-/** First look is silent. Later: every 5% remaining drop, last 0% alert, then hourly overtime. */
+/** First look is silent. Later: color enter orange/red, remaining % drop, 0%, then overtime. */
 export function remainAlertTick(input: {
   jobId: string;
   status: string;
@@ -577,10 +581,24 @@ export function remainAlertTick(input: {
   if (!prev) {
     tickByJob.set(id, {
       lastPct: pct,
+      lastTone: input.tone,
       lastOvertimeAt: input.remainingSec <= 0 ? Date.now() : null,
     });
     return null;
   }
+
+  const lastTone = prev.lastTone ?? input.tone;
+  const enteredAlertTone =
+    (input.tone === "orange" || input.tone === "red") && lastTone !== input.tone;
+
+  if (enteredAlertTone) {
+    prev.lastTone = input.tone;
+    prev.lastPct = pct;
+    if (input.remainingSec <= 0) prev.lastOvertimeAt = Date.now();
+    else prev.lastOvertimeAt = null;
+    return input.tone;
+  }
+  prev.lastTone = input.tone;
 
   if (input.remainingSec <= 0) {
     if (prev.lastPct > 0) {

@@ -291,12 +291,15 @@ const LETTER_SAY: Record<string, string> = {
   z: "zet",
 };
 
-/** Stop TTS expanding codes like 16M into "16 meter". */
+/** Stop TTS expanding codes like 16M into "16 meter", or "—" into "sampai". */
 function speakAsWritten(text: string): string {
-  return text.replace(/(\d+)\s*([A-Za-z])\b/g, (_, num: string, letter: string) => {
-    const say = LETTER_SAY[letter.toLowerCase()] || letter.toLowerCase();
-    return `${num} ${say}`;
-  });
+  return text
+    .replace(/\s*[—–−]\s*/g, ", ")
+    .replace(/\s+-\s+/g, ", ")
+    .replace(/(\d+)\s*([A-Za-z])\b/g, (_, num: string, letter: string) => {
+      const say = LETTER_SAY[letter.toLowerCase()] || letter.toLowerCase();
+      return `${num} ${say}`;
+    });
 }
 
 export function buildRemainAlertSpeech(
@@ -335,15 +338,15 @@ export function buildRemainAlertSpeech(
   const level =
     locale === "id"
       ? tone === "red"
-        ? "merah"
+        ? "kritis"
         : tone === "orange"
-          ? "oranye"
-          : "hijau"
+          ? "mohon perhatian"
+          : "normal"
       : tone === "red"
-        ? "red"
+        ? "critical"
         : tone === "orange"
-          ? "orange"
-          : "green";
+          ? "caution"
+          : "normal";
 
   let remainLine: string;
   if (estimateSec <= 0) {

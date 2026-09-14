@@ -22,6 +22,7 @@ import type {
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
 import type { JobPriority } from "@/lib/types";
+import { applyLiveOwnerNames } from "@/lib/job-owner-names";
 import {
   EMPTY_NAV_ALERTS,
   type NavAlertItem,
@@ -351,6 +352,7 @@ async function enrichJobsBatch(
 ): Promise<JobWithDetails[]> {
   if (!jobs.length) return [];
   const includeEvents = opts?.includeEvents === true;
+  await applyLiveOwnerNames(jobs);
 
   const jobIds = jobs.map((j) => j.id).filter(Boolean);
   const ph = jobIds.map(() => "?").join(",");

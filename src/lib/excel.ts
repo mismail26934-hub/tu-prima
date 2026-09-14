@@ -107,6 +107,7 @@ import {
   needsPasswordHash,
   verifyPassword,
 } from "./password";
+import { syncJobOwnerDisplayNames } from "@/lib/job-owner-names";
 import {
   canAssignTechnicians,
   canDelegateJob,
@@ -5583,6 +5584,12 @@ export async function updateOwnProfile(
 
     writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
+    if (input.name != null) {
+      await syncJobOwnerDisplayNames(
+        user.id,
+        user.name || user.username
+      );
+    }
     return toPublicUser(user);
   });
 }
@@ -5712,6 +5719,12 @@ export async function updateUser(
 
     writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
+    if (input.name != null || input.username != null) {
+      await syncJobOwnerDisplayNames(
+        user.id,
+        user.name || user.username
+      );
+    }
     return toPublicUser(user);
   });
 }

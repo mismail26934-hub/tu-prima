@@ -4104,7 +4104,7 @@ export default function HomePage() {
     setBusy(true);
     setError("");
     try {
-      await api("/api/jobs", {
+      const created = await api<{ id?: string }>("/api/jobs", {
         method: "POST",
         body: JSON.stringify({
           title: form.title.trim(),
@@ -4116,10 +4116,19 @@ export default function HomePage() {
           template_id: form.template_id || undefined,
         }),
       });
+      const jobId = String(created?.id || "").trim();
       resetForm();
       setTemplatePreview(null);
       closeModal();
       await invalidateDashboard();
+      if (jobId) {
+        clearJobSearch();
+        setJobSectionFilter("queue");
+        setJobOwnershipMine(false);
+        setJobOwnershipDelegated(false);
+        setJobPriorityFilter("");
+        jobDeepLink.open(jobId);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal buat job");
     } finally {

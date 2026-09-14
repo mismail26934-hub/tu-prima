@@ -67,6 +67,9 @@ const id = {
   "nav.alertSoundSettings": "Pengaturan suara alert",
   "nav.alertPctStep": "Ulang tiap turun (%)",
   "nav.alertOvertimeHours": "Overtime tiap (jam)",
+  "nav.alertSpeechLang": "Bahasa web speech",
+  "nav.alertSpeechId": "Indonesia",
+  "nav.alertSpeechEn": "English",
 
   "summary.technicians": "Teknisi",
   "summary.available": "Available",
@@ -402,6 +405,9 @@ const en: Record<MessageKey, string> = {
   "nav.alertSoundSettings": "Alert sound settings",
   "nav.alertPctStep": "Repeat every drop (%)",
   "nav.alertOvertimeHours": "Overtime every (hours)",
+  "nav.alertSpeechLang": "Web speech language",
+  "nav.alertSpeechId": "Indonesian",
+  "nav.alertSpeechEn": "English",
 
   "summary.technicians": "Technicians",
   "summary.available": "Available",

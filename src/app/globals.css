@@ -632,7 +632,8 @@ html[data-theme="light"].menu-open .topbar-glass {
   color: var(--muted);
 }
 
-.remain-alert-field input {
+.remain-alert-field input,
+.remain-alert-field select {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -640,6 +641,32 @@ html[data-theme="light"].menu-open .topbar-glass {
   background: var(--bg-0);
   color: var(--text);
   font: inherit;
+}
+
+.remain-alert-lang {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.remain-alert-lang button {
+  appearance: none;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-0);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.remain-alert-lang button.is-active {
+  border-color: var(--accent, #3b82f6);
+  background: var(--bg-2);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .nav-alerts-badge {

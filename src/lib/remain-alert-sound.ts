@@ -32,6 +32,7 @@ type AlertItem = {
   remainingSec: number;
   remainingPct: number;
   estimateSec: number;
+  speechLang: Locale;
 };
 
 let audioCtx: AudioContext | null = null;
@@ -471,24 +472,20 @@ function speakOnce(
 }
 
 async function speakJobAlert(
-  idText: string,
-  enText: string,
+  text: string,
+  locale: Locale,
   gen: number
 ): Promise<void> {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   if (gen !== speakGen) return;
   const voices = await waitVoices();
   if (gen !== speakGen) return;
-  const idVoice = pickIdVoice(voices);
-  const enVoice = pickEnVoice(voices);
   spokenUtterances = [];
-  await speakOnce(idText, idVoice, "id-ID", gen);
-  if (gen !== speakGen) return;
-  await waitUntilQuiet(gen);
-  if (gen !== speakGen) return;
-  await delay(280);
-  if (gen !== speakGen) return;
-  await speakOnce(enText, enVoice, "en-GB", gen);
+  if (locale === "en") {
+    await speakOnce(text, pickEnVoice(voices), "en-GB", gen);
+  } else {
+    await speakOnce(text, pickIdVoice(voices), "id-ID", gen);
+  }
   if (gen !== speakGen) return;
   await waitUntilQuiet(gen);
 }
@@ -499,23 +496,16 @@ async function playQueuedItem(item: AlertItem, gen: number): Promise<void> {
   playBeep(item.tone);
   await delay(item.tone === "red" ? 900 : 550);
   if (gen !== speakGen) return;
-  const idText = buildRemainAlertSpeech(
+  const locale: Locale = item.speechLang === "en" ? "en" : "id";
+  const text = buildRemainAlertSpeech(
     item.job,
     item.tone,
     item.remainingSec,
     item.remainingPct,
     item.estimateSec,
-    "id"
+    locale
   );
-  const enText = buildRemainAlertSpeech(
-    item.job,
-    item.tone,
-    item.remainingSec,
-    item.remainingPct,
-    item.estimateSec,
-    "en"
-  );
-  await speakJobAlert(idText, enText, gen);
+  await speakJobAlert(text, locale, gen);
 }
 
 async function drainAlertQueue(): Promise<void> {
@@ -545,7 +535,8 @@ export function playRemainAlertWithSpeech(
   job: JobWithDetails,
   remainingSec: number,
   remainingPct: number,
-  estimateSec: number
+  estimateSec: number,
+  speechLang: Locale = "id"
 ): void {
   const jobId = String(job.id || "").trim();
   if (!jobId) return;
@@ -556,6 +547,7 @@ export function playRemainAlertWithSpeech(
     remainingSec,
     remainingPct,
     estimateSec,
+    speechLang: speechLang === "en" ? "en" : "id",
   };
   alertQueue = alertQueue.filter((row) => row.jobId !== jobId);
   if (currentJobId === jobId) {

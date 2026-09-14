@@ -1,10 +1,15 @@
 "use client";
 
 import { create } from "zustand";
+import type { Locale } from "@/i18n/messages";
 
 const MUTED_KEY = "tu-prima-remain-alert-muted";
 const PCT_KEY = "tu-prima-remain-alert-pct-step";
 const HOURS_KEY = "tu-prima-remain-alert-overtime-hours";
+const SPEECH_LANG_KEY = "tu-prima-remain-alert-speech-lang";
+
+export type RemainAlertSpeechLang = Locale;
+export const DEFAULT_SPEECH_LANG: RemainAlertSpeechLang = "id";
 
 export const DEFAULT_PCT_STEP = 5;
 export const MIN_PCT_STEP = 1;
@@ -48,6 +53,16 @@ export function clampOvertimeHours(value: number): number {
   return Math.min(MAX_OVERTIME_HOURS, Math.max(MIN_OVERTIME_HOURS, stepped));
 }
 
+function readSpeechLang(): RemainAlertSpeechLang {
+  if (typeof window === "undefined") return DEFAULT_SPEECH_LANG;
+  try {
+    const raw = window.localStorage.getItem(SPEECH_LANG_KEY);
+    return raw === "en" ? "en" : "id";
+  } catch {
+    return DEFAULT_SPEECH_LANG;
+  }
+}
+
 function write(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);
@@ -60,18 +75,21 @@ interface RemainAlertState {
   muted: boolean;
   pctStep: number;
   overtimeHours: number;
+  speechLang: RemainAlertSpeechLang;
   hydrated: boolean;
   hydrate: () => void;
   setMuted: (muted: boolean) => void;
   toggleMuted: () => void;
   setPctStep: (pctStep: number) => void;
   setOvertimeHours: (hours: number) => void;
+  setSpeechLang: (lang: RemainAlertSpeechLang) => void;
 }
 
 export const useRemainAlertStore = create<RemainAlertState>((set, get) => ({
   muted: false,
   pctStep: DEFAULT_PCT_STEP,
   overtimeHours: DEFAULT_OVERTIME_HOURS,
+  speechLang: DEFAULT_SPEECH_LANG,
   hydrated: false,
   hydrate: () => {
     if (get().hydrated) return;
@@ -84,6 +102,7 @@ export const useRemainAlertStore = create<RemainAlertState>((set, get) => ({
         MIN_OVERTIME_HOURS,
         MAX_OVERTIME_HOURS
       ),
+      speechLang: readSpeechLang(),
       hydrated: true,
     });
   },
@@ -103,5 +122,10 @@ export const useRemainAlertStore = create<RemainAlertState>((set, get) => ({
     const next = clampOvertimeHours(hours);
     set({ overtimeHours: next, hydrated: true });
     write(HOURS_KEY, String(next));
+  },
+  setSpeechLang: (lang) => {
+    const next: RemainAlertSpeechLang = lang === "en" ? "en" : "id";
+    set({ speechLang: next, hydrated: true });
+    write(SPEECH_LANG_KEY, next);
   },
 }));

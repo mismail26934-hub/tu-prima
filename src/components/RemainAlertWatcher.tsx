@@ -69,7 +69,8 @@ export function RemainAlertWatcher({ jobs }: { jobs: JobWithDetails[] }) {
         job,
         remainingSec,
         remainingPct,
-        estimateSec
+        estimateSec,
+        useRemainAlertStore.getState().speechLang
       );
     }
   }, [jobs, clock, muted, userId, pctStep, overtimeHours]);

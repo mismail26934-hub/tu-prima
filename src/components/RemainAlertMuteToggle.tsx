@@ -61,9 +61,11 @@ function AlertSoundFields() {
   const muted = useRemainAlertStore((s) => s.muted);
   const pctStep = useRemainAlertStore((s) => s.pctStep);
   const overtimeHours = useRemainAlertStore((s) => s.overtimeHours);
+  const speechLang = useRemainAlertStore((s) => s.speechLang);
   const setMuted = useRemainAlertStore((s) => s.setMuted);
   const setPctStep = useRemainAlertStore((s) => s.setPctStep);
   const setOvertimeHours = useRemainAlertStore((s) => s.setOvertimeHours);
+  const setSpeechLang = useRemainAlertStore((s) => s.setSpeechLang);
 
   return (
     <div className="remain-alert-fields">
@@ -81,6 +83,35 @@ function AlertSoundFields() {
         <SpeakerIcon muted={muted} />
         <span>{muted ? t("nav.alertSoundOn") : t("nav.alertSoundOff")}</span>
       </button>
+      <div className="remain-alert-field">
+        <span>{t("nav.alertSpeechLang")}</span>
+        <div className="remain-alert-lang" role="group" aria-label={t("nav.alertSpeechLang")}>
+          <button
+            type="button"
+            className={speechLang === "id" ? "is-active" : ""}
+            aria-pressed={speechLang === "id"}
+            onClick={() => {
+              unlockRemainAlertAudio();
+              if (speechLang !== "id") stopRemainAlertSpeech();
+              setSpeechLang("id");
+            }}
+          >
+            {t("nav.alertSpeechId")}
+          </button>
+          <button
+            type="button"
+            className={speechLang === "en" ? "is-active" : ""}
+            aria-pressed={speechLang === "en"}
+            onClick={() => {
+              unlockRemainAlertAudio();
+              if (speechLang !== "en") stopRemainAlertSpeech();
+              setSpeechLang("en");
+            }}
+          >
+            {t("nav.alertSpeechEn")}
+          </button>
+        </div>
+      </div>
       <label className="remain-alert-field">
         <span>{t("nav.alertPctStep")}</span>
         <input

@@ -147,6 +147,11 @@ export interface JobStepNote {
   edited_at?: string;
   edited_by_user_id?: string;
   edited_by_name?: string;
+  /** Stored PDF filename in data/step-note-files (empty = none). */
+  file_id?: string;
+  file_name?: string;
+  file_original_name?: string;
+  file_url?: string;
 }
 
 export interface JobStep {

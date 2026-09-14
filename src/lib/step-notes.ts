@@ -1,4 +1,5 @@
 import type { JobStep, JobStepNote } from "@/lib/types";
+import { stepNoteFilePublicUrl } from "@/lib/step-note-file-url";
 
 export type { JobStepNote };
 
@@ -18,12 +19,22 @@ function normalizeNote(raw: unknown, fallbackId = ""): JobStepNote | null {
   const body = String(row.body || row.note || "").trim();
   if (!body) return null;
   const editedAt = String(row.edited_at || "").trim();
+  const fileId = String(row.file_id || "").trim();
+  const fileName = String(row.file_name || "").trim();
+  const fileOriginal = String(row.file_original_name || "").trim();
   return {
     id: String(row.id || "").trim() || fallbackId || newNoteId(),
     body: body.slice(0, 4000),
     user_id: String(row.user_id || "").trim(),
     user_name: String(row.user_name || "").trim(),
     created_at: String(row.created_at || row.at || "").trim(),
+    ...(fileId || fileName
+      ? {
+          file_id: fileId || fileName.replace(/\.pdf$/i, ""),
+          file_name: fileName,
+          file_original_name: fileOriginal || fileName || "lampiran.pdf",
+        }
+      : {}),
     ...(editedAt
       ? {
           edited_at: editedAt,
@@ -84,6 +95,13 @@ export function serializeStepNotes(notes: JobStepNote[]): string {
       user_id: n.user_id,
       user_name: n.user_name,
       created_at: n.created_at,
+      ...(n.file_id || n.file_name
+        ? {
+            file_id: n.file_id || "",
+            file_name: n.file_name || "",
+            file_original_name: n.file_original_name || "",
+          }
+        : {}),
       ...(n.edited_at
         ? {
             edited_at: n.edited_at,
@@ -176,9 +194,15 @@ export function attachStepNotes<T extends Partial<JobStep>>(step: T): T {
     note_updated_at: step.note_updated_at,
   });
   const last = notes[notes.length - 1];
+  const jobId = String(step.job_id || "");
+  const stepId = String(step.id || "");
   return {
     ...step,
-    notes,
+    notes: notes.map((n) =>
+      n.file_id && jobId && stepId
+        ? { ...n, file_url: stepNoteFilePublicUrl(jobId, stepId, n.id) }
+        : n
+    ),
     note: last?.body || String(step.note || ""),
     note_updated_by_user_id:
       last?.user_id || step.note_updated_by_user_id || "",
@@ -197,6 +221,9 @@ export function withAppendedStepNote(
     user_id?: string;
     user_name?: string;
     created_at?: string;
+    file_id?: string;
+    file_name?: string;
+    file_original_name?: string;
   }
 ): JobStep {
   const body = String(input.body || "").trim().slice(0, 4000);
@@ -210,12 +237,22 @@ export function withAppendedStepNote(
   if (last && last.body === body && !requestedId) {
     return attachStepNotes({ ...step, notes });
   }
+  const fileId = String(input.file_id || "").trim();
+  const fileName = String(input.file_name || "").trim();
+  const fileOriginal = String(input.file_original_name || "").trim();
   const next: JobStepNote = {
     id: requestedId || newNoteId(),
     body,
     user_id: String(input.user_id || "").trim(),
     user_name: String(input.user_name || "").trim(),
     created_at: String(input.created_at || "").trim() || new Date().toISOString(),
+    ...(fileId || fileName || fileOriginal
+      ? {
+          file_id: fileId || fileName.replace(/\.pdf$/i, ""),
+          file_name: fileName,
+          file_original_name: fileOriginal || "lampiran.pdf",
+        }
+      : {}),
   };
   return attachStepNotes({ ...step, notes: [...notes, next] });
 }
@@ -228,6 +265,10 @@ export function withUpdatedStepNote(
     edited_at?: string;
     edited_by_user_id?: string;
     edited_by_name?: string;
+    file_id?: string;
+    file_name?: string;
+    file_original_name?: string;
+    remove_file?: boolean;
   }
 ): JobStep {
   const noteId = String(input.id || "").trim();
@@ -237,8 +278,15 @@ export function withUpdatedStepNote(
   const idx = notes.findIndex((n) => n.id === noteId);
   if (idx < 0) return attachStepNotes({ ...step, notes });
   const current = notes[idx];
-  if (current.body === body) return attachStepNotes({ ...step, notes });
   const next = notes.slice();
+  const fileId = String(input.file_id || "").trim();
+  const fileName = String(input.file_name || "").trim();
+  const fileOriginal = String(input.file_original_name || "").trim();
+  const fileChanged =
+    input.remove_file === true || Boolean(fileId || fileName || fileOriginal);
+  if (current.body === body && !fileChanged) {
+    return attachStepNotes({ ...step, notes });
+  }
   next[idx] = {
     ...current,
     body,
@@ -246,6 +294,16 @@ export function withUpdatedStepNote(
       String(input.edited_at || "").trim() || new Date().toISOString(),
     edited_by_user_id: String(input.edited_by_user_id || "").trim(),
     edited_by_name: String(input.edited_by_name || "").trim(),
+    ...(input.remove_file
+      ? { file_id: "", file_name: "", file_original_name: "", file_url: "" }
+      : fileId || fileName || fileOriginal
+        ? {
+            file_id: fileId || fileName.replace(/\.pdf$/i, ""),
+            file_name: fileName,
+            file_original_name:
+              fileOriginal || current.file_original_name || "lampiran.pdf",
+          }
+        : {}),
   };
   return attachStepNotes({ ...step, notes: next });
 }

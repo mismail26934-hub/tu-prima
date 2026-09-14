@@ -66,6 +66,7 @@ import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSl
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { StepPhotoPicker } from "@/components/StepPhotoPicker";
+import { StepNotePdfPicker } from "@/components/StepNotePdfPicker";
 import { api } from "@/lib/api";
 import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import {
@@ -77,6 +78,7 @@ import { newEntityId } from "@/lib/offline/ids";
 import { stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import type { StepPhotoDraft } from "@/lib/step-photo-client";
 import { compressAvatarFile } from "@/lib/step-photo-client";
+import type { StepNotePdfDraft } from "@/lib/step-note-file-client";
 import { useDashboard } from "@/hooks/useDashboard";
 import { writeCachedSession } from "@/lib/offline/session-cache";
 import {
@@ -2139,6 +2141,10 @@ export default function HomePage() {
     []
   );
   const [stepPhotoRemoveIds, setStepPhotoRemoveIds] = useState<string[]>([]);
+  const [stepNotePdfDraft, setStepNotePdfDraft] = useState<StepNotePdfDraft | null>(
+    null
+  );
+  const [stepNotePdfRemove, setStepNotePdfRemove] = useState(false);
   /** sequential = auto one-by-one; parallel = checkbox batch start. */
   const [stepModeByJob, setStepModeByJob] = useState<
     Record<string, "sequential" | "parallel">
@@ -2371,6 +2377,8 @@ export default function HomePage() {
     setStepPhotoRemoveIds([]);
     setStepNoteDraft("");
     setStepNoteEditingId("");
+    setStepNotePdfDraft(null);
+    setStepNotePdfRemove(false);
     setModal(null);
   }
 
@@ -2447,6 +2455,8 @@ export default function HomePage() {
                 onClick={() => {
                   setStepNoteEditingId(n.id);
                   setStepNoteDraft(n.body);
+                  setStepNotePdfDraft(null);
+                  setStepNotePdfRemove(false);
                 }}
               >
                 {t("job.stepNoteChange")}
@@ -2454,6 +2464,19 @@ export default function HomePage() {
             ) : null}
           </span>
           <span className="step-note-body">{n.body}</span>
+          {n.file_url || n.file_original_name ? (
+            <a
+              className="step-note-pdf-link"
+              href={n.file_url || undefined}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => {
+                if (!n.file_url) e.preventDefault();
+              }}
+            >
+              {n.file_original_name || "lampiran.pdf"}
+            </a>
+          ) : null}
         </span>
       );
     });
@@ -3614,6 +3637,14 @@ export default function HomePage() {
         });
       }
       closeModal();
+      if (action === "assign") {
+        clearJobSearch();
+        setJobSectionFilter("active");
+        setJobOwnershipMine(false);
+        setJobOwnershipDelegated(false);
+        setJobPriorityFilter("");
+        jobDeepLink.open(jobId);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Aksi gagal");
     } finally {
@@ -4418,6 +4449,8 @@ export default function HomePage() {
                       onClick={() => {
                         setStepNoteDraft("");
                         setStepNoteEditingId("");
+                        setStepNotePdfDraft(null);
+                        setStepNotePdfRemove(false);
                         setModal({ type: "step-note", job, step: s });
                       }}
                       title={
@@ -4527,6 +4560,8 @@ export default function HomePage() {
                     onClick={() => {
                       setStepNoteDraft("");
                       setStepNoteEditingId("");
+                      setStepNotePdfDraft(null);
+                      setStepNotePdfRemove(false);
                       setModal({ type: "step-note", job, step: s });
                     }}
                     title={t("job.stepNoteEdit")}
@@ -7909,8 +7944,12 @@ export default function HomePage() {
 
       {modal?.type === "step-note" && (
         <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal modal-step-note"
+            onClick={(e) => e.stopPropagation()}
+          >
             {busy && <BusyOverlay label="Memproses..." />}
+            <div className="modal-body">
             <h3>{t("job.stepNoteEdit")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.job.title} — {modal.job.unit}
@@ -7962,6 +8001,39 @@ export default function HomePage() {
               rows={4}
               onChange={(e) => setStepNoteDraft(e.target.value)}
             />
+            {(() => {
+              const liveStep =
+                jobMap[modal.job.id]?.steps.find((s) => s.id === modal.step.id) ||
+                modal.step;
+              const editing = stepNoteEditingId
+                ? hydrateStepNotes(liveStep).find((n) => n.id === stepNoteEditingId)
+                : undefined;
+              const pdfLocked = stepNoteEditingId
+                ? !canNotesDeleteForJob(modal.job)
+                : !modalEvidenceOk;
+              return (
+                <StepNotePdfPicker
+                  existingName={editing?.file_original_name}
+                  existingUrl={editing?.file_url}
+                  draft={stepNotePdfDraft}
+                  removed={stepNotePdfRemove}
+                  disabled={busy || pdfLocked}
+                  onDraftChange={(d) => {
+                    setStepNotePdfDraft(d);
+                    if (d) setStepNotePdfRemove(false);
+                  }}
+                  onRemoveExisting={
+                    editing?.file_id || editing?.file_name
+                      ? () => {
+                          setStepNotePdfDraft(null);
+                          setStepNotePdfRemove(true);
+                        }
+                      : undefined
+                  }
+                />
+              );
+            })()}
+            </div>
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 {t("job.cancelAction")}
@@ -7974,6 +8046,8 @@ export default function HomePage() {
                     onClick={() => {
                       setStepNoteEditingId("");
                       setStepNoteDraft("");
+                      setStepNotePdfDraft(null);
+                      setStepNotePdfRemove(false);
                     }}
                   >
                     {t("job.stepNoteChangeCancel")}
@@ -7984,10 +8058,12 @@ export default function HomePage() {
                       disabled={
                         busy ||
                         !stepNoteDraft.trim() ||
-                        stepNoteDraft.trim() ===
+                        (stepNoteDraft.trim() ===
                           (hydrateStepNotes(modal.step).find(
                             (n) => n.id === stepNoteEditingId
-                          )?.body || "")
+                          )?.body || "") &&
+                          !stepNotePdfDraft &&
+                          !stepNotePdfRemove)
                       }
                       onClick={() =>
                         runAction(modal.job.id, "edit_step_note", {
@@ -7996,6 +8072,15 @@ export default function HomePage() {
                           note: stepNoteDraft.trim().slice(0, 4000),
                           edited_by_name: displayName,
                           edited_by_user_id: userId,
+                          ...(stepNotePdfDraft
+                            ? {
+                                file_base64: stepNotePdfDraft.base64,
+                                file_mime: stepNotePdfDraft.mime,
+                                file_name: stepNotePdfDraft.name,
+                              }
+                            : stepNotePdfRemove
+                              ? { remove_file: true }
+                              : {}),
                         })
                       }
                     >
@@ -8017,6 +8102,13 @@ export default function HomePage() {
                         step_id: modal.step.id,
                         note: stepNoteDraft.trim().slice(0, 4000),
                         note_id: newEntityId("SN"),
+                        ...(stepNotePdfDraft
+                          ? {
+                              file_base64: stepNotePdfDraft.base64,
+                              file_mime: stepNotePdfDraft.mime,
+                              file_name: stepNotePdfDraft.name,
+                            }
+                          : {}),
                       })
                     }
                   >

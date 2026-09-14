@@ -60,6 +60,10 @@ import {
   saveStepPhotoFromBase64,
 } from "./step-photo";
 import {
+  deleteStepNotePdf,
+  saveStepNotePdfFromBase64,
+} from "./step-note-file";
+import {
   deleteUserPhotoFiles,
   saveUserPhotoFromBase64,
   userPhotoPublicUrl,
@@ -93,6 +97,10 @@ import {
   listCancelledJobDetails,
   takeCancelledJobFromArchive,
 } from "./job-cancelled-archive";
+import {
+  originalJobIdFromArchive,
+  rebindJobBundleIds,
+} from "./archive-job-ids";
 import {
   loadMysqlWorkbook,
   saveMysqlWorkbook,
@@ -961,7 +969,8 @@ function appendNoteToStep(
   rawNote: string | undefined,
   actor: AuditActor | null | undefined,
   technicianName?: string,
-  noteId?: string
+  noteId?: string,
+  file?: { id?: string; name?: string; original_name?: string }
 ): boolean {
   const body = String(rawNote ?? "").trim();
   if (!body) return false;
@@ -971,6 +980,9 @@ function appendNoteToStep(
     body,
     user_id: actor?.user_id || "",
     user_name: (technicianName || actor?.user_name || "").trim(),
+    file_id: file?.id,
+    file_name: file?.name,
+    file_original_name: file?.original_name,
   });
   step.notes = next.notes;
   step.note = next.note;
@@ -978,6 +990,67 @@ function appendNoteToStep(
   step.note_updated_by_name = next.note_updated_by_name;
   step.note_updated_at = next.note_updated_at;
   return hydrateStepNotes(step).length > before.length;
+}
+
+async function applyIncomingStepNotePdf(
+  step: JobStep,
+  noteId: string,
+  payload: {
+    file_base64?: string;
+    file_mime?: string;
+    file_name?: string;
+    remove_file?: boolean;
+  } | undefined,
+  actor: AuditActor | null | undefined
+): Promise<boolean> {
+  const id = String(noteId || "").trim();
+  if (!id) return false;
+  const notes = hydrateStepNotes(step);
+  const current = notes.find((n) => n.id === id);
+  if (!current) return false;
+  const raw = String(payload?.file_base64 || "").trim();
+  if (payload?.remove_file) {
+    if (!current.file_id && !current.file_name) return false;
+    await deleteStepNotePdf(current);
+    const next = withUpdatedStepNote(step, {
+      id,
+      body: current.body,
+      remove_file: true,
+      edited_by_user_id: actor?.user_id || "",
+      edited_by_name: actor?.user_name || "",
+    });
+    step.notes = next.notes;
+    step.note = next.note;
+    step.note_updated_by_user_id = next.note_updated_by_user_id;
+    step.note_updated_by_name = next.note_updated_by_name;
+    step.note_updated_at = next.note_updated_at;
+    return true;
+  }
+  if (!raw) return false;
+  if (current.file_name || current.file_id) {
+    await deleteStepNotePdf(current);
+  }
+  const saved = await saveStepNotePdfFromBase64(
+    id,
+    raw,
+    payload?.file_mime,
+    payload?.file_name
+  );
+  const next = withUpdatedStepNote(step, {
+    id,
+    body: current.body,
+    file_id: saved.id,
+    file_name: saved.name,
+    file_original_name: saved.original_name,
+    edited_by_user_id: actor?.user_id || "",
+    edited_by_name: actor?.user_name || "",
+  });
+  step.notes = next.notes;
+  step.note = next.note;
+  step.note_updated_by_user_id = next.note_updated_by_user_id;
+  step.note_updated_by_name = next.note_updated_by_name;
+  step.note_updated_at = next.note_updated_at;
+  return true;
 }
 
 async function ensureTechnicianLoginUser(
@@ -3635,6 +3708,10 @@ export async function jobAction(
     auto_next?: boolean;
     note?: string;
     note_id?: string;
+    file_base64?: string;
+    file_mime?: string;
+    file_name?: string;
+    remove_file?: boolean;
     photo_base64?: string;
     thumb_base64?: string;
     photo_mime?: string;
@@ -3777,8 +3854,14 @@ export async function jobAction(
         );
       }
 
-      const restored: Job = { ...snap.job };
-      const restoredSteps = snap.steps.map((s) => ({ ...s }));
+      const originalId = originalJobIdFromArchive(snap.job.id);
+      const restoreId = jobs.some((j) => j.id === originalId)
+        ? snap.job.id
+        : originalId;
+      const rebound = rebindJobBundleIds(snap, restoreId);
+
+      const restored: Job = { ...rebound.job };
+      const restoredSteps = rebound.steps.map((s) => ({ ...s }));
       const usePaused =
         source === "completed" || Boolean(restored.started_at);
 
@@ -3796,7 +3879,7 @@ export async function jobAction(
             last.completed_at = "";
           }
         }
-      } else if (snap.assignees.length > 0) {
+      } else if (rebound.assignees.length > 0) {
         restored.status = "assigned";
         restored.completed_at = "";
         restored.paused_at = "";
@@ -3808,18 +3891,18 @@ export async function jobAction(
 
       jobs.push(restored);
       steps.push(...restoredSteps);
-      events.push(...snap.events);
-      assignees.push(...snap.assignees);
-      handovers.push(...snap.handovers);
-      partLoans.push(...snap.part_loans);
+      events.push(...rebound.events);
+      assignees.push(...rebound.assignees);
+      handovers.push(...rebound.handovers);
+      partLoans.push(...rebound.part_loans);
 
       if (restored.status === "paused" || restored.status === "assigned") {
-        for (const a of snap.assignees) {
+        for (const a of rebound.assignees) {
           const tech = techs.find((t) => t.id === a.technician_id);
           if (!tech) continue;
           if (tech.status === "available" || !tech.current_job_id) {
             tech.status = "busy";
-            tech.current_job_id = jobId;
+            tech.current_job_id = restoreId;
           }
         }
       }
@@ -3830,7 +3913,7 @@ export async function jobAction(
         `Job dibuka kembali dari ${source} (status ${restored.status})`;
       events.push(
         makeJobEvent(
-          jobId,
+          restoreId,
           "reopened",
           who ? `${note} · oleh ${who}` : note,
           actor
@@ -4377,13 +4460,35 @@ export async function jobAction(
         throw new Error("Catatan step wajib diisi");
       }
       assertStepEvidencePermission(step);
-      appendNoteToStep(
-        step,
-        nextNote,
-        actor,
-        actorTechnicianName,
-        payload?.note_id
-      );
+      const noteId = String(payload?.note_id || "").trim();
+      let savedFile:
+        | { id: string; name: string; original_name: string }
+        | undefined;
+      if (String(payload?.file_base64 || "").trim()) {
+        const id = noteId || `SN-${uuidv4().replace(/-/g, "").slice(0, 10)}`;
+        savedFile = await saveStepNotePdfFromBase64(
+          id,
+          String(payload?.file_base64),
+          payload?.file_mime,
+          payload?.file_name
+        );
+        appendNoteToStep(
+          step,
+          nextNote,
+          actor,
+          actorTechnicianName,
+          id,
+          savedFile
+        );
+      } else {
+        appendNoteToStep(
+          step,
+          nextNote,
+          actor,
+          actorTechnicianName,
+          payload?.note_id
+        );
+      }
       const preview = nextNote
         ? nextNote.length > 80
           ? `${nextNote.slice(0, 80)}…`
@@ -4418,7 +4523,13 @@ export async function jobAction(
         throw new Error("Catatan step tidak ditemukan");
       }
       const changed = updateNoteOnStep(step, noteId, nextNote, actor);
-      if (changed) {
+      const fileChanged = await applyIncomingStepNotePdf(
+        step,
+        noteId,
+        payload,
+        actor
+      );
+      if (changed || fileChanged) {
         const preview =
           nextNote.length > 80 ? `${nextNote.slice(0, 80)}…` : nextNote;
         pushEvent(

@@ -24,6 +24,7 @@ import {
   hydrateStepNotes,
   serializeStepNotes,
 } from "@/lib/step-notes";
+import { cloneJobBundleForArchive } from "@/lib/archive-job-ids";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const DELETED_JOBS_PATH = "mysql://deleted";
@@ -199,6 +200,17 @@ export async function archiveDeletedJob(input: {
   actor?: AuditActor | null;
   deleted_at: string;
 }): Promise<void> {
+  const cloned = cloneJobBundleForArchive(
+    {
+      job: input.job,
+      steps: input.steps,
+      events: input.events,
+      assignees: input.assignees,
+      handovers: input.handovers,
+      part_loans: input.part_loans,
+    },
+    "d"
+  );
   const meta = metaFields(input.deleted_at, input.actor);
   const techById = new Map(input.technicians.map((t) => [t.id, t]));
 
@@ -207,21 +219,21 @@ export async function archiveDeletedJob(input: {
   appendSheet(wb, SHEETS.jobs, JOB_HEADERS, [
     {
       ...meta,
-      id: input.job.id,
-      title: input.job.title,
-      priority: input.job.priority || "",
-      unit: input.job.unit,
-      unit_id: input.job.unit_id,
-      description: input.job.description,
-      status: input.job.status,
-      technician_id: input.job.technician_id,
-      template_id: input.job.template_id,
-      created_at: input.job.created_at,
-      started_at: input.job.started_at,
-      completed_at: input.job.completed_at,
-      paused_at: input.job.paused_at,
-      total_paused_sec: input.job.total_paused_sec,
-      estimated_minutes: input.job.estimated_minutes,
+      id: cloned.job.id,
+      title: cloned.job.title,
+      priority: cloned.job.priority || "",
+      unit: cloned.job.unit,
+      unit_id: cloned.job.unit_id,
+      description: cloned.job.description,
+      status: cloned.job.status,
+      technician_id: cloned.job.technician_id,
+      template_id: cloned.job.template_id,
+      created_at: cloned.job.created_at,
+      started_at: cloned.job.started_at,
+      completed_at: cloned.job.completed_at,
+      paused_at: cloned.job.paused_at,
+      total_paused_sec: cloned.job.total_paused_sec,
+      estimated_minutes: cloned.job.estimated_minutes,
     },
   ]);
 
@@ -229,7 +241,7 @@ export async function archiveDeletedJob(input: {
     wb,
     SHEETS.steps,
     STEP_HEADERS,
-    input.steps.map((s) => ({
+    cloned.steps.map((s) => ({
       ...meta,
       id: s.id,
       job_id: s.job_id,
@@ -252,7 +264,7 @@ export async function archiveDeletedJob(input: {
     wb,
     SHEETS.events,
     EVENT_HEADERS,
-    input.events.map((e) => ({
+    cloned.events.map((e) => ({
       ...meta,
       id: e.id,
       job_id: e.job_id,
@@ -269,7 +281,7 @@ export async function archiveDeletedJob(input: {
     wb,
     SHEETS.assignees,
     ASSIGNEE_HEADERS,
-    input.assignees.map((a) => {
+    cloned.assignees.map((a) => {
       const tech = techById.get(a.technician_id);
       return {
         ...meta,
@@ -288,7 +300,7 @@ export async function archiveDeletedJob(input: {
     wb,
     SHEETS.handovers,
     HANDOVER_HEADERS,
-    input.handovers.map((h) => ({
+    cloned.handovers.map((h) => ({
       ...meta,
       id: h.id,
       job_id: h.job_id,
@@ -310,7 +322,7 @@ export async function archiveDeletedJob(input: {
     wb,
     SHEETS.partLoans,
     PART_LOAN_HEADERS,
-    input.part_loans.map((p) => ({
+    cloned.part_loans.map((p) => ({
       ...meta,
       id: p.id,
       job_id: p.job_id,

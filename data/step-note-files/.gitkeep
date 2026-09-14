@@ -1,0 +1,2 @@
+data/step-note-files/*
+!data/step-note-files/.gitkeep

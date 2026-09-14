@@ -221,6 +221,14 @@ const id = {
   "job.stepNoteEmpty": "Belum ada catatan",
   "job.stepNoteHint": "Catatan hanya untuk step ini, bukan handover job.",
   "job.stepNoteRequired": "Wajib sebelum menandai step selesai.",
+  "job.stepNotePdf": "Lampiran PDF (opsional)",
+  "job.stepNotePdfHint":
+    "Satu file PDF. Maks 5 MB saat memilih, 2,5 MB saat simpan. PDF tidak dikompres.",
+  "job.stepNotePdfPick": "Pilih PDF",
+  "job.stepNotePdfReplace": "Ganti PDF",
+  "job.stepNotePdfRemove": "Hapus PDF",
+  "job.stepNotePdfClear": "Batal pilih",
+  "job.stepNotePdfError": "Gagal membaca PDF",
   "job.completeNeedNotes":
     "Lengkapi catatan step dulu untuk step yang belum selesai:",
   "job.stepPhoto": "Foto bukti",
@@ -559,6 +567,14 @@ const en: Record<MessageKey, string> = {
   "job.stepNoteEmpty": "No note yet",
   "job.stepNoteHint": "This note belongs to this step, not the job handover.",
   "job.stepNoteRequired": "Required before marking the step done.",
+  "job.stepNotePdf": "PDF attachment (optional)",
+  "job.stepNotePdfHint":
+    "One PDF. Max 5 MB when picking, 2.5 MB when saving. PDFs are not compressed.",
+  "job.stepNotePdfPick": "Choose PDF",
+  "job.stepNotePdfReplace": "Replace PDF",
+  "job.stepNotePdfRemove": "Remove PDF",
+  "job.stepNotePdfClear": "Clear",
+  "job.stepNotePdfError": "Could not read PDF",
   "job.completeNeedNotes":
     "Add step notes first for unfinished steps:",
   "job.stepPhoto": "Evidence photo",

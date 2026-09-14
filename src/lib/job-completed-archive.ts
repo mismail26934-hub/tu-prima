@@ -36,6 +36,7 @@ import {
   parseStepNotes,
   serializeStepNotes,
 } from "@/lib/step-notes";
+import { cloneJobBundleForArchive, pickArchiveBundle } from "@/lib/archive-job-ids";
 
 /** Logical archive name in MySQL (was Excel file). */
 export const COMPLETED_JOBS_PATH = "mysql://completed";
@@ -338,6 +339,17 @@ export async function archiveCompletedJob(input: {
   actor?: AuditActor | null;
   archived_at: string;
 }): Promise<void> {
+  const cloned = cloneJobBundleForArchive(
+    {
+      job: input.job,
+      steps: input.steps,
+      events: input.events,
+      assignees: input.assignees,
+      handovers: input.handovers,
+      part_loans: input.part_loans,
+    },
+    "x"
+  );
   const meta = metaFields(input.archived_at, input.actor);
   const techById = new Map(input.technicians.map((t) => [t.id, t]));
   const wb = await loadArchiveWorkbook();
@@ -345,21 +357,21 @@ export async function archiveCompletedJob(input: {
   appendSheet(wb, SHEETS.jobs, JOB_HEADERS, [
     {
       ...meta,
-      id: input.job.id,
-      title: input.job.title,
-      priority: input.job.priority || "",
-      unit: input.job.unit,
-      unit_id: input.job.unit_id,
-      description: input.job.description,
-      status: input.job.status,
-      technician_id: input.job.technician_id,
-      template_id: input.job.template_id,
-      created_at: input.job.created_at,
-      started_at: input.job.started_at,
-      completed_at: input.job.completed_at,
-      paused_at: input.job.paused_at,
-      total_paused_sec: input.job.total_paused_sec,
-      estimated_minutes: input.job.estimated_minutes,
+      id: cloned.job.id,
+      title: cloned.job.title,
+      priority: cloned.job.priority || "",
+      unit: cloned.job.unit,
+      unit_id: cloned.job.unit_id,
+      description: cloned.job.description,
+      status: cloned.job.status,
+      technician_id: cloned.job.technician_id,
+      template_id: cloned.job.template_id,
+      created_at: cloned.job.created_at,
+      started_at: cloned.job.started_at,
+      completed_at: cloned.job.completed_at,
+      paused_at: cloned.job.paused_at,
+      total_paused_sec: cloned.job.total_paused_sec,
+      estimated_minutes: cloned.job.estimated_minutes,
     },
   ]);
 
@@ -367,7 +379,7 @@ export async function archiveCompletedJob(input: {
     wb,
     SHEETS.steps,
     STEP_HEADERS,
-    input.steps.map((s) => ({
+    cloned.steps.map((s) => ({
       ...meta,
       id: s.id,
       job_id: s.job_id,
@@ -390,7 +402,7 @@ export async function archiveCompletedJob(input: {
     wb,
     SHEETS.events,
     EVENT_HEADERS,
-    input.events.map((e) => ({
+    cloned.events.map((e) => ({
       ...meta,
       id: e.id,
       job_id: e.job_id,
@@ -407,7 +419,7 @@ export async function archiveCompletedJob(input: {
     wb,
     SHEETS.assignees,
     ASSIGNEE_HEADERS,
-    input.assignees.map((a) => {
+    cloned.assignees.map((a) => {
       const tech = techById.get(a.technician_id);
       return {
         ...meta,
@@ -426,7 +438,7 @@ export async function archiveCompletedJob(input: {
     wb,
     SHEETS.handovers,
     HANDOVER_HEADERS,
-    input.handovers.map((h) => ({
+    cloned.handovers.map((h) => ({
       ...meta,
       id: h.id,
       job_id: h.job_id,
@@ -448,7 +460,7 @@ export async function archiveCompletedJob(input: {
     wb,
     SHEETS.partLoans,
     PART_LOAN_HEADERS,
-    input.part_loans.map((p) => ({
+    cloned.part_loans.map((p) => ({
       ...meta,
       id: p.id,
       job_id: p.job_id,
@@ -565,22 +577,23 @@ export async function takeCompletedJobFromArchive(
 ): Promise<CompletedJobBundle | null> {
   const wb = await loadArchiveWorkbook();
   const bundles = readAllBundles(wb);
-  const found = bundles.find((b) => b.job.id === jobId);
+  const found = pickArchiveBundle(bundles, jobId);
   if (!found) return null;
+  const archiveId = found.job.id;
 
   const keep = (rows: Row[], id: string) =>
     rows.filter((r) => String(r.job_id || r.id) !== id);
   // For jobs sheet, filter by id; for children by job_id
   const jobRows = wb.getWorksheet(SHEETS.jobs)
     ? readRows(wb.getWorksheet(SHEETS.jobs)!).filter(
-        (r) => String(r.id) !== jobId
+        (r) => String(r.id) !== archiveId
       )
     : [];
   writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobRows);
 
   const rewriteChild = (sheet: string, headers: string[]) => {
     const ws = wb.getWorksheet(sheet);
-    const rows = ws ? keep(readRows(ws), jobId) : [];
+    const rows = ws ? keep(readRows(ws), archiveId) : [];
     writeSheet(wb, sheet, headers, rows);
   };
   rewriteChild(SHEETS.steps, STEP_HEADERS);

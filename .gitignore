@@ -5,6 +5,8 @@ node_modules
 !data/templates/**
 data/step-photos/*
 !data/step-photos/.gitkeep
+data/step-note-files/*
+!data/step-note-files/.gitkeep
 data/user-photos/*
 !data/user-photos/.gitkeep
 .env*

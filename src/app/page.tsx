@@ -70,6 +70,7 @@ import { StepNotePdfPicker } from "@/components/StepNotePdfPicker";
 import { api } from "@/lib/api";
 import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import {
+  attachStepNotes,
   formatStepNoteAt,
   hydrateStepNotes,
   stepHasNote,
@@ -2396,11 +2397,23 @@ export default function HomePage() {
     return Boolean(draft.trim() || stepHasNote(step));
   }
 
+  function notesForStepDisplay(
+    step: JobWithDetails["steps"][0],
+    jobId = ""
+  ) {
+    return (
+      attachStepNotes({
+        ...step,
+        job_id: String(step.job_id || jobId || ""),
+      }).notes || []
+    );
+  }
+
   function renderStepNoteThread(
     step: JobWithDetails["steps"][0],
     opts?: { allowEdit?: boolean; job?: JobWithDetails }
   ) {
-    const notes = hydrateStepNotes(step);
+    const notes = notesForStepDisplay(step, opts?.job?.id);
     if (!notes.length) {
       return (
         <span className="step-note-body">—</span>
@@ -2465,17 +2478,21 @@ export default function HomePage() {
           </span>
           <span className="step-note-body">{n.body}</span>
           {n.file_url || n.file_original_name ? (
-            <a
-              className="step-note-pdf-link"
-              href={n.file_url || undefined}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => {
-                if (!n.file_url) e.preventDefault();
-              }}
-            >
-              {n.file_original_name || "lampiran.pdf"}
-            </a>
+            n.file_url ? (
+              <a
+                className="step-note-pdf-link"
+                href={n.file_url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {n.file_original_name || "lampiran.pdf"}
+              </a>
+            ) : (
+              <span className="step-note-pdf-link">
+                {n.file_original_name || "lampiran.pdf"}
+              </span>
+            )
           ) : null}
         </span>
       );
@@ -4570,7 +4587,7 @@ export default function HomePage() {
                       <MetaIcon>📝</MetaIcon>
                       {t("job.stepNote")}
                     </span>
-                    {renderStepNoteThread(s)}
+                    {renderStepNoteThread(s, { job })}
                   </button>
                 </span>
                 <span className="step-meta">
@@ -7826,7 +7843,7 @@ export default function HomePage() {
                 <MetaIcon>📝</MetaIcon>
                 {t("job.stepNote")}
               </span>
-              {renderStepNoteThread(modal.step)}
+              {renderStepNoteThread(modal.step, { job: modal.job })}
             </div>
             <label className="field-hint" style={{ display: "block", margin: "12px 0 6px" }}>
               {t("job.stepNoteAdd")}
@@ -8006,7 +8023,9 @@ export default function HomePage() {
                 jobMap[modal.job.id]?.steps.find((s) => s.id === modal.step.id) ||
                 modal.step;
               const editing = stepNoteEditingId
-                ? hydrateStepNotes(liveStep).find((n) => n.id === stepNoteEditingId)
+                ? notesForStepDisplay(liveStep, modal.job.id).find(
+                    (n) => n.id === stepNoteEditingId
+                  )
                 : undefined;
               const pdfLocked = stepNoteEditingId
                 ? !canNotesDeleteForJob(modal.job)

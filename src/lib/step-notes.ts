@@ -164,7 +164,9 @@ export function formatStepNotesReport(notes: JobStepNote[]): string {
       const edited = editor ? ` (diedit oleh ${editor})` : "";
       const meta = [at, who].filter(Boolean).join(" | ");
       const head = meta ? `${meta}${edited}` : edited.trim();
-      return head ? `${head} :\n${body}` : body;
+      const file = String(n.file_original_name || n.file_name || "").trim();
+      const bodyBlock = file ? `${body}\n[PDF] ${file}` : body;
+      return head ? `${head} :\n${bodyBlock}` : bodyBlock;
     })
     .filter(Boolean)
     .join("\n\n");
@@ -199,7 +201,7 @@ export function attachStepNotes<T extends Partial<JobStep>>(step: T): T {
   return {
     ...step,
     notes: notes.map((n) =>
-      n.file_id && jobId && stepId
+      (n.file_id || n.file_name) && jobId && stepId && n.id
         ? { ...n, file_url: stepNoteFilePublicUrl(jobId, stepId, n.id) }
         : n
     ),

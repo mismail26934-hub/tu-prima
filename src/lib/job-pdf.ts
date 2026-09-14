@@ -8,12 +8,17 @@ import {
 } from "@/lib/duration";
 import { stepTechnicianNames } from "@/lib/step-technicians";
 import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
+  attachStepNotes,
+  formatStepNoteAt,
   formatStepNotesReport,
   hydrateStepNotes,
 } from "@/lib/step-notes";
+import { stepNoteFilePublicUrl } from "@/lib/step-note-file-url";
 import { getStepPhotoPreviews, stepPhotoDisplayUrl } from "@/lib/offline/step-photo-preview";
 import { fmtFileStamp } from "@/lib/file-stamp";
+import type { JobStepNote } from "@/lib/types";
 
 /** Light-mode brand: black bars, CAT orange text. */
 const PDF_INK = [0, 0, 0] as [number, number, number];
@@ -192,8 +197,178 @@ async function loadPdfImage(url: string): Promise<PdfImage | null> {
   }
 }
 
+type NotePdfAttachment = {
+  stepOrder: number;
+  stepName: string;
+  fileName: string;
+  author: string;
+  at: string;
+  url: string;
+  bytes: Uint8Array | null;
+};
+
+function notesOnStep(
+  step: JobWithDetails["steps"][0],
+  jobId: string
+): JobStepNote[] {
+  return (
+    attachStepNotes({
+      ...step,
+      job_id: String(step.job_id || jobId || ""),
+    }).notes || []
+  );
+}
+
+function collectNotePdfMeta(job: JobWithDetails): Omit<NotePdfAttachment, "bytes">[] {
+  const out: Omit<NotePdfAttachment, "bytes">[] = [];
+  for (const s of job.steps || []) {
+    for (const n of notesOnStep(s, job.id)) {
+      const url =
+        n.file_url ||
+        ((n.file_id || n.file_name) && s.id
+          ? stepNoteFilePublicUrl(job.id, s.id, n.id)
+          : "");
+      if (!url) continue;
+      out.push({
+        stepOrder: s.order,
+        stepName: s.name,
+        fileName: n.file_original_name || n.file_name || "lampiran.pdf",
+        author: String(n.user_name || n.user_id || "").trim(),
+        at: formatStepNoteAt(n.created_at),
+        url,
+      });
+    }
+  }
+  return out;
+}
+
+async function fetchPdfBytes(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength < 5) return null;
+    const head = new Uint8Array(buf, 0, 5);
+    const sig = String.fromCharCode(head[0], head[1], head[2], head[3]);
+    if (sig !== "%PDF") return null;
+    return new Uint8Array(buf);
+  } catch {
+    return null;
+  }
+}
+
+function triggerPdfDownload(bytes: Uint8Array, fileName: string) {
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(href);
+}
+
+function fitPdfLine(
+  text: string,
+  font: { widthOfTextAtSize: (t: string, s: number) => number },
+  size: number,
+  maxWidth: number
+): string {
+  const raw = text.replace(/[\r\n]/g, " ").trim();
+  if (font.widthOfTextAtSize(raw, size) <= maxWidth) return raw;
+  let t = raw;
+  const ell = "…";
+  while (t.length > 4 && font.widthOfTextAtSize(t + ell, size) > maxWidth) {
+    t = t.slice(0, -1);
+  }
+  return `${t}${ell}`;
+}
+
+async function mergeReportWithNotePdfs(
+  report: jsPDF,
+  attachments: NotePdfAttachment[]
+): Promise<Uint8Array> {
+  const merged = await PDFDocument.create();
+  const reportDoc = await PDFDocument.load(report.output("arraybuffer"));
+  const reportPages = await merged.copyPages(
+    reportDoc,
+    reportDoc.getPageIndices()
+  );
+  reportPages.forEach((page) => merged.addPage(page));
+
+  const font = await merged.embedFont(StandardFonts.HelveticaBold);
+  const fontReg = await merged.embedFont(StandardFonts.Helvetica);
+  const orange = rgb(1, 184 / 255, 28 / 255);
+  const ink = rgb(0, 0, 0);
+  const muted = rgb(0.47, 0.47, 0.47);
+
+  const stampHeader = (
+    page: ReturnType<PDFDocument["getPage"]>,
+    att: NotePdfAttachment
+  ) => {
+    const { width, height } = page.getSize();
+    const barH = 20;
+    page.drawRectangle({
+      x: 0,
+      y: height - barH,
+      width,
+      height: barH,
+      color: ink,
+    });
+    const label = fitPdfLine(
+      `Step ${att.stepOrder}. ${att.stepName}  ·  ${att.fileName}`,
+      font,
+      8,
+      width - 16
+    );
+    page.drawText(label, {
+      x: 8,
+      y: height - 13,
+      size: 8,
+      font,
+      color: orange,
+    });
+  };
+
+  for (const att of attachments) {
+    if (!att.bytes) continue;
+    try {
+      const src = await PDFDocument.load(att.bytes, { ignoreEncryption: true });
+      const copied = await merged.copyPages(src, src.getPageIndices());
+      copied.forEach((page, i) => {
+        merged.addPage(page);
+        if (i === 0) stampHeader(page, att);
+      });
+    } catch {
+      /* listed on the index when more than one file / load failed */
+    }
+  }
+
+  const pages = merged.getPages();
+  const total = pages.length;
+  pages.forEach((page, i) => {
+    const { width: w } = page.getSize();
+    const label = `Halaman ${i + 1} dari ${total}`;
+    const labelW = fontReg.widthOfTextAtSize(label, 8);
+    page.drawText(label, {
+      x: Math.max(40, w - 40 - labelW),
+      y: 18,
+      size: 8,
+      font: fontReg,
+      color: muted,
+    });
+  });
+
+  return merged.save();
+}
+
 /** Generate and download a PDF report for one job. */
 export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
+  const notePdfs: NotePdfAttachment[] = await Promise.all(
+    collectNotePdfMeta(job).map(async (item) => ({
+      ...item,
+      bytes: await fetchPdfBytes(item.url),
+    }))
+  );
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const margin = 14;
   const pageW = doc.internal.pageSize.getWidth();
@@ -611,22 +786,67 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     }
   }
 
+  const needNoteIndex =
+    notePdfs.length > 1 || notePdfs.some((a) => !a.bytes);
+  if (needNoteIndex) {
+    const pageHNow = doc.internal.pageSize.getHeight();
+    const estimate = 40 + notePdfs.length * 10;
+    if (y + estimate > pageHNow - 16) {
+      doc.addPage();
+      y = margin;
+    } else {
+      y += 10;
+    }
+    const contentW = pageW - margin * 2;
+    doc.setFillColor(...PDF_INK);
+    doc.rect(margin, y, contentW, 11, "F");
+    doc.setTextColor(...PDF_ORANGE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Lampiran — PDF catatan step", margin + 3, y + 7.4);
+    doc.setTextColor(0);
+    y += 16;
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin, bottom: 14 },
+      head: [["NO", "Step", "File", "Oleh", "Waktu"]],
+      body: notePdfs.map((a, i) => [
+        String(i + 1),
+        `Step ${a.stepOrder}. ${a.stepName}`,
+        a.bytes ? a.fileName : `${a.fileName} (gagal dimuat)`,
+        a.author || "—",
+        a.at || "—",
+      ]),
+      ...tableTheme,
+      columnStyles: {
+        2: { valign: "top" },
+      },
+    });
+  }
+
   const pageCount = doc.getNumberOfPages();
   const pageH = doc.internal.pageSize.getHeight();
+  const stampPages = !notePdfs.length;
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(120);
     doc.text("TU-PRIMA  ·  Job Report", margin, pageH - 6);
-    doc.text(`Halaman ${i} dari ${pageCount}`, pageW - margin, pageH - 6, {
-      align: "right",
-    });
+    if (stampPages) {
+      doc.text(`Halaman ${i} dari ${pageCount}`, pageW - margin, pageH - 6, {
+        align: "right",
+      });
+    }
     doc.setTextColor(0);
   }
 
   const fileName = `job_${safeFilePart(job.unit || job.id)}_${safeFilePart(
     job.title || "report"
   )}_${fmtFileStamp()}.pdf`;
+  if (notePdfs.length) {
+    triggerPdfDownload(await mergeReportWithNotePdfs(doc, notePdfs), fileName);
+    return;
+  }
   doc.save(fileName);
 }

@@ -747,6 +747,12 @@ function applyJobAction(
           ? withAppendedStepNote(s, {
               id: String(body.note_id || ""),
               body: note,
+              file_id: String(body.file_name || "").trim()
+                ? String(body.note_id || "").trim()
+                : undefined,
+              file_name: String(body.file_name || "").trim()
+                ? `${String(body.note_id || "").trim()}.pdf`
+                : undefined,
               file_original_name: String(body.file_name || "").trim() || undefined,
             })
           : s
@@ -768,6 +774,10 @@ function applyJobAction(
               body: note,
               edited_by_name: String(body.edited_by_name || ""),
               edited_by_user_id: String(body.edited_by_user_id || ""),
+              file_id: String(body.file_name || "").trim() ? noteId : undefined,
+              file_name: String(body.file_name || "").trim()
+                ? `${noteId}.pdf`
+                : undefined,
               file_original_name: String(body.file_name || "").trim() || undefined,
               remove_file: body.remove_file === true,
             })

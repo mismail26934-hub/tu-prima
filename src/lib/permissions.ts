@@ -54,9 +54,9 @@ export const ACCESS_MATRIX: Record<
   foreman: {
     job: CRUD,
     user: READ,
-    technician: READ,
+    technician: CRUD,
     unit: CRUD,
-    attendance: READ,
+    attendance: CRUD,
     template: CRUD,
   },
   hrd: {

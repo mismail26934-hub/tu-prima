@@ -8551,136 +8551,155 @@ export default function HomePage() {
       )}
 
       {modal?.type === "units" && (
-        <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-units-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             {busy && <BusyOverlay />}
-            <h3>Master Unit</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Data unit dipilih saat buat/edit job. Upload Excel untuk mass input
-              — header: Nomor unit, Model, Serial number, Status (opsional).
-            </p>
-            {error && <div className="error">{error}</div>}
-            {unitImportMsg && (
-              <p style={{ color: "var(--green)", marginTop: 0 }}>
-                {unitImportMsg}
+            <div className="master-head">
+              <h3 id="master-units-title">Master Unit</h3>
+              <p className="master-lead">
+                Data unit dipilih saat buat/edit job. Upload Excel untuk mass
+                input — header: Nomor unit, Model, Serial number, Status
+                (opsional).
               </p>
-            )}
-            {canUnitCreate && (
-              <div className="form" style={{ marginBottom: 12 }}>
-                <div className="actions" style={{ marginTop: 0 }}>
-                  <a
-                    className="btn"
-                    href="/api/units/template"
-                    download="template-upload-unit.xlsx"
-                  >
-                    Unduh template Excel
-                  </a>
-                </div>
-                <label>
-                  Mass upload Excel (.xlsx)
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    disabled={busy}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (file) importUnitsFile(file);
-                    }}
-                  />
-                </label>
-              </div>
-            )}
-            <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
-              <input
-                className="panel-search"
-                style={{ maxWidth: "none" }}
-                type="search"
-                value={unitDraft}
-                onChange={(e) => setUnitDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    applyUnitSearch();
-                  }
-                }}
-                placeholder="Cari nomor unit, model, atau serial number..."
-                aria-label="Cari unit"
-                autoFocus
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={applyUnitSearch}
+              {error && <div className="error">{error}</div>}
+              {unitImportMsg && (
+                <p style={{ color: "var(--green)", marginTop: 0 }}>
+                  {unitImportMsg}
+                </p>
+              )}
+              {canUnitCreate && (
+                <details className="master-tools">
+                  <summary>Upload / template Excel</summary>
+                  <div className="master-tools-body form">
+                    <div className="actions" style={{ marginTop: 10 }}>
+                      <a
+                        className="btn"
+                        href="/api/units/template"
+                        download="template-upload-unit.xlsx"
+                      >
+                        Unduh template Excel
+                      </a>
+                    </div>
+                    <label>
+                      Mass upload Excel (.xlsx)
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        disabled={busy}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) importUnitsFile(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </details>
+              )}
+              <div
+                className="panel-search-row"
+                style={{ justifyContent: "stretch" }}
               >
-                Cari
-              </button>
-              {unitQuery && (
+                <input
+                  className="panel-search"
+                  style={{ maxWidth: "none" }}
+                  type="search"
+                  value={unitDraft}
+                  onChange={(e) => setUnitDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyUnitSearch();
+                    }
+                  }}
+                  placeholder="Cari nomor unit, model, atau serial number..."
+                  aria-label="Cari unit"
+                  autoFocus
+                />
                 <button
                   type="button"
-                  className="btn"
-                  onClick={clearUnitSearch}
+                  className="btn btn-primary"
+                  onClick={applyUnitSearch}
                 >
-                  Reset
+                  Cari
                 </button>
-              )}
+                {unitQuery && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={clearUnitSearch}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
-              {(data?.units || []).length === 0 && (
-                <span style={{ color: "var(--muted)" }}>Belum ada unit.</span>
-              )}
-              {(data?.units || []).length > 0 && filteredUnits.length === 0 && (
-                <span style={{ color: "var(--muted)" }}>Tidak ada unit yang cocok.</span>
-              )}
-              {pagedUnits.map((u) => (
-                <div
-                  key={u.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "6px 0",
-                    borderBottom: "1px dashed var(--line-dashed)",
-                  }}
-                >
-                  <div>
-                    <strong>{u.code}</strong>
-                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {u.name}
-                      {u.serial_number ? ` · SN ${u.serial_number}` : ""}
-                      {u.active !== "1" ? " · nonaktif" : ""}
+            <div className="master-body">
+              <div className="check-list">
+                {(data?.units || []).length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>Belum ada unit.</span>
+                )}
+                {(data?.units || []).length > 0 && filteredUnits.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    Tidak ada unit yang cocok.
+                  </span>
+                )}
+                {pagedUnits.map((u) => (
+                  <div
+                    key={u.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{u.code}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        {u.name}
+                        {u.serial_number ? ` · SN ${u.serial_number}` : ""}
+                        {u.active !== "1" ? " · nonaktif" : ""}
+                      </div>
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canUnitUpdate}
+                        onClick={() => openUnitEdit(u)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canUnitDelete}
+                        onClick={() => setModal({ type: "delete-unit", unit: u })}
+                      >
+                        Hapus
+                      </button>
                     </div>
                   </div>
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    <button
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canUnitUpdate}
-                      onClick={() => openUnitEdit(u)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canUnitDelete}
-                      onClick={() => setModal({ type: "delete-unit", unit: u })}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {filteredUnits.length > MASTER_PAGE_SIZE && (
+                <Pager
+                  page={unitMasterPageSafe}
+                  totalPages={unitMasterTotalPages}
+                  onChange={setUnitMasterPage}
+                />
+              )}
             </div>
-            {filteredUnits.length > MASTER_PAGE_SIZE && (
-              <Pager
-                page={unitMasterPageSafe}
-                totalPages={unitMasterTotalPages}
-                onChange={setUnitMasterPage}
-              />
-            )}
-            <div className="actions">
+            <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
@@ -8962,204 +8981,218 @@ export default function HomePage() {
       )}
 
       {modal?.type === "templates" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
           <div
-            className="modal"
-            style={{ width: "min(720px, 100%)" }}
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-templates-title"
             onClick={(e) => e.stopPropagation()}
           >
             {(busy || templatesMasterLoading) && <BusyOverlay />}
-            <h3>Master Template</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Katalog time frame Component Engine / Non Engine / GOH.{" "}
-              <strong>Unduh Excel (data)</strong> = export isi katalog.{" "}
-              <strong>Unduh blank upload</strong> = file kosong untuk mass
-              upload. Hapus = nonaktif (job lama tetap menyimpan template_id).
-            </p>
-            {error && <div className="error">{error}</div>}
-            {templateImportMsg && (
-              <p style={{ color: "var(--green)", marginTop: 0 }}>
-                {templateImportMsg}
+            <div className="master-head">
+              <h3 id="master-templates-title">Master Template</h3>
+              <p className="master-lead">
+                Katalog time frame Component Engine / Non Engine / GOH. Hapus =
+                nonaktif (job lama tetap menyimpan template_id).
               </p>
-            )}
-            {(canTemplateRead || canTemplateCreate) && (
-              <div className="form" style={{ marginBottom: 12 }}>
-                <div className="actions" style={{ marginTop: 0, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy || masterTemplates.length === 0}
-                    title="Export semua / filter jenis ke Excel"
-                    onClick={() =>
-                      void downloadTemplatesDataExcel({
-                        category: templateCategoryFilter || undefined,
-                      })
+              {error && <div className="error">{error}</div>}
+              {templateImportMsg && (
+                <p style={{ color: "var(--green)", marginTop: 0 }}>
+                  {templateImportMsg}
+                </p>
+              )}
+              {(canTemplateRead || canTemplateCreate) && (
+                <details className="master-tools">
+                  <summary>Upload / unduh Excel</summary>
+                  <div className="master-tools-body form">
+                    <div
+                      className="actions"
+                      style={{ marginTop: 10, flexWrap: "wrap" }}
+                    >
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={busy || masterTemplates.length === 0}
+                        title="Export semua / filter jenis ke Excel"
+                        onClick={() =>
+                          void downloadTemplatesDataExcel({
+                            category: templateCategoryFilter || undefined,
+                          })
+                        }
+                      >
+                        Unduh Excel (data)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        title="File kosong untuk mass upload"
+                        onClick={() => void downloadTemplateUploadExcel()}
+                      >
+                        Unduh blank upload
+                      </button>
+                    </div>
+                    {canTemplateCreate && (
+                      <label>
+                        Mass upload Excel (.xlsx)
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          disabled={busy}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) importTemplatesFile(file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </details>
+              )}
+              <div
+                className="panel-search-row"
+                style={{ justifyContent: "stretch", flexWrap: "wrap" }}
+              >
+                <select
+                  value={templateCategoryFilter}
+                  onChange={(e) =>
+                    setTemplateCategoryFilter(
+                      e.target.value as "" | JobTemplateCategory
+                    )
+                  }
+                  aria-label="Filter jenis komponen"
+                  style={{ minWidth: 180 }}
+                >
+                  <option value="">Semua jenis</option>
+                  <option value="engine">Component Engine</option>
+                  <option value="non_engine">
+                    Component Non Engine (Transmisi)
+                  </option>
+                  <option value="goh">GOH</option>
+                </select>
+                <input
+                  className="panel-search"
+                  style={{ maxWidth: "none", flex: 1 }}
+                  type="search"
+                  value={templateDraft}
+                  onChange={(e) => setTemplateDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyTemplateSearch();
                     }
-                  >
-                    Unduh Excel (data)
-                  </button>
+                  }}
+                  placeholder="Cari nama atau id template..."
+                  aria-label="Cari template"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={applyTemplateSearch}
+                >
+                  Cari
+                </button>
+                {(templateQuery || templateCategoryFilter) && (
                   <button
                     type="button"
                     className="btn"
-                    disabled={busy}
-                    title="File kosong untuk mass upload"
-                    onClick={() => void downloadTemplateUploadExcel()}
+                    onClick={() => {
+                      clearTemplateSearch();
+                      setTemplateCategoryFilter("");
+                    }}
                   >
-                    Unduh blank upload
+                    Reset
                   </button>
-                </div>
-                {canTemplateCreate && (
-                  <label>
-                    Mass upload Excel (.xlsx)
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      disabled={busy}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (file) importTemplatesFile(file);
-                      }}
-                    />
-                  </label>
                 )}
               </div>
-            )}
-            <div
-              className="panel-search-row"
-              style={{ justifyContent: "stretch", marginBottom: 12, flexWrap: "wrap" }}
-            >
-              <select
-                value={templateCategoryFilter}
-                onChange={(e) =>
-                  setTemplateCategoryFilter(
-                    e.target.value as "" | JobTemplateCategory
-                  )
-                }
-                aria-label="Filter jenis komponen"
-                style={{ minWidth: 180 }}
-              >
-                <option value="">Semua jenis</option>
-                <option value="engine">Component Engine</option>
-                <option value="non_engine">
-                  Component Non Engine (Transmisi)
-                </option>
-                <option value="goh">GOH</option>
-              </select>
-              <input
-                className="panel-search"
-                style={{ maxWidth: "none", flex: 1 }}
-                type="search"
-                value={templateDraft}
-                onChange={(e) => setTemplateDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    applyTemplateSearch();
-                  }
-                }}
-                placeholder="Cari nama atau id template..."
-                aria-label="Cari template"
-                autoFocus
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={applyTemplateSearch}
-              >
-                Cari
-              </button>
-              {(templateQuery || templateCategoryFilter) && (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    clearTemplateSearch();
-                    setTemplateCategoryFilter("");
-                  }}
-                >
-                  Reset
-                </button>
-              )}
             </div>
-            <div className="check-list" style={{ maxHeight: 320, marginBottom: 12 }}>
-              {masterTemplates.length === 0 && (
-                <span style={{ color: "var(--muted)" }}>
-                  Belum ada template.
-                </span>
-              )}
-              {masterTemplates.length > 0 &&
-                filteredMasterTemplates.length === 0 && (
+            <div className="master-body">
+              <div className="check-list">
+                {masterTemplates.length === 0 && (
                   <span style={{ color: "var(--muted)" }}>
-                    Tidak ada template yang cocok.
+                    Belum ada template.
                   </span>
                 )}
-              {pagedMasterTemplates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "6px 0",
-                    borderBottom: "1px dashed var(--line-dashed)",
-                  }}
-                >
-                  <div>
-                    <strong>{tpl.name}</strong>
-                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {jobTemplateCategoryLabel(tpl.category)}
-                      {" · "}
-                      {tpl.steps.length} step · {formatStdLabel(tpl.std_minutes)}
-                      {tpl.active !== "1" ? " · nonaktif" : ""}
+                {masterTemplates.length > 0 &&
+                  filteredMasterTemplates.length === 0 && (
+                    <span style={{ color: "var(--muted)" }}>
+                      Tidak ada template yang cocok.
+                    </span>
+                  )}
+                {pagedMasterTemplates.map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{tpl.name}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        {jobTemplateCategoryLabel(tpl.category)}
+                        {" · "}
+                        {tpl.steps.length} step ·{" "}
+                        {formatStdLabel(tpl.std_minutes)}
+                        {tpl.active !== "1" ? " · nonaktif" : ""}
+                      </div>
+                    </div>
+                    <div
+                      className="actions"
+                      style={{ marginTop: 0, flexWrap: "wrap" }}
+                    >
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy}
+                        title="Unduh Excel data template ini"
+                        onClick={() =>
+                          void downloadTemplatesDataExcel({ id: tpl.id })
+                        }
+                      >
+                        Excel
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canTemplateUpdate}
+                        onClick={() => openTemplateEdit(tpl)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={
+                          busy || !canTemplateDelete || tpl.active === "0"
+                        }
+                        onClick={() =>
+                          setModal({ type: "delete-template", template: tpl })
+                        }
+                      >
+                        Nonaktif
+                      </button>
                     </div>
                   </div>
-                  <div className="actions" style={{ marginTop: 0, flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy}
-                      title="Unduh Excel data template ini"
-                      onClick={() =>
-                        void downloadTemplatesDataExcel({ id: tpl.id })
-                      }
-                    >
-                      Excel
-                    </button>
-                    <button
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canTemplateUpdate}
-                      onClick={() => openTemplateEdit(tpl)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={
-                        busy || !canTemplateDelete || tpl.active === "0"
-                      }
-                      onClick={() =>
-                        setModal({ type: "delete-template", template: tpl })
-                      }
-                    >
-                      Nonaktif
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {filteredMasterTemplates.length > MASTER_PAGE_SIZE && (
+                <Pager
+                  page={templateMasterPageSafe}
+                  totalPages={templateMasterTotalPages}
+                  onChange={setTemplateMasterPage}
+                />
+              )}
             </div>
-            {filteredMasterTemplates.length > MASTER_PAGE_SIZE && (
-              <Pager
-                page={templateMasterPageSafe}
-                totalPages={templateMasterTotalPages}
-                onChange={setTemplateMasterPage}
-              />
-            )}
-            <div className="actions">
+            <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
@@ -9453,148 +9486,168 @@ export default function HomePage() {
       )}
 
       {modal?.type === "techs" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
           <div
-            className="modal"
-            style={{ width: "min(600px, 100%)" }}
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-techs-title"
             onClick={(e) => e.stopPropagation()}
           >
             {busy && <BusyOverlay />}
-            <h3>Master Teknisi</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Kelola data teknisi (nama, SN, telepon, status). Upload Excel
-              untuk mass input — header: Nama, SN / No. ID Badge, Telepon.
-              Sync Meals Request (available/offline) ada di{" "}
-              <strong>Daftar Hadir</strong>.
-            </p>
-            {error && <div className="error">{error}</div>}
-            {techImportMsg && (
-              <p style={{ color: "var(--green)", marginTop: 0 }}>{techImportMsg}</p>
-            )}
-            {canTechCreate && (
-            <div className="form" style={{ marginBottom: 12 }}>
-              <div className="actions" style={{ marginTop: 0 }}>
-                <a
-                  className="btn"
-                  href="/api/technicians/template"
-                  download="template-upload-teknisi.xlsx"
-                >
-                  Unduh template Excel
-                </a>
-              </div>
-              <label>
-                Mass upload Excel (.xlsx)
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) importTechniciansFile(file);
-                  }}
-                />
-              </label>
-            </div>
-            )}
-            <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
-              <input
-                className="panel-search"
-                style={{ maxWidth: "none" }}
-                type="search"
-                value={masterTechDraft}
-                onChange={(e) => setMasterTechDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    applyMasterTechSearch();
-                  }
-                }}
-                placeholder="Cari nama, SN, atau telepon..."
-                aria-label="Cari teknisi"
-                autoFocus
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={applyMasterTechSearch}
+            <div className="master-head">
+              <h3 id="master-techs-title">Master Teknisi</h3>
+              <p className="master-lead">
+                Kelola data teknisi (nama, SN, telepon, status). Sync Meals
+                Request (available/offline) ada di <strong>Daftar Hadir</strong>.
+              </p>
+              {error && <div className="error">{error}</div>}
+              {techImportMsg && (
+                <p style={{ color: "var(--green)", marginTop: 0 }}>
+                  {techImportMsg}
+                </p>
+              )}
+              {canTechCreate && (
+                <details className="master-tools">
+                  <summary>Upload / template Excel</summary>
+                  <div className="master-tools-body form">
+                    <div className="actions" style={{ marginTop: 10 }}>
+                      <a
+                        className="btn"
+                        href="/api/technicians/template"
+                        download="template-upload-teknisi.xlsx"
+                      >
+                        Unduh template Excel
+                      </a>
+                    </div>
+                    <label>
+                      Mass upload Excel (.xlsx)
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        disabled={busy}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) importTechniciansFile(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </details>
+              )}
+              <div
+                className="panel-search-row"
+                style={{ justifyContent: "stretch" }}
               >
-                Cari
-              </button>
-              {masterTechQuery && (
+                <input
+                  className="panel-search"
+                  style={{ maxWidth: "none" }}
+                  type="search"
+                  value={masterTechDraft}
+                  onChange={(e) => setMasterTechDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyMasterTechSearch();
+                    }
+                  }}
+                  placeholder="Cari nama, SN, atau telepon..."
+                  aria-label="Cari teknisi"
+                  autoFocus
+                />
                 <button
                   type="button"
-                  className="btn"
-                  onClick={clearMasterTechSearch}
+                  className="btn btn-primary"
+                  onClick={applyMasterTechSearch}
                 >
-                  Reset
+                  Cari
                 </button>
-              )}
+                {masterTechQuery && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={clearMasterTechSearch}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
-              {masterTechTotal === 0 && !masterTechListQuery.isLoading && (
-                <span style={{ color: "var(--muted)" }}>Belum ada teknisi.</span>
-              )}
-              {masterTechTotal > 0 && pagedMasterTechs.length === 0 && !masterTechListQuery.isLoading && (
-                <span style={{ color: "var(--muted)" }}>Tidak ada teknisi yang cocok.</span>
-              )}
-              {pagedMasterTechs.map((tech) => (
-                <div
-                  key={tech.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "6px 0",
-                    borderBottom: "1px dashed var(--line-dashed)",
-                  }}
-                >
-                  <div>
-                    <strong>{tech.name}</strong>
-                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      Pernr: {tech.sn}
-                      {tech.badge_id ? ` · Badge: ${tech.badge_id}` : ""}
-                      {tech.email ? ` · ${tech.email}` : ""}
-                      {tech.phone ? ` · ${tech.phone}` : ""}
-                      {tech.superior_user_name
-                        ? ` · Superior: ${tech.superior_user_name}`
-                        : ""}
-                      {` · ${tech.status}`}
-                      {tech.user_id
-                        ? ` · ${t("tech.loginReady", { username: tech.sn })}`
-                        : ` · ${t("tech.loginMissing")}`}
+            <div className="master-body">
+              <div className="check-list">
+                {masterTechTotal === 0 && !masterTechListQuery.isLoading && (
+                  <span style={{ color: "var(--muted)" }}>
+                    Belum ada teknisi.
+                  </span>
+                )}
+                {masterTechTotal > 0 &&
+                  pagedMasterTechs.length === 0 &&
+                  !masterTechListQuery.isLoading && (
+                    <span style={{ color: "var(--muted)" }}>
+                      Tidak ada teknisi yang cocok.
+                    </span>
+                  )}
+                {pagedMasterTechs.map((tech) => (
+                  <div
+                    key={tech.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{tech.name}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        Pernr: {tech.sn}
+                        {tech.badge_id ? ` · Badge: ${tech.badge_id}` : ""}
+                        {tech.email ? ` · ${tech.email}` : ""}
+                        {tech.phone ? ` · ${tech.phone}` : ""}
+                        {tech.superior_user_name
+                          ? ` · Superior: ${tech.superior_user_name}`
+                          : ""}
+                        {` · ${tech.status}`}
+                        {tech.user_id
+                          ? ` · ${t("tech.loginReady", { username: tech.sn })}`
+                          : ` · ${t("tech.loginMissing")}`}
+                      </div>
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canTechUpdate}
+                        onClick={() => openTechEdit(tech)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={
+                          busy || !canTechDelete || tech.status === "busy"
+                        }
+                        onClick={() => setModal({ type: "delete-tech", tech })}
+                      >
+                        Hapus
+                      </button>
                     </div>
                   </div>
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    <button
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canTechUpdate}
-                      onClick={() => openTechEdit(tech)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canTechDelete || tech.status === "busy"}
-                      onClick={() => setModal({ type: "delete-tech", tech })}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {masterTechTotalPages > 1 && (
+                <Pager
+                  page={masterTechPageSafe}
+                  totalPages={masterTechTotalPages}
+                  onChange={setMasterTechPage}
+                />
+              )}
             </div>
-            {masterTechTotalPages > 1 && (
-              <Pager
-                page={masterTechPageSafe}
-                totalPages={masterTechTotalPages}
-                onChange={setMasterTechPage}
-              />
-            )}
-            <div className="actions">
+            <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
@@ -9935,109 +9988,129 @@ export default function HomePage() {
       )}
 
       {modal?.type === "users" && (
-        <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-users-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             {(busy || usersLoading) && <BusyOverlay />}
-            <h3>Master User</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Kelola akun login (tersimpan di tabel <code>users</code> database).
-            </p>
-            {error && <div className="error">{error}</div>}
-            <div className="panel-search-row" style={{ justifyContent: "stretch", marginBottom: 12 }}>
-              <input
-                className="panel-search"
-                style={{ maxWidth: "none" }}
-                type="search"
-                value={masterUserDraft}
-                onChange={(e) => setMasterUserDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    applyMasterUserSearch();
-                  }
-                }}
-                placeholder="Cari username, nama, email, atau telp..."
-                aria-label="Cari user"
-                autoFocus
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={applyMasterUserSearch}
+            <div className="master-head">
+              <h3 id="master-users-title">Master User</h3>
+              <p className="master-lead">
+                Kelola akun login (tersimpan di tabel <code>users</code>{" "}
+                database).
+              </p>
+              {error && <div className="error">{error}</div>}
+              <div
+                className="panel-search-row"
+                style={{ justifyContent: "stretch" }}
               >
-                Cari
-              </button>
-              {masterUserQuery && (
+                <input
+                  className="panel-search"
+                  style={{ maxWidth: "none" }}
+                  type="search"
+                  value={masterUserDraft}
+                  onChange={(e) => setMasterUserDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyMasterUserSearch();
+                    }
+                  }}
+                  placeholder="Cari username, nama, email, atau telp..."
+                  aria-label="Cari user"
+                  autoFocus
+                />
                 <button
                   type="button"
-                  className="btn"
-                  onClick={clearMasterUserSearch}
+                  className="btn btn-primary"
+                  onClick={applyMasterUserSearch}
                 >
-                  Reset
+                  Cari
                 </button>
-              )}
+                {masterUserQuery && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={clearMasterUserSearch}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
-              {appUsers.length === 0 && (
-                <span style={{ color: "var(--muted)" }}>Belum ada user.</span>
-              )}
-              {appUsers.length > 0 && filteredMasterUsers.length === 0 && (
-                <span style={{ color: "var(--muted)" }}>Tidak ada user yang cocok.</span>
-              )}
-              {pagedMasterUsers.map((u) => (
-                <div
-                  key={u.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "6px 0",
-                    borderBottom: "1px dashed var(--line-dashed)",
-                  }}
-                >
-                  <div>
-                    <strong>{u.username}</strong>
-                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {u.name || "—"}
-                      {` · ${u.level}`}
-                      {` · ${u.active === "1" ? "aktif" : "nonaktif"}`}
-                    </div>
-                    {(u.email || u.phone) && (
-                      <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-                        {[u.email, u.phone].filter(Boolean).join(" · ")}
+            <div className="master-body">
+              <div className="check-list">
+                {appUsers.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>Belum ada user.</span>
+                )}
+                {appUsers.length > 0 && filteredMasterUsers.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    Tidak ada user yang cocok.
+                  </span>
+                )}
+                {pagedMasterUsers.map((u) => (
+                  <div
+                    key={u.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{u.username}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        {u.name || "—"}
+                        {` · ${u.level}`}
+                        {` · ${u.active === "1" ? "aktif" : "nonaktif"}`}
                       </div>
-                    )}
+                      {(u.email || u.phone) && (
+                        <div
+                          style={{ color: "var(--muted)", fontSize: "0.85rem" }}
+                        >
+                          {[u.email, u.phone].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canUserUpdate}
+                        onClick={() => openUserEdit(u)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canUserDelete}
+                        onClick={() =>
+                          setModal({ type: "delete-user", user: u })
+                        }
+                      >
+                        Hapus
+                      </button>
+                    </div>
                   </div>
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    <button
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canUserUpdate}
-                      onClick={() => openUserEdit(u)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canUserDelete}
-                      onClick={() => setModal({ type: "delete-user", user: u })}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {filteredMasterUsers.length > MASTER_PAGE_SIZE && (
+                <Pager
+                  page={masterUserPageSafe}
+                  totalPages={masterUserTotalPages}
+                  onChange={setMasterUserPage}
+                />
+              )}
             </div>
-            {filteredMasterUsers.length > MASTER_PAGE_SIZE && (
-              <Pager
-                page={masterUserPageSafe}
-                totalPages={masterUserTotalPages}
-                onChange={setMasterUserPage}
-              />
-            )}
-            <div className="actions">
+            <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
@@ -10200,208 +10273,229 @@ export default function HomePage() {
       )}
 
       {modal?.type === "attendance" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
           <div
-            className="modal"
-            style={{ width: "min(640px, 100%)" }}
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-attendance-title"
             onClick={(e) => e.stopPropagation()}
           >
             {busy && <BusyOverlay />}
-            <h3>Daftar Hadir</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Absensi / <strong>Meals Request</strong> dibanding master teknisi
-              (No. ID Badge = SN). Ada di meals/hadir →{" "}
-              <strong>available</strong>; tidak ada → <strong>offline</strong>{" "}
-              (status busy tidak diubah).
-            </p>
-            {error && <div className="error">{error}</div>}
-            {attendanceImportMsg && (
-              <p style={{ color: "var(--green)", marginTop: 0 }}>
-                {attendanceImportMsg}
+            <div className="master-head">
+              <h3 id="master-attendance-title">Daftar Hadir</h3>
+              <p className="master-lead">
+                Absensi / <strong>Meals Request</strong> dibanding master
+                teknisi (No. ID Badge = SN). Ada di meals/hadir →{" "}
+                <strong>available</strong>; tidak ada →{" "}
+                <strong>offline</strong> (status busy tidak diubah).
               </p>
-            )}
-            {(canAttendanceCreate || canTechUpdate) && (
-            <div className="form" style={{ marginBottom: 12 }}>
-              {canAttendanceCreate && (
-              <>
-              <label>
-                Upload absensi Excel (.xlsx)
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) importAttendanceFile(file);
-                  }}
-                />
-              </label>
-              <label className="check-item">
-                <input
-                  type="checkbox"
-                  checked={attendanceSyncTech}
-                  disabled={!canTechUpdate}
-                  onChange={(e) => setAttendanceSyncTech(e.target.checked)}
-                />
-                <span>
-                  Sync status teknisi (hadir → available; tidak hadir / tidak di
-                  file → offline)
-                </span>
-              </label>
-              </>
+              {error && <div className="error">{error}</div>}
+              {attendanceImportMsg && (
+                <p style={{ color: "var(--green)", marginTop: 0 }}>
+                  {attendanceImportMsg}
+                </p>
               )}
-              {canTechUpdate && (
-              <>
-              <div className="actions" style={{ marginTop: 8, flexWrap: "wrap", gap: 8 }}>
+              {(canAttendanceCreate || canTechUpdate) && (
+                <details className="master-tools">
+                  <summary>Upload / sync Meals</summary>
+                  <div className="master-tools-body form">
+                    {canAttendanceCreate && (
+                      <>
+                        <label>
+                          Upload absensi Excel (.xlsx)
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            disabled={busy}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) importAttendanceFile(file);
+                            }}
+                          />
+                        </label>
+                        <label className="check-item">
+                          <input
+                            type="checkbox"
+                            checked={attendanceSyncTech}
+                            disabled={!canTechUpdate}
+                            onChange={(e) =>
+                              setAttendanceSyncTech(e.target.checked)
+                            }
+                          />
+                          <span>
+                            Sync status teknisi (hadir → available; tidak hadir
+                            / tidak di file → offline)
+                          </span>
+                        </label>
+                      </>
+                    )}
+                    {canTechUpdate && (
+                      <>
+                        <div
+                          className="actions"
+                          style={{ marginTop: 8, flexWrap: "wrap", gap: 8 }}
+                        >
+                          <button
+                            type="button"
+                            className="btn primary"
+                            disabled={busy}
+                            onClick={() => void syncMealsPresence()}
+                            title="Unduh Meals Request via Microsoft Graph lalu set available/offline"
+                          >
+                            Sync Meals SharePoint
+                          </button>
+                        </div>
+                        <label>
+                          Atau upload Meals Request (.xlsx) untuk presence
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            disabled={busy}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) void syncMealsPresence({ file });
+                            }}
+                          />
+                        </label>
+                        <p
+                          style={{
+                            color: "var(--muted)",
+                            fontSize: 12,
+                            margin: 0,
+                          }}
+                        >
+                          Graph: set AZURE_* + SHAREPOINT_MEALS_EXCEL_URL. Tanpa
+                          Entra, unduh file / pakai Power Automate lalu upload
+                          di sini.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </details>
+              )}
+              <div
+                className="panel-search-row"
+                style={{ justifyContent: "stretch", flexWrap: "wrap" }}
+              >
+                <select
+                  value={attendanceDateFilter}
+                  onChange={(e) => setAttendanceDateFilter(e.target.value)}
+                  style={{ maxWidth: 160 }}
+                  aria-label="Filter tanggal"
+                >
+                  <option value="">Semua tanggal</option>
+                  {attendanceDates.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="panel-search"
+                  style={{ maxWidth: "none", flex: 1 }}
+                  type="search"
+                  value={attendanceDraft}
+                  onChange={(e) => setAttendanceDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyAttendanceSearch();
+                    }
+                  }}
+                  placeholder="Cari nama, Pernr, status..."
+                  aria-label="Cari daftar hadir"
+                />
                 <button
                   type="button"
-                  className="btn primary"
-                  disabled={busy}
-                  onClick={() => void syncMealsPresence()}
-                  title="Unduh Meals Request via Microsoft Graph lalu set available/offline"
+                  className="btn btn-primary"
+                  onClick={applyAttendanceSearch}
                 >
-                  Sync Meals SharePoint
+                  Cari
                 </button>
+                {(attendanceQuery || attendanceDateFilter) && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      clearAttendanceSearch();
+                      setAttendanceDateFilter("");
+                    }}
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
-              <label>
-                Atau upload Meals Request (.xlsx) untuk presence
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) void syncMealsPresence({ file });
-                  }}
-                />
-              </label>
-              <p style={{ color: "var(--muted)", fontSize: 12, margin: 0 }}>
-                Graph: set AZURE_* + SHAREPOINT_MEALS_EXCEL_URL. Tanpa Entra,
-                unduh file / pakai Power Automate lalu upload di sini.
-              </p>
-              </>
-              )}
             </div>
-            )}
-            <div
-              className="panel-search-row"
-              style={{ justifyContent: "stretch", marginBottom: 12, flexWrap: "wrap" }}
-            >
-              <select
-                value={attendanceDateFilter}
-                onChange={(e) => setAttendanceDateFilter(e.target.value)}
-                style={{ maxWidth: 160 }}
-                aria-label="Filter tanggal"
-              >
-                <option value="">Semua tanggal</option>
-                {attendanceDates.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="panel-search"
-                style={{ maxWidth: "none", flex: 1 }}
-                type="search"
-                value={attendanceDraft}
-                onChange={(e) => setAttendanceDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    applyAttendanceSearch();
-                  }
-                }}
-                placeholder="Cari nama, Pernr, status..."
-                aria-label="Cari daftar hadir"
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={applyAttendanceSearch}
-              >
-                Cari
-              </button>
-              {(attendanceQuery || attendanceDateFilter) && (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    clearAttendanceSearch();
-                    setAttendanceDateFilter("");
-                  }}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-            <div className="check-list" style={{ maxHeight: 280, marginBottom: 12 }}>
-              {(data?.attendance || []).length === 0 && (
-                <span style={{ color: "var(--muted)" }}>
-                  Belum ada data hadir. Upload Excel untuk mulai.
-                </span>
-              )}
-              {(data?.attendance || []).length > 0 &&
-                filteredAttendance.length === 0 && (
+            <div className="master-body">
+              <div className="check-list">
+                {(data?.attendance || []).length === 0 && (
                   <span style={{ color: "var(--muted)" }}>
-                    Tidak ada data yang cocok.
+                    Belum ada data hadir. Upload Excel untuk mulai.
                   </span>
                 )}
-              {pagedAttendance.map((a) => (
-                <div
-                  key={a.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "6px 0",
-                    borderBottom: "1px dashed var(--line-dashed)",
-                  }}
-                >
-                  <div>
-                    <strong>{a.technician_name}</strong>
-                    <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                      {a.date}
-                      {a.pernr ? ` · ${a.pernr}` : ""}
-                      {` · ${a.status}`}
-                      {a.dws ? ` · ${a.dws}` : ""}
-                      {!a.technician_id ? " · belum match" : ""}
+                {(data?.attendance || []).length > 0 &&
+                  filteredAttendance.length === 0 && (
+                    <span style={{ color: "var(--muted)" }}>
+                      Tidak ada data yang cocok.
+                    </span>
+                  )}
+                {pagedAttendance.map((a) => (
+                  <div
+                    key={a.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{a.technician_name}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        {a.date}
+                        {a.pernr ? ` · ${a.pernr}` : ""}
+                        {` · ${a.status}`}
+                        {a.dws ? ` · ${a.dws}` : ""}
+                        {!a.technician_id ? " · belum match" : ""}
+                      </div>
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canAttendanceUpdate}
+                        onClick={() => openAttendanceEdit(a)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canAttendanceDelete}
+                        onClick={() =>
+                          setModal({ type: "delete-attendance", row: a })
+                        }
+                      >
+                        Hapus
+                      </button>
                     </div>
                   </div>
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    <button
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canAttendanceUpdate}
-                      onClick={() => openAttendanceEdit(a)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                      disabled={busy || !canAttendanceDelete}
-                      onClick={() =>
-                        setModal({ type: "delete-attendance", row: a })
-                      }
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {filteredAttendance.length > MASTER_PAGE_SIZE && (
+                <Pager
+                  page={attendancePageSafe}
+                  totalPages={attendanceTotalPages}
+                  onChange={setAttendancePage}
+                />
+              )}
             </div>
-            {filteredAttendance.length > MASTER_PAGE_SIZE && (
-              <Pager
-                page={attendancePageSafe}
-                totalPages={attendanceTotalPages}
-                onChange={setAttendancePage}
-              />
-            )}
-            <div className="actions">
+            <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
                 Tutup
               </button>
@@ -10618,44 +10712,54 @@ export default function HomePage() {
       )}
 
       {modal?.type === "settings" && (
-        <div className="modal-backdrop" onClick={closeModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Settings</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Sembunyikan panel di board. Preferensi tersimpan di browser ini.
-            </p>
-            <div className="form">
-              <label className="check-item" style={{ padding: "10px 0" }}>
-                <input
-                  type="checkbox"
-                  checked={hideTechPanel}
-                  onChange={toggleHideTechPanel}
-                />
-                <span>
-                  <strong>Sembunyikan panel Teknisi</strong>
-                  <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-                    Kolom available / busy / offline tidak ditampilkan
-                  </div>
-                </span>
-              </label>
-              <label className="check-item" style={{ padding: "10px 0" }}>
-                <input
-                  type="checkbox"
-                  checked={hideJobPanel}
-                  onChange={toggleHideJobPanel}
-                />
-                <span>
-                  <strong>Sembunyikan panel Job</strong>
-                  <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-                    Job aktif, antrian, dan riwayat tidak ditampilkan
-                  </div>
-                </span>
-              </label>
-              <div className="actions">
-                <button className="btn btn-primary" onClick={closeModal}>
-                  Selesai
-                </button>
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-settings-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="master-head">
+              <h3 id="master-settings-title">Settings</h3>
+              <p className="master-lead">
+                Sembunyikan panel di board. Preferensi tersimpan di browser ini.
+              </p>
+            </div>
+            <div className="master-body">
+              <div className="form">
+                <label className="check-item" style={{ padding: "10px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={hideTechPanel}
+                    onChange={toggleHideTechPanel}
+                  />
+                  <span>
+                    <strong>Sembunyikan panel Teknisi</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                      Kolom available / busy / offline tidak ditampilkan
+                    </div>
+                  </span>
+                </label>
+                <label className="check-item" style={{ padding: "10px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={hideJobPanel}
+                    onChange={toggleHideJobPanel}
+                  />
+                  <span>
+                    <strong>Sembunyikan panel Job</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                      Job aktif, antrian, dan riwayat tidak ditampilkan
+                    </div>
+                  </span>
+                </label>
               </div>
+            </div>
+            <div className="master-foot actions">
+              <button className="btn btn-primary" onClick={closeModal}>
+                Selesai
+              </button>
             </div>
           </div>
         </div>

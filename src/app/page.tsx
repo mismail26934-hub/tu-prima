@@ -5557,7 +5557,6 @@ export default function HomePage() {
   return (
     <>
       {glassPortalReady &&
-        topbarScrolled &&
         createPortal(
           <div
             className="topbar-glass"
@@ -5782,7 +5781,14 @@ export default function HomePage() {
                 />
               ) : (
                 <>
-                  {isLoggedIn ? <RemainAlertMuteToggle /> : null}
+                  {isLoggedIn ? (
+                    <RemainAlertMuteToggle
+                      onBeforeOpen={() => {
+                        setManageOpen(false);
+                        setSessionOpen(false);
+                      }}
+                    />
+                  ) : null}
                   <NavAlerts
                     enabled={showNavAlerts}
                     onBeforeOpen={() => {
@@ -5920,10 +5926,20 @@ export default function HomePage() {
               )
             ) : (
               <>
-                {isLoggedIn ? <RemainAlertMuteToggle /> : null}
+                {isLoggedIn ? (
+                  <RemainAlertMuteToggle
+                    onBeforeOpen={() => {
+                      setSessionOpen(false);
+                      setMobileMenuOpen(false);
+                    }}
+                  />
+                ) : null}
                 <NavAlerts
                   enabled={showNavAlerts}
-                  onBeforeOpen={() => setSessionOpen(false)}
+                  onBeforeOpen={() => {
+                    setSessionOpen(false);
+                    setMobileMenuOpen(false);
+                  }}
                   onOpenJob={(jobId, kind) => {
                     setMobileMenuOpen(false);
                     jobDeepLink.open(jobId, {
@@ -5938,7 +5954,12 @@ export default function HomePage() {
               type="button"
               aria-label={mobileMenuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
               aria-expanded={mobileMenuOpen}
-              onClick={() => setMobileMenuOpen((o) => !o)}
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent("prima-header-pop", { detail: "menu" })
+                );
+                setMobileMenuOpen((o) => !o);
+              }}
             >
               {mobileMenuOpen ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -6024,18 +6045,6 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            <NavAlerts
-              enabled={showNavAlerts}
-              variant="menu"
-              onOpenJob={(jobId, kind) => {
-                setMobileMenuOpen(false);
-                setSessionOpen(false);
-                jobDeepLink.open(jobId, {
-                  focus: kind === "handover" ? "handover" : "",
-                });
-              }}
-            />
-            {isLoggedIn ? <RemainAlertMuteToggle variant="menu" /> : null}
             <p className="nav-menu-label">{t("nav.language")}</p>
             <div className="nav-menu-prefs">
               <LanguageToggle />

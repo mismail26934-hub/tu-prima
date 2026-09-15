@@ -16,6 +16,9 @@ import {
 
 type Props = {
   variant?: "bar" | "menu";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onBeforeOpen?: () => void;
 };
 
 function SpeakerIcon({ muted }: { muted: boolean }) {
@@ -138,12 +141,24 @@ function AlertSoundFields() {
   );
 }
 
-export function RemainAlertMuteToggle({ variant = "bar" }: Props) {
+export function RemainAlertMuteToggle({
+  variant = "bar",
+  open: openProp,
+  onOpenChange,
+  onBeforeOpen,
+}: Props) {
   const t = useT();
   const muted = useRemainAlertStore((s) => s.muted);
   const hydrate = useRemainAlertStore((s) => s.hydrate);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : internalOpen;
+
+  function setOpen(next: boolean) {
+    if (!controlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  }
 
   useEffect(() => {
     hydrate();
@@ -155,6 +170,15 @@ export function RemainAlertMuteToggle({ variant = "bar" }: Props) {
       window.removeEventListener("keydown", unlock);
     };
   }, [hydrate]);
+
+  useEffect(() => {
+    function onPop(e: Event) {
+      if ((e as CustomEvent<string>).detail === "sound") return;
+      setOpen(false);
+    }
+    window.addEventListener("prima-header-pop", onPop);
+    return () => window.removeEventListener("prima-header-pop", onPop);
+  }, [controlled]);
 
   useEffect(() => {
     if (!open || variant === "menu") return;
@@ -172,7 +196,7 @@ export function RemainAlertMuteToggle({ variant = "bar" }: Props) {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, variant]);
+  }, [open, variant, controlled]);
 
   const title = t("nav.alertSoundSettings");
 
@@ -199,7 +223,14 @@ export function RemainAlertMuteToggle({ variant = "bar" }: Props) {
         title={title}
         onClick={() => {
           unlockRemainAlertAudio();
-          setOpen((v) => !v);
+          onBeforeOpen?.();
+          const next = !open;
+          if (next) {
+            window.dispatchEvent(
+              new CustomEvent("prima-header-pop", { detail: "sound" })
+            );
+          }
+          setOpen(next);
         }}
       >
         <SpeakerIcon muted={muted} />

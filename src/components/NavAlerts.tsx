@@ -12,6 +12,8 @@ import {
 type Props = {
   enabled: boolean;
   variant?: "bar" | "menu";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onOpenJob: (jobId: string, kind?: NavAlertItem["kind"]) => void;
   onBeforeOpen?: () => void;
 };
@@ -59,15 +61,33 @@ function AlertSection({
 export function NavAlerts({
   enabled,
   variant = "bar",
+  open: openProp,
+  onOpenChange,
   onOpenJob,
   onBeforeOpen,
 }: Props) {
   const t = useT();
   const { data } = useNavAlerts(enabled);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const payload = data || EMPTY_NAV_ALERTS;
   const total = navAlertTotal(payload);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : internalOpen;
+
+  function setOpen(next: boolean) {
+    if (!controlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  }
+
+  useEffect(() => {
+    function onPop(e: Event) {
+      if ((e as CustomEvent<string>).detail === "alerts") return;
+      setOpen(false);
+    }
+    window.addEventListener("prima-header-pop", onPop);
+    return () => window.removeEventListener("prima-header-pop", onPop);
+  }, [controlled]);
 
   useEffect(() => {
     if (!open || variant === "menu") return;
@@ -85,7 +105,7 @@ export function NavAlerts({
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, variant]);
+  }, [open, variant, controlled]);
 
   if (!enabled) return null;
 
@@ -164,7 +184,13 @@ export function NavAlerts({
         title={t("nav.alerts")}
         onClick={() => {
           onBeforeOpen?.();
-          setOpen((v) => !v);
+          const next = !open;
+          if (next) {
+            window.dispatchEvent(
+              new CustomEvent("prima-header-pop", { detail: "alerts" })
+            );
+          }
+          setOpen(next);
         }}
       >
         <svg

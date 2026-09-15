@@ -30,8 +30,8 @@
   --glow-green: #3dba7a66;
   --glow-amber: #e8a31766;
   --glow-pulse: #e8a31755;
-  --topbar-glass-bg: rgba(13, 16, 20, 0.45);
-  --topbar-glass-bg-strong: rgba(13, 16, 20, 0.72);
+  --topbar-glass-bg: #12151a;
+  --topbar-glass-bg-strong: #12151a;
   --topbar-glass-border: rgba(255, 255, 255, 0.1);
   --topbar-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   --remain-green-bg: #1f7a4a;
@@ -74,8 +74,8 @@
   --glow-green: #145a1f44;
   --glow-amber: rgba(0, 0, 0, 0.28);
   --glow-pulse: rgba(0, 0, 0, 0.35);
-  --topbar-glass-bg: rgba(255, 184, 28, 0.82);
-  --topbar-glass-bg-strong: rgba(255, 184, 28, 0.94);
+  --topbar-glass-bg: #ffb81c;
+  --topbar-glass-bg-strong: #ffb81c;
   --topbar-glass-border: rgba(0, 0, 0, 0.55);
   --topbar-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
   /* Status accents (not remapped to ink — keep readable warning colors). */
@@ -339,9 +339,9 @@ button {
   max-width: none;
   margin: 0;
   box-sizing: border-box;
-  background: transparent;
+  background: var(--bg-0);
   padding: 8px max(20px, calc((100% - 1280px) / 2 + 20px)) 12px;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--line);
   transition: border-color 0.25s ease;
 }
 
@@ -354,30 +354,24 @@ button {
   z-index: 105;
   height: var(--topbar-height, 5.5rem);
   pointer-events: none;
-  background: rgba(13, 16, 20, 0.4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--topbar-glass-shadow);
+}
+
+html[data-theme="light"] .topbar {
+  background: #ffb81c;
+  border-bottom: 2px solid #000000;
 }
 
 html[data-theme="light"] .topbar-glass {
-  background: rgba(255, 184, 28, 0.88);
+  background: #ffb81c;
   border-bottom: 2px solid #000000;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--topbar-glass-shadow);
 }
 
 .topbar.is-scrolled {
-  background: transparent;
-  border-bottom-color: transparent;
-}
-
-html.menu-open .topbar-glass {
-  background: rgba(13, 16, 20, 0.7);
-}
-
-html[data-theme="light"].menu-open .topbar-glass {
-  background: rgba(255, 184, 28, 0.96);
+  box-shadow: var(--topbar-glass-shadow);
 }
 
 .brand {
@@ -609,7 +603,7 @@ html[data-theme="light"].menu-open .topbar-glass {
 .remain-alert-mute-row {
   appearance: none;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
   margin: 0;
@@ -622,6 +616,13 @@ html[data-theme="light"].menu-open .topbar-glass {
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
+}
+
+.remain-alert-mute-row span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .remain-alert-field {
@@ -742,6 +743,7 @@ html[data-theme="light"].menu-open .topbar-glass {
 .nav-alerts-item strong {
   font-size: 0.88rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .nav-alerts-item span,
@@ -750,6 +752,7 @@ html[data-theme="light"].menu-open .topbar-glass {
   color: var(--muted);
   margin: 0;
   padding: 4px 10px;
+  overflow-wrap: anywhere;
 }
 
 .nav-alerts--menu .nav-alerts-list {
@@ -1414,9 +1417,26 @@ html[data-theme="light"].menu-open .topbar-glass {
 
   .top-actions-mobile {
     display: inline-flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     max-width: 100%;
+    gap: 6px;
+  }
+
+  .nav-alerts-list,
+  .remain-alert-pop {
+    position: fixed;
+    top: var(--topbar-offset, 4.75rem);
+    left: max(12px, 4vw);
+    right: max(12px, 4vw);
+    width: auto;
+    max-width: none;
+    max-height: min(70dvh, calc(100dvh - var(--topbar-offset, 4.75rem) - 12px));
+    z-index: 130;
+  }
+
+  .remain-alert-pop {
+    padding: 12px;
   }
 
   .top-actions-panel--bar {

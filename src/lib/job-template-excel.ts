@@ -173,7 +173,7 @@ function addPetunjukSheet(workbook: ExcelJS.Workbook, forUpload: boolean) {
     ? [
         {
           topic: "Cara pakai",
-          note: "Isi sheet Templates + Steps, lalu unggah di Kelola → Master Template → Mass upload Excel.",
+          note: "Isi sheet Templates + Steps, lalu unggah di Kelola → Master Template → Mass upload Excel. Cek dulu baris OK/Error, centang yang ingin masuk katalog.",
         },
         {
           topic: "Templates.id",
@@ -313,12 +313,40 @@ function parseActive(raw: string): "1" | "0" | null {
   return null;
 }
 
-type DraftTemplate = {
+export type JobTemplateImportPreviewRow = {
+  row: number;
+  sheet: "Templates" | "Steps";
+  excelRow: number;
   id: string;
+  category: string;
+  name: string;
+  active: "" | "1" | "0";
+  stepCount: number;
+  ok: boolean;
+  action: "create" | "update" | "skip";
+  error?: string;
+  steps: JobTemplateStepInput[];
+};
+
+export type JobTemplateImportCommitRow = {
+  id?: string;
   category: JobTemplateCategory;
   name: string;
-  active: "1" | "0";
+  active?: string;
   steps: JobTemplateStepInput[];
+};
+
+type PreviewDraft = {
+  row: number;
+  sheet: "Templates" | "Steps";
+  excelRow: number;
+  id: string;
+  category: string;
+  categoryValid: JobTemplateCategory | null;
+  name: string;
+  active: "" | "1" | "0";
+  steps: JobTemplateStepInput[];
+  errors: string[];
 };
 
 function findSheet(
@@ -334,13 +362,59 @@ function findSheet(
   return null;
 }
 
-/** Import / upsert templates from Excel (Templates + Steps). */
-export async function importJobTemplatesFromBuffer(
+function nameKey(category: string, name: string) {
+  return `${category}::${name.trim().toLowerCase()}`;
+}
+
+function findExistingTemplate(
+  id: string,
+  category: JobTemplateCategory | null,
+  name: string
+): JobTemplate | null {
+  if (id) {
+    const byId = getJobTemplate(id, { includeInactive: true });
+    if (byId) return byId;
+  }
+  if (!category || !name) return null;
+  return (
+    listJobTemplatesFull(category, { includeInactive: true }).find(
+      (t) => t.name.toLowerCase() === name.toLowerCase()
+    ) || null
+  );
+}
+
+function toPreviewRow(draft: PreviewDraft): JobTemplateImportPreviewRow {
+  const errors = draft.errors.slice();
+  if (!errors.length && draft.categoryValid && draft.name && !draft.steps.length) {
+    errors.push("Tidak ada step di sheet Steps");
+  }
+  const ok = errors.length === 0 && Boolean(draft.categoryValid && draft.name);
+  const existing = ok
+    ? findExistingTemplate(draft.id, draft.categoryValid, draft.name)
+    : null;
+  return {
+    row: draft.row,
+    sheet: draft.sheet,
+    excelRow: draft.excelRow,
+    id: draft.id,
+    category: draft.category,
+    name: draft.name,
+    active: draft.active || (ok ? "1" : ""),
+    stepCount: draft.steps.length,
+    ok,
+    action: ok ? (existing ? "update" : "create") : "skip",
+    error: errors.length ? errors.join(" · ") : undefined,
+    steps: ok ? draft.steps : [],
+  };
+}
+
+/** Parse Excel into a review table. Does not write the catalog. */
+export async function previewJobTemplatesFromBuffer(
   buffer: ArrayBuffer | Buffer
 ): Promise<{
-  imported: number;
-  updated: number;
-  skipped: string[];
+  rows: JobTemplateImportPreviewRow[];
+  okCount: number;
+  errorCount: number;
 }> {
   const src = new ExcelJS.Workbook();
   const bytes =
@@ -380,12 +454,9 @@ export async function importJobTemplatesFromBuffer(
     );
   }
 
-  const drafts = new Map<string, DraftTemplate>();
-  const byNameKey = new Map<string, string>();
-  const skipped: string[] = [];
-
-  const nameKey = (category: string, name: string) =>
-    `${category}::${name.trim().toLowerCase()}`;
+  const drafts: PreviewDraft[] = [];
+  const byLookup = new Map<string, PreviewDraft>();
+  const seenKeys = new Set<string>();
 
   metaSheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
@@ -395,35 +466,42 @@ export async function importJobTemplatesFromBuffer(
     const statusRaw = cStatus ? cellStr(row.getCell(cStatus).value) : "";
     if (!id && !categoryRaw && !name && !statusRaw) return;
 
+    const errors: string[] = [];
     const category = parseCategory(categoryRaw);
     if (!category) {
-      skipped.push(
-        `Templates baris ${rowNumber}: category tidak valid (${categoryRaw || "kosong"})`
-      );
-      return;
+      errors.push(`category tidak valid (${categoryRaw || "kosong"})`);
     }
-    if (!name) {
-      skipped.push(`Templates baris ${rowNumber}: name wajib diisi`);
-      return;
-    }
+    if (!name) errors.push("name wajib diisi");
     const activeParsed = parseActive(statusRaw);
     if (statusRaw && !activeParsed) {
-      skipped.push(
-        `Templates baris ${rowNumber}: status "${statusRaw}" tidak valid (aktif/nonaktif)`
-      );
-      return;
+      errors.push(`status "${statusRaw}" tidak valid (aktif/nonaktif)`);
     }
 
-    const key = id || `name:${nameKey(category, name)}`;
-    drafts.set(key, {
+    const key = id || (category && name ? `name:${nameKey(category, name)}` : "");
+    if (key && seenKeys.has(key)) {
+      errors.push("duplikat id atau nama di sheet Templates");
+    } else if (key) {
+      seenKeys.add(key);
+    }
+
+    const draft: PreviewDraft = {
+      row: rowNumber,
+      sheet: "Templates",
+      excelRow: rowNumber,
       id,
-      category,
+      category: category || categoryRaw,
+      categoryValid: category,
       name,
-      active: activeParsed || "1",
+      active: activeParsed || (statusRaw ? "" : "1"),
       steps: [],
-    });
-    byNameKey.set(nameKey(category, name), key);
-    if (id) byNameKey.set(`id:${id}`, key);
+      errors,
+    };
+    drafts.push(draft);
+    if (key && !draft.errors.includes("duplikat id atau nama di sheet Templates")) {
+      byLookup.set(key, draft);
+      if (id) byLookup.set(`id:${id}`, draft);
+      if (category && name) byLookup.set(nameKey(category, name), draft);
+    }
   });
 
   const stepMap = headerMap(stepsSheet);
@@ -449,6 +527,8 @@ export async function importJobTemplatesFromBuffer(
     );
   }
 
+  const extraRows: PreviewDraft[] = [];
+
   stepsSheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
     const templateId = sTplId ? cellStr(row.getCell(sTplId).value) : "";
@@ -459,124 +539,163 @@ export async function importJobTemplatesFromBuffer(
     const mpRaw = sMp ? cellStr(row.getCell(sMp).value) : "";
     const stdRaw = sStd ? cellStr(row.getCell(sStd).value) : "";
     if (!templateId && !templateName && !phase && !name && !orderRaw) return;
+
+    const pushStepError = (message: string) => {
+      extraRows.push({
+        row: 100000 + rowNumber,
+        sheet: "Steps",
+        excelRow: rowNumber,
+        id: templateId,
+        category: "",
+        categoryValid: null,
+        name: templateName || name,
+        active: "",
+        steps: [],
+        errors: [message],
+      });
+    };
+
     if (!name) {
-      skipped.push(`Steps baris ${rowNumber}: name step wajib`);
+      pushStepError("name step wajib");
       return;
     }
 
-    let draftKey =
-      (templateId && byNameKey.get(`id:${templateId}`)) ||
-      (templateId && drafts.has(templateId) ? templateId : "") ||
-      "";
+    let draft =
+      (templateId && byLookup.get(`id:${templateId}`)) ||
+      (templateId && byLookup.get(templateId)) ||
+      null;
 
-    if (!draftKey && templateName) {
-      // Prefer exact name match among drafts
-      for (const [key, draft] of drafts) {
-        if (draft.name.toLowerCase() === templateName.toLowerCase()) {
-          draftKey = key;
+    if (!draft && templateName) {
+      for (const item of drafts) {
+        if (item.name.toLowerCase() === templateName.toLowerCase()) {
+          draft = item;
           break;
         }
       }
     }
 
-    if (!draftKey && templateId) {
-      // Allow steps that reference id only — create stub from existing catalog later
-      draftKey = `id-only:${templateId}`;
-      if (!drafts.has(draftKey)) {
-        const existing = getJobTemplate(templateId, { includeInactive: true });
-        if (!existing) {
-          skipped.push(
-            `Steps baris ${rowNumber}: template_id "${templateId}" tidak ada di sheet Templates / katalog`
-          );
-          return;
-        }
-        drafts.set(draftKey, {
+    if (!draft && templateId) {
+      const existing = getJobTemplate(templateId, { includeInactive: true });
+      if (!existing) {
+        pushStepError(
+          `template_id "${templateId}" tidak ada di sheet Templates / katalog`
+        );
+        return;
+      }
+      const stubKey = `id-only:${templateId}`;
+      draft = byLookup.get(stubKey) || null;
+      if (!draft) {
+        draft = {
+          row: 200000 + extraRows.length + drafts.length,
+          sheet: "Templates",
+          excelRow: rowNumber,
           id: existing.id,
           category: existing.category,
+          categoryValid: existing.category,
           name: existing.name,
           active: existing.active === "0" ? "0" : "1",
           steps: [],
-        });
+          errors: [],
+        };
+        drafts.push(draft);
+        byLookup.set(stubKey, draft);
+        byLookup.set(`id:${existing.id}`, draft);
       }
     }
 
-    if (!draftKey) {
-      skipped.push(
-        `Steps baris ${rowNumber}: tidak cocok ke template (${templateId || templateName || "?"})`
-      );
-      return;
-    }
-
-    const draft = drafts.get(draftKey);
     if (!draft) {
-      skipped.push(`Steps baris ${rowNumber}: draft template hilang`);
+      pushStepError(
+        `tidak cocok ke template (${templateId || templateName || "?"})`
+      );
       return;
     }
 
     draft.steps.push({
       phase,
       name,
-      order: orderRaw ? Math.max(1, Math.round(Number(orderRaw) || draft.steps.length + 1)) : draft.steps.length + 1,
+      order: orderRaw
+        ? Math.max(1, Math.round(Number(orderRaw) || draft.steps.length + 1))
+        : draft.steps.length + 1,
       man_power: mpRaw ? Math.max(0, Number(mpRaw) || 0) : 0,
       std_minutes: stdRaw ? Math.max(0, Math.round(Number(stdRaw) || 0)) : 0,
     });
   });
 
-  if (drafts.size === 0) {
+  const rows = [...drafts, ...extraRows].map(toPreviewRow);
+  if (!rows.length) {
     throw new Error("Tidak ada baris template yang bisa diimpor");
   }
 
+  const okCount = rows.filter((r) => r.ok).length;
+  return {
+    rows,
+    okCount,
+    errorCount: rows.length - okCount,
+  };
+}
+
+/** Write selected preview rows into the catalog. */
+export function commitJobTemplatesImport(
+  rows: JobTemplateImportCommitRow[]
+): { imported: number; updated: number; skipped: string[] } {
+  const skipped: string[] = [];
   let imported = 0;
   let updated = 0;
 
-  for (const draft of drafts.values()) {
-    if (draft.steps.length === 0) {
-      skipped.push(
-        `Template "${draft.name}" dilewati: tidak ada step di sheet Steps`
-      );
+  for (const row of rows) {
+    const category = parseCategory(String(row.category || ""));
+    const name = String(row.name || "").trim();
+    const steps = Array.isArray(row.steps) ? row.steps : [];
+    if (!category) {
+      skipped.push(`${name || row.id || "?"}: category tidak valid`);
+      continue;
+    }
+    if (!name) {
+      skipped.push(`${row.id || "?"}: name wajib diisi`);
+      continue;
+    }
+    if (!steps.length) {
+      skipped.push(`Template "${name}" dilewati: tidak ada step`);
       continue;
     }
 
     try {
-      const existingById = draft.id
-        ? getJobTemplate(draft.id, { includeInactive: true })
-        : null;
-      const existingByName =
-        existingById ||
-        listJobTemplatesFull(draft.category, { includeInactive: true }).find(
-          (t) => t.name.toLowerCase() === draft.name.toLowerCase()
-        ) ||
-        null;
-
-      if (existingByName) {
-        updateJobTemplate(existingByName.id, {
-          category: draft.category,
-          name: draft.name,
-          active: draft.active,
-          steps: draft.steps,
+      const existing = findExistingTemplate(
+        String(row.id || ""),
+        category,
+        name
+      );
+      const active =
+        row.active != null && String(row.active) !== ""
+          ? String(row.active)
+          : existing?.active || "1";
+      if (existing) {
+        updateJobTemplate(existing.id, {
+          category,
+          name,
+          active,
+          steps,
         });
         updated += 1;
       } else {
         createJobTemplate({
-          id: draft.id || undefined,
-          category: draft.category,
-          name: draft.name,
-          active: draft.active,
-          steps: draft.steps,
+          id: row.id ? String(row.id) : undefined,
+          category,
+          name,
+          active,
+          steps,
         });
         imported += 1;
       }
     } catch (e) {
       skipped.push(
-        `Template "${draft.name}": ${e instanceof Error ? e.message : "gagal simpan"}`
+        `Template "${name}": ${e instanceof Error ? e.message : "gagal simpan"}`
       );
     }
   }
 
   if (imported === 0 && updated === 0) {
-    throw new Error(
-      skipped[0] || "Tidak ada template yang berhasil diimpor"
-    );
+    throw new Error(skipped[0] || "Tidak ada template yang berhasil diimpor");
   }
 
   return {

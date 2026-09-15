@@ -198,6 +198,32 @@ type Modal =
       template: JobTemplate;
       permanent: boolean;
     }
+  | {
+      type: "template-import-preview";
+      rows: Array<{
+        row: number;
+        sheet: "Templates" | "Steps";
+        excelRow: number;
+        id: string;
+        category: string;
+        name: string;
+        active: "" | "1" | "0";
+        stepCount: number;
+        ok: boolean;
+        action: "create" | "update" | "skip";
+        error?: string;
+        steps: Array<{
+          phase?: string;
+          name: string;
+          order?: number;
+          man_power?: number;
+          std_minutes?: number;
+        }>;
+      }>;
+      okCount: number;
+      errorCount: number;
+      selected: Record<number, boolean>;
+    }
   | { type: "techs" }
   | {
       type: "tech-import-preview";
@@ -944,7 +970,8 @@ export default function HomePage() {
   const templatesModalOpen =
     modal?.type === "templates" ||
     modal?.type === "template-form" ||
-    modal?.type === "delete-template";
+    modal?.type === "delete-template" ||
+    modal?.type === "template-import-preview";
   const usersModalOpen =
     modal?.type === "users" ||
     modal?.type === "user-form" ||
@@ -1520,16 +1547,81 @@ export default function HomePage() {
       const formData = new FormData();
       formData.append("file", file);
       const result = await api<{
+        rows: Array<{
+          row: number;
+          sheet: "Templates" | "Steps";
+          excelRow: number;
+          id: string;
+          category: string;
+          name: string;
+          active: "" | "1" | "0";
+          stepCount: number;
+          ok: boolean;
+          action: "create" | "update" | "skip";
+          error?: string;
+          steps: Array<{
+            phase?: string;
+            name: string;
+            order?: number;
+            man_power?: number;
+            std_minutes?: number;
+          }>;
+        }>;
+        okCount: number;
+        errorCount: number;
+      }>("/api/job-templates/import", { method: "POST", body: formData });
+      const selected: Record<number, boolean> = {};
+      for (const row of result.rows) {
+        if (row.ok) selected[row.row] = true;
+      }
+      setModal({
+        type: "template-import-preview",
+        rows: result.rows,
+        okCount: result.okCount,
+        errorCount: result.errorCount,
+        selected,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import template gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function commitTemplateImportPreview() {
+    if (modal?.type !== "template-import-preview") return;
+    const rows = modal.rows
+      .filter((r) => r.ok && modal.selected[r.row])
+      .map((r) => ({
+        id: r.id || undefined,
+        category: r.category,
+        name: r.name,
+        active: r.active,
+        steps: r.steps,
+      }));
+    if (!rows.length) {
+      setError("Pilih minimal satu baris OK untuk diimpor");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{
         imported: number;
         updated: number;
         skipped: string[];
-      }>("/api/job-templates/import", { method: "POST", body: formData });
+      }>("/api/job-templates/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
       setTemplateImportMsg(
         `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
           (result.skipped.length
             ? ` · ${result.skipped.length} baris dilewati`
             : "")
       );
+      setModal({ type: "templates" });
       await invalidateTemplates();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import template gagal");
@@ -9559,6 +9651,172 @@ export default function HomePage() {
                     modal.permanent ? "Menghapus..." : "Menonaktifkan..."
                   }
                 />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "template-import-preview" && (
+        <div className="modal-backdrop import-preview-backdrop">
+          <div
+            className="modal import-preview-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="template-import-preview-title"
+          >
+            {busy && <BusyOverlay label="Mengimpor..." />}
+            <div className="import-preview-head">
+              <h3 id="template-import-preview-title">
+                Review import template
+              </h3>
+              <p className="import-preview-lead">
+                Centang baris OK yang ingin dimasukkan ke katalog. Baris error
+                tidak bisa dipilih.
+              </p>
+              {error && <div className="error">{error}</div>}
+              <div className="import-preview-summary">
+                <span className="import-preview-ok">OK: {modal.okCount}</span>
+                <span className="import-preview-err">
+                  Error: {modal.errorCount}
+                </span>
+                <span>
+                  Dipilih:{" "}
+                  {
+                    modal.rows.filter((r) => r.ok && modal.selected[r.row])
+                      .length
+                  }
+                </span>
+              </div>
+              <div className="import-preview-toolbar">
+                <label className="import-preview-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      modal.okCount > 0 &&
+                      modal.rows
+                        .filter((r) => r.ok)
+                        .every((r) => modal.selected[r.row])
+                    }
+                    disabled={modal.okCount === 0 || busy}
+                    onChange={(e) => {
+                      const next: Record<number, boolean> = {
+                        ...modal.selected,
+                      };
+                      for (const r of modal.rows) {
+                        if (r.ok) next[r.row] = e.target.checked;
+                      }
+                      setModal({ ...modal, selected: next });
+                    }}
+                  />
+                  Pilih semua OK
+                </label>
+              </div>
+            </div>
+            <div className="import-preview-table-wrap">
+              <table className="import-preview-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 36 }}></th>
+                    <th>Baris</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                    <th>Id</th>
+                    <th>Jenis</th>
+                    <th>Nama</th>
+                    <th>Step</th>
+                    <th>Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modal.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={9} style={{ color: "var(--muted)" }}>
+                        Tidak ada baris data di file.
+                      </td>
+                    </tr>
+                  )}
+                  {modal.rows.map((r) => (
+                    <tr
+                      key={r.row}
+                      className={r.ok ? "import-row-ok" : "import-row-err"}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          disabled={!r.ok || busy}
+                          checked={Boolean(r.ok && modal.selected[r.row])}
+                          onChange={(e) => {
+                            setModal({
+                              ...modal,
+                              selected: {
+                                ...modal.selected,
+                                [r.row]: e.target.checked,
+                              },
+                            });
+                          }}
+                          aria-label={`Pilih baris ${r.sheet} ${r.excelRow}`}
+                        />
+                      </td>
+                      <td>
+                        {r.sheet} {r.excelRow}
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            r.ok ? "badge badge-ok" : "badge badge-err"
+                          }
+                        >
+                          {r.ok ? "OK" : "Error"}
+                        </span>
+                      </td>
+                      <td>
+                        {r.ok
+                          ? r.action === "update"
+                            ? "Update"
+                            : "Baru"
+                          : "—"}
+                      </td>
+                      <td>{r.id || "—"}</td>
+                      <td>
+                        {r.category === "engine"
+                          ? "Engine"
+                          : r.category === "non_engine"
+                            ? "Non Engine"
+                            : r.category === "goh"
+                              ? "GOH"
+                              : r.category || "—"}
+                      </td>
+                      <td>{r.name || "—"}</td>
+                      <td>{r.stepCount}</td>
+                      <td className="import-preview-note">
+                        {r.error || (r.ok ? "Siap diimpor" : "")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="import-preview-foot actions">
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  setError("");
+                  setModal({ type: "templates" });
+                }}
+              >
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={
+                  busy ||
+                  !modal.rows.some((r) => r.ok && modal.selected[r.row])
+                }
+                onClick={() => void commitTemplateImportPreview()}
+              >
+                Impor terpilih
               </button>
             </div>
           </div>

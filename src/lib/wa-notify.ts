@@ -262,9 +262,14 @@ function pushStarNote(lines: string[], prefix: string, text: string): void {
   if (!body || body === '—') return;
   const bodyLines = body.split('\n');
   const first = bodyLines[0] || '';
-  lines.push(prefix ? `* ${prefix} : 📝 ${first}` : `* 📝 ${first}`);
+  if (prefix) {
+    lines.push(`* ${prefix} :`);
+    lines.push(`  📝 ${first}`);
+  } else {
+    lines.push(`* 📝 ${first}`);
+  }
   for (const extra of bodyLines.slice(1)) {
-    lines.push(extra);
+    lines.push(prefix ? `     ${extra}` : extra);
   }
 }
 

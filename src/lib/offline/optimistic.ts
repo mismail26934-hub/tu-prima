@@ -1580,9 +1580,7 @@ export function applyOptimisticMutation(
       return { id, queued: true };
     }
     if (verb === "DELETE") {
-      patchTemplates(qc, (list) =>
-        list.map((t) => (t.id === id ? { ...t, active: "0" } : t))
-      );
+      patchTemplates(qc, (list) => list.filter((t) => t.id !== id));
       return { ok: true, queued: true };
     }
   }

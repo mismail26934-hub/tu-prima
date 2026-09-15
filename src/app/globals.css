@@ -3519,6 +3519,7 @@ html[data-theme="light"] .job-priority-pill--p3 {
 
 .modal.modal-template-form .modal-header {
   flex-shrink: 0;
+  align-items: center;
   margin-bottom: 10px;
 }
 

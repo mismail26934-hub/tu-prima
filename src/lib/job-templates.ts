@@ -302,19 +302,16 @@ export function updateJobTemplate(
   return getJobTemplate(id, { includeInactive: true })!;
 }
 
-/** Soft-delete: set active = "0" so existing jobs keep template_id. */
-export function deleteJobTemplate(id: string): { ok: true; template: JobTemplate } {
+/**
+ * Hard-delete: remove from the catalog JSON.
+ * Existing jobs keep `template_id`; lookup simply returns null.
+ */
+export function deleteJobTemplate(id: string): { ok: true; id: string } {
   const catalog = loadCatalog();
   const index = catalog.templates.findIndex((t) => t.id === id);
   if (index < 0) throw new Error("Template tidak ditemukan");
 
-  catalog.templates[index] = {
-    ...catalog.templates[index],
-    active: "0",
-  };
+  catalog.templates.splice(index, 1);
   saveCatalog(catalog);
-  return {
-    ok: true,
-    template: getJobTemplate(id, { includeInactive: true })!,
-  };
+  return { ok: true, id };
 }

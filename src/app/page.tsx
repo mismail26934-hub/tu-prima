@@ -193,7 +193,11 @@ type Modal =
       mode: "create" | "edit";
       template?: JobTemplate;
     }
-  | { type: "delete-template"; template: JobTemplate }
+  | {
+      type: "delete-template";
+      template: JobTemplate;
+      permanent: boolean;
+    }
   | { type: "techs" }
   | {
       type: "tech-import-preview";
@@ -1477,12 +1481,32 @@ export default function HomePage() {
     if (modal?.type !== "delete-template") return;
     setBusy(true);
     setError("");
+    const tpl = modal.template;
+    const permanent = modal.permanent;
     try {
-      await api(`/api/job-templates/${modal.template.id}`, { method: "DELETE" });
+      if (permanent) {
+        await api(`/api/job-templates/${tpl.id}`, { method: "DELETE" });
+      } else {
+        await api(`/api/job-templates/${tpl.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            category: tpl.category,
+            name: tpl.name,
+            active: "0",
+            steps: tpl.steps,
+          }),
+        });
+      }
       setModal({ type: "templates" });
       await invalidateTemplates();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal nonaktifkan template");
+      setError(
+        e instanceof Error
+          ? e.message
+          : permanent
+            ? "Gagal hapus template"
+            : "Gagal nonaktifkan template"
+      );
     } finally {
       setBusy(false);
     }
@@ -8993,8 +9017,10 @@ export default function HomePage() {
             <div className="master-head">
               <h3 id="master-templates-title">Master Template</h3>
               <p className="master-lead">
-                Katalog time frame Component Engine / Non Engine / GOH. Hapus =
-                nonaktif (job lama tetap menyimpan template_id).
+                Katalog time frame Component Engine / Non Engine / GOH.
+                Nonaktif menyembunyikan template dari job baru. Hapus di Edit
+                menghapus permanen dari katalog (job lama tetap menyimpan
+                template_id).
               </p>
               {error && <div className="error">{error}</div>}
               {templateImportMsg && (
@@ -9175,7 +9201,11 @@ export default function HomePage() {
                           busy || !canTemplateDelete || tpl.active === "0"
                         }
                         onClick={() =>
-                          setModal({ type: "delete-template", template: tpl })
+                          setModal({
+                            type: "delete-template",
+                            template: tpl,
+                            permanent: false,
+                          })
                         }
                       >
                         Nonaktif
@@ -9222,6 +9252,24 @@ export default function HomePage() {
               <h3>
                 {modal.mode === "create" ? "Template baru" : "Edit template"}
               </h3>
+              {modal.mode === "edit" && modal.template && canTemplateDelete && (
+                <div className="modal-header-actions">
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={busy}
+                    onClick={() =>
+                      setModal({
+                        type: "delete-template",
+                        template: modal.template!,
+                        permanent: true,
+                      })
+                    }
+                  >
+                    Hapus
+                  </button>
+                </div>
+              )}
             </div>
             <div className="modal-body">
             {error && <div className="error">{error}</div>}
@@ -9445,23 +9493,55 @@ export default function HomePage() {
       {modal?.type === "delete-template" && (
         <div
           className="modal-backdrop"
-          onClick={() => setModal({ type: "templates" })}
+          onClick={() =>
+            modal.permanent
+              ? setModal({
+                  type: "template-form",
+                  mode: "edit",
+                  template: modal.template,
+                })
+              : setModal({ type: "templates" })
+          }
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            {busy && <BusyOverlay label="Menonaktifkan..." />}
-            <h3>Nonaktifkan template</h3>
+            {busy && (
+              <BusyOverlay
+                label={
+                  modal.permanent ? "Menghapus..." : "Menonaktifkan..."
+                }
+              />
+            )}
+            <h3>
+              {modal.permanent ? "Hapus template" : "Nonaktifkan template"}
+            </h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
               {modal.template.name}
             </p>
-            <p style={{ margin: "0 0 16px" }}>
-              Template akan disembunyikan dari pilihan buat job baru. Job yang
-              sudah memakai template ini tidak berubah. Aktifkan lagi lewat Edit
-              jika perlu.
-            </p>
+            {modal.permanent ? (
+              <p style={{ margin: "0 0 16px" }}>
+                Template akan dihapus permanen dari katalog. Job yang sudah
+                memakai template ini tidak berubah, tetapi template tidak bisa
+                dipilih lagi untuk job baru.
+              </p>
+            ) : (
+              <p style={{ margin: "0 0 16px" }}>
+                Template akan disembunyikan dari pilihan buat job baru. Job
+                yang sudah memakai template ini tidak berubah. Aktifkan lagi
+                lewat Edit jika perlu.
+              </p>
+            )}
             <div className="actions">
               <button
                 className="btn"
-                onClick={() => setModal({ type: "templates" })}
+                onClick={() =>
+                  modal.permanent
+                    ? setModal({
+                        type: "template-form",
+                        mode: "edit",
+                        template: modal.template,
+                      })
+                    : setModal({ type: "templates" })
+                }
               >
                 Kembali
               </button>
@@ -9472,8 +9552,12 @@ export default function HomePage() {
               >
                 <BusyLabel
                   busy={busy}
-                  idle="Ya, nonaktifkan"
-                  pending="Menonaktifkan..."
+                  idle={
+                    modal.permanent ? "Ya, hapus" : "Ya, nonaktifkan"
+                  }
+                  pending={
+                    modal.permanent ? "Menghapus..." : "Menonaktifkan..."
+                  }
                 />
               </button>
             </div>

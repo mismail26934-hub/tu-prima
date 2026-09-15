@@ -828,6 +828,28 @@ export function BoardTopbar({
                   </button>
                 </div>
               )}
+              {!sessionPending && !isLoggedIn && (
+                <div className="nav-sheet-profile-row">
+                  <div className="nav-user nav-user--menu nav-user--guest">
+                    <AccountAvatar url="" size={44} />
+                    <span className="nav-user-text">
+                      <span className="nav-user-name">{t("nav.guest")}</span>
+                      <span className="nav-user-level">{t("nav.guestHint")}</span>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary nav-sheet-login-inline"
+                    disabled={busy || loggingOut}
+                    onClick={() => {
+                      closeMenu();
+                      onLogin();
+                    }}
+                  >
+                    {t("nav.login")}
+                  </button>
+                </div>
+              )}
               <p className="nav-menu-label">{t("nav.appearance")}</p>
               <div className="nav-menu-prefs">
                 <LanguageToggle />
@@ -850,20 +872,7 @@ export function BoardTopbar({
                   label={t("nav.accountLoading")}
                   withAlerts={false}
                 />
-              ) : (
-                !isLoggedIn && (
-                  <button
-                    className="btn btn-primary nav-sheet-login"
-                    disabled={busy || loggingOut}
-                    onClick={() => {
-                      closeMenu();
-                      onLogin();
-                    }}
-                  >
-                    {t("nav.login")}
-                  </button>
-                )
-              )}
+              ) : null}
             </div>
             {sheetAccountOpen && (
               <div

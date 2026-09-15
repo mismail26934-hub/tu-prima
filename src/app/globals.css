@@ -1026,6 +1026,21 @@ html.nav-header-pop-open .top-actions {
   padding: 0;
 }
 
+.nav-user--guest {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 2px;
+}
+
+.nav-sheet-login-inline {
+  flex: 0 0 auto;
+  width: auto !important;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
 .nav-sheet-account-backdrop {
   position: fixed;
   inset: 0;

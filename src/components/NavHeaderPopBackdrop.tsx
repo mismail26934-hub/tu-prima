@@ -41,6 +41,7 @@ export function NavHeaderPopBackdrop({
   open: boolean;
   onClose: () => void;
 }) {
+  const narrow = useIsNarrowNav();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -48,14 +49,14 @@ export function NavHeaderPopBackdrop({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !narrow) return;
     acquireNavHeaderPopLock();
     return () => {
       releaseNavHeaderPopLock();
     };
-  }, [open]);
+  }, [open, narrow]);
 
-  if (!ready || !open) return null;
+  if (!ready || !open || !narrow) return null;
 
   return createPortal(
     <div

@@ -48,18 +48,38 @@ function makeQueryClient() {
   });
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
 const idbStorage = {
   getItem: async (key: string) => {
-    const value = await get(key);
-    if (typeof value === "string") return value;
-    if (value && typeof value === "object") {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return null;
+    const read = (async () => {
+      const value = await get(key);
+      if (typeof value === "string") return value;
+      if (value && typeof value === "object") {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return null;
+        }
       }
-    }
-    return null;
+      return null;
+    })();
+    // Chrome/private mode can hang IndexedDB restore and freeze the board on shimmer.
+    return withTimeout(read, 1500, null);
   },
   setItem: (key: string, value: string) => set(key, value),
   removeItem: (key: string) => del(key),

@@ -805,16 +805,31 @@ export default function HomePage() {
   const t = useT();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const isLoggedIn = sessionStatus === "authenticated";
-  const sessionPending = sessionStatus === "loading";
   const [cachedUser] = useState(
     () => readCachedSession()?.user ?? null
   );
+  const [sessionWaitTimedOut, setSessionWaitTimedOut] = useState(false);
+  useEffect(() => {
+    if (sessionStatus !== "loading") {
+      setSessionWaitTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setSessionWaitTimedOut(true), 4000);
+    return () => clearTimeout(timer);
+  }, [sessionStatus]);
+  const sessionPending = sessionStatus === "loading" && !sessionWaitTimedOut;
   const cachedLevel = String(cachedUser?.level || "");
   const sessionShimmerWithAlerts =
     cachedLevel === "foreman" ||
     cachedLevel === "teknisi" ||
     !cachedUser;
-  const userLevel = session?.user?.level || "guest";
+  const userLevel: UserLevel | "guest" = (() => {
+    const raw = String(session?.user?.level || "guest");
+    if ((USER_LEVELS as readonly string[]).includes(raw)) {
+      return raw as UserLevel;
+    }
+    return "guest";
+  })();
   const userId = String(session?.user?.id || "");
   const showNavAlerts = userLevel === "foreman" || userLevel === "teknisi";
   const [myTechnicianId, setMyTechnicianId] = useState("");
@@ -1017,6 +1032,15 @@ export default function HomePage() {
   const formCategory = useJobFormStore((s) => s.form.category);
 
   const persistRestoring = useIsRestoring();
+  const [restoreGaveUp, setRestoreGaveUp] = useState(false);
+  useEffect(() => {
+    if (!persistRestoring) {
+      setRestoreGaveUp(false);
+      return;
+    }
+    const timer = setTimeout(() => setRestoreGaveUp(true), 2500);
+    return () => clearTimeout(timer);
+  }, [persistRestoring]);
   const {
     data: queryData,
     error: dashboardError,
@@ -5490,7 +5514,7 @@ export default function HomePage() {
       )}
 
       {!data ? (
-        persistRestoring || dashboardFetching ? (
+        dashboardFetching || (persistRestoring && !restoreGaveUp) ? (
           <DashboardShimmer label={t("loading.dashboard")} />
         ) : (
           <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>

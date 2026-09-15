@@ -210,6 +210,7 @@ export function BoardTopbar({
   const manageRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
@@ -237,6 +238,8 @@ export function BoardTopbar({
         document.body.scrollTop ||
         0;
       el.classList.toggle("is-scrolled", scrollY > 4);
+      document.documentElement.classList.toggle("topbar-scrolled", scrollY > 4);
+      setScrolled(scrollY > 4);
       if (height !== lastHeight) {
         lastHeight = height;
         document.documentElement.style.setProperty(
@@ -258,6 +261,7 @@ export function BoardTopbar({
       ro.disconnect();
       window.removeEventListener("resize", sync);
       window.removeEventListener("scroll", sync);
+      document.documentElement.classList.remove("topbar-scrolled");
     };
   }, []);
 
@@ -465,7 +469,10 @@ export function BoardTopbar({
     <>
       {portalReady &&
         createPortal(
-          <div className="topbar-glass" aria-hidden="true" />,
+          <div
+            className={`topbar-glass${scrolled ? " is-scrolled" : ""}`}
+            aria-hidden="true"
+          />,
           document.body
         )}
       <NavHeaderPopBackdrop

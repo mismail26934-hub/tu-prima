@@ -9214,14 +9214,16 @@ export default function HomePage() {
           onClick={() => setModal({ type: "templates" })}
         >
           <div
-            className="modal"
-            style={{ width: "min(820px, 100%)" }}
+            className="modal modal-template-form"
             onClick={(e) => e.stopPropagation()}
           >
             {busy && <BusyOverlay label="Menyimpan..." />}
-            <h3>
-              {modal.mode === "create" ? "Template baru" : "Edit template"}
-            </h3>
+            <div className="modal-header">
+              <h3>
+                {modal.mode === "create" ? "Template baru" : "Edit template"}
+              </h3>
+            </div>
+            <div className="modal-body">
             {error && <div className="error">{error}</div>}
             <div className="form">
               <label>
@@ -9289,106 +9291,97 @@ export default function HomePage() {
                   </select>
                 </label>
               )}
-              <p style={{ color: "var(--muted)", margin: "0 0 8px" }}>
+              <p className="template-form-meta">
                 Total estimasi: <strong>{formatStdLabel(templateFormStdMinutes)}</strong>
                 {" · "}
                 {templateForm.steps.length} step
               </p>
-              <div
-                className="check-list"
-                style={{ maxHeight: 280, marginBottom: 8 }}
-              >
+              <div className="template-step-table">
+                <div className="template-step-head" aria-hidden="true">
+                  <span>Phase</span>
+                  <span>Nama step</span>
+                  <span>No</span>
+                  <span>MP</span>
+                  <span>Mnt</span>
+                  <span />
+                </div>
                 {templateForm.steps.map((step, index) => (
                   <div
                     key={step.id || `new-${index}`}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1.4fr 64px 72px 72px auto",
-                      gap: 6,
-                      alignItems: "end",
-                      padding: "6px 0",
-                      borderBottom: "1px dashed var(--line-dashed)",
-                    }}
+                    className="template-step-row"
                   >
-                    <label style={{ margin: 0 }}>
-                      Phase
-                      <input
-                        value={step.phase}
-                        onChange={(e) => {
-                          const steps = [...templateForm.steps];
-                          steps[index] = { ...step, phase: e.target.value };
-                          setTemplateForm({ ...templateForm, steps });
-                        }}
-                        placeholder="Receive"
-                      />
-                    </label>
-                    <label style={{ margin: 0 }}>
-                      Nama step
-                      <input
-                        value={step.name}
-                        onChange={(e) => {
-                          const steps = [...templateForm.steps];
-                          steps[index] = { ...step, name: e.target.value };
-                          setTemplateForm({ ...templateForm, steps });
-                        }}
-                        placeholder="Unpacking"
-                        required
-                      />
-                    </label>
-                    <label style={{ margin: 0 }}>
-                      Order
-                      <input
-                        type="number"
-                        min={1}
-                        value={step.order}
-                        onChange={(e) => {
-                          const steps = [...templateForm.steps];
-                          steps[index] = {
-                            ...step,
-                            order: Number(e.target.value) || index + 1,
-                          };
-                          setTemplateForm({ ...templateForm, steps });
-                        }}
-                      />
-                    </label>
-                    <label style={{ margin: 0 }}>
-                      MP
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.5}
-                        value={step.man_power}
-                        onChange={(e) => {
-                          const steps = [...templateForm.steps];
-                          steps[index] = {
-                            ...step,
-                            man_power: Number(e.target.value) || 0,
-                          };
-                          setTemplateForm({ ...templateForm, steps });
-                        }}
-                      />
-                    </label>
-                    <label style={{ margin: 0 }}>
-                      Mnt
-                      <input
-                        type="number"
-                        min={0}
-                        value={step.std_minutes}
-                        onChange={(e) => {
-                          const steps = [...templateForm.steps];
-                          steps[index] = {
-                            ...step,
-                            std_minutes: Number(e.target.value) || 0,
-                          };
-                          setTemplateForm({ ...templateForm, steps });
-                        }}
-                      />
-                    </label>
+                    <input
+                      aria-label={`Phase ${index + 1}`}
+                      value={step.phase}
+                      onChange={(e) => {
+                        const steps = [...templateForm.steps];
+                        steps[index] = { ...step, phase: e.target.value };
+                        setTemplateForm({ ...templateForm, steps });
+                      }}
+                      placeholder="Receive"
+                    />
+                    <input
+                      aria-label={`Nama step ${index + 1}`}
+                      value={step.name}
+                      onChange={(e) => {
+                        const steps = [...templateForm.steps];
+                        steps[index] = { ...step, name: e.target.value };
+                        setTemplateForm({ ...templateForm, steps });
+                      }}
+                      placeholder="Unpacking"
+                      required
+                    />
+                    <input
+                      className="template-step-num"
+                      aria-label={`Urutan ${index + 1}`}
+                      type="number"
+                      min={1}
+                      value={step.order}
+                      onChange={(e) => {
+                        const steps = [...templateForm.steps];
+                        steps[index] = {
+                          ...step,
+                          order: Number(e.target.value) || index + 1,
+                        };
+                        setTemplateForm({ ...templateForm, steps });
+                      }}
+                    />
+                    <input
+                      className="template-step-num"
+                      aria-label={`Man power ${index + 1}`}
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={step.man_power}
+                      onChange={(e) => {
+                        const steps = [...templateForm.steps];
+                        steps[index] = {
+                          ...step,
+                          man_power: Number(e.target.value) || 0,
+                        };
+                        setTemplateForm({ ...templateForm, steps });
+                      }}
+                    />
+                    <input
+                      className="template-step-num"
+                      aria-label={`Menit ${index + 1}`}
+                      type="number"
+                      min={0}
+                      value={step.std_minutes}
+                      onChange={(e) => {
+                        const steps = [...templateForm.steps];
+                        steps[index] = {
+                          ...step,
+                          std_minutes: Number(e.target.value) || 0,
+                        };
+                        setTemplateForm({ ...templateForm, steps });
+                      }}
+                    />
                     <button
                       type="button"
-                      className="btn btn-danger"
-                      style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                      className="btn btn-danger template-step-remove"
                       disabled={templateForm.steps.length <= 1}
+                      aria-label={`Hapus step ${index + 1}`}
                       onClick={() => {
                         const steps = templateForm.steps
                           .filter((_, i) => i !== index)
@@ -9401,9 +9394,12 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
+            </div>
+            </div>
+            <div className="template-form-footer">
               <button
                 type="button"
-                className="btn"
+                className="btn template-step-add"
                 onClick={() =>
                   setTemplateForm({
                     ...templateForm,

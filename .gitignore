@@ -12,3 +12,6 @@ data/user-photos/*
 .env*
 .env.local
 .env*.local
+certs/*.pem
+certs/*.key
+certs/lan-san.txt

@@ -1387,16 +1387,17 @@ html.nav-header-pop-open .top-actions {
 @media (max-width: 560px) {
   .summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
   }
 
   .stat {
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    gap: 8px;
-    min-height: 92px;
-    padding: 12px 10px 10px;
+    gap: 6px;
+    min-height: 0;
+    height: auto;
+    padding: 8px 8px 8px;
     border-left-width: 3px;
     border-radius: 14px;
   }
@@ -1413,7 +1414,9 @@ html.nav-header-pop-open .top-actions {
   }
 
   .stat-body {
-    gap: 4px;
+    flex: none;
+    justify-content: flex-start;
+    gap: 2px;
     width: 100%;
   }
 
@@ -1428,19 +1431,20 @@ html.nav-header-pop-open .top-actions {
   }
 
   .stat .value {
-    font-size: 1.45rem;
+    font-size: 1.25rem;
     letter-spacing: 0.01em;
+    line-height: 1;
   }
 }
 
 @media (max-width: 380px) {
   .summary {
-    gap: 4px;
+    gap: 8px;
   }
 
   .stat {
-    padding: 7px 6px 7px 8px;
-    gap: 5px;
+    padding: 8px 6px;
+    gap: 4px;
   }
 
   .stat-icon {
@@ -5426,14 +5430,29 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
   }
 
   .summary-wrap {
-    gap: 18px;
-    margin-bottom: 18px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .summary-title {
     font-size: 0.78rem;
     letter-spacing: 0.14em;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+  }
+
+  .summary {
+    gap: 10px;
+    align-items: start;
+  }
+
+  .stat {
+    min-height: 0;
+    height: auto;
+  }
+
+  .stat-body {
+    flex: none;
+    justify-content: flex-start;
   }
 
   .tech,
@@ -5446,10 +5465,12 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
   .job {
     contain-intrinsic-size: 1px 420px;
     padding: 16px;
+    margin-bottom: 16px;
   }
 
   .tech {
     padding: 12px 14px;
+    margin-bottom: 12px;
   }
 
   .tech .name {

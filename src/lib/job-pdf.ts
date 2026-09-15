@@ -258,7 +258,9 @@ async function fetchPdfBytes(url: string): Promise<Uint8Array | null> {
 }
 
 function triggerPdfDownload(bytes: Uint8Array, fileName: string) {
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const blob = new Blob([copy], { type: "application/pdf" });
   const href = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = href;

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useIsRestoring } from "@tanstack/react-query";
 import { signOut, useSession } from "next-auth/react";
 import type {
@@ -57,11 +56,9 @@ import {
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { OfflineSyncChip } from "@/components/OfflineSyncChip";
-import { NavAlerts } from "@/components/NavAlerts";
-import { RemainAlertMuteToggle } from "@/components/RemainAlertMuteToggle";
+import { BoardTopbar } from "@/components/BoardTopbar";
 import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
+import { TechnicianCard } from "@/components/TechnicianCard";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
 import { SliderActiveStepScroll } from "@/components/SliderActiveStepScroll";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -318,7 +315,8 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function LiveTimer({ job }: { job: JobWithDetails }) {
-  const [sec, setSec] = useState(() => calcElapsedSec(job));
+  // Start at 0 so SSR and first client paint match (avoid Date.now hydration mismatch).
+  const [sec, setSec] = useState(0);
   useEffect(() => {
     setSec(calcElapsedSec(job));
     if (!["in_progress", "paused"].includes(job.status)) return;
@@ -331,7 +329,7 @@ function LiveTimer({ job }: { job: JobWithDetails }) {
 /** Remaining vs estimate; card tone from remaining % of estimate. */
 function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   const t = useT();
-  const [elapsed, setElapsed] = useState(() => calcElapsedSec(job));
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     setElapsed(calcElapsedSec(job));
     if (!["in_progress", "paused"].includes(job.status)) return;
@@ -386,7 +384,7 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
 
 function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; running: boolean }) {
   const t = useT();
-  const [sec, setSec] = useState(() => calcStepElapsedSec(step));
+  const [sec, setSec] = useState(0);
   useEffect(() => {
     setSec(calcStepElapsedSec(step));
     if (!running || step.status !== "in_progress") return;
@@ -996,9 +994,6 @@ export default function HomePage() {
   const [handoverToLoading, setHandoverToLoading] = useState(false);
   const [assignPickerPage, setAssignPickerPage] = useState(1);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
-  const [sessionOpen, setSessionOpen] = useState(false);
   const [unitForm, setUnitForm] = useState({
     code: "",
     name: "",
@@ -1139,48 +1134,6 @@ export default function HomePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [hideTechPanel, setHideTechPanel] = useState(false);
   const [hideJobPanel, setHideJobPanel] = useState(false);
-  const topbarRef = useRef<HTMLElement>(null);
-  const manageRef = useRef<HTMLDivElement>(null);
-  const sessionRef = useRef<HTMLDivElement>(null);
-  const [topbarScrolled, setTopbarScrolled] = useState(false);
-  const [topbarHeightPx, setTopbarHeightPx] = useState(0);
-  const [glassPortalReady, setGlassPortalReady] = useState(false);
-
-  useEffect(() => {
-    if (!manageOpen) return;
-    function onDocClick(e: MouseEvent) {
-      if (manageRef.current && !manageRef.current.contains(e.target as Node)) {
-        setManageOpen(false);
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setManageOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [manageOpen]);
-
-  useEffect(() => {
-    if (!sessionOpen || mobileMenuOpen) return;
-    function onDocClick(e: MouseEvent) {
-      if (sessionRef.current && !sessionRef.current.contains(e.target as Node)) {
-        setSessionOpen(false);
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setSessionOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [sessionOpen, mobileMenuOpen]);
 
   useEffect(() => {
     if (!isLoggedIn || !userId) {
@@ -1206,88 +1159,12 @@ export default function HomePage() {
   }, [isLoggedIn, userId]);
 
   useEffect(() => {
-    if (mobileMenuOpen) {
-      setManageOpen(false);
-      setSessionOpen(false);
-    }
-  }, [mobileMenuOpen]);
-
-  useEffect(() => {
-    if (modal) {
-      setManageOpen(false);
-      setSessionOpen(false);
-    }
-  }, [modal]);
-
-  useEffect(() => {
-    setGlassPortalReady(true);
-  }, []);
-
-  useEffect(() => {
-    const el = topbarRef.current;
-    if (!el) return;
-    const sync = () => {
-      const height = Math.ceil(el.getBoundingClientRect().height);
-      const bottom = Math.ceil(el.getBoundingClientRect().bottom);
-      const scrollY =
-        window.scrollY ||
-        document.documentElement.scrollTop ||
-        document.body.scrollTop ||
-        0;
-      const scrolled = scrollY > 4;
-      document.documentElement.style.setProperty(
-        "--topbar-height",
-        `${height}px`
-      );
-      document.documentElement.style.setProperty(
-        "--topbar-offset",
-        `${bottom + 8}px`
-      );
-      el.classList.toggle("is-scrolled", scrolled);
-      setTopbarScrolled(scrolled);
-      setTopbarHeightPx(height);
-    };
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(el);
-    window.addEventListener("resize", sync);
-    window.addEventListener("scroll", sync, { passive: true });
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", sync);
-      window.removeEventListener("scroll", sync);
-    };
-  }, []);
-
-  useEffect(() => {
     const open = modal != null;
     document.documentElement.classList.toggle("modal-open", open);
-    const el = topbarRef.current;
-    if (open && el) {
-      const bottom = Math.ceil(el.getBoundingClientRect().bottom);
-      document.documentElement.style.setProperty(
-        "--topbar-offset",
-        `${bottom + 8}px`
-      );
-    }
     return () => {
       document.documentElement.classList.remove("modal-open");
     };
   }, [modal]);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("menu-open", mobileMenuOpen);
-    if (mobileMenuOpen && topbarRef.current) {
-      const bottom = Math.ceil(topbarRef.current.getBoundingClientRect().bottom);
-      document.documentElement.style.setProperty(
-        "--topbar-offset",
-        `${bottom + 8}px`
-      );
-    }
-    return () => {
-      document.documentElement.classList.remove("menu-open");
-    };
-  }, [mobileMenuOpen]);
 
   function openUnitCreate() {
     setUnitForm({ code: "", name: "", serial_number: "", active: "1" });
@@ -3083,8 +2960,6 @@ export default function HomePage() {
 
   function openLogoutConfirm() {
     setError("");
-    setSessionOpen(false);
-    setMobileMenuOpen(false);
     setModal({ type: "logout" });
   }
 
@@ -4371,12 +4246,12 @@ export default function HomePage() {
     }
   }
 
-  function openTechStatusModal(tech: Technician) {
+  const openTechStatusModal = useCallback((tech: Technician) => {
     if (!canSetTechPresence || tech.status === "busy") return;
     const nextStatus: Exclude<TechnicianStatus, "busy"> =
       tech.status === "available" ? "offline" : "available";
     setModal({ type: "tech-status", tech, nextStatus });
-  }
+  }, [canSetTechPresence]);
 
   function renderJob(job: JobWithDetails) {
     const manage = canManageJob(job);
@@ -5556,631 +5431,46 @@ export default function HomePage() {
 
   return (
     <>
-      {glassPortalReady &&
-        createPortal(
-          <div
-            className="topbar-glass"
-            aria-hidden="true"
-            style={
-              topbarHeightPx > 0
-                ? { height: `${topbarHeightPx}px` }
-                : undefined
-            }
-          />,
-          document.body
-        )}
-      <header className="topbar" ref={topbarRef}>
-        <div>
-          <div className="brand">
-            <div className="brand-row">
-              {t("app.title")}
-              <OfflineSyncChip
-                onRefresh={refreshDashboard}
-                refreshBusy={busy}
-              />
-            </div>
-            <span>{t("brand.tagline")}</span>
-          </div>
-        </div>
-        <div className="top-actions">
-          <div className="top-actions-panel top-actions-panel--bar">
-            <div className={`nav-manage${manageOpen ? " is-open" : ""}`} ref={manageRef}>
-              <button
-                className="btn"
-                type="button"
-                disabled={busy}
-                aria-haspopup="menu"
-                aria-expanded={manageOpen}
-                onClick={() => {
-                  setSessionOpen(false);
-                  setManageOpen((o) => !o);
-                }}
-              >
-                {t("nav.manage")}
-                <svg
-                  className="nav-manage-caret"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-              {manageOpen && (
-                <div className="nav-manage-menu" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy}
-                    onClick={() => {
-                      setManageOpen(false);
-                      setModal({ type: "settings" });
-                    }}
-                  >
-                    {t("nav.settings")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy}
-                    onClick={() => {
-                      setManageOpen(false);
-                      setTechImportMsg("");
-                      setModal({ type: "techs" });
-                    }}
-                  >
-                    {t("nav.technicians")}
-                  </button>
-                  {userLevel === "superuser" && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="nav-manage-item"
-                      disabled={busy}
-                      onClick={() => {
-                        setManageOpen(false);
-                        openUsersMaster();
-                      }}
-                    >
-                      {t("nav.usersMaster")}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy || !canUnitRead}
-                    onClick={() => {
-                      setManageOpen(false);
-                      setModal({ type: "units" });
-                    }}
-                  >
-                    {t("nav.unitsMaster")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy || !canTemplateRead}
-                    onClick={() => {
-                      setManageOpen(false);
-                      openTemplatesMaster();
-                    }}
-                  >
-                    {t("nav.templatesMaster")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy}
-                    onClick={() => {
-                      setManageOpen(false);
-                      setModal({ type: "attendance" });
-                    }}
-                  >
-                    {t("nav.attendance")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="nav-manage-item"
-                    disabled={busy || !isLoggedIn}
-                    title={
-                      isLoggedIn
-                        ? t("nav.exportExcelTip")
-                        : t("nav.exportNeedLogin")
-                    }
-                    onClick={() => {
-                      setManageOpen(false);
-                      openExportJobsModal();
-                    }}
-                  >
-                    {t("nav.exportExcel")}
-                  </button>
-                  {userLevel === "superuser" && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="nav-manage-item"
-                      disabled={busy}
-                      title="Riwayat backup perubahan job (undo)"
-                      onClick={() => {
-                        setManageOpen(false);
-                        void openJobBackupsModal();
-                      }}
-                    >
-                      Backup / Undo
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            <button
-              className="btn btn-icon"
-              disabled={busy}
-              type="button"
-              onClick={refreshDashboard}
-              aria-label={t("nav.refresh")}
-              title={t("nav.refresh")}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M21 12a9 9 0 1 1-2.1-5.7" />
-                <path d="M21 3v6h-6" />
-              </svg>
-            </button>
-            <LanguageToggle />
-            <button
-              className="btn btn-icon"
-              type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
-              title={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
-            >
-              {theme === "dark" ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
-                </svg>
-              )}
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={busy || !canJobCreate}
-              onClick={() => openCreate()}
-            >
-              {t("nav.newJob")}
-            </button>
-            <div className="nav-end">
-              {sessionPending ? (
-                <NavAccountShimmer
-                  label={t("nav.accountLoading")}
-                  withAlerts={sessionShimmerWithAlerts}
-                />
-              ) : (
-                <>
-                  {isLoggedIn ? (
-                    <RemainAlertMuteToggle
-                      onBeforeOpen={() => {
-                        setManageOpen(false);
-                        setSessionOpen(false);
-                      }}
-                    />
-                  ) : null}
-                  <NavAlerts
-                    enabled={showNavAlerts}
-                    onBeforeOpen={() => {
-                      setManageOpen(false);
-                      setSessionOpen(false);
-                    }}
-                    onOpenJob={(jobId, kind) => {
-                      setManageOpen(false);
-                      setSessionOpen(false);
-                      jobDeepLink.open(jobId, {
-                        focus: kind === "handover" ? "handover" : "",
-                      });
-                    }}
-                  />
-                  <div className="nav-session">
-                    {isLoggedIn ? (
-                      <div
-                        className={`nav-session-menu${sessionOpen ? " is-open" : ""}`}
-                        ref={sessionRef}
-                      >
-                        <button
-                          className="btn nav-account"
-                          type="button"
-                          disabled={busy || loggingOut}
-                          aria-label={t("nav.accountMenu")}
-                          aria-haspopup="menu"
-                          aria-expanded={sessionOpen}
-                          title={`${displayName} · ${userLevel}`}
-                          onClick={() => {
-                            setManageOpen(false);
-                            setSessionOpen((open) => !open);
-                          }}
-                        >
-                          <span className="nav-user">
-                            <span className="nav-user-name">{displayNameShort}</span>
-                            <span className="nav-user-level">{userLevel}</span>
-                          </span>
-                          <AccountAvatar url={avatarUrl} size={28} />
-                        </button>
-                        {sessionOpen && (
-                          <div className="nav-manage-menu" role="menu">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="nav-manage-item"
-                              disabled={busy || loggingOut}
-                              onClick={() => {
-                                setSessionOpen(false);
-                                void openEditProfile();
-                              }}
-                            >
-                              {t("nav.editProfile")}
-                            </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="nav-manage-item"
-                              disabled={busy || loggingOut}
-                              onClick={() => {
-                                setSessionOpen(false);
-                                openChangePassword();
-                              }}
-                            >
-                              {t("nav.editPassword")}
-                            </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="nav-manage-item"
-                              disabled={busy || loggingOut}
-                              onClick={() => {
-                                setSessionOpen(false);
-                                openLogoutConfirm();
-                              }}
-                            >
-                              {t("nav.logout")}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <button
-                        className="btn"
-                        disabled={busy || loggingOut}
-                        onClick={handleAuthClick}
-                      >
-                        {t("nav.login")}
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="top-actions-mobile">
-            <button
-              className="btn btn-primary"
-              disabled={busy || !canJobCreate}
-              onClick={() => openCreate()}
-            >
-              {t("nav.newJobShort")}
-            </button>
-            <button
-              className="btn btn-icon"
-              type="button"
-              disabled={busy}
-              onClick={refreshDashboard}
-              aria-label={t("nav.refresh")}
-              title={t("nav.refresh")}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M21 12a9 9 0 1 1-2.1-5.7" />
-                <path d="M21 3v6h-6" />
-              </svg>
-            </button>
-            {sessionPending ? (
-              sessionShimmerWithAlerts ? (
-                <span className="nav-session-shimmer" aria-hidden="true">
-                  <ShimmerBlock className="shimmer-block--nav-icon" />
-                  <ShimmerBlock className="shimmer-block--nav-icon" />
-                </span>
-              ) : (
-                <ShimmerBlock className="shimmer-block--nav-icon" />
-              )
-            ) : (
-              <>
-                {isLoggedIn ? (
-                  <RemainAlertMuteToggle
-                    onBeforeOpen={() => {
-                      setSessionOpen(false);
-                      setMobileMenuOpen(false);
-                    }}
-                  />
-                ) : null}
-                <NavAlerts
-                  enabled={showNavAlerts}
-                  onBeforeOpen={() => {
-                    setSessionOpen(false);
-                    setMobileMenuOpen(false);
-                  }}
-                  onOpenJob={(jobId, kind) => {
-                    setMobileMenuOpen(false);
-                    jobDeepLink.open(jobId, {
-                      focus: kind === "handover" ? "handover" : "",
-                    });
-                  }}
-                />
-              </>
-            )}
-            <button
-              className="btn btn-icon top-menu-toggle"
-              type="button"
-              aria-label={mobileMenuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
-              aria-expanded={mobileMenuOpen}
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent("prima-header-pop", { detail: "menu" })
-                );
-                setMobileMenuOpen((o) => !o);
-              }}
-            >
-              {mobileMenuOpen ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <path d="M4 7h16M4 12h16M4 17h16" />
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {mobileMenuOpen && (
-        <>
-          <div
-            className="top-menu-backdrop"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="top-actions-panel top-actions-panel--float is-open">
-            {displayName && (
-              <div
-                className="nav-user nav-user--menu"
-                title={`${displayName} · ${userLevel}`}
-              >
-                <span className="nav-user-text">
-                  <span className="nav-user-name">{displayNameShort}</span>
-                  <span className="nav-user-level">{userLevel}</span>
-                </span>
-                {isLoggedIn && (
-                  <button
-                    className="btn btn-icon"
-                    style={{ width: 28, height: 28, minWidth: 28, padding: 0, overflow: "hidden" }}
-                    type="button"
-                    disabled={busy || loggingOut}
-                    aria-label={t("nav.accountMenu")}
-                    aria-expanded={sessionOpen}
-                    title={t("nav.accountMenu")}
-                    onClick={() => setSessionOpen((open) => !open)}
-                  >
-                    <AccountAvatar url={avatarUrl} size={28} />
-                  </button>
-                )}
-              </div>
-            )}
-            {isLoggedIn && sessionOpen && (
-              <div className="nav-session-actions">
-                <button
-                  className="btn"
-                  disabled={busy || loggingOut}
-                  onClick={() => {
-                    setSessionOpen(false);
-                    setMobileMenuOpen(false);
-                    void openEditProfile();
-                  }}
-                >
-                  {t("nav.editProfile")}
-                </button>
-                <button
-                  className="btn"
-                  disabled={busy || loggingOut}
-                  onClick={() => {
-                    setSessionOpen(false);
-                    setMobileMenuOpen(false);
-                    openChangePassword();
-                  }}
-                >
-                  {t("nav.editPassword")}
-                </button>
-                <button
-                  className="btn"
-                  disabled={busy || loggingOut}
-                  onClick={() => {
-                    setSessionOpen(false);
-                    setMobileMenuOpen(false);
-                    openLogoutConfirm();
-                  }}
-                >
-                  {t("nav.logout")}
-                </button>
-              </div>
-            )}
-            <p className="nav-menu-label">{t("nav.language")}</p>
-            <div className="nav-menu-prefs">
-              <LanguageToggle />
-              <button
-                className="btn btn-icon"
-                type="button"
-                onClick={toggleTheme}
-                aria-label={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
-                title={theme === "dark" ? t("nav.lightMode") : t("nav.darkMode")}
-              >
-                {theme === "dark" ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            <p className="nav-menu-label">{t("nav.manage")}</p>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setModal({ type: "settings" });
-              }}
-            >
-              {t("nav.settings")}
-            </button>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setTechImportMsg("");
-                setModal({ type: "techs" });
-              }}
-            >
-              {t("nav.technicians")}
-            </button>
-            {userLevel === "superuser" && (
-              <button
-                className="btn"
-                disabled={busy}
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openUsersMaster();
-                }}
-              >
-                {t("nav.usersMaster")}
-              </button>
-            )}
-            <button
-              className="btn"
-              disabled={busy || !canUnitRead}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setModal({ type: "units" });
-              }}
-            >
-              {t("nav.unitsMaster")}
-            </button>
-            <button
-              className="btn"
-              disabled={busy || !canTemplateRead}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                openTemplatesMaster();
-              }}
-            >
-              {t("nav.templatesMaster")}
-            </button>
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setModal({ type: "attendance" });
-              }}
-            >
-              {t("nav.attendance")}
-            </button>
-            <button
-              className="btn"
-              disabled={busy || !isLoggedIn}
-              title={
-                isLoggedIn
-                  ? t("nav.exportExcelTip")
-                  : t("nav.exportNeedLogin")
-              }
-              onClick={() => {
-                setMobileMenuOpen(false);
-                openExportJobsModal();
-              }}
-            >
-              {t("nav.exportExcel")}
-            </button>
-            {userLevel === "superuser" && (
-              <button
-                className="btn"
-                disabled={busy}
-                title="Riwayat backup perubahan job (undo)"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  void openJobBackupsModal();
-                }}
-              >
-                Backup / Undo
-              </button>
-            )}
-            {sessionPending ? (
-              <NavAccountShimmer
-                label={t("nav.accountLoading")}
-                withAlerts={false}
-              />
-            ) : (
-              !isLoggedIn && (
-              <button
-                className="btn"
-                disabled={busy || loggingOut}
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleAuthClick();
-                }}
-              >
-                {t("nav.login")}
-              </button>
-              )
-            )}
-          </div>
-        </>
-      )}
+      <BoardTopbar
+        busy={busy}
+        loggingOut={loggingOut}
+        theme={theme}
+        isLoggedIn={isLoggedIn}
+        sessionPending={sessionPending}
+        sessionShimmerWithAlerts={sessionShimmerWithAlerts}
+        showNavAlerts={showNavAlerts}
+        userLevel={userLevel}
+        displayName={displayName}
+        displayNameShort={displayNameShort}
+        avatarUrl={avatarUrl}
+        canJobCreate={canJobCreate}
+        canUnitRead={canUnitRead}
+        canTemplateRead={canTemplateRead}
+        modalOpen={modal != null}
+        onRefresh={refreshDashboard}
+        onToggleTheme={toggleTheme}
+        onNewJob={() => openCreate()}
+        onSettings={() => setModal({ type: "settings" })}
+        onTechnicians={() => {
+          setTechImportMsg("");
+          setModal({ type: "techs" });
+        }}
+        onUsersMaster={openUsersMaster}
+        onUnitsMaster={() => setModal({ type: "units" })}
+        onTemplatesMaster={openTemplatesMaster}
+        onAttendance={() => setModal({ type: "attendance" })}
+        onExportExcel={openExportJobsModal}
+        onJobBackups={() => void openJobBackupsModal()}
+        onEditProfile={() => void openEditProfile()}
+        onChangePassword={openChangePassword}
+        onLogout={openLogoutConfirm}
+        onLogin={handleAuthClick}
+        onOpenJob={(jobId, kind) => {
+          jobDeepLink.open(jobId, {
+            focus: kind === "handover" ? "handover" : "",
+          });
+        }}
+      />
 
       <main className="app">
       {loggingOut && (
@@ -6378,30 +5668,15 @@ export default function HomePage() {
                     {query.isLoading && pageItems.length === 0 && (
                       <div className="meta">Memuat...</div>
                     )}
-                    {pageItems.map((t) => {
-                      return (
-                        <div className="tech" key={t.id}>
-                          <div className="name">{t.name}</div>
-                          <div className="meta">
-                            {t.sn}
-                            {t.current_job_title ? ` · ${t.current_job_title}` : ""}
-                          </div>
-                          <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <StatusPill status={t.status} />
-                            {t.status !== "busy" && (
-                              <button
-                                className="btn btn-ghost"
-                                style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-                                disabled={busy || !canSetTechPresence}
-                                onClick={() => openTechStatusModal(t)}
-                              >
-                                {t.status === "available" ? "Set offline" : "Set available"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {pageItems.map((tech) => (
+                      <TechnicianCard
+                        key={tech.id}
+                        tech={tech}
+                        busy={busy}
+                        canSetTechPresence={canSetTechPresence}
+                        onStatus={openTechStatusModal}
+                      />
+                    ))}
                     {!query.isLoading && pageItems.length === 0 && (
                       <div className="meta">
                         {techQuery ? "Tidak cocok" : "Tidak ada"}

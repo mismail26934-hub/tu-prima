@@ -28,15 +28,26 @@ async function loadDashboard(): Promise<DashboardData> {
   }
 }
 
+function isNarrowBoard() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 720px)").matches
+  );
+}
+
 export function useDashboard() {
   return useQuery({
     queryKey: queryKeys.dashboard,
     queryFn: loadDashboard,
     staleTime: 5_000,
     gcTime: 1000 * 60 * 60 * 24 * 7,
-    refetchInterval: () => (shouldHoldServerRefresh() ? false : 8_000),
+    refetchInterval: () => {
+      if (shouldHoldServerRefresh()) return false;
+      return isNarrowBoard() ? 20_000 : 8_000;
+    },
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: () => !shouldHoldServerRefresh(),
+    refetchOnWindowFocus: () =>
+      !shouldHoldServerRefresh() && !isNarrowBoard(),
     refetchOnReconnect: () => !shouldHoldServerRefresh(),
     refetchOnMount: () => !shouldHoldServerRefresh(),
     retry: false,

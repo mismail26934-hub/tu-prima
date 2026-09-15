@@ -8,6 +8,7 @@ import {
   navAlertTotal,
   type NavAlertItem,
 } from "@/lib/nav-alerts";
+import { NavHeaderPopBackdrop } from "@/components/NavHeaderPopBackdrop";
 
 type Props = {
   enabled: boolean;
@@ -91,20 +92,11 @@ export function NavAlerts({
 
   useEffect(() => {
     if (!open || variant === "menu") return;
-    function onDocClick(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, variant, controlled]);
 
   if (!enabled) return null;
@@ -175,6 +167,7 @@ export function NavAlerts({
       className={`nav-alerts${open ? " is-open" : ""}`}
       ref={wrapRef}
     >
+      <NavHeaderPopBackdrop open={open} onClose={() => setOpen(false)} />
       <button
         className="btn btn-icon nav-alerts-btn"
         type="button"

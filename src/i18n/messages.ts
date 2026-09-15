@@ -21,9 +21,12 @@ const id = {
   "nav.exportExcel": "Export to excel",
   "nav.exportExcelTip": "Export Excel job aktif / antrian",
   "nav.exportNeedLogin": "Login untuk export laporan",
-  "nav.editPassword": "Edit password",
+  "nav.editPassword": "Ubah password",
   "nav.editProfile": "Edit profil",
   "nav.accountMenu": "Menu akun",
+  "nav.appearance": "Tampilan",
+  "nav.account": "Akun",
+  "nav.backupUndo": "Backup / Undo",
 
   "profile.title": "Update profil",
   "profile.hint": "Ubah nama tampilan, email, dan nomor telepon akun Anda.",
@@ -373,6 +376,9 @@ const en: Record<MessageKey, string> = {
   "nav.editPassword": "Edit password",
   "nav.editProfile": "Edit profile",
   "nav.accountMenu": "Account menu",
+  "nav.appearance": "Appearance",
+  "nav.account": "Account",
+  "nav.backupUndo": "Backup / Undo",
 
   "profile.title": "Update profile",
   "profile.hint": "Change your display name, email, and phone number.",

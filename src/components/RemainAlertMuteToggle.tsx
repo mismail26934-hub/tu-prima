@@ -13,6 +13,7 @@ import {
   MIN_PCT_STEP,
   useRemainAlertStore,
 } from "@/store/remainAlertStore";
+import { NavHeaderPopBackdrop } from "@/components/NavHeaderPopBackdrop";
 
 type Props = {
   variant?: "bar" | "menu";
@@ -182,20 +183,11 @@ export function RemainAlertMuteToggle({
 
   useEffect(() => {
     if (!open || variant === "menu") return;
-    function onDocClick(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, variant, controlled]);
 
   const title = t("nav.alertSoundSettings");
@@ -214,6 +206,7 @@ export function RemainAlertMuteToggle({
       className={`remain-alert-settings${open ? " is-open" : ""}`}
       ref={wrapRef}
     >
+      <NavHeaderPopBackdrop open={open} onClose={() => setOpen(false)} />
       <button
         className={`btn btn-icon remain-alert-mute${muted ? " is-muted" : ""}`}
         type="button"

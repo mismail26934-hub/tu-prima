@@ -81,7 +81,7 @@ import type { StepPhotoDraft } from "@/lib/step-photo-client";
 import { compressAvatarFile } from "@/lib/step-photo-client";
 import type { StepNotePdfDraft } from "@/lib/step-note-file-client";
 import { useDashboard } from "@/hooks/useDashboard";
-import { writeCachedSession } from "@/lib/offline/session-cache";
+import { readCachedSession, writeCachedSession } from "@/lib/offline/session-cache";
 import {
   readBoardSnapshot,
   writeBoardSnapshot,
@@ -521,6 +521,38 @@ function ShimmerBlock({ className = "" }: { className?: string }) {
   return <span className={`shimmer-block ${className}`.trim()} aria-hidden="true" />;
 }
 
+function NavAccountShimmer({
+  label,
+  withAlerts = true,
+}: {
+  label: string;
+  withAlerts?: boolean;
+}) {
+  return (
+    <div
+      className="nav-session-shimmer"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <span className="sr-only">{label}</span>
+      {withAlerts ? (
+        <>
+          <ShimmerBlock className="shimmer-block--nav-icon" />
+          <ShimmerBlock className="shimmer-block--nav-icon" />
+        </>
+      ) : null}
+      <span className="nav-account-shimmer" aria-hidden="true">
+        <span className="nav-user">
+          <ShimmerBlock className="shimmer-block--nav-name" />
+          <ShimmerBlock className="shimmer-block--nav-level" />
+        </span>
+        <ShimmerBlock className="shimmer-block--nav-avatar" />
+      </span>
+    </div>
+  );
+}
+
 function DashboardShimmer({ label }: { label: string }) {
   return (
     <div className="dashboard-shimmer" role="status" aria-live="polite" aria-busy="true">
@@ -775,6 +807,15 @@ export default function HomePage() {
   const t = useT();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const isLoggedIn = sessionStatus === "authenticated";
+  const sessionPending = sessionStatus === "loading";
+  const [cachedUser] = useState(
+    () => readCachedSession()?.user ?? null
+  );
+  const cachedLevel = String(cachedUser?.level || "");
+  const sessionShimmerWithAlerts =
+    cachedLevel === "foreman" ||
+    cachedLevel === "teknisi" ||
+    !cachedUser;
   const userLevel = session?.user?.level || "guest";
   const userId = String(session?.user?.id || "");
   const showNavAlerts = userLevel === "foreman" || userLevel === "teknisi";
@@ -1269,6 +1310,7 @@ export default function HomePage() {
     setError("");
     try {
       if (modal.mode === "create") {
+        const unitCode = unitForm.code.trim();
         await api("/api/units", {
           method: "POST",
           body: JSON.stringify({
@@ -1277,6 +1319,9 @@ export default function HomePage() {
             serial_number: unitForm.serial_number,
           }),
         });
+        setUnitDraft(unitCode);
+        setUnitQuery(unitCode);
+        setUnitMasterPage(1);
       } else if (modal.unit) {
         await api(`/api/units/${modal.unit.id}`, {
           method: "PATCH",
@@ -1485,10 +1530,14 @@ export default function HomePage() {
         })),
       };
       if (modal.mode === "create") {
+        const templateName = templateForm.name.trim();
         await api("/api/job-templates", {
           method: "POST",
           body: JSON.stringify(payload),
         });
+        setTemplateDraft(templateName);
+        setTemplateQuery(templateName);
+        setTemplateMasterPage(1);
       } else if (modal.template) {
         await api(`/api/job-templates/${modal.template.id}`, {
           method: "PATCH",
@@ -1755,10 +1804,14 @@ export default function HomePage() {
         ...(modal.tech?.status === "busy" ? {} : { status: techForm.status }),
       };
       if (modal.mode === "create") {
+        const loginUsername = techForm.sn.trim();
         await api("/api/technicians", {
           method: "POST",
           body: JSON.stringify(payload),
         });
+        setMasterTechDraft(loginUsername);
+        setMasterTechQuery(loginUsername);
+        setMasterTechPage(1);
       } else if (modal.tech) {
         await api(`/api/technicians/${modal.tech.id}`, {
           method: "PATCH",
@@ -5722,97 +5775,106 @@ export default function HomePage() {
               {t("nav.newJob")}
             </button>
             <div className="nav-end">
-              {isLoggedIn ? <RemainAlertMuteToggle /> : null}
-              <NavAlerts
-                enabled={showNavAlerts}
-                onBeforeOpen={() => {
-                  setManageOpen(false);
-                  setSessionOpen(false);
-                }}
-                onOpenJob={(jobId, kind) => {
-                  setManageOpen(false);
-                  setSessionOpen(false);
-                  jobDeepLink.open(jobId, {
-                    focus: kind === "handover" ? "handover" : "",
-                  });
-                }}
-              />
-              <div className="nav-session">
-                {isLoggedIn ? (
-                  <div
-                    className={`nav-session-menu${sessionOpen ? " is-open" : ""}`}
-                    ref={sessionRef}
-                  >
-                    <button
-                      className="btn nav-account"
-                      type="button"
-                      disabled={busy || loggingOut}
-                      aria-label={t("nav.accountMenu")}
-                      aria-haspopup="menu"
-                      aria-expanded={sessionOpen}
-                      title={`${displayName} · ${userLevel}`}
-                      onClick={() => {
-                        setManageOpen(false);
-                        setSessionOpen((open) => !open);
-                      }}
-                    >
-                      <span className="nav-user">
-                        <span className="nav-user-name">{displayNameShort}</span>
-                        <span className="nav-user-level">{userLevel}</span>
-                      </span>
-                      <AccountAvatar url={avatarUrl} size={28} />
-                    </button>
-                    {sessionOpen && (
-                      <div className="nav-manage-menu" role="menu">
+              {sessionPending ? (
+                <NavAccountShimmer
+                  label={t("nav.accountLoading")}
+                  withAlerts={sessionShimmerWithAlerts}
+                />
+              ) : (
+                <>
+                  {isLoggedIn ? <RemainAlertMuteToggle /> : null}
+                  <NavAlerts
+                    enabled={showNavAlerts}
+                    onBeforeOpen={() => {
+                      setManageOpen(false);
+                      setSessionOpen(false);
+                    }}
+                    onOpenJob={(jobId, kind) => {
+                      setManageOpen(false);
+                      setSessionOpen(false);
+                      jobDeepLink.open(jobId, {
+                        focus: kind === "handover" ? "handover" : "",
+                      });
+                    }}
+                  />
+                  <div className="nav-session">
+                    {isLoggedIn ? (
+                      <div
+                        className={`nav-session-menu${sessionOpen ? " is-open" : ""}`}
+                        ref={sessionRef}
+                      >
                         <button
+                          className="btn nav-account"
                           type="button"
-                          role="menuitem"
-                          className="nav-manage-item"
                           disabled={busy || loggingOut}
+                          aria-label={t("nav.accountMenu")}
+                          aria-haspopup="menu"
+                          aria-expanded={sessionOpen}
+                          title={`${displayName} · ${userLevel}`}
                           onClick={() => {
-                            setSessionOpen(false);
-                            void openEditProfile();
+                            setManageOpen(false);
+                            setSessionOpen((open) => !open);
                           }}
                         >
-                          {t("nav.editProfile")}
+                          <span className="nav-user">
+                            <span className="nav-user-name">{displayNameShort}</span>
+                            <span className="nav-user-level">{userLevel}</span>
+                          </span>
+                          <AccountAvatar url={avatarUrl} size={28} />
                         </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="nav-manage-item"
-                          disabled={busy || loggingOut}
-                          onClick={() => {
-                            setSessionOpen(false);
-                            openChangePassword();
-                          }}
-                        >
-                          {t("nav.editPassword")}
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="nav-manage-item"
-                          disabled={busy || loggingOut}
-                          onClick={() => {
-                            setSessionOpen(false);
-                            openLogoutConfirm();
-                          }}
-                        >
-                          {t("nav.logout")}
-                        </button>
+                        {sessionOpen && (
+                          <div className="nav-manage-menu" role="menu">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="nav-manage-item"
+                              disabled={busy || loggingOut}
+                              onClick={() => {
+                                setSessionOpen(false);
+                                void openEditProfile();
+                              }}
+                            >
+                              {t("nav.editProfile")}
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="nav-manage-item"
+                              disabled={busy || loggingOut}
+                              onClick={() => {
+                                setSessionOpen(false);
+                                openChangePassword();
+                              }}
+                            >
+                              {t("nav.editPassword")}
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="nav-manage-item"
+                              disabled={busy || loggingOut}
+                              onClick={() => {
+                                setSessionOpen(false);
+                                openLogoutConfirm();
+                              }}
+                            >
+                              {t("nav.logout")}
+                            </button>
+                          </div>
+                        )}
                       </div>
+                    ) : (
+                      <button
+                        className="btn"
+                        disabled={busy || loggingOut}
+                        onClick={handleAuthClick}
+                      >
+                        {t("nav.login")}
+                      </button>
                     )}
                   </div>
-                ) : (
-                  <button
-                    className="btn"
-                    disabled={busy || sessionStatus === "loading" || loggingOut}
-                    onClick={handleAuthClick}
-                  >
-                    {t("nav.login")}
-                  </button>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -5847,17 +5909,30 @@ export default function HomePage() {
                 <path d="M21 3v6h-6" />
               </svg>
             </button>
-            {isLoggedIn ? <RemainAlertMuteToggle /> : null}
-            <NavAlerts
-              enabled={showNavAlerts}
-              onBeforeOpen={() => setSessionOpen(false)}
-              onOpenJob={(jobId, kind) => {
-                setMobileMenuOpen(false);
-                jobDeepLink.open(jobId, {
-                  focus: kind === "handover" ? "handover" : "",
-                });
-              }}
-            />
+            {sessionPending ? (
+              sessionShimmerWithAlerts ? (
+                <span className="nav-session-shimmer" aria-hidden="true">
+                  <ShimmerBlock className="shimmer-block--nav-icon" />
+                  <ShimmerBlock className="shimmer-block--nav-icon" />
+                </span>
+              ) : (
+                <ShimmerBlock className="shimmer-block--nav-icon" />
+              )
+            ) : (
+              <>
+                {isLoggedIn ? <RemainAlertMuteToggle /> : null}
+                <NavAlerts
+                  enabled={showNavAlerts}
+                  onBeforeOpen={() => setSessionOpen(false)}
+                  onOpenJob={(jobId, kind) => {
+                    setMobileMenuOpen(false);
+                    jobDeepLink.open(jobId, {
+                      focus: kind === "handover" ? "handover" : "",
+                    });
+                  }}
+                />
+              </>
+            )}
             <button
               className="btn btn-icon top-menu-toggle"
               type="button"
@@ -6075,10 +6150,16 @@ export default function HomePage() {
                 Backup / Undo
               </button>
             )}
-            {!isLoggedIn && (
+            {sessionPending ? (
+              <NavAccountShimmer
+                label={t("nav.accountLoading")}
+                withAlerts={false}
+              />
+            ) : (
+              !isLoggedIn && (
               <button
                 className="btn"
-                disabled={busy || sessionStatus === "loading" || loggingOut}
+                disabled={busy || loggingOut}
                 onClick={() => {
                   setMobileMenuOpen(false);
                   handleAuthClick();
@@ -6086,6 +6167,7 @@ export default function HomePage() {
               >
                 {t("nav.login")}
               </button>
+              )
             )}
           </div>
         </>

@@ -16,6 +16,7 @@ const id = {
   "nav.users": "Users",
   "nav.refresh": "Refresh",
   "nav.login": "Login",
+  "nav.accountLoading": "Memuat akun…",
   "nav.logout": "Logout",
   "nav.exportExcel": "Export to excel",
   "nav.exportExcelTip": "Export Excel job aktif / antrian",
@@ -284,6 +285,8 @@ const id = {
   "login.submit": "Login",
   "login.submitting": "Masuk...",
   "login.error": "Username atau password salah.",
+  "login.locked":
+    "Terlalu banyak percobaan gagal. Coba lagi dalam {time}.",
   "login.loading": "Memuat halaman login...",
 
   "authGagal.title": "Login gagal",
@@ -362,6 +365,7 @@ const en: Record<MessageKey, string> = {
   "nav.users": "Users",
   "nav.refresh": "Refresh",
   "nav.login": "Login",
+  "nav.accountLoading": "Loading account…",
   "nav.logout": "Logout",
   "nav.exportExcel": "Export to Excel",
   "nav.exportExcelTip": "Export Excel for active / queued jobs",
@@ -630,6 +634,7 @@ const en: Record<MessageKey, string> = {
   "login.submit": "Login",
   "login.submitting": "Signing in...",
   "login.error": "Incorrect username or password.",
+  "login.locked": "Too many failed attempts. Try again in {time}.",
   "login.loading": "Loading login page...",
 
   "authGagal.title": "Sign-in failed",

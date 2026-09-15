@@ -2,6 +2,11 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authenticateUser, getUserByUsername } from "@/lib/excel";
 import { authConfig } from "@/auth.config";
+import {
+  clearLoginLockout,
+  getLoginLockout,
+  recordLoginFailure,
+} from "@/lib/login-lockout";
 import type { UserLevel } from "@/lib/types";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -17,8 +22,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const username = String(credentials?.username || "");
         const password = String(credentials?.password || "");
         if (!username || !password) return null;
+        if (getLoginLockout(username).locked) return null;
         const user = await authenticateUser(username, password);
-        if (!user) return null;
+        if (!user) {
+          recordLoginFailure(username);
+          return null;
+        }
+        clearLoginLockout(username);
         return {
           id: user.id,
           name: user.name || user.username,

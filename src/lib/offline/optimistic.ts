@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { JobListSection, PaginatedResult } from "@/lib/board-list";
 import { queryKeys } from "@/lib/query-keys";
 import type {
+  AppUserPublic,
   Attendance,
   AttendanceStatus,
   DashboardData,
@@ -21,6 +22,7 @@ import { normalizeJobPriority } from "@/lib/types";
 import { attachStepPhotoUrl, parseStepPhotos } from "@/lib/step-photo-url";
 import { withAppendedStepNote, withUpdatedStepNote } from "@/lib/step-notes";
 import { cacheStepPhotoPreviews } from "@/lib/offline/step-photo-preview";
+import { readBoardSnapshot } from "@/lib/offline/board-snapshot";
 import { newEntityId, type JobStepPayload, type JsonRecord } from "./ids";
 import {
   assignedTechnicianIds,
@@ -224,6 +226,185 @@ function findJobInClient(
   );
 }
 
+function asTechnician(row: Partial<Technician> & { id: string }): Technician {
+  const status: TechnicianStatus =
+    row.status === "busy" || row.status === "offline" ? row.status : "available";
+  return {
+    id: row.id,
+    name: String(row.name || "").trim() || row.id,
+    sn: String(row.sn || ""),
+    badge_id: String(row.badge_id || ""),
+    email: String(row.email || ""),
+    phone: String(row.phone || ""),
+    status,
+    current_job_id: String(row.current_job_id || ""),
+    superior_user_id: String(row.superior_user_id || ""),
+    superior_user_name: String(row.superior_user_name || ""),
+    user_id: row.user_id ? String(row.user_id) : undefined,
+  };
+}
+
+function rememberTech(map: Map<string, Technician>, row?: Partial<Technician> | null) {
+  const id = String(row?.id || "").trim();
+  if (!id) return;
+  const prev = map.get(id);
+  const next = asTechnician({ ...prev, ...row, id });
+  if (prev?.name && (next.name === id || !String(row?.name || "").trim())) {
+    next.name = prev.name;
+  }
+  map.set(id, next);
+}
+
+/** Dashboard API returns technicians: []. Names live on board lists and the assign pool. */
+function collectKnownTechnicians(qc: QueryClient | null): Technician[] {
+  const map = new Map<string, Technician>();
+  const dash = qc?.getQueryData<DashboardData>(queryKeys.dashboard);
+  for (const tech of dash?.technicians || []) rememberTech(map, tech);
+  if (!qc) return [...map.values()];
+  for (const query of qc.getQueryCache().findAll({ queryKey: ["board", "technicians"] })) {
+    const data = query.state.data as { items?: Technician[] } | undefined;
+    for (const tech of data?.items || []) rememberTech(map, tech);
+  }
+  forEachBoardJobsQuery(qc, (_key, data) => {
+    for (const job of data.items) {
+      for (const tech of job.technicians || []) rememberTech(map, tech);
+      for (const tech of job.technician_index || []) rememberTech(map, tech);
+      if (job.technician) rememberTech(map, job.technician);
+    }
+  });
+  return [...map.values()];
+}
+
+function userLabel(user: { name?: string; username?: string; id?: string }): string {
+  return (
+    String(user.name || "").trim() ||
+    String(user.username || "").trim() ||
+    String(user.id || "").trim()
+  );
+}
+
+function rememberForeman(map: Map<string, AppUserPublic>, row?: Partial<AppUserPublic> | null) {
+  const id = String(row?.id || "").trim();
+  if (!id) return;
+  if (row?.level && row.level !== "foreman") return;
+  if (row?.active === "0") return;
+  const prev = map.get(id);
+  const name = String(row?.name || prev?.name || "").trim();
+  const username = String(row?.username || prev?.username || name || id).trim();
+  map.set(id, {
+    id,
+    username,
+    name: name || username,
+    email: String(row?.email || prev?.email || ""),
+    phone: String(row?.phone || prev?.phone || ""),
+    photo_name: String(row?.photo_name || prev?.photo_name || ""),
+    photo_url: row?.photo_url || prev?.photo_url,
+    level: "foreman",
+    active: "1",
+    created_at: String(row?.created_at || prev?.created_at || ""),
+  });
+}
+
+/** Foremen already fetched online, plus assigners stored on cached jobs. */
+export function listCachedForemen(qc: QueryClient | null): AppUserPublic[] {
+  const map = new Map<string, AppUserPublic>();
+  for (const user of readBoardSnapshot()?.foremen || []) rememberForeman(map, user);
+  for (const user of qc?.getQueryData<AppUserPublic[]>(queryKeys.foremen) || []) {
+    rememberForeman(map, user);
+  }
+  const addOwner = (
+    id?: string,
+    name?: string,
+    level?: string
+  ) => {
+    if (level !== "foreman") return;
+    rememberForeman(map, { id, name, username: name, level: "foreman", active: "1" });
+  };
+  const walk = (jobs?: Array<JobWithDetails | Job>) => {
+    for (const job of jobs || []) {
+      addOwner(job.assigned_by_user_id, job.assigned_by_user_name, job.assigned_by_user_level);
+      addOwner(job.delegated_to_user_id, job.delegated_to_user_name, "foreman");
+    }
+  };
+  const dash = qc?.getQueryData<DashboardData>(queryKeys.dashboard);
+  walk(dash?.jobs);
+  walk(dash?.completed_jobs);
+  walk(dash?.cancelled_jobs);
+  if (qc) {
+    forEachBoardJobsQuery(qc, (_key, data) => walk(data.items));
+  }
+  return [...map.values()].sort((a, b) =>
+    userLabel(a).localeCompare(userLabel(b), "id")
+  );
+}
+
+function delegateUserFromBody(
+  body: JsonRecord
+): { id: string; name: string; username: string } | null {
+  const raw = body.delegate_user;
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  const id = String(rec.id || "").trim();
+  if (!id) return null;
+  const name = String(rec.name || rec.username || "").trim();
+  return { id, name, username: String(rec.username || name || id) };
+}
+
+function techniciansFromBody(body: JsonRecord): Technician[] {
+  if (!Array.isArray(body.technicians)) return [];
+  const out: Technician[] = [];
+  for (const row of body.technicians) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const id = String(rec.id || "").trim();
+    if (!id) continue;
+    out.push(
+      asTechnician({
+        id,
+        name: String(rec.name || ""),
+        sn: String(rec.sn || ""),
+        badge_id: String(rec.badge_id || ""),
+        email: String(rec.email || ""),
+        phone: String(rec.phone || ""),
+        status:
+          rec.status === "busy" || rec.status === "offline"
+            ? rec.status
+            : "available",
+        current_job_id: String(rec.current_job_id || ""),
+        superior_user_id: String(rec.superior_user_id || ""),
+        superior_user_name: String(rec.superior_user_name || ""),
+      })
+    );
+  }
+  return out;
+}
+
+function prependTechnicianList(qc: QueryClient, tech: Technician) {
+  for (const query of qc.getQueryCache().findAll({ queryKey: ["board", "technicians"] })) {
+    const key = query.queryKey;
+    const bucket = String(key[2] || "");
+    if (bucket !== "available" && bucket !== "assign") continue;
+    const data = query.state.data as PaginatedResult<Technician> | undefined;
+    if (!data?.items || data.items.some((row) => row.id === tech.id)) continue;
+    const q = (bucket === "assign" ? String(key[3] || "") : String(key[5] || ""))
+      .trim()
+      .toLowerCase();
+    if (
+      q &&
+      !tech.name.toLowerCase().includes(q) &&
+      !tech.sn.toLowerCase().includes(q) &&
+      !tech.badge_id.toLowerCase().includes(q)
+    ) {
+      continue;
+    }
+    qc.setQueryData(key, {
+      ...data,
+      items: [tech, ...data.items],
+      total: data.total + 1,
+    });
+  }
+}
+
 function patchJobInBoardCaches(
   qc: QueryClient,
   jobId: string,
@@ -307,7 +488,19 @@ function applyJobActionToCaches(
 ) {
   const job = findJobInClient(qc, jobId);
   const dashboard = qc.getQueryData<DashboardData>(queryKeys.dashboard);
-  const after = applyJobAction(buildSyntheticDashboard(dashboard, job), jobId, body);
+  const known = new Map<string, Technician>();
+  for (const tech of collectKnownTechnicians(qc)) rememberTech(known, tech);
+  for (const tech of techniciansFromBody(body)) rememberTech(known, tech);
+  const after = applyJobAction(
+    buildSyntheticDashboard(
+      dashboard
+        ? { ...dashboard, technicians: [...known.values()] }
+        : { ...EMPTY_DASHBOARD, technicians: [...known.values()] },
+      job
+    ),
+    jobId,
+    body
+  );
   const action = String(body.action || "");
 
   patchDashboard(qc, (data) => ({
@@ -477,8 +670,14 @@ function applyJobAction(
           ? [String(body.technician_id)]
           : []
     ).filter(Boolean);
+    const known = new Map<string, Technician>();
+    for (const tech of data.technicians) rememberTech(known, tech);
+    for (const tech of job?.technicians || []) rememberTech(known, tech);
+    for (const tech of job?.technician_index || []) rememberTech(known, tech);
+    if (job?.technician) rememberTech(known, job.technician);
+    for (const tech of techniciansFromBody(body)) rememberTech(known, tech);
     const selected = ids
-      .map((id) => data.technicians.find((t) => t.id === id))
+      .map((id) => known.get(id))
       .filter((t): t is Technician => Boolean(t));
     if (!selected.length || !job) return data;
     const selectedIds = new Set(selected.map((t) => t.id));
@@ -539,6 +738,38 @@ function applyJobAction(
             })
       ),
     };
+  }
+
+  if (action === "delegate") {
+    if (!job) return data;
+    const targetId = String(body.delegate_user_id || "").trim();
+    if (!targetId) return data;
+    const snap = delegateUserFromBody(body);
+    const known = listCachedForemen(null).find((user) => user.id === targetId);
+    const name =
+      (snap?.id === targetId ? snap.name : "") ||
+      known?.name ||
+      known?.username ||
+      String(body.delegate_user_name || "").trim() ||
+      targetId;
+    return mapJob(data, jobId, (j) => ({
+      ...j,
+      delegated_to_user_id: targetId,
+      delegated_to_user_name: name,
+      delegated_at: String(body.delegated_at || nowIso()),
+      delegated_by_user_id: String(body.delegated_by_user_id || ""),
+    }));
+  }
+
+  if (action === "undelegate") {
+    if (!job) return data;
+    return mapJob(data, jobId, (j) => ({
+      ...j,
+      delegated_to_user_id: "",
+      delegated_to_user_name: "",
+      delegated_at: "",
+      delegated_by_user_id: "",
+    }));
   }
 
   if (action === "start" || action === "resume") {
@@ -1011,6 +1242,47 @@ export function prepareJobActionBody(
     };
   }
 
+  if (action === "assign" && qc) {
+    const ids = (
+      Array.isArray(body.technician_ids)
+        ? body.technician_ids.map(String)
+        : body.technician_id
+          ? [String(body.technician_id)]
+          : []
+    ).filter(Boolean);
+    const known = new Map<string, Technician>();
+    for (const tech of collectKnownTechnicians(qc)) rememberTech(known, tech);
+    for (const tech of job.technicians || []) rememberTech(known, tech);
+    for (const tech of techniciansFromBody(body)) rememberTech(known, tech);
+    return {
+      ...body,
+      technicians: ids
+        .map((id) => known.get(id))
+        .filter((tech): tech is Technician => Boolean(tech))
+        .map((tech) => asTechnician(tech)),
+    };
+  }
+
+  if (action === "delegate") {
+    const targetId = String(body.delegate_user_id || "").trim();
+    if (!targetId) return body;
+    const existing = delegateUserFromBody(body);
+    const known =
+      existing?.id === targetId && existing.name
+        ? existing
+        : listCachedForemen(qc).find((user) => user.id === targetId);
+    const name = known ? userLabel(known) : existing?.name || "";
+    return {
+      ...body,
+      delegated_at: String(body.delegated_at || atIso),
+      delegate_user: {
+        id: targetId,
+        name,
+        username: known && "username" in known ? String(known.username || name) : name,
+      },
+    };
+  }
+
   return body;
 }
 
@@ -1420,6 +1692,7 @@ export function applyOptimisticMutation(
         ? data
         : { ...data, technicians: [...data.technicians, tech] }
     );
+    prependTechnicianList(qc, tech);
     return { ...tech, queued: true };
   }
 

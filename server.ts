@@ -15,6 +15,13 @@ import { loadLanTls, tlsEnabled } from "./src/lib/lan-tls";
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
+// `npm start` must serve the production build. An inherited NODE_ENV=development
+// starts Next in dev mode, which 404s nested routes such as /api/jobs/[id]/action
+// and makes offline sync report "Sync failed (404)".
+if (process.env.npm_lifecycle_event === "start") {
+  (process.env as { NODE_ENV?: string }).NODE_ENV = "production";
+}
+
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
 const listenHost = process.env.LISTEN_HOST || "0.0.0.0";
@@ -69,7 +76,7 @@ async function main() {
     attachUpgrade(server);
     server.listen(port, listenHost, () => {
       console.log(
-        `TU-PRIMA ready on http://${hostname}:${port} (WebSocket ws://${hostname}:${port}/ws)`
+        `TU-PRIMA ready on http://${hostname}:${port} (${dev ? "dev" : "production"} · WebSocket ws://${hostname}:${port}/ws)`
       );
     });
     return;
@@ -105,7 +112,7 @@ async function main() {
 
   mux.listen(port, listenHost, () => {
     console.log(
-      `TU-PRIMA ready on https://${hostname}:${port} (HTTP redirects · wss://${hostname}:${port}/ws)`
+      `TU-PRIMA ready on https://${hostname}:${port} (${dev ? "dev" : "production"} · HTTP redirects · wss://${hostname}:${port}/ws)`
     );
     console.log(
       `  Open HTTPS once while online so the service worker can cache offline.`

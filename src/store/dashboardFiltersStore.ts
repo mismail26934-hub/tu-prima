@@ -90,6 +90,7 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
     {
       name: STORAGE_KEY,
       version: 2,
+      skipHydration: true,
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
         const s = persisted as PersistedV0 & Record<string, unknown>;

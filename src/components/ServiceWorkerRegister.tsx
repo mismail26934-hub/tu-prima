@@ -33,6 +33,7 @@ export function ServiceWorkerRegister() {
       void navigator.serviceWorker
         .register("/sw.js")
         .then((reg) => {
+          void reg.update();
           pushCacheUrls(reg.active || reg.waiting || reg.installing);
           return navigator.serviceWorker.ready.then((ready) => {
             pushCacheUrls(ready.active);

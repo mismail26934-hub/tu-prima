@@ -12,7 +12,7 @@ import { startOutboxSync, shouldHoldServerRefresh } from "@/lib/offline/sync";
 import { readCachedSession } from "@/lib/offline/session-cache";
 import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snapshot";
 import { queryKeys } from "@/lib/query-keys";
-import type { DashboardData, JobTemplate } from "@/lib/types";
+import type { AppUserPublic, DashboardData, JobTemplate } from "@/lib/types";
 import { AUTH_BASE_PATH } from "@/lib/auth-path";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { SessionCache } from "@/components/SessionCache";
@@ -121,6 +121,9 @@ export function Providers({ children }: { children: ReactNode }) {
     if (snap?.templates) {
       queryClient.setQueryData(queryKeys.templates.catalog, snap.templates);
     }
+    if (snap?.foremen?.length) {
+      queryClient.setQueryData(queryKeys.foremen, snap.foremen);
+    }
     const cached = readCachedSession();
     if (cached?.user) {
       setOfflineSession(cached as SessionProviderProps["session"]);
@@ -132,16 +135,27 @@ export function Providers({ children }: { children: ReactNode }) {
     <PersistQueryClientProvider
       client={queryClient}
       onSuccess={() => {
+        const snap = readBoardSnapshot();
+        if (
+          snap?.foremen?.length &&
+          !queryClient.getQueryData(queryKeys.foremen)
+        ) {
+          queryClient.setQueryData(queryKeys.foremen, snap.foremen);
+        }
         const dashboard = queryClient.getQueryData<DashboardData>(
           queryKeys.dashboard
         );
         const templates = queryClient.getQueryData<{ templates: JobTemplate[] }>(
           queryKeys.templates.catalog
         );
-        if (dashboard || templates) {
+        const foremen = queryClient.getQueryData<AppUserPublic[]>(
+          queryKeys.foremen
+        );
+        if (dashboard || templates || foremen?.length) {
           writeBoardSnapshot({
             dashboard,
             templates,
+            foremen,
           });
         }
       }}
@@ -157,7 +171,8 @@ export function Providers({ children }: { children: ReactNode }) {
             return (
               key === "dashboard" ||
               key === "job-templates" ||
-              key === "users"
+              key === "users" ||
+              key === "board"
             );
           },
         },
@@ -168,6 +183,7 @@ export function Providers({ children }: { children: ReactNode }) {
         session={offlineSession}
         refetchOnWindowFocus={true}
         refetchInterval={0}
+        refetchWhenOffline={false}
       >
         <ServiceWorkerRegister />
         <SessionCache />

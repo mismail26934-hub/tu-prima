@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { isBrowserOnline } from "@/lib/offline/network";
 import type {
   JobListSection,
   JobOwnershipFilter,
@@ -9,6 +10,15 @@ import type {
 } from "@/lib/board-list";
 import type { JobWithDetails, TechnicianStatus } from "@/lib/types";
 import type { TechnicianListItem } from "@/lib/board-list";
+
+const offlineAware = {
+  gcTime: 1000 * 60 * 60 * 24 * 7,
+  retry: false as const,
+  networkMode: "offlineFirst" as const,
+  refetchOnMount: () => isBrowserOnline(),
+  refetchOnReconnect: () => isBrowserOnline(),
+  refetchOnWindowFocus: () => isBrowserOnline(),
+};
 
 export function useJobsList(opts: {
   section: JobListSection;
@@ -59,6 +69,8 @@ export function useJobsList(opts: {
     },
     enabled: opts.enabled !== false,
     staleTime: 5_000,
+    ...offlineAware,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -92,6 +104,8 @@ export function useActiveJobsSlider(opts: {
     },
     enabled: opts.enabled !== false,
     staleTime: 5_000,
+    ...offlineAware,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -123,6 +137,8 @@ export function useTechniciansList(opts: {
     },
     enabled: opts.enabled !== false,
     staleTime: 5_000,
+    ...offlineAware,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -143,5 +159,7 @@ export function useAssignTechnicianPool(q?: string, enabled = true) {
     },
     enabled,
     staleTime: 10_000,
+    ...offlineAware,
+    placeholderData: (previousData) => previousData,
   });
 }

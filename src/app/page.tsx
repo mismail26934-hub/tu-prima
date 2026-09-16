@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useIsRestoring } from "@tanstack/react-query";
+import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import { signOut, useSession } from "next-auth/react";
 import type {
   AppUserPublic,
@@ -65,6 +65,9 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { StepPhotoPicker } from "@/components/StepPhotoPicker";
 import { StepNotePdfPicker } from "@/components/StepNotePdfPicker";
 import { api } from "@/lib/api";
+import { isBrowserOnline, isNetworkError } from "@/lib/offline/network";
+import { listCachedForemen } from "@/lib/offline/optimistic";
+import { queryKeys } from "@/lib/query-keys";
 import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import {
   attachStepNotes,
@@ -78,7 +81,7 @@ import type { StepPhotoDraft } from "@/lib/step-photo-client";
 import { compressAvatarFile } from "@/lib/step-photo-client";
 import type { StepNotePdfDraft } from "@/lib/step-note-file-client";
 import { useDashboard } from "@/hooks/useDashboard";
-import { readCachedSession, writeCachedSession } from "@/lib/offline/session-cache";
+import { readCachedSession, writeCachedSession, type CachedSession } from "@/lib/offline/session-cache";
 import {
   readBoardSnapshot,
   writeBoardSnapshot,
@@ -805,19 +808,23 @@ export default function HomePage() {
   const t = useT();
   const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const isLoggedIn = sessionStatus === "authenticated";
-  const [cachedUser] = useState(
-    () => readCachedSession()?.user ?? null
+  const [cachedUser, setCachedUser] = useState<CachedSession["user"] | null>(
+    null
   );
   const [sessionWaitTimedOut, setSessionWaitTimedOut] = useState(false);
+  useEffect(() => {
+    setCachedUser(readCachedSession()?.user ?? null);
+  }, []);
   useEffect(() => {
     if (sessionStatus !== "loading") {
       setSessionWaitTimedOut(false);
       return;
     }
-    const timer = setTimeout(() => setSessionWaitTimedOut(true), 4000);
+    const timer = setTimeout(() => setSessionWaitTimedOut(true), 1200);
     return () => clearTimeout(timer);
   }, [sessionStatus]);
-  const sessionPending = sessionStatus === "loading" && !sessionWaitTimedOut;
+  const sessionPending =
+    sessionStatus === "loading" && !sessionWaitTimedOut && !cachedUser;
   const cachedLevel = String(cachedUser?.level || "");
   const sessionShimmerWithAlerts =
     cachedLevel === "foreman" ||
@@ -1033,12 +1040,20 @@ export default function HomePage() {
 
   const persistRestoring = useIsRestoring();
   const [restoreGaveUp, setRestoreGaveUp] = useState(false);
+  const [clientReady, setClientReady] = useState(false);
+  const [dashLoadGaveUp, setDashLoadGaveUp] = useState(false);
+  const [snapDash, setSnapDash] = useState<DashboardData | undefined>();
+  useEffect(() => {
+    void useDashboardFiltersStore.persist.rehydrate();
+    setSnapDash(readBoardSnapshot()?.dashboard);
+    setClientReady(true);
+  }, []);
   useEffect(() => {
     if (!persistRestoring) {
       setRestoreGaveUp(false);
       return;
     }
-    const timer = setTimeout(() => setRestoreGaveUp(true), 2500);
+    const timer = setTimeout(() => setRestoreGaveUp(true), 800);
     return () => clearTimeout(timer);
   }, [persistRestoring]);
   const {
@@ -1046,12 +1061,15 @@ export default function HomePage() {
     error: dashboardError,
     isFetching: dashboardFetching,
   } = useDashboard();
-  const [snapDash, setSnapDash] = useState<DashboardData | undefined>();
   useEffect(() => {
-    setSnapDash(readBoardSnapshot()?.dashboard);
-  }, []);
-  useEffect(() => {
-    if (queryData) writeBoardSnapshot({ dashboard: queryData });
+    if (queryData) {
+      setSnapDash(queryData);
+      writeBoardSnapshot({ dashboard: queryData });
+      setDashLoadGaveUp(false);
+      return;
+    }
+    const timer = setTimeout(() => setDashLoadGaveUp(true), 1000);
+    return () => clearTimeout(timer);
   }, [queryData]);
   const data = queryData ?? snapDash;
   const refreshDashboard = useCallback(() => {
@@ -1065,6 +1083,7 @@ export default function HomePage() {
     fetchTemplate,
   } = useWorkshopClient();
   const jobActionMutation = useJobActionMutation();
+  const queryClient = useQueryClient();
   const { data: masterTemplatesRes, isLoading: templatesMasterLoading } =
     useMasterTemplates(canTemplateRead && templatesModalOpen);
   const masterTemplates = masterTemplatesRes?.templates || [];
@@ -1181,6 +1200,15 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [isLoggedIn, userId]);
+
+  useEffect(() => {
+    if (!canJobAssign || !isBrowserOnline()) return;
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.foremen,
+      queryFn: () => api<AppUserPublic[]>("/api/users/foremen"),
+      staleTime: 60_000,
+    });
+  }, [canJobAssign, queryClient]);
 
   useEffect(() => {
     const open = modal != null;
@@ -2427,12 +2455,29 @@ export default function HomePage() {
     if (!canDelegateForJob(job)) return;
     setError("");
     setDelegateForemanId(job.delegated_to_user_id || "");
+    const cached = listCachedForemen(queryClient).filter((u) => u.id !== userId);
+    const openWith = (list: AppUserPublic[]) => {
+      setForemanOptions(list.filter((u) => u.id !== userId));
+      setModal({ type: "delegate-job", job });
+    };
+    if (!isBrowserOnline()) {
+      if (!cached.length) {
+        setError("Daftar foreman belum tersimpan. Buka Delegasi sekali saat online.");
+        return;
+      }
+      openWith(cached);
+      return;
+    }
     setBusy(true);
     try {
       const list = await api<AppUserPublic[]>("/api/users/foremen");
-      setForemanOptions(list.filter((u) => u.id !== userId));
-      setModal({ type: "delegate-job", job });
+      queryClient.setQueryData(queryKeys.foremen, list);
+      openWith(list);
     } catch (e) {
+      if (cached.length && isNetworkError(e)) {
+        openWith(cached);
+        return;
+      }
       setError(e instanceof Error ? e.message : "Gagal memuat daftar foreman");
     } finally {
       setBusy(false);
@@ -5514,7 +5559,11 @@ export default function HomePage() {
       )}
 
       {!data ? (
-        dashboardFetching || (persistRestoring && !restoreGaveUp) ? (
+        !dashLoadGaveUp &&
+        !snapDash &&
+        (!clientReady ||
+          dashboardFetching ||
+          (persistRestoring && !restoreGaveUp)) ? (
           <DashboardShimmer label={t("loading.dashboard")} />
         ) : (
           <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>

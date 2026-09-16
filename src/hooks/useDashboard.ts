@@ -6,25 +6,35 @@ import { isBrowserOnline } from "@/lib/offline/network";
 import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snapshot";
 import type { DashboardData } from "@/lib/types";
 
+/** Race only to prefer snap when hung (DevTools Offline); must exceed slow API. */
+const DASHBOARD_FETCH_MS = 10_000;
+
 async function loadDashboard(): Promise<DashboardData> {
   const snap = readBoardSnapshot()?.dashboard;
-  if (snap && (shouldHoldServerRefresh() || !isBrowserOnline())) {
+
+  // Real Wi-Fi off sets onLine=false. DevTools Offline often keeps onLine=true
+  // while blocking fetch — still serve the local snapshot immediately.
+  if (snap && (!isBrowserOnline() || shouldHoldServerRefresh())) {
     return snap;
   }
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 2000);
   try {
-    const data = await api<DashboardData>("/api/dashboard", {
-      signal: ctrl.signal,
-    });
+    const data = await Promise.race([
+      api<DashboardData>("/api/dashboard"),
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new TypeError("Failed to fetch")),
+          DASHBOARD_FETCH_MS
+        );
+      }),
+    ]);
     writeBoardSnapshot({ dashboard: data });
     return data;
   } catch (error) {
+    // Prefer local snapshot; sticky-offline is set by fetchWithTimeout only on
+    // real transport failures (not slow server / HTTP errors).
     if (snap) return snap;
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -42,14 +52,23 @@ export function useDashboard() {
     staleTime: 5_000,
     gcTime: 1000 * 60 * 60 * 24 * 7,
     refetchInterval: () => {
-      if (shouldHoldServerRefresh()) return false;
+      if (shouldHoldServerRefresh() || !isBrowserOnline()) return false;
       return isNarrowBoard() ? 20_000 : 8_000;
     },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: () =>
-      !shouldHoldServerRefresh() && !isNarrowBoard(),
-    refetchOnReconnect: () => !shouldHoldServerRefresh(),
-    refetchOnMount: () => !shouldHoldServerRefresh(),
+      !shouldHoldServerRefresh() &&
+      isBrowserOnline() &&
+      !isNarrowBoard(),
+    refetchOnReconnect: () => !shouldHoldServerRefresh() && isBrowserOnline(),
+    // DevTools Offline often reports onLine=true; avoid blocking first paint
+    // on a hung network when we already have a local snapshot.
+    refetchOnMount: () => {
+      if (!isBrowserOnline() || shouldHoldServerRefresh()) return false;
+      if (readBoardSnapshot()?.dashboard && !isBrowserOnline()) return false;
+      return true;
+    },
     retry: false,
+    networkMode: "offlineFirst",
   });
 }

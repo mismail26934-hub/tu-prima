@@ -1,6 +1,8 @@
 import { ensureMutationIds, type JsonRecord } from "@/lib/offline/ids";
 import {
   canQueueMutation,
+  DEFAULT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
   isBrowserOnline,
   isNetworkError,
   isServerUnreachableStatus,
@@ -85,10 +87,14 @@ export async function api<T>(url: string, init?: RequestInit): Promise<T> {
     return queueAndApply<T>(url, method, requestInit);
   }
 
+  if (method === "GET" && !isBrowserOnline()) {
+    throw new TypeError("Failed to fetch");
+  }
+
   try {
-    const res = await fetch(url, requestInit);
+    const res = await fetchWithTimeout(url, requestInit, DEFAULT_FETCH_TIMEOUT_MS);
     const data = await res.json().catch(() => null);
-    if (!res.ok) {
+    if (!res.ok || res.type === "error" || res.status === 0) {
       const hasAppError =
         data && typeof data === "object" && "error" in data;
       if (

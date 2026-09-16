@@ -1,4 +1,4 @@
-import type { DashboardData, JobTemplate } from "@/lib/types";
+import type { AppUserPublic, DashboardData, JobTemplate } from "@/lib/types";
 
 const KEY = "tu-prima-board-snapshot";
 
@@ -6,6 +6,8 @@ type BoardSnapshot = {
   savedAt: number;
   dashboard?: DashboardData;
   templates?: { templates: JobTemplate[] };
+  /** Active foremen, so Delegasi can open without a live GET. */
+  foremen?: AppUserPublic[];
 };
 
 function readRaw(): BoardSnapshot | null {
@@ -33,6 +35,7 @@ export function writeBoardSnapshot(patch: Partial<BoardSnapshot>) {
       savedAt: Date.now(),
       dashboard: patch.dashboard ?? prev.dashboard,
       templates: patch.templates ?? prev.templates,
+      foremen: patch.foremen ?? prev.foremen,
     };
     localStorage.setItem(KEY, JSON.stringify(next));
   } catch {

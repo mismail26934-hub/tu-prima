@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isBrowserOnline } from "@/lib/offline/network";
+import {
+  clearBrowserUnreachable,
+  isBrowserOnline,
+} from "@/lib/offline/network";
 import { flushOutbox, subscribeSync, type SyncState } from "@/lib/offline/sync";
 
 export function useOfflineStatus() {
@@ -15,13 +18,20 @@ export function useOfflineStatus() {
 
   useEffect(() => {
     const applyOnline = () => setOnline(isBrowserOnline());
+    const onOnline = () => {
+      // Browser says NIC is up — drop sticky DevTools-offline latch.
+      clearBrowserUnreachable();
+      applyOnline();
+    };
     applyOnline();
-    window.addEventListener("online", applyOnline);
+    window.addEventListener("online", onOnline);
     window.addEventListener("offline", applyOnline);
+    window.addEventListener("prima-connectivity", applyOnline);
     const unsubSync = subscribeSync(setSync);
     return () => {
-      window.removeEventListener("online", applyOnline);
+      window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", applyOnline);
+      window.removeEventListener("prima-connectivity", applyOnline);
       unsubSync();
     };
   }, []);

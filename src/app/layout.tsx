@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   description:
     "Progress Report & Inspection for Mechanic Allocation — monitoring teknisi, progress job, dan durasi kerja",
   manifest: "/manifest.webmanifest",
+  icons: { icon: "/favicon.ico" },
 };
 
 export const viewport: Viewport = {

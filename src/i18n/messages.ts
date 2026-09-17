@@ -252,6 +252,8 @@ const id = {
   "job.stepPhotoMax": "Maksimal {max} foto per step.",
   "job.completeNeedPhotos":
     "Lengkapi foto bukti dulu untuk step yang belum selesai:",
+  "job.completeNeedHandovers":
+    "Selesaikan handover yang DONE-nya masih No:",
   "job.stepNoteBy": "{name}",
   "job.stepPhotoBy": "Foto oleh: {name}",
   "tech.loginHint":
@@ -635,6 +637,8 @@ const en: Record<MessageKey, string> = {
   "job.stepPhotoMax": "Maximum {max} photos per step.",
   "job.completeNeedPhotos":
     "Add evidence photos first for unfinished steps:",
+  "job.completeNeedHandovers":
+    "Finish handovers that are still not done:",
   "job.stepNoteBy": "{name}",
   "job.stepPhotoBy": "Photos by: {name}",
   "tech.loginHint":

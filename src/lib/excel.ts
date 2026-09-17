@@ -4618,6 +4618,17 @@ export async function jobAction(
           `Lengkapi catatan step dulu untuk step: ${labels}`
         );
       }
+      const openHandovers = handovers.filter(
+        (h) => h.job_id === jobId && h.done !== "1"
+      );
+      if (openHandovers.length) {
+        const labels = openHandovers
+          .map((h) => `#${h.order} ${h.title}`)
+          .join(", ");
+        throw new Error(
+          `Selesaikan handover dulu (DONE masih No): ${labels}`
+        );
+      }
       jobSteps().forEach((s) => {
         if (s.status !== "done") {
           if (s.status === "in_progress") {

@@ -7808,6 +7808,15 @@ export default function HomePage() {
                   .join(", ")}
               </p>
             )}
+            {(modal.job.handovers || []).some((h) => h.done !== "1") && (
+              <p className="field-hint" style={{ color: "var(--error-text)" }}>
+                {t("job.completeNeedHandovers")}{" "}
+                {(modal.job.handovers || [])
+                  .filter((h) => h.done !== "1")
+                  .map((h) => `#${h.order} ${h.title}`)
+                  .join(", ")}
+              </p>
+            )}
             <div className="actions">
               <button className="btn" onClick={closeModal} disabled={busy}>
                 Tidak
@@ -7822,7 +7831,8 @@ export default function HomePage() {
                   ) ||
                   modal.job.steps.some(
                     (s) => s.status !== "done" && !stepHasNoteText(s)
-                  )
+                  ) ||
+                  (modal.job.handovers || []).some((h) => h.done !== "1")
                 }
                 onClick={() => runAction(modal.job.id, "complete")}
               >

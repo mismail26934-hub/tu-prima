@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/access";
-import { lookupStepPhotoAccess, readStepPhotoFile } from "@/lib/step-photo";
+import {
+  lookupStepPhotoAccess,
+  readListedStepPhoto,
+  readStepPhotoFile,
+} from "@/lib/step-photo";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +30,10 @@ export async function GET(
     if (!allowed) {
       return NextResponse.json({ error: "Foto bukti belum ada" }, { status: 404 });
     }
-    const file = await readStepPhotoFile(stepId, photoId, size);
+    const listed = meta.photos.find((p) => p.id === photoId);
+    const file = listed
+      ? await readListedStepPhoto(listed, size)
+      : await readStepPhotoFile(stepId, photoId, size);
     if (!file) {
       return NextResponse.json({ error: "Foto bukti belum ada" }, { status: 404 });
     }

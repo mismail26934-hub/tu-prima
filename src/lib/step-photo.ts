@@ -152,6 +152,35 @@ export async function deleteStepPhotoFiles(
   await deleteLegacyStepFiles(stepId);
 }
 
+/**
+ * Read a photo already stored on a step row. Archive remints step ids, so the
+ * file name still uses the original step id and must not be rejected for that.
+ */
+export async function readListedStepPhoto(
+  photo: StepPhotoRef,
+  size: "full" | "thumb" = "full"
+): Promise<{ bytes: Buffer; mime: string; fileName: string } | null> {
+  const id = String(photo.id || "").trim();
+  const name = String(photo.name || "").trim();
+  const tryNames =
+    size === "thumb"
+      ? [`${id}.thumb.jpg`, name, `${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`]
+      : [name, `${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`];
+  const seen = new Set<string>();
+  for (const fileName of tryNames) {
+    const base = String(fileName || "").trim();
+    if (!base || seen.has(base)) continue;
+    seen.add(base);
+    try {
+      const bytes = await readFile(filePathForName(base));
+      return { bytes, mime: mimeFromPhotoName(base), fileName: path.basename(base) };
+    } catch {
+      /* missing or unsafe name */
+    }
+  }
+  return null;
+}
+
 export async function readStepPhotoFile(
   stepId: string,
   photoId: string,

@@ -2312,7 +2312,16 @@ export async function deleteJobHandover(
     let handovers = loadHandovers(wb);
     const audits = loadAuditLog(wb);
     const row = handovers.find((h) => h.id === handoverId);
-    if (!row) throw new Error("Handover tidak ditemukan");
+    // Retry after a successful delete, or delete of a row that never synced.
+    if (!row) {
+      return {
+        ok: true as const,
+        job: null,
+        handover: null,
+        snapshot: null,
+        recipientPhone: "",
+      };
+    }
     const job = jobs.find((j) => j.id === row.job_id);
     if (
       job &&
@@ -2365,7 +2374,7 @@ export async function deleteJobHandover(
         : "",
     };
   });
-  if (result.job) {
+  if (result.job && result.handover) {
     notifyHandoverWhatsApp({
       action: "delete",
       job: result.job,
@@ -2532,7 +2541,7 @@ export async function deleteJobPartLoan(
     let partLoans = loadPartLoans(wb);
     const audits = loadAuditLog(wb);
     const row = partLoans.find((p) => p.id === loanId);
-    if (!row) throw new Error("Peminjaman part tidak ditemukan");
+    if (!row) return { ok: true };
     const job = jobs.find((j) => j.id === row.job_id);
     if (
       job &&

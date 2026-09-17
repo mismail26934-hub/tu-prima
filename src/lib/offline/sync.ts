@@ -59,6 +59,20 @@ export async function refreshPendingCount() {
   emit();
 }
 
+function replayErrorMessage(status: number, data: unknown): string {
+  if (data && typeof data === "object" && "error" in data) {
+    return String((data as { error?: string }).error || "Sync failed");
+  }
+  return `Sync failed (${status})`;
+}
+
+/** Delete replay of a row that is already gone should not stick in the outbox. */
+function deleteAlreadyGone(item: OutboxItem, status: number, message: string): boolean {
+  if (item.method.toUpperCase() !== "DELETE") return false;
+  if (status !== 400 && status !== 404) return false;
+  return /tidak ditemukan/i.test(message);
+}
+
 async function replay(item: OutboxItem): Promise<void> {
   const headers = new Headers();
   if (item.body) headers.set("Content-Type", "application/json");
@@ -69,10 +83,8 @@ async function replay(item: OutboxItem): Promise<void> {
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const message =
-      data && typeof data === "object" && "error" in data
-        ? String((data as { error?: string }).error || "Sync failed")
-        : `Sync failed (${res.status})`;
+    const message = replayErrorMessage(res.status, data);
+    if (deleteAlreadyGone(item, res.status, message)) return;
     throw new Error(message);
   }
 }

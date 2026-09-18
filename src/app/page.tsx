@@ -2167,6 +2167,22 @@ export default function HomePage() {
     (s) => s.setJobPriorityFilter
   );
   const jobDeepLink = useJobDeepLink();
+  const customerShareOpen =
+    jobDeepLink.customerView && Boolean(jobDeepLink.jobId);
+  const guestMustSignIn =
+    !isLoggedIn &&
+    !customerShareOpen &&
+    jobDeepLink.locationReady &&
+    (sessionStatus !== "loading" || sessionWaitTimedOut);
+
+  useEffect(() => {
+    if (!guestMustSignIn) return;
+    const path = `${window.location.pathname}${window.location.search}`;
+    if (path.startsWith("/sign-in") || path.startsWith("/auth-gagal")) return;
+    window.location.replace(
+      `/sign-in?callbackUrl=${encodeURIComponent(path || "/")}`
+    );
+  }, [guestMustSignIn]);
 
   useEffect(() => {
     if (!jobDeepLink.ready || !jobDeepLink.jobId || !jobDeepLink.section) return;
@@ -4323,13 +4339,14 @@ export default function HomePage() {
   }, [canSetTechPresence]);
 
   function renderJob(job: JobWithDetails) {
-    const manage = canManageJob(job);
-    const assignOk = canAssignForJob(job);
-    const progressOk = canProgressForJob(job);
-    const notesWriteOk = canNotesWriteForJob(job);
-    const notesDeleteOk = canNotesDeleteForJob(job);
+    const customerView = jobDeepLink.customerView;
+    const manage = !customerView && canManageJob(job);
+    const assignOk = !customerView && canAssignForJob(job);
+    const progressOk = !customerView && canProgressForJob(job);
+    const notesWriteOk = !customerView && canNotesWriteForJob(job);
+    const notesDeleteOk = !customerView && canNotesDeleteForJob(job);
     const handoverOk = notesWriteOk;
-    const delegateOk = canDelegateForJob(job);
+    const delegateOk = !customerView && canDelegateForJob(job);
     const jobMapLocal = jobMap;
     const activeStepId = job.steps.find((s) => s.status === "in_progress")?.id;
     const jobPriority = normalizeJobPriority(job.priority);
@@ -4343,10 +4360,11 @@ export default function HomePage() {
         key={job.id}
         id={`job-${job.id}`}
       >
-        <SliderActiveStepScroll job={job} />
+        {!customerView && <SliderActiveStepScroll job={job} />}
         <div className="job-head">
           <div>
             <div className="job-title-row">
+              {!customerView && (
               <button
                 className="btn btn-icon"
                 style={{ width: 32, height: 32, minWidth: 32 }}
@@ -4370,6 +4388,7 @@ export default function HomePage() {
                   <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                 </svg>
               </button>
+              )}
               <div className="job-title">{job.title}</div>
               {jobPriority ? (
                 <span
@@ -4383,7 +4402,8 @@ export default function HomePage() {
               {job.unit}
             </div>
             <div className="job-tech-row">
-              {["queued", "assigned", "in_progress", "paused"].includes(
+              {!customerView &&
+                ["queued", "assigned", "in_progress", "paused"].includes(
                 job.status
               ) && (
                 <button
@@ -4458,7 +4478,7 @@ export default function HomePage() {
             <div className="job-timer-wrap">
               <LiveTimer job={jobMapLocal[job.id] || job} />
               <div className="job-timer-remain-row">
-                {job.status === "in_progress" && (
+                {!customerView && job.status === "in_progress" && (
                   <button
                     className="btn job-timer-action"
                     style={{ padding: "6px 10px", fontSize: "0.82rem" }}
@@ -4473,7 +4493,7 @@ export default function HomePage() {
                     Pause
                   </button>
                 )}
-                {job.status === "paused" && (
+                {!customerView && job.status === "paused" && (
                   <button
                     className="btn btn-primary job-timer-action"
                     style={{ padding: "6px 10px", fontSize: "0.82rem" }}
@@ -4572,13 +4592,15 @@ export default function HomePage() {
                     <span className="step-name">
                       {s.order}. {s.name}
                       {s.status === "in_progress" ? " (aktif)" : ""}
-                      {Number(s.std_minutes || 0) > 0 && (
+                      {!customerView && Number(s.std_minutes || 0) > 0 && (
                         <span className="step-stp" title="STP / Std Hours">
                           {" "}
                           · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
                         </span>
                       )}
                     </span>
+                    {!customerView && (
+                    <>
                     <button
                       type="button"
                       className={`step-note-btn${
@@ -4667,6 +4689,24 @@ export default function HomePage() {
                         </svg>
                       )}
                     </button>
+                    </>
+                    )}
+                    {customerView &&
+                      (stepPhotoDisplayUrl(s) || firstStepThumbUrl(s)) && (
+                      <span className="step-photo-btn has-photo" aria-hidden="true">
+                        <img
+                          src={stepPhotoDisplayUrl(s) || firstStepThumbUrl(s)}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        {stepPhotoCount(s) > 1 ? (
+                          <span className="step-photo-count">
+                            {stepPhotoCount(s)}
+                          </span>
+                        ) : null}
+                      </span>
+                    )}
                   </span>
                   {(() => {
                     const techLabel = stepTechnicianNames(s, job);
@@ -4746,6 +4786,7 @@ export default function HomePage() {
           })}
         </ul>
 
+        {!customerView && (
         <div className="actions">
           <button
             type="button"
@@ -4754,7 +4795,7 @@ export default function HomePage() {
             onClick={() => setModal({ type: "print-pdf", job })}
             title="Unduh PDF job (teknisi, steps, handover, peminjaman part)"
           >
-            Print PDF
+            {t("job.printPdf")}
           </button>
           {job.status === "assigned" && (
             <button
@@ -4770,7 +4811,7 @@ export default function HomePage() {
               Start job
             </button>
           )}
-          {job.status === "in_progress" && (
+          {!customerView && job.status === "in_progress" && (
             <div className="actions-spread">
               {getStepMode(job.id) === "parallel" ? (
                 <div className="step-batch">
@@ -4826,7 +4867,7 @@ export default function HomePage() {
               </button>
             </div>
           )}
-          {job.status === "paused" && (
+          {!customerView && job.status === "paused" && (
             <button
               className="btn btn-primary"
               disabled={busy || !progressOk}
@@ -4840,7 +4881,8 @@ export default function HomePage() {
               Complete job
             </button>
           )}
-          {(job.status === "done" || job.status === "cancelled") &&
+          {!customerView &&
+            (job.status === "done" || job.status === "cancelled") &&
             canJobReopen && (
             <button
               className="btn"
@@ -4852,6 +4894,7 @@ export default function HomePage() {
             </button>
           )}
         </div>
+        )}
 
         {["in_progress", "paused", "done"].includes(job.status) && (
           <div
@@ -5495,6 +5538,143 @@ export default function HomePage() {
           </div>
         )}
       </article>
+    );
+  }
+
+  if (!isLoggedIn && !jobDeepLink.locationReady) {
+    return (
+      <main className="app">
+        <div className="page-loading" role="status" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
+        </div>
+      </main>
+    );
+  }
+
+  if (jobDeepLink.customerView && jobDeepLink.jobId) {
+    const customerJob =
+      jobMap[jobDeepLink.jobId] || jobDeepLink.job || null;
+    return (
+      <>
+      <main className="app app--customer-view">
+        {(error || (dashboardError && !customerJob && jobDeepLink.ready)) && (
+          <div className="error">
+            {error ||
+              (dashboardError instanceof Error
+                ? dashboardError.message
+                : "Gagal load data")}
+          </div>
+        )}
+        {!jobDeepLink.ready ? (
+          <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>
+            {t("loading.dashboard")}
+          </p>
+        ) : jobDeepLink.missing || !customerJob ? (
+          <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>
+            {t("job.deepLinkMissing")}
+          </p>
+        ) : (
+          <>
+            <header className="customer-view-bar">
+              <div>
+                <div className="brand">PRIMA</div>
+                <p className="customer-view-hint">{t("job.customerViewHint")}</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => setModal({ type: "print-pdf", job: customerJob })}
+                title="Unduh PDF job (teknisi, steps, handover, peminjaman part)"
+              >
+                {t("job.printPdf")}
+              </button>
+            </header>
+            <section className="panel panel--customer-job">
+              {renderJob(customerJob)}
+            </section>
+          </>
+        )}
+      </main>
+      {modal?.type === "print-pdf" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("job.printPdf")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              {t("job.printPdfConfirm")}
+            </p>
+            <div className="actions">
+              <button className="btn" onClick={closeModal} disabled={busy}>
+                {t("job.cancelAction")}
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void printJobPdf(modal.job)}
+              >
+                {t("job.printPdfYes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modal?.type === "process-alert" && (
+        <div
+          className="modal-backdrop"
+          onClick={modal.phase === "loading" ? undefined : closeModal}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{modal.title}</h3>
+            {modal.phase === "loading" ? (
+              <div className="process-alert-loading" role="status" aria-live="polite">
+                <span className="spinner" aria-hidden="true" />
+                <p style={{ margin: 0, whiteSpace: "pre-line", textAlign: "center" }}>
+                  {modal.message}
+                </p>
+                <span className="step-hint">Mohon tunggu...</span>
+              </div>
+            ) : (
+              <>
+                <p
+                  style={{
+                    margin: "0 0 16px",
+                    whiteSpace: "pre-line",
+                    color:
+                      modal.phase === "error"
+                        ? "var(--red)"
+                        : "var(--green)",
+                  }}
+                >
+                  {modal.message}
+                </p>
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={closeModal}
+                  >
+                    OK
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      </>
+    );
+  }
+
+  if (guestMustSignIn) {
+    return (
+      <main className="app">
+        <div className="page-loading" role="status" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
+        </div>
+      </main>
     );
   }
 

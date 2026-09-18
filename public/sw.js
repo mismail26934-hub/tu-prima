@@ -1,4 +1,4 @@
-const CACHE = "tu-prima-shell-v15";
+const CACHE = "tu-prima-shell-v16";
 const SHELL = ["/", "/sign-in", "/auth-gagal", "/manifest.webmanifest"];
 /** Shell/nav: fall back to cache quickly. API: allow slow MySQL (was 400ms → false Offline). */
 const SHELL_FETCH_MS = 3000;
@@ -45,6 +45,14 @@ function isRscRequest(request, url) {
   return false;
 }
 
+function isCustomerShare(url) {
+  return (
+    url.pathname === "/" &&
+    (url.searchParams.get("view") || "").trim().toLowerCase() === "customer" &&
+    Boolean((url.searchParams.get("job") || "").trim())
+  );
+}
+
 function isHtmlResponse(response) {
   const type = (response.headers.get("content-type") || "").toLowerCase();
   return type.includes("text/html");
@@ -58,6 +66,7 @@ async function putCopy(cache, request, response) {
   if (!response || !response.ok) return;
   const url = new URL(request.url, self.location.origin);
   if (isRscRequest(request, url)) return;
+  if (isCustomerShare(url)) return;
   if (request.mode === "navigate" && !isHtmlResponse(response)) return;
   try {
     await cache.put(request, response.clone());
@@ -109,7 +118,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, "/", SHELL_FETCH_MS));
+    const homeFallback = isCustomerShare(url) ? undefined : "/";
+    event.respondWith(networkFirst(request, homeFallback, SHELL_FETCH_MS));
     return;
   }
 
@@ -172,10 +182,13 @@ async function networkOnly(request, ms = API_FETCH_MS) {
 }
 
 async function matchCached(cache, request, fallbackUrl) {
-  const opts = { ignoreSearch: true };
+  const url = new URL(request.url);
+  const documentNav =
+    request.mode === "navigate" || request.destination === "document";
+  const opts = documentNav ? {} : { ignoreSearch: true };
   const direct = await cache.match(request, opts);
   if (direct && isUsableCached(request, direct)) return direct;
-  if (!fallbackUrl) return undefined;
+  if (!fallbackUrl || isCustomerShare(url)) return undefined;
   const named = await cache.match(shellRequest(fallbackUrl), opts);
   if (named && isUsableCached(request, named)) return named;
   const fallback = await cache.match(fallbackUrl, opts);
@@ -240,7 +253,13 @@ async function networkFirst(request, fallbackUrl, ms = SHELL_FETCH_MS) {
     // Cache only successful shell/HTML; pass through API errors unchanged.
     if (fresh.ok) {
       await putCopy(cache, request, fresh);
-      if (fallbackUrl && request.mode === "navigate" && isHtmlResponse(fresh)) {
+      const reqUrl = new URL(request.url);
+      if (
+        fallbackUrl &&
+        request.mode === "navigate" &&
+        isHtmlResponse(fresh) &&
+        !isCustomerShare(reqUrl)
+      ) {
         await putCopy(cache, shellRequest(fallbackUrl), fresh);
       }
     }

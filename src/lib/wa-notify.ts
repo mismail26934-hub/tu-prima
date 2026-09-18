@@ -82,7 +82,8 @@ export function jobDeepLinkUrl(jobId: string): string {
   const origin = publicAppOrigin();
   const id = String(jobId || '').trim();
   if (!origin || !id) return '';
-  return `${origin}/?job=${encodeURIComponent(id)}`;
+  // Customer share: single-job read-only UI (no board chrome).
+  return `${origin}/?job=${encodeURIComponent(id)}&view=customer`;
 }
 
 function token(): string {

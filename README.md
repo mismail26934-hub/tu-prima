@@ -51,7 +51,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 - Buat job dari **template time frame** (Component Engine / Non Engine) atau **custom**
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
 - Start, pause, resume, complete step
-- **Complete job** → `job_scope = completed` (keluar dari board aktif)
+- **Complete job** → `job_scope = completed` (keluar dari board aktif). Ditolak jika ada catatan handover yang **DONE** masih **No**
 - **Buka kembali** (hanya **superuser**):
   - dari **Job completed** → restore → `paused`
   - dari **Job cancelled** → restore → `paused` / `assigned` / `queued`
@@ -99,7 +99,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 ## Alur proses bisnis
 
 ```text
-1. Login di /sign-in (opsional untuk lihat dashboard; wajib untuk aksi tulis/progress)
+1. Login di /sign-in (wajib untuk dashboard `/`; tautan customer `/?job=…&view=customer` boleh tanpa login)
 2. Pastikan master Unit & Teknisi tersedia
 3. Buat Job baru
       ├─ Mode template → pilih Engine / Non Engine / GOH → pilih komponen
@@ -111,6 +111,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 6. Kerjakan step (berurutan ATAU parallel)
 7. Pause / Resume bila perlu
 8. Complete job → job_scope `completed` di MySQL (atau Cancel → `cancelled` / Hapus → `deleted`)
+   Syarat complete: setiap handover DONE = Yes (jika ada), plus foto & catatan step yang belum selesai
 9. Superuser dapat **Buka kembali** job completed/cancelled dari archive
 ```
 
@@ -217,6 +218,18 @@ Pause job: waktu pause **tidak** menambah durasi step (segmen di-freeze ke `dura
 Reopen/complete **tidak mereset** `started_at` — timer akumulatif tetap dari start awal.
 Sync offline memakai `started_at` / `next_started_at` dari client, bukan jam server saat flush (supaya timer step tidak reset ke 00:00:00).
 
+### Web Speech (peringatan sisa estimasi)
+
+Browser membacakan job lewat `speechSynthesis` (`src/lib/remain-alert-sound.ts`). Bukan pengenalan suara.
+
+Hanya **penugas** atau **penerima delegasi** yang mendengarnya, untuk job `in_progress` / `paused`. Job selesai, dibatalkan, atau tanpa estimasi tidak dibacakan. Speaker di navbar bisa dimatikan. Bahasa ID/EN dipilih di panel suara (tersimpan di `localStorage`).
+
+Kali pertama job terlihat, suaranya diam. Setelah itu dibacakan bila:
+
+- masuk oranye (sisa **< 50%** dan **> 20%**) atau merah (**≤ 20%** / waktu habis)
+- sisa persen turun lagi sebesar langkah (standar 5%, diatur 1–20%)
+- waktu habis (0%), lalu berulang setiap lembur (standar 1 jam, diatur 0,5–24 jam)
+
 ---
 
 ## Prioritas job (URGENT / P1 / P2 / P3)
@@ -256,6 +269,8 @@ Job aktif & antrian disimpan di MySQL dengan `job_scope = 'active'`. Complete / 
 
 Setiap baris archive menyimpan meta `archived_at` / `deleted_at` + user pelaku, plus relasi turunan (steps, events, assignees, handovers, part loans).
 
+Arsip memakai id step baru agar tidak bentrok primary key. File foto bukti tetap bernama id step lama. `GET /api/jobs/[id]/steps/[stepId]/photo` membaca foto yang tercatat di baris step itu (nama file tersimpan), bukan menolak hanya karena id step berubah.
+
 Modul: `src/lib/job-completed-archive.ts`, `job-cancelled-archive.ts`, `job-delete-archive.ts` · penyimpanan: `src/db/archive-store.ts`.
 
 ---
@@ -276,6 +291,7 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** 
 - **Tambah / Ubah**: foreman pengendali job, atau **teknisi yang di-assign** ke job tersebut
 - **Hapus**: hanya foreman pengendali job; level lain (termasuk teknisi) hanya lihat read-only untuk hapus
 - Pada job dari archive (`from_archive`), catatan **read-only**
+- **Complete job ditolak** jika ada baris handover dengan **DONE = No** (`done !== "1"`). Job tanpa handover tetap bisa selesai. Modal Complete menonaktifkan tombol dan menampilkan daftar handover yang belum Yes
 - Tersimpan di tabel **`job_handovers`**; aksi tercatat di **`audit_log`**
 
 API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[handoverId]`
@@ -487,7 +503,7 @@ src/
   store/                  ← Zustand (job form, assign, board, locale)
   i18n/                   ← kamus ID/EN + useT()
   components/             ← LanguageToggle, OfflineSyncChip, ServiceWorkerRegister, RealtimeBridge
-middleware.ts             ← proteksi route + guest boleh / (kecuali /ws)
+middleware.ts             ← proteksi route: belum login → /sign-in; customer view & /api/* dikecualikan
 public/
   sw.js                   ← service worker (app shell + session GET; API data tidak di-cache)
   manifest.webmanifest
@@ -676,8 +692,13 @@ Offline → UI → cache IndexedDB + outbox (antrian mutasi)
 Online kembali → flush outbox berurutan → MySQL + audit/backup → refresh board
 ```
 
-- Chip di topbar: **Offline · N** / **N** pending / error (klik → popover **Coba sync** + Refresh).
+- Chip di topbar: **Offline · N** / **N** pending / error (klik → popover **Coba sync** + Refresh, plus daftar **Akan disinkron**).
 - Poll 8 detik **berhenti** saat `navigator.onLine === false`. Item sync gagal (4xx) ditandai di chip merah; item berikutnya menunggu sampai di-retry.
+- Hapus handover / peminjaman part yang sudah tidak ada di server dianggap selesai (tidak menggantung antrean dengan "tidak ditemukan").
+- **Assign** offline menampilkan nama teknisi dari cache board / pool, bukan daftar kosong.
+- **Delegasi** offline memakai daftar foreman yang sudah diambil saat online (disimpan di snapshot). Buka halaman sekali saat online supaya daftar itu ada.
+- `npm start` memaksa `NODE_ENV=production` agar route nested (`/api/jobs/[id]/action`, handover, part-loan) tidak 404 saat sync.
+- **Tampilan customer**: tautan `/?job={id}&view=customer` (dipakai WhatsApp) menampilkan **hanya job itu** — tanpa navbar, panel teknisi, filter, mode slider, STP/Std Hours, atau tombol aksi. Tautan staff `/?job={id}` (tanpa `view=customer`) tetap membuka board penuh.
 
 ### Yang bisa offline
 
@@ -801,6 +822,13 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 ### Ringkasan perubahan terkini
 
+- **Tampilan customer** (`/?job=…&view=customer`): hanya satu job, tanpa navbar / filter / panel teknisi / slider / STP; tautan WhatsApp memakai mode ini; boleh dibuka tanpa login
+- **Dashboard `/`**: user belum login dialihkan ke `/sign-in` (kecuali customer view di atas)
+- **Complete job** ditolak selama ada handover **DONE = No** (UI + server)
+- **Foto job selesai** tetap tampil: foto arsip dibaca dari nama file tersimpan, meski id step di-remint
+- **Sync hapus** handover / part loan yang sudah hilang tidak lagi macet di antrean
+- **Offline**: assign menampilkan nama teknisi; Delegasi memakai cache foreman; chip sync merinci perubahan yang akan dikirim
+- **Web Speech** membacakan peringatan sisa estimasi (oranye/merah, turun persen, habis, lembur) untuk penugas atau penerima delegasi
 - **Prioritas job** opsional (`URGENT` / `P1` / `P2` / `P3`): form Create/Edit, kolom `jobs.priority`, pill di kartu, PDF/Excel, filter Job aktif & Antrian; layout filter mobile ditumpuk vertikal
 - **Catatan per step** (`job_steps.note`) + ikon/modal di kartu job
 - **Delegasi penuh**: hanya foreman terdelegasi + superuser yang mengendalikan job (assigner asli tidak bisa undelegate)

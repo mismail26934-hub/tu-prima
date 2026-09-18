@@ -293,6 +293,48 @@ button {
   min-width: 0;
 }
 
+/* WhatsApp / share: /?job=…&view=customer — single job, no board chrome */
+.app--customer-view {
+  max-width: 720px;
+  padding-top: 16px;
+}
+
+.customer-view-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 4px 0 12px;
+}
+
+.customer-view-bar .brand {
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.customer-view-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.app--customer-view .panel--customer-job {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.app--customer-view .job {
+  margin: 0;
+}
+
+.app--customer-view .job > .actions {
+  display: none;
+}
+
 .app-login {
   min-height: 100vh;
   display: grid;

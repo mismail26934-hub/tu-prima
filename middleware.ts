@@ -11,7 +11,11 @@ export default auth((req) => {
     nextUrl.pathname.startsWith("/sign-in") ||
     nextUrl.pathname.startsWith("/auth-gagal");
   const isApi = nextUrl.pathname.startsWith("/api/");
-  const isGuestPage = nextUrl.pathname === "/";
+  // WhatsApp customer share: /?job=…&view=customer — no login required
+  const isCustomerJobView =
+    nextUrl.pathname === "/" &&
+    nextUrl.searchParams.get("view")?.trim().toLowerCase() === "customer" &&
+    Boolean(nextUrl.searchParams.get("job")?.trim());
 
   if (isLoginPage && isLoggedIn && nextUrl.pathname.startsWith("/sign-in")) {
     const raw = nextUrl.searchParams.get("callbackUrl") || "/";
@@ -20,7 +24,7 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(target, nextUrl));
   }
 
-  if (!isLoggedIn && !isLoginPage && !isGuestPage && !isApi) {
+  if (!isLoggedIn && !isLoginPage && !isCustomerJobView && !isApi) {
     const loginUrl = new URL("/sign-in", nextUrl);
     loginUrl.searchParams.set(
       "callbackUrl",
@@ -29,11 +33,16 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  const res = NextResponse.next();
+  if (nextUrl.pathname === "/") {
+    res.headers.set("Cache-Control", "private, no-store");
+  }
+  return res;
 });
 
 export const config = {
   matcher: [
+    "/",
     "/((?!api/session|_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|ws).*)",
   ],
 };

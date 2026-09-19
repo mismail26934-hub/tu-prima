@@ -1201,11 +1201,11 @@ function migrateUnitSerialNumberColumn(wb: MysqlWorkbook): boolean {
 }
 
 /** Ensure JobSteps.std_minutes column; backfill from template when missing. */
-function migrateJobStepStdMinutes(
+async function migrateJobStepStdMinutes(
   wb: MysqlWorkbook,
   jobs: Job[],
   steps: JobStep[]
-): { steps: JobStep[]; changed: boolean } {
+): Promise<{ steps: JobStep[]; changed: boolean }> {
   const ws = getSheet(wb, SHEETS.steps);
   const headerRow = ws.getRow(1);
   let hasStd = false;
@@ -1223,7 +1223,7 @@ function migrateJobStepStdMinutes(
 
   for (const job of jobs) {
     if (!job.template_id) continue;
-    const tpl = getJobTemplate(job.template_id);
+    const tpl = await getJobTemplate(job.template_id);
     if (!tpl?.steps?.length) continue;
     const tplSteps = tpl.steps.slice().sort((a, b) => a.order - b.order);
     for (const step of next.filter((s) => s.job_id === job.id)) {
@@ -1605,7 +1605,7 @@ export async function getDashboard(): Promise<DashboardData> {
     const units = loadUnits(wb, jobs);
     const techSnMigrated = migrateTechnicianSnColumn(wb);
     const unitSerialMigrated = migrateUnitSerialNumberColumn(wb);
-    const stepStdMigrated = migrateJobStepStdMinutes(wb, jobs, steps);
+    const stepStdMigrated = await migrateJobStepStdMinutes(wb, jobs, steps);
     steps = stepStdMigrated.steps;
     const techsFresh = techSnMigrated
       ? readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician)
@@ -1724,7 +1724,7 @@ export async function createJob(input: {
     if (!unit) throw new Error("Unit tidak ditemukan / nonaktif");
 
     const templateId = input.template_id ? String(input.template_id).trim() : "";
-    const template = templateId ? getJobTemplate(templateId) : null;
+    const template = templateId ? await getJobTemplate(templateId) : null;
     if (templateId && !template) {
       throw new Error("Template job tidak ditemukan");
     }
@@ -1903,7 +1903,7 @@ export async function updateJob(
 
     const canRewriteSteps = ["queued", "assigned"].includes(job.status);
     if (canRewriteSteps && input.steps && input.steps.length > 0) {
-      const tpl = job.template_id ? getJobTemplate(job.template_id) : null;
+      const tpl = job.template_id ? await getJobTemplate(job.template_id) : null;
       const tplSteps = tpl ? stepsFromTemplate(tpl) : [];
       const previous = steps.filter((s) => s.job_id === jobId);
       for (const old of previous) {

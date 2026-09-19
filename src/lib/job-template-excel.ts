@@ -2,7 +2,6 @@ import ExcelJS from "exceljs";
 import type { JobTemplate, JobTemplateCategory } from "./types";
 import {
   createJobTemplate,
-  getJobTemplate,
   listJobTemplatesFull,
   updateJobTemplate,
   type JobTemplateStepInput,
@@ -367,30 +366,35 @@ function nameKey(category: string, name: string) {
 }
 
 function findExistingTemplate(
+  catalog: JobTemplate[],
   id: string,
   category: JobTemplateCategory | null,
   name: string
 ): JobTemplate | null {
   if (id) {
-    const byId = getJobTemplate(id, { includeInactive: true });
+    const byId = catalog.find((t) => t.id === id);
     if (byId) return byId;
   }
   if (!category || !name) return null;
   return (
-    listJobTemplatesFull(category, { includeInactive: true }).find(
-      (t) => t.name.toLowerCase() === name.toLowerCase()
+    catalog.find(
+      (t) =>
+        t.category === category && t.name.toLowerCase() === name.toLowerCase()
     ) || null
   );
 }
 
-function toPreviewRow(draft: PreviewDraft): JobTemplateImportPreviewRow {
+function toPreviewRow(
+  catalog: JobTemplate[],
+  draft: PreviewDraft
+): JobTemplateImportPreviewRow {
   const errors = draft.errors.slice();
   if (!errors.length && draft.categoryValid && draft.name && !draft.steps.length) {
     errors.push("Tidak ada step di sheet Steps");
   }
   const ok = errors.length === 0 && Boolean(draft.categoryValid && draft.name);
   const existing = ok
-    ? findExistingTemplate(draft.id, draft.categoryValid, draft.name)
+    ? findExistingTemplate(catalog, draft.id, draft.categoryValid, draft.name)
     : null;
   return {
     row: draft.row,
@@ -422,6 +426,7 @@ export async function previewJobTemplatesFromBuffer(
       ? Buffer.from(new Uint8Array(buffer))
       : Buffer.from(buffer);
   await src.xlsx.load(bytes as unknown as ExcelJS.Buffer);
+  const catalog = await listJobTemplatesFull(undefined, { includeInactive: true });
 
   const metaSheet =
     findSheet(src, "Templates", "Template", "Master") || src.worksheets[0];
@@ -575,7 +580,7 @@ export async function previewJobTemplatesFromBuffer(
     }
 
     if (!draft && templateId) {
-      const existing = getJobTemplate(templateId, { includeInactive: true });
+      const existing = catalog.find((t) => t.id === templateId);
       if (!existing) {
         pushStepError(
           `template_id "${templateId}" tidak ada di sheet Templates / katalog`
@@ -621,7 +626,7 @@ export async function previewJobTemplatesFromBuffer(
     });
   });
 
-  const rows = [...drafts, ...extraRows].map(toPreviewRow);
+  const rows = [...drafts, ...extraRows].map((draft) => toPreviewRow(catalog, draft));
   if (!rows.length) {
     throw new Error("Tidak ada baris template yang bisa diimpor");
   }
@@ -635,12 +640,13 @@ export async function previewJobTemplatesFromBuffer(
 }
 
 /** Write selected preview rows into the catalog. */
-export function commitJobTemplatesImport(
+export async function commitJobTemplatesImport(
   rows: JobTemplateImportCommitRow[]
-): { imported: number; updated: number; skipped: string[] } {
+): Promise<{ imported: number; updated: number; skipped: string[] }> {
   const skipped: string[] = [];
   let imported = 0;
   let updated = 0;
+  let catalog = await listJobTemplatesFull(undefined, { includeInactive: true });
 
   for (const row of rows) {
     const category = parseCategory(String(row.category || ""));
@@ -661,6 +667,7 @@ export function commitJobTemplatesImport(
 
     try {
       const existing = findExistingTemplate(
+        catalog,
         String(row.id || ""),
         category,
         name
@@ -670,7 +677,7 @@ export function commitJobTemplatesImport(
           ? String(row.active)
           : existing?.active || "1";
       if (existing) {
-        updateJobTemplate(existing.id, {
+        await updateJobTemplate(existing.id, {
           category,
           name,
           active,
@@ -678,7 +685,7 @@ export function commitJobTemplatesImport(
         });
         updated += 1;
       } else {
-        createJobTemplate({
+        await createJobTemplate({
           id: row.id ? String(row.id) : undefined,
           category,
           name,
@@ -687,6 +694,7 @@ export function commitJobTemplatesImport(
         });
         imported += 1;
       }
+      catalog = await listJobTemplatesFull(undefined, { includeInactive: true });
     } catch (e) {
       skipped.push(
         `Template "${name}": ${e instanceof Error ? e.message : "gagal simpan"}`

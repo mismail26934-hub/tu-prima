@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       const body = (await req.json()) as {
         rows?: JobTemplateImportCommitRow[];
       };
-      const result = commitJobTemplatesImport(
+      const result = await commitJobTemplatesImport(
         Array.isArray(body.rows) ? body.rows : []
       );
       return NextResponse.json(result);

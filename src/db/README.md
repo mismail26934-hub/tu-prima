@@ -16,6 +16,8 @@
 | `attendance` | Daftar hadir |
 | `audit_log` | Audit trail |
 | `job_change_backups` | Backup / undo |
+| `job_templates` | Katalog time frame Engine / Non Engine / GOH |
+| `job_template_steps` | Langkah + STP per template |
 
 Connection: `DATABASE_URL` in `.env.local`.
 

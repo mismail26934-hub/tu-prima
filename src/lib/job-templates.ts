@@ -1,5 +1,5 @@
-import fs from "fs";
-import path from "path";
+import type mysql from "mysql2/promise";
+import { getPool } from "@/db/mysql-workbook";
 import { broadcastDashboardChanged } from "./realtime/hub";
 import type {
   JobTemplate,
@@ -7,13 +7,6 @@ import type {
   JobTemplateStep,
   JobTemplateSummary,
 } from "./types";
-
-const CATALOG_PATH = path.join(process.cwd(), "data", "job-templates.json");
-
-type CatalogFile = {
-  version: number;
-  templates: JobTemplate[];
-};
 
 export type JobTemplateStepInput = {
   id?: string;
@@ -33,49 +26,12 @@ export type JobTemplateWriteInput = {
   id?: string;
 };
 
-let cache: CatalogFile | null = null;
-let cacheMtimeMs = -1;
+let cache: JobTemplate[] | null = null;
+let loadPromise: Promise<JobTemplate[]> | null = null;
 
 export function clearJobTemplateCache() {
   cache = null;
-  cacheMtimeMs = -1;
-}
-
-function catalogMtimeMs(): number {
-  try {
-    if (!fs.existsSync(CATALOG_PATH)) return -1;
-    return fs.statSync(CATALOG_PATH).mtimeMs;
-  } catch {
-    return -1;
-  }
-}
-
-function loadCatalog(): CatalogFile {
-  const mtimeMs = catalogMtimeMs();
-  if (cache && cacheMtimeMs === mtimeMs && mtimeMs >= 0) return cache;
-
-  if (!fs.existsSync(CATALOG_PATH)) {
-    cache = { version: 1, templates: [] };
-    cacheMtimeMs = -1;
-    return cache;
-  }
-  const raw = fs.readFileSync(CATALOG_PATH, "utf8");
-  const parsed = JSON.parse(raw) as CatalogFile;
-  cache = {
-    version: parsed.version || 1,
-    templates: Array.isArray(parsed.templates) ? parsed.templates : [],
-  };
-  cacheMtimeMs = mtimeMs;
-  return cache;
-}
-
-function saveCatalog(catalog: CatalogFile) {
-  const dir = path.dirname(CATALOG_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CATALOG_PATH, JSON.stringify(catalog, null, 2) + "\n", "utf8");
-  cache = catalog;
-  cacheMtimeMs = catalogMtimeMs();
-  broadcastDashboardChanged();
+  loadPromise = null;
 }
 
 function slugify(value: string): string {
@@ -148,7 +104,6 @@ function normalizeSteps(
     };
   });
 
-  // Ensure unique step ids after pad collisions
   const used = new Set<string>();
   for (const step of normalized) {
     let id = step.id;
@@ -178,11 +133,153 @@ function toSummary(t: JobTemplate): JobTemplateSummary {
   };
 }
 
-export function listJobTemplates(
+function parseCategory(value: unknown): JobTemplateCategory {
+  if (value === "engine" || value === "non_engine" || value === "goh") return value;
+  return "engine";
+}
+
+function assertCategory(value: unknown): JobTemplateCategory {
+  if (value === "engine" || value === "non_engine" || value === "goh") return value;
+  throw new Error("category harus engine, non_engine, atau goh");
+}
+
+function cloneTemplate(t: JobTemplate): JobTemplate {
+  return {
+    ...t,
+    steps: t.steps.slice().sort((a, b) => a.order - b.order),
+  };
+}
+
+function rowStr(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function mapStep(row: mysql.RowDataPacket): JobTemplateStep {
+  return {
+    id: rowStr(row.id),
+    template_id: rowStr(row.template_id),
+    phase: rowStr(row.phase),
+    name: rowStr(row.name),
+    order: Number(row.sort_order || 0) || 0,
+    man_power: Number(row.man_power || 0) || 0,
+    std_minutes: Number(row.std_minutes || 0) || 0,
+  };
+}
+
+function mapTemplate(
+  row: mysql.RowDataPacket,
+  steps: JobTemplateStep[]
+): JobTemplate {
+  const category = parseCategory(rowStr(row.category) || "engine");
+  return {
+    id: rowStr(row.id),
+    category,
+    name: rowStr(row.name),
+    active: Number(row.active) === 0 ? "0" : "1",
+    std_minutes: Number(row.std_minutes || 0) || 0,
+    steps: steps.slice().sort((a, b) => a.order - b.order),
+  };
+}
+
+async function fetchAllFromDb(): Promise<JobTemplate[]> {
+  const p = getPool();
+  const [headers] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT id, category, name, active, std_minutes FROM job_templates`
+  );
+  const [stepRows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT id, template_id, phase, name, sort_order, man_power, std_minutes
+     FROM job_template_steps
+     ORDER BY template_id, sort_order, id`
+  );
+  const stepsByTemplate = new Map<string, JobTemplateStep[]>();
+  for (const row of stepRows) {
+    const step = mapStep(row);
+    const list = stepsByTemplate.get(step.template_id) || [];
+    list.push(step);
+    stepsByTemplate.set(step.template_id, list);
+  }
+  return headers
+    .map((row) => mapTemplate(row, stepsByTemplate.get(rowStr(row.id)) || []))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function loadCatalog(): Promise<JobTemplate[]> {
+  if (cache) return cache;
+  if (loadPromise) return loadPromise;
+  loadPromise = (async () => {
+    try {
+      cache = await fetchAllFromDb();
+      return cache;
+    } finally {
+      loadPromise = null;
+    }
+  })();
+  return loadPromise;
+}
+
+async function insertTemplateRows(
+  conn: mysql.PoolConnection | mysql.Pool,
+  template: JobTemplate
+) {
+  await conn.query(
+    `INSERT INTO job_templates (id, category, name, active, std_minutes)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       category = VALUES(category),
+       name = VALUES(name),
+       active = VALUES(active),
+       std_minutes = VALUES(std_minutes)`,
+    [
+      template.id,
+      template.category,
+      template.name,
+      template.active === "0" ? 0 : 1,
+      template.std_minutes,
+    ]
+  );
+  await conn.query(`DELETE FROM job_template_steps WHERE template_id = ?`, [
+    template.id,
+  ]);
+  for (const step of template.steps) {
+    await conn.query(
+      `INSERT INTO job_template_steps
+        (id, template_id, phase, name, sort_order, man_power, std_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        step.id,
+        template.id,
+        step.phase || "",
+        step.name,
+        step.order,
+        step.man_power,
+        step.std_minutes,
+      ]
+    );
+  }
+}
+
+async function persistTemplate(template: JobTemplate): Promise<void> {
+  const p = getPool();
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    await insertTemplateRows(conn, template);
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+  clearJobTemplateCache();
+  broadcastDashboardChanged();
+}
+
+export async function listJobTemplates(
   category?: JobTemplateCategory,
   opts?: { includeInactive?: boolean }
-): JobTemplateSummary[] {
-  const { templates } = loadCatalog();
+): Promise<JobTemplateSummary[]> {
+  const templates = await loadCatalog();
   return templates
     .filter((t) => opts?.includeInactive || t.active !== "0")
     .filter((t) => !category || t.category === category)
@@ -191,33 +288,27 @@ export function listJobTemplates(
 }
 
 /** Full rows for master UI / export. */
-export function listJobTemplatesFull(
+export async function listJobTemplatesFull(
   category?: JobTemplateCategory,
   opts?: { includeInactive?: boolean }
-): JobTemplate[] {
-  const { templates } = loadCatalog();
+): Promise<JobTemplate[]> {
+  const templates = await loadCatalog();
   return templates
     .filter((t) => opts?.includeInactive || t.active !== "0")
     .filter((t) => !category || t.category === category)
-    .map((t) => ({
-      ...t,
-      steps: t.steps.slice().sort((a, b) => a.order - b.order),
-    }))
+    .map(cloneTemplate)
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getJobTemplate(
+export async function getJobTemplate(
   id: string,
   opts?: { includeInactive?: boolean }
-): JobTemplate | null {
-  const { templates } = loadCatalog();
+): Promise<JobTemplate | null> {
+  const templates = await loadCatalog();
   const found = templates.find((t) => t.id === id) || null;
   if (!found) return null;
   if (!opts?.includeInactive && found.active === "0") return null;
-  return {
-    ...found,
-    steps: found.steps.slice().sort((a, b) => a.order - b.order),
-  };
+  return cloneTemplate(found);
 }
 
 /** Step name + STP minutes from template (sorted by order). */
@@ -237,22 +328,19 @@ export function stepNamesFromTemplate(template: JobTemplate): string[] {
   return stepsFromTemplate(template).map((s) => s.name);
 }
 
-function assertCategory(value: unknown): JobTemplateCategory {
-  if (value === "engine" || value === "non_engine" || value === "goh") return value;
-  throw new Error("category harus engine, non_engine, atau goh");
-}
-
-export function createJobTemplate(input: JobTemplateWriteInput): JobTemplate {
-  const catalog = loadCatalog();
+export async function createJobTemplate(
+  input: JobTemplateWriteInput
+): Promise<JobTemplate> {
+  const templates = await loadCatalog();
   const category = assertCategory(input.category);
   const name = String(input.name || "").trim();
   if (!name) throw new Error("Nama template wajib diisi");
 
-  const existingIds = new Set(catalog.templates.map((t) => t.id));
+  const existingIds = new Set(templates.map((t) => t.id));
   let id = String(input.id || "").trim();
   if (id) {
     if (existingIds.has(id)) {
-      return getJobTemplate(id, { includeInactive: true })!;
+      return (await getJobTemplate(id, { includeInactive: true }))!;
     }
   } else {
     id = makeTemplateId(category, name, existingIds);
@@ -267,26 +355,22 @@ export function createJobTemplate(input: JobTemplateWriteInput): JobTemplate {
     std_minutes: sumStdMinutes(steps),
     steps,
   };
-
-  catalog.templates.push(template);
-  saveCatalog(catalog);
-  return getJobTemplate(id, { includeInactive: true })!;
+  await persistTemplate(template);
+  return (await getJobTemplate(id, { includeInactive: true }))!;
 }
 
-export function updateJobTemplate(
+export async function updateJobTemplate(
   id: string,
   input: JobTemplateWriteInput
-): JobTemplate {
-  const catalog = loadCatalog();
-  const index = catalog.templates.findIndex((t) => t.id === id);
-  if (index < 0) throw new Error("Template tidak ditemukan");
+): Promise<JobTemplate> {
+  const prev = await getJobTemplate(id, { includeInactive: true });
+  if (!prev) throw new Error("Template tidak ditemukan");
 
   const category = assertCategory(input.category);
   const name = String(input.name || "").trim();
   if (!name) throw new Error("Nama template wajib diisi");
 
   const steps = normalizeSteps(id, input.steps || []);
-  const prev = catalog.templates[index];
   const template: JobTemplate = {
     id,
     category,
@@ -296,22 +380,32 @@ export function updateJobTemplate(
     std_minutes: sumStdMinutes(steps),
     steps,
   };
-
-  catalog.templates[index] = template;
-  saveCatalog(catalog);
-  return getJobTemplate(id, { includeInactive: true })!;
+  await persistTemplate(template);
+  return (await getJobTemplate(id, { includeInactive: true }))!;
 }
 
 /**
- * Hard-delete: remove from the catalog JSON.
- * Existing jobs keep `template_id`; lookup simply returns null.
+ * Hard-delete from MySQL. Existing jobs keep `template_id`; lookup returns null.
  */
-export function deleteJobTemplate(id: string): { ok: true; id: string } {
-  const catalog = loadCatalog();
-  const index = catalog.templates.findIndex((t) => t.id === id);
-  if (index < 0) throw new Error("Template tidak ditemukan");
-
-  catalog.templates.splice(index, 1);
-  saveCatalog(catalog);
+export async function deleteJobTemplate(
+  id: string
+): Promise<{ ok: true; id: string }> {
+  const prev = await getJobTemplate(id, { includeInactive: true });
+  if (!prev) throw new Error("Template tidak ditemukan");
+  const p = getPool();
+  const conn = await p.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(`DELETE FROM job_template_steps WHERE template_id = ?`, [id]);
+    await conn.query(`DELETE FROM job_templates WHERE id = ?`, [id]);
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+  clearJobTemplateCache();
+  broadcastDashboardChanged();
   return { ok: true, id };
 }

@@ -1,15 +1,24 @@
 /**
- * One-shot: parse data/templates/Time Frame GOH.xlsx → upsert into data/job-templates.json
+ * One-shot: parse data/templates/Time Frame GOH.xlsx → upsert MySQL job_templates.
  * Run: npx tsx scripts/import-goh-templates.ts
  */
 import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
+import dotenv from "dotenv";
 import type { JobTemplate, JobTemplateStep } from "../src/lib/types";
+import { ensureSchema } from "../src/db/mysql-workbook";
+import {
+  createJobTemplate,
+  getJobTemplate,
+  updateJobTemplate,
+} from "../src/lib/job-templates";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 const ROOT = process.cwd();
 const XLSX = path.join(ROOT, "data", "templates", "Time Frame GOH.xlsx");
-const CATALOG = path.join(ROOT, "data", "job-templates.json");
 
 function cellStr(value: unknown): string {
   if (value == null) return "";
@@ -145,52 +154,28 @@ async function main() {
     );
   }
 
-  const raw = fs.existsSync(CATALOG)
-    ? (JSON.parse(fs.readFileSync(CATALOG, "utf8")) as {
-        version?: number;
-        templates?: JobTemplate[];
-      })
-    : { version: 1, templates: [] };
-
-  const existing = Array.isArray(raw.templates) ? raw.templates : [];
-  const byId = new Map(existing.map((t) => [t.id, t]));
-  const byName = new Map(
-    existing
-      .filter((t) => t.category === "goh")
-      .map((t) => [t.name.toLowerCase(), t.id])
-  );
-
-  let updated = 0;
-  let imported = 0;
+  await ensureSchema();
+  let dbUpdated = 0;
+  let dbImported = 0;
   for (const tpl of incoming) {
-    const nameKey = tpl.name.toLowerCase();
-    const prevId = byName.get(nameKey);
-    if (prevId && prevId !== tpl.id && byId.has(prevId)) {
-      // replace old goh entry matched by name
-      byId.delete(prevId);
-    }
-    if (byId.has(tpl.id) || prevId) {
-      updated += 1;
+    const existing = await getJobTemplate(tpl.id, { includeInactive: true });
+    const payload = {
+      id: tpl.id,
+      category: tpl.category,
+      name: tpl.name,
+      active: tpl.active,
+      steps: tpl.steps,
+    };
+    if (existing) {
+      await updateJobTemplate(tpl.id, payload);
+      dbUpdated += 1;
     } else {
-      imported += 1;
+      await createJobTemplate(payload);
+      dbImported += 1;
     }
-    byId.set(tpl.id, tpl);
   }
 
-  const templates = [...byId.values()].sort((a, b) => {
-    if (a.category !== b.category) return a.category.localeCompare(b.category);
-    return a.name.localeCompare(b.name);
-  });
-
-  fs.writeFileSync(
-    CATALOG,
-    JSON.stringify({ version: raw.version || 1, templates }, null, 2) + "\n",
-    "utf8"
-  );
-
-  console.log(
-    `\nDone. imported=${imported} updated=${updated} total=${templates.length} (goh=${templates.filter((t) => t.category === "goh").length})`
-  );
+  console.log(`\nDone. MySQL imported=${dbImported} updated=${dbUpdated}`);
 }
 
 main().catch((e) => {

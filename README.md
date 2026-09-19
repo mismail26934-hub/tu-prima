@@ -138,9 +138,9 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 
 ## Template time frame (Engine / Non Engine)
 
-Sumber Excel asli disalin ke `data/templates/`, lalu dikonversi ke katalog ternormalisasi:
+Sumber Excel asli disalin ke `data/templates/`, lalu dikonversi ke katalog MySQL:
 
-- `data/job-templates.json` — **sumber runtime** (dibaca app)
+- MySQL `job_templates` + `job_template_steps` — **sumber runtime**
 - `data/templates/*.xlsx` — arsip sumber time frame
 
 ### Cara buat job dari template
@@ -382,11 +382,10 @@ Detail archive: lihat [Archive job](#archive-job-complete--cancel--hapus).
 
 ## Template JSON & file data
 
-Runtime job/master/audit disimpan di **MySQL**. File di folder `data/` hanya untuk katalog template dan sumber import:
+Runtime job/master/audit/template disimpan di **MySQL**. File Excel di folder `data/templates/` hanya sumber import time frame:
 
 ```text
 data/
-  job-templates.json     ← katalog template Engine / Non Engine / GOH (dibaca app)
   templates/             ← file Excel time frame sumber (import / referensi)
     TIME FRAME ENGINE RECONDITION.xlsx
     TIME FRAME NON ENGINE RECONDITION (TRANSMISI).xlsx
@@ -485,7 +484,7 @@ src/
     job-change-backup.ts  ← job_change_backups + helpers undo
     job-excel-report.ts   ← export Job Aktif / Antrian
     job-pdf.ts
-    job-templates.ts      ← katalog time frame (CRUD + cache JSON)
+    job-templates.ts      ← katalog time frame (MySQL job_templates)
     job-template-excel.ts ← export Excel Master Template
     access.ts / permissions.ts
     duration.ts           ← timer & progress
@@ -511,7 +510,6 @@ scripts/
   hash-user-passwords.ts  ← hash password plain di DB
   seed.ts                 ← seed awal (opsional)
 data/
-  job-templates.json
   templates/
 ```
 
@@ -810,7 +808,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 - Database runtime: **MySQL/MariaDB** (`tu_prima`). Jangan edit langsung di phpMyAdmin saat app sedang menulis — gunakan UI atau backup dulu.
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
 - Jangan jalankan dua server (`tsx server.ts` / sisa `next dev`) bersamaan di port berbeda pada project yang sama.
-- Template time frame diubah lewat **Kelola → Master Template** (tersimpan ke `data/job-templates.json`). Job yang sudah dibuat tidak otomatis ikut berubah.
+- Template time frame diubah lewat **Kelola → Master Template** (tersimpan ke MySQL `job_templates`). Job yang sudah dibuat tidak otomatis ikut berubah.
 - Alternatif: edit sumber Excel di `data/templates/` lalu import ulang; restart / refresh setelah ubah katalog.
 - Backup rutin: `mysqldump -u root tu_prima > backup.sql` (production: export dari hPanel / phpMyAdmin).
 - Dashboard menyertakan job `completed` + `cancelled` dari MySQL (selain job `active`).

@@ -30,11 +30,11 @@ export async function GET(req: Request) {
   const includeInactive = searchParams.get("include_inactive") !== "0";
 
   const templates = id
-    ? (() => {
-        const one = getJobTemplate(id, { includeInactive: true });
+    ? await (async () => {
+        const one = await getJobTemplate(id, { includeInactive: true });
         return one ? [one] : [];
       })()
-    : listJobTemplatesFull(valid, { includeInactive });
+    : await listJobTemplatesFull(valid, { includeInactive });
 
   if (id && templates.length === 0) {
     return NextResponse.json({ error: "Template tidak ditemukan" }, { status: 404 });

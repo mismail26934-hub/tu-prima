@@ -61,7 +61,7 @@ export interface Unit {
 
 export type JobTemplateCategory = "engine" | "non_engine" | "goh";
 
-/** Master catalog entry (from data/job-templates.json). */
+/** Master catalog entry (MySQL job_templates / job_template_steps). */
 export interface JobTemplateStep {
   id: string;
   template_id: string;

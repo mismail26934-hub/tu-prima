@@ -1188,6 +1188,24 @@ export async function ensureRelationalSchema() {
       undone_by_user_level VARCHAR(64) NOT NULL DEFAULT '',
       KEY idx_job_change_backups_job (job_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS job_templates (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      category VARCHAR(32) NOT NULL DEFAULT 'engine',
+      name VARCHAR(255) NOT NULL DEFAULT '',
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      std_minutes INT NOT NULL DEFAULT 0,
+      KEY idx_job_templates_category (category, name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS job_template_steps (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      template_id VARCHAR(64) NOT NULL,
+      phase VARCHAR(255) NOT NULL DEFAULT '',
+      name VARCHAR(255) NOT NULL DEFAULT '',
+      sort_order INT NOT NULL DEFAULT 1,
+      man_power INT NOT NULL DEFAULT 0,
+      std_minutes INT NOT NULL DEFAULT 0,
+      KEY idx_job_template_steps_template (template_id, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   ];
   for (const sql of statements) {
     await p.query(sql);

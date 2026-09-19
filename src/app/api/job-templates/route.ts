@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   }
 
   if (id) {
-    const template = getJobTemplate(id, { includeInactive });
+    const template = await getJobTemplate(id, { includeInactive });
     if (!template) {
       return NextResponse.json({ error: "Template tidak ditemukan" }, { status: 404 });
     }
@@ -39,15 +39,15 @@ export async function GET(req: Request) {
 
   if (includeInactive) {
     return NextResponse.json({
-      templates: listJobTemplatesFull(valid, { includeInactive: true }),
+      templates: await listJobTemplatesFull(valid, { includeInactive: true }),
     });
   }
 
   if (searchParams.get("full") === "1") {
-    return NextResponse.json({ templates: listJobTemplatesFull(valid) });
+    return NextResponse.json({ templates: await listJobTemplatesFull(valid) });
   }
 
-  return NextResponse.json({ templates: listJobTemplates(valid) });
+  return NextResponse.json({ templates: await listJobTemplates(valid) });
 }
 
 export async function POST(req: Request) {
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   if (denied) return denied;
   try {
     const body = await req.json();
-    const template = createJobTemplate({
+    const template = await createJobTemplate({
       id: body.id != null ? String(body.id) : undefined,
       category: body.category,
       name: String(body.name || ""),

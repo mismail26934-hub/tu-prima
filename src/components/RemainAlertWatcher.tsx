@@ -63,7 +63,7 @@ export function RemainAlertWatcher({ jobs }: { jobs: JobWithDetails[] }) {
         pctStep,
         overtimeMs: overtimeHours * 60 * 60 * 1000,
       });
-      if (muted || !next) continue;
+      if (muted || !next || next === "green") continue;
       playRemainAlertWithSpeech(
         next,
         job,

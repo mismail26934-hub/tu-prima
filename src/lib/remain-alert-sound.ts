@@ -559,7 +559,7 @@ export function playRemainAlertWithSpeech(
   void drainAlertQueue();
 }
 
-/** First look is silent. Later: color enter orange/red, remaining % drop, 0%, then overtime. */
+/** First look is silent. Speak only on orange/red enter, % drop while orange/red, 0%, then overtime. */
 export function remainAlertTick(input: {
   jobId: string;
   status: string;
@@ -623,6 +623,8 @@ export function remainAlertTick(input: {
   prev.lastOvertimeAt = null;
   if (pct <= prev.lastPct - step) {
     prev.lastPct = pct;
+    // Green remaining-estimate cards stay silent.
+    if (input.tone === "green") return null;
     return input.tone;
   }
   return null;

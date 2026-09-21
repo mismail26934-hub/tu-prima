@@ -559,7 +559,7 @@ Payload progress penting:
 npm install
 ```
 
-Pastikan **MySQL atau MariaDB** berjalan lokal (tanpa Docker), lalu buat database (otomatis saat app start / migrasi).
+Pastikan **MySQL atau MariaDB** berjalan lokal (tanpa Docker), lalu **buat database** `tu_prima` di phpMyAdmin/MySQL (aplikasi tidak membuat database otomatis).
 
 ### 2. Environment
 
@@ -579,7 +579,7 @@ Opsional (sync Meals SharePoint): `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_C
 
 ### 3. Database schema
 
-Schema otomatis dibuat saat pertama kali `npm run dev` atau:
+Buat database `tu_prima` secara manual. Tabel dibuat otomatis saat `npm run dev` / `npm start` jika database itu sudah ada:
 
 ```bash
 npm run db:ensure

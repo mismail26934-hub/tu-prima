@@ -65,7 +65,6 @@ export async function ensureDatabaseExists() {
       port: cfg.port,
       user: cfg.user,
       password: cfg.password,
-      multipleStatements: true,
     });
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
@@ -96,10 +95,19 @@ export async function ensureDatabaseExists() {
     throw err;
   }
   try {
-    await conn.query(
-      `CREATE DATABASE IF NOT EXISTS \`${cfg.database}\`
-       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    const [rows] = await conn.query<mysql.RowDataPacket[]>(
+      `SELECT SCHEMA_NAME AS name
+       FROM information_schema.SCHEMATA
+       WHERE SCHEMA_NAME = ?
+       LIMIT 1`,
+      [cfg.database]
     );
+    if (!rows.length) {
+      throw new Error(
+        `Database \`${cfg.database}\` tidak ada di ${cfg.host}:${cfg.port}. ` +
+          `Buat database itu dulu di MySQL/phpMyAdmin, lalu set DATABASE_URL. Aplikasi tidak membuat database otomatis.`
+      );
+    }
   } finally {
     await conn.end();
   }

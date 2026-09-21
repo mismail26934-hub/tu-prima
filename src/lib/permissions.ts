@@ -68,12 +68,12 @@ export const ACCESS_MATRIX: Record<
     template: READ,
   },
   spv: {
-    job: CRUD,
+    job: READ,
     user: READ,
     technician: READ,
-    unit: CRUD,
+    unit: READ,
     attendance: READ,
-    template: CRUD,
+    template: READ,
   },
 };
 
@@ -91,7 +91,6 @@ const QUEUED_UNASSIGNED_MANAGE_LEVELS = new Set<AccessLevel>([
   "superuser",
   "foreman",
   "inputer",
-  "spv",
 ]);
 
 export function canAccess(

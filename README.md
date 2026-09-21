@@ -445,13 +445,14 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 | inputer   | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
 | teknisi   | R    | R    | R       | —    | R        | R            | —      | —                                | Tambah/Ubah*   | —      |
 | foreman   | CRUD | R    | R       | CRUD | CRUD     | R            | Ya     | Ya                               | Ya             | —      |
-| spv       | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
+| spv       | R    | R    | R       | R    | R        | R            | —      | —                                | —              | —      |
 | hrd       | R    | R    | R       | R    | R        | CRUD         | —      | —                                | —              | —      |
 | guest     | R    | R    | R       | —    | —        | R            | —      | —                                | —              | —      |
 
 Catatan:
 
 - Enforce di **UI** dan **API** (`401` / `403`).
+- `spv` view-only (semua resource baca); tidak bisa buat/ubah job, unit, atau template.
 - `guest` & `teknisi` tidak mendapat data Unit di dashboard.
 - Minimal satu `superuser` aktif harus tersisa.
 - **Handover / peminjaman part Tambah & Ubah**: `foreman` pengendali job, atau `teknisi` yang di-assign ke job tersebut (`*`).

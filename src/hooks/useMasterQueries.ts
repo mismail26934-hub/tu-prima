@@ -7,9 +7,26 @@ import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snaps
 import type {
   AppUserPublic,
   JobChangeBackup,
+  JobPriorityRecord,
   JobTemplate,
   JobTemplateSummary,
 } from "@/lib/types";
+
+export function useJobPriorities(includeInactive: boolean, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.priorities.list(includeInactive),
+    queryFn: () =>
+      api<{ priorities: JobPriorityRecord[] }>(
+        `/api/job-priorities${includeInactive ? "?include_inactive=1" : ""}`
+      ),
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: () => !shouldHoldServerRefresh(),
+    refetchOnReconnect: () => !shouldHoldServerRefresh(),
+    refetchOnMount: () => !shouldHoldServerRefresh(),
+    retry: false,
+  });
+}
 
 export function useMasterTemplates(enabled: boolean) {
   return useQuery({

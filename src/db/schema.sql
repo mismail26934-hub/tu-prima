@@ -43,6 +43,16 @@ CREATE TABLE IF NOT EXISTS units (
   active        TINYINT(1)   NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS job_priorities (
+  id         VARCHAR(64)  NOT NULL PRIMARY KEY,
+  code       VARCHAR(16)  NOT NULL,
+  name       VARCHAR(64)  NOT NULL DEFAULT '',
+  sort_order INT          NOT NULL DEFAULT 0,
+  active     TINYINT(1)   NOT NULL DEFAULT 1,
+  UNIQUE KEY uk_job_priorities_code (code),
+  KEY idx_job_priorities_sort (sort_order, code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS jobs (
   id                   VARCHAR(64)  NOT NULL PRIMARY KEY,
   job_scope            ENUM('active','completed','cancelled','deleted') NOT NULL DEFAULT 'active',
@@ -75,6 +85,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   delegated_to_user_name VARCHAR(255) NOT NULL DEFAULT '',
   delegated_at VARCHAR(64) NOT NULL DEFAULT '',
   delegated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+  photo_name VARCHAR(255) NOT NULL DEFAULT '',
+  photos TEXT,
   KEY idx_jobs_scope (job_scope),
   KEY idx_jobs_status (status),
   KEY idx_jobs_list (job_scope, status, created_at, id),

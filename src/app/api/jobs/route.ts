@@ -43,6 +43,14 @@ export async function POST(req: Request) {
         : undefined,
       template_id: body.template_id ? String(body.template_id) : undefined,
       actor,
+      photo_base64: body.photo_base64 ? String(body.photo_base64) : undefined,
+      thumb_base64: body.thumb_base64 ? String(body.thumb_base64) : undefined,
+      photo_mime: body.photo_mime ? String(body.photo_mime) : undefined,
+      photo_name: body.photo_name ? String(body.photo_name) : undefined,
+      photos: Array.isArray(body.photos) ? body.photos : undefined,
+      remove_photo_ids: Array.isArray(body.remove_photo_ids)
+        ? body.remove_photo_ids.map(String)
+        : undefined,
     });
     return NextResponse.json(job);
   } catch (e) {

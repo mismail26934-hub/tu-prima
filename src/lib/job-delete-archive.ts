@@ -20,6 +20,7 @@ import type {
 } from "@/lib/types";
 import { serializeStepTechnicianIds } from "@/lib/step-technicians";
 import { parseStepPhotos, serializeStepPhotos } from "@/lib/step-photo-url";
+import { parseJobPhotos, serializeJobPhotos } from "@/lib/job-photo-url";
 import {
   hydrateStepNotes,
   serializeStepNotes,
@@ -63,6 +64,8 @@ const JOB_HEADERS = [
   "paused_at",
   "total_paused_sec",
   "estimated_minutes",
+  "photo_name",
+  "photos",
 ];
 
 const STEP_HEADERS = [
@@ -234,6 +237,10 @@ export async function archiveDeletedJob(input: {
       paused_at: cloned.job.paused_at,
       total_paused_sec: cloned.job.total_paused_sec,
       estimated_minutes: cloned.job.estimated_minutes,
+      photo_name: cloned.job.photo_name || "",
+      photos: serializeJobPhotos(
+        parseJobPhotos(cloned.job.photos, cloned.job.photo_name)
+      ),
     },
   ]);
 

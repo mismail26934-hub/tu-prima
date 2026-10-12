@@ -246,6 +246,7 @@ function spokenStatus(status: string, locale: Locale): string {
 
 function spokenPriority(raw: unknown, locale: Locale): string {
   const priority = normalizeJobPriority(raw);
+  if (!priority) return locale === "id" ? "tidak ada" : "none";
   if (locale === "id") {
     switch (priority) {
       case "URGENT":
@@ -257,7 +258,7 @@ function spokenPriority(raw: unknown, locale: Locale): string {
       case "P3":
         return "prioritas tiga";
       default:
-        return "tidak ada";
+        return priority.toLowerCase();
     }
   }
   switch (priority) {
@@ -270,7 +271,7 @@ function spokenPriority(raw: unknown, locale: Locale): string {
     case "P3":
       return "priority three";
     default:
-      return "none";
+      return priority.toLowerCase();
   }
 }
 

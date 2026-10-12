@@ -89,21 +89,48 @@ export interface JobTemplateSummary {
   step_count: number;
 }
 
-export const JOB_PRIORITIES = ["URGENT", "P1", "P2", "P3"] as const;
-export type JobPriority = (typeof JOB_PRIORITIES)[number];
+/** Stored on jobs.priority as a short code (jobs keep the code if master is deactivated). */
+export type JobPriority = string;
 
-export function normalizeJobPriority(raw: unknown): JobPriority | "" {
-  const v = String(raw || "").trim().toUpperCase();
-  return (JOB_PRIORITIES as readonly string[]).includes(v)
-    ? (v as JobPriority)
-    : "";
+export interface JobPriorityRecord {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  active: "1" | "0";
+}
+
+export const DEFAULT_JOB_PRIORITIES: JobPriorityRecord[] = [
+  { id: "JP-URGENT", code: "URGENT", name: "Urgent", sort_order: 10, active: "1" },
+  { id: "JP-P1", code: "P1", name: "P1", sort_order: 20, active: "1" },
+  { id: "JP-P2", code: "P2", name: "P2", sort_order: 30, active: "1" },
+  { id: "JP-P3", code: "P3", name: "P3", sort_order: 40, active: "1" },
+];
+
+/** Default seed codes — dropdowns should use the DB catalog, not this list. */
+export const JOB_PRIORITIES = DEFAULT_JOB_PRIORITIES.map((p) => p.code);
+
+export function normalizeJobPriority(raw: unknown): string {
+  return String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 16);
+}
+
+export function jobPriorityPillClass(code: string): string {
+  const k = code.toLowerCase();
+  if (k === "urgent" || k === "p1" || k === "p2" || k === "p3") {
+    return `job-priority-pill job-priority-pill--${k}`;
+  }
+  return "job-priority-pill job-priority-pill--custom";
 }
 
 export interface Job {
   id: string;
   title: string;
-  /** Optional selected-item priority: URGENT | P1 | P2 | P3. */
-  priority?: JobPriority | "";
+  /** Optional selected-item priority code from job_priorities. */
+  priority?: string;
   unit: string;
   unit_id: string;
   description: string;
@@ -118,6 +145,15 @@ export interface Job {
   paused_at: string;
   total_paused_sec: number;
   estimated_minutes: number;
+  /** Stored filename of the first job photo (empty = none). */
+  photo_name?: string;
+  /** Job-level photos (create/edit job). */
+  photos?: Array<{
+    id: string;
+    name: string;
+    url?: string;
+    thumb_url?: string;
+  }>;
   /** Foreman/superuser who last assigned technicians (operational owner). */
   assigned_by_user_id?: string;
   assigned_by_user_name?: string;

@@ -96,6 +96,8 @@ function jobRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
     delegated_to_user_name: str(r.delegated_to_user_name),
     delegated_at: str(r.delegated_at),
     delegated_by_user_id: str(r.delegated_by_user_id),
+    photo_name: str(r.photo_name),
+    photos: str(r.photos),
   };
   if (scope === "deleted") {
     return {
@@ -143,6 +145,8 @@ function jobRowToDb(row: DbRow, scope: JobScope): Record<string, unknown> {
     delegated_to_user_name: str(row.delegated_to_user_name),
     delegated_at: str(row.delegated_at),
     delegated_by_user_id: str(row.delegated_by_user_id),
+    photo_name: str(row.photo_name),
+    photos: str(row.photos),
     archived_at: "",
     archived_by_user_id: "",
     archived_by_user_name: "",
@@ -528,8 +532,9 @@ async function saveScopedJobs(
         archived_at, archived_by_user_id, archived_by_user_name, archived_by_user_level,
         deleted_at, deleted_by_user_id, deleted_by_user_name, deleted_by_user_level,
         assigned_by_user_id, assigned_by_user_name, assigned_by_user_level,
-        delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id,
+        photo_name, photos
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         d.id,
         d.job_scope,
@@ -562,6 +567,8 @@ async function saveScopedJobs(
         d.delegated_to_user_name,
         d.delegated_at,
         d.delegated_by_user_id,
+        d.photo_name,
+        d.photos,
       ]
     );
   }
@@ -1037,6 +1044,15 @@ export async function ensureRelationalSchema() {
       serial_number VARCHAR(128) NOT NULL DEFAULT '',
       active TINYINT(1) NOT NULL DEFAULT 1
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS job_priorities (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      code VARCHAR(16) NOT NULL,
+      name VARCHAR(64) NOT NULL DEFAULT '',
+      sort_order INT NOT NULL DEFAULT 0,
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      UNIQUE KEY uk_job_priorities_code (code),
+      KEY idx_job_priorities_sort (sort_order, code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS jobs (
       id VARCHAR(64) NOT NULL PRIMARY KEY,
       job_scope ENUM('active','completed','cancelled','deleted') NOT NULL DEFAULT 'active',
@@ -1069,6 +1085,8 @@ export async function ensureRelationalSchema() {
       delegated_to_user_name VARCHAR(255) NOT NULL DEFAULT '',
       delegated_at VARCHAR(64) NOT NULL DEFAULT '',
       delegated_by_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      photo_name VARCHAR(255) NOT NULL DEFAULT '',
+      photos TEXT,
       KEY idx_jobs_scope (job_scope)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_assignees (
@@ -1299,7 +1317,15 @@ export async function ensureRelationalSchema() {
   await p.query(
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority VARCHAR(16) NOT NULL DEFAULT ''`
   );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS photo_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS photos TEXT`
+  );
   await ensureListIndexes(p);
+  const { ensureJobPrioritiesSeeded } = await import("@/lib/job-priorities");
+  await ensureJobPrioritiesSeeded();
 }
 
 async function backfillStepNotes(p: mysql.Pool) {

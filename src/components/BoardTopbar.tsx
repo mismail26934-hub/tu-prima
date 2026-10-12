@@ -25,6 +25,7 @@ type BoardTopbarProps = {
   avatarUrl: string;
   canJobCreate: boolean;
   canUnitRead: boolean;
+  canPriorityRead: boolean;
   canTemplateRead: boolean;
   modalOpen: boolean;
   onRefresh: () => void;
@@ -34,6 +35,7 @@ type BoardTopbarProps = {
   onTechnicians: () => void;
   onUsersMaster: () => void;
   onUnitsMaster: () => void;
+  onPrioritiesMaster: () => void;
   onTemplatesMaster: () => void;
   onAttendance: () => void;
   onExportExcel: () => void;
@@ -218,6 +220,7 @@ export function BoardTopbar({
   avatarUrl,
   canJobCreate,
   canUnitRead,
+  canPriorityRead,
   canTemplateRead,
   modalOpen,
   onRefresh,
@@ -227,6 +230,7 @@ export function BoardTopbar({
   onTechnicians,
   onUsersMaster,
   onUnitsMaster,
+  onPrioritiesMaster,
   onTemplatesMaster,
   onAttendance,
   onExportExcel,
@@ -443,6 +447,18 @@ export function BoardTopbar({
         }}
       >
         {t('nav.unitsMaster')}
+      </button>
+      <button
+        type='button'
+        role='menuitem'
+        className='nav-manage-item'
+        disabled={busy || !canPriorityRead}
+        onClick={() => {
+          closeMenu();
+          onPrioritiesMaster();
+        }}
+      >
+        {t('nav.prioritiesMaster')}
       </button>
       <button
         type='button'

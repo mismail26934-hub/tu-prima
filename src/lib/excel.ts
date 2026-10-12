@@ -25,6 +25,7 @@ import type {
   PartLoanStatus,
 } from "./types";
 import { USER_LEVELS, normalizeJobPriority } from "./types";
+import { assertJobPriorityForWrite } from "./job-priorities";
 import {
   calcElapsedSec,
   calcProgressPct,
@@ -45,6 +46,12 @@ import {
 } from "./step-technicians";
 import { attachStepPhotoUrl, MAX_STEP_PHOTOS, parseStepPhotos, serializeStepPhotos, stepHasPhoto } from "./step-photo-url";
 import {
+  attachJobPhotoUrl,
+  MAX_JOB_PHOTOS,
+  parseJobPhotos,
+  serializeJobPhotos,
+} from "./job-photo-url";
+import {
   attachStepNotes,
   formatStepNotesPlain,
   hydrateStepNotes,
@@ -59,6 +66,10 @@ import {
   deleteStepPhotoFiles,
   saveStepPhotoFromBase64,
 } from "./step-photo";
+import {
+  deleteOneJobPhoto,
+  saveJobPhotoFromBase64,
+} from "./job-photo";
 import {
   deleteStepNotePdf,
   saveStepNotePdfFromBase64,
@@ -408,7 +419,7 @@ function mapTechnician(r: Row): Technician {
 }
 
 function mapJob(r: Row): Job {
-  return {
+  return attachJobPhotoUrl({
     id: String(r.id || ""),
     title: String(r.title || ""),
     priority: normalizeJobPriority(r.priority),
@@ -424,6 +435,8 @@ function mapJob(r: Row): Job {
     paused_at: String(r.paused_at || ""),
     total_paused_sec: Number(r.total_paused_sec || 0),
     estimated_minutes: Number(r.estimated_minutes || 0),
+    photo_name: String(r.photo_name || ""),
+    photos: r.photos,
     assigned_by_user_id: String(r.assigned_by_user_id || ""),
     assigned_by_user_name: String(r.assigned_by_user_name || ""),
     assigned_by_user_level: String(r.assigned_by_user_level || ""),
@@ -431,7 +444,7 @@ function mapJob(r: Row): Job {
     delegated_to_user_name: String(r.delegated_to_user_name || ""),
     delegated_at: String(r.delegated_at || ""),
     delegated_by_user_id: String(r.delegated_by_user_id || ""),
-  };
+  });
 }
 
 function clearJobDelegation(job: Job) {
@@ -706,10 +719,13 @@ function techToRow(t: Technician): Row {
 }
 
 function jobToRow(j: Job): Row {
+  const photos = parseJobPhotos(j.photos, j.photo_name);
   return {
     ...j,
     total_paused_sec: j.total_paused_sec,
     estimated_minutes: j.estimated_minutes,
+    photo_name: photos[0]?.name || "",
+    photos: serializeJobPhotos(photos),
   };
 }
 
@@ -802,6 +818,8 @@ const JOB_HEADERS = [
   "delegated_to_user_name",
   "delegated_at",
   "delegated_by_user_id",
+  "photo_name",
+  "photos",
 ];
 const ASSIGNEE_HEADERS = ["id", "job_id", "technician_id", "assigned_at", "is_lead"];
 const STEP_HEADERS = [
@@ -1681,6 +1699,70 @@ function normalizeJobStepInputs(
     );
 }
 
+type JobPhotoPayload = {
+  photo_base64?: string;
+  thumb_base64?: string;
+  photo_mime?: string;
+  photo_name?: string;
+};
+
+async function applyIncomingJobPhoto(
+  job: Job,
+  payload?: {
+    photo_base64?: string;
+    thumb_base64?: string;
+    photo_mime?: string;
+    photo_name?: string;
+    photos?: JobPhotoPayload[];
+    remove_photo_ids?: string[];
+  }
+): Promise<boolean> {
+  const incoming: JobPhotoPayload[] = [];
+  if (Array.isArray(payload?.photos) && payload.photos.length) {
+    incoming.push(...payload.photos);
+  } else if (String(payload?.photo_base64 || "").trim()) {
+    incoming.push({
+      photo_base64: payload?.photo_base64,
+      thumb_base64: payload?.thumb_base64,
+      photo_mime: payload?.photo_mime,
+      photo_name: payload?.photo_name,
+    });
+  }
+  const removeIds = (payload?.remove_photo_ids || [])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+  let current = parseJobPhotos(job.photos, job.photo_name);
+  for (const id of removeIds) {
+    const hit = current.find((p) => p.id === id);
+    if (hit) await deleteOneJobPhoto(hit);
+    current = current.filter((p) => p.id !== id);
+  }
+  for (const item of incoming) {
+    const raw = String(item.photo_base64 || "").trim();
+    if (!raw) continue;
+    if (current.length >= MAX_JOB_PHOTOS) {
+      throw new Error(`Maksimal ${MAX_JOB_PHOTOS} foto per job`);
+    }
+    current.push(
+      await saveJobPhotoFromBase64(
+        job.id,
+        raw,
+        item.photo_mime,
+        item.photo_name,
+        item.thumb_base64
+      )
+    );
+  }
+  const attached = attachJobPhotoUrl({
+    ...job,
+    photos: current,
+    photo_name: current[0]?.name || "",
+  });
+  job.photos = attached.photos;
+  job.photo_name = attached.photo_name;
+  return incoming.length > 0 || removeIds.length > 0;
+}
+
 export async function createJob(input: {
   id?: string;
   title: string;
@@ -1691,6 +1773,12 @@ export async function createJob(input: {
   steps?: JobStepCreateInput[];
   template_id?: string;
   actor?: AuditActor | null;
+  photo_base64?: string;
+  thumb_base64?: string;
+  photo_mime?: string;
+  photo_name?: string;
+  photos?: JobPhotoPayload[];
+  remove_photo_ids?: string[];
 }): Promise<JobWithDetails> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
@@ -1757,7 +1845,7 @@ export async function createJob(input: {
     const job: Job = {
       id,
       title: input.title,
-      priority: normalizeJobPriority(input.priority),
+      priority: await assertJobPriorityForWrite(input.priority),
       unit: unitLabel(unit),
       unit_id: unit.id,
       description: input.description || "",
@@ -1770,7 +1858,10 @@ export async function createJob(input: {
       paused_at: "",
       total_paused_sec: 0,
       estimated_minutes: estimated,
+      photo_name: "",
+      photos: [],
     };
+    await applyIncomingJobPhoto(job, input);
     jobs.push(job);
 
     stepDefs.forEach((def, i) => {
@@ -1855,6 +1946,12 @@ export async function updateJob(
     estimated_minutes?: number;
     steps?: string[];
     actor?: AuditActor | null;
+    photo_base64?: string;
+    thumb_base64?: string;
+    photo_mime?: string;
+    photo_name?: string;
+    photos?: JobPhotoPayload[];
+    remove_photo_ids?: string[];
   }
 ): Promise<JobWithDetails> {
   return withDbLock(async () => {
@@ -1895,11 +1992,12 @@ export async function updateJob(
     }
 
     job.title = title;
-    job.priority = normalizeJobPriority(input.priority);
+    job.priority = await assertJobPriorityForWrite(input.priority, job.priority);
     job.unit_id = unit.id;
     job.unit = unitLabel(unit);
     job.description = input.description?.trim() || "";
     job.estimated_minutes = input.estimated_minutes || job.estimated_minutes || 60;
+    await applyIncomingJobPhoto(job, input);
 
     const canRewriteSteps = ["queued", "assigned"].includes(job.status);
     if (canRewriteSteps && input.steps && input.steps.length > 0) {

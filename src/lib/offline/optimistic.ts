@@ -20,6 +20,7 @@ import type {
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
 import { attachStepPhotoUrl, parseStepPhotos } from "@/lib/step-photo-url";
+import { parseJobPhotos } from "@/lib/job-photo-url";
 import { withAppendedStepNote, withUpdatedStepNote } from "@/lib/step-notes";
 import { cacheStepPhotoPreviews } from "@/lib/offline/step-photo-preview";
 import { readBoardSnapshot } from "@/lib/offline/board-snapshot";
@@ -603,6 +604,47 @@ function applyPhotoFromBody(step: JobStep, body: JsonRecord): JobStep {
   });
 }
 
+function applyJobPhotoFromBody(
+  job: Pick<Job, "id" | "photos" | "photo_name">,
+  body: JsonRecord
+): Pick<Job, "photos" | "photo_name"> {
+  const incoming = Array.isArray(body.photos)
+    ? (body.photos as JsonRecord[])
+    : String(body.photo_base64 || "").trim()
+      ? [body]
+      : [];
+  const removeIds = new Set(
+    (Array.isArray(body.remove_photo_ids) ? body.remove_photo_ids : []).map(
+      (id) => String(id || "")
+    )
+  );
+  let current = parseJobPhotos(job.photos, job.photo_name).filter(
+    (p) => !removeIds.has(p.id)
+  );
+  incoming.forEach((item, i) => {
+    const raw = String(item.photo_base64 || "").trim();
+    if (!raw) return;
+    const mime = String(item.photo_mime || "image/jpeg").trim() || "image/jpeg";
+    const thumb = String(item.thumb_base64 || "").trim();
+    const url = raw.startsWith("data:") ? raw : `data:${mime};base64,${raw}`;
+    const thumbUrl = thumb
+      ? thumb.startsWith("data:")
+        ? thumb
+        : `data:image/jpeg;base64,${thumb}`
+      : url;
+    current.push({
+      id: `${job.id}-ox-${current.length}-${i}`,
+      name: String(item.photo_name || `${job.id}.jpg`),
+      url,
+      thumb_url: thumbUrl,
+    });
+  });
+  return {
+    photos: current,
+    photo_name: current[0]?.name || "",
+  };
+}
+
 function toJobSteps(jobId: string, defs: JobStepPayload[]): JobStep[] {
   return defs.map((def, i) => ({
     id: def.id,
@@ -639,6 +681,8 @@ function emptyJob(partial: Partial<Job> & Pick<Job, "id" | "title">): JobWithDet
     paused_at: partial.paused_at || "",
     total_paused_sec: partial.total_paused_sec || 0,
     estimated_minutes: partial.estimated_minutes || 60,
+    photo_name: partial.photo_name || "",
+    photos: partial.photos || [],
     technician: null,
     technicians: [],
     steps: [],
@@ -1142,6 +1186,7 @@ function createJobOptimistic(
       description: String(body.description || ""),
       template_id: templateId,
       estimated_minutes: estimated,
+      ...applyJobPhotoFromBody({ id, photos: [], photo_name: "" }, body),
     }),
     steps: toJobSteps(id, stepDefs),
   });
@@ -1349,6 +1394,7 @@ export function applyOptimisticMutation(
               job.estimated_minutes,
             unit_id: unit?.id || job.unit_id,
             unit: unit ? unitLabel(unit) : job.unit,
+            ...applyJobPhotoFromBody(job, body),
           };
           if (Array.isArray(body.steps) && ["queued", "assigned"].includes(job.status)) {
             const defs = (body.steps as Array<string | JobStepPayload>).map((s, i) => {
@@ -1382,6 +1428,7 @@ export function applyOptimisticMutation(
             job.estimated_minutes,
           unit_id: unit?.id || job.unit_id,
           unit: unit ? unitLabel(unit) : job.unit,
+          ...applyJobPhotoFromBody(job, body),
         };
         if (Array.isArray(body.steps) && ["queued", "assigned"].includes(job.status)) {
           const defs = (body.steps as Array<string | JobStepPayload>).map((s, i) => {

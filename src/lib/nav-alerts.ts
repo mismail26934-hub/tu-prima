@@ -4,7 +4,8 @@ export type NavAlertKind =
   | "urgent"
   | "p1"
   | "p2"
-  | "p3";
+  | "p3"
+  | "priority";
 
 export type NavAlertItem = {
   kind: NavAlertKind;
@@ -14,6 +15,13 @@ export type NavAlertItem = {
   subtitle: string;
 };
 
+export type NavAlertPriorityGroup = {
+  code: string;
+  name: string;
+  count: number;
+  items: NavAlertItem[];
+};
+
 export type NavAlertsPayload = {
   openHandovers: number;
   openJobs: number;
@@ -21,6 +29,7 @@ export type NavAlertsPayload = {
   p1Jobs: number;
   p2Jobs: number;
   p3Jobs: number;
+  priorityGroups: NavAlertPriorityGroup[];
   items: {
     handover: NavAlertItem[];
     openJob: NavAlertItem[];
@@ -38,6 +47,7 @@ export const EMPTY_NAV_ALERTS: NavAlertsPayload = {
   p1Jobs: 0,
   p2Jobs: 0,
   p3Jobs: 0,
+  priorityGroups: [],
   items: {
     handover: [],
     openJob: [],
@@ -50,12 +60,8 @@ export const EMPTY_NAV_ALERTS: NavAlertsPayload = {
 
 export function navAlertTotal(data: NavAlertsPayload | undefined): number {
   if (!data) return 0;
-  return (
-    data.openHandovers +
-    data.openJobs +
-    data.urgentJobs +
-    data.p1Jobs +
-    data.p2Jobs +
-    data.p3Jobs
-  );
+  const priorityCount = data.priorityGroups?.length
+    ? data.priorityGroups.reduce((sum, group) => sum + group.count, 0)
+    : data.urgentJobs + data.p1Jobs + data.p2Jobs + data.p3Jobs;
+  return data.openHandovers + data.openJobs + priorityCount;
 }

@@ -31,6 +31,11 @@ import {
   serializeStepPhotos,
 } from "@/lib/step-photo-url";
 import {
+  attachJobPhotoUrl,
+  parseJobPhotos,
+  serializeJobPhotos,
+} from "@/lib/job-photo-url";
+import {
   attachStepNotes,
   hydrateStepNotes,
   parseStepNotes,
@@ -75,6 +80,8 @@ const JOB_HEADERS = [
   "paused_at",
   "total_paused_sec",
   "estimated_minutes",
+  "photo_name",
+  "photos",
 ];
 
 const STEP_HEADERS = [
@@ -211,7 +218,7 @@ function metaFields(
 
 
 function mapJobRow(r: Row): Job {
-  return {
+  return attachJobPhotoUrl({
     id: String(r.id || ""),
     title: String(r.title || ""),
     priority: normalizeJobPriority(r.priority),
@@ -227,7 +234,9 @@ function mapJobRow(r: Row): Job {
     paused_at: String(r.paused_at || ""),
     total_paused_sec: Number(r.total_paused_sec || 0),
     estimated_minutes: Number(r.estimated_minutes || 0),
-  };
+    photo_name: String(r.photo_name || ""),
+    photos: r.photos,
+  });
 }
 
 function mapStepRow(r: Row): JobStep {
@@ -372,6 +381,10 @@ export async function archiveCancelledJob(input: {
       paused_at: cloned.job.paused_at,
       total_paused_sec: cloned.job.total_paused_sec,
       estimated_minutes: cloned.job.estimated_minutes,
+      photo_name: cloned.job.photo_name || "",
+      photos: serializeJobPhotos(
+        parseJobPhotos(cloned.job.photos, cloned.job.photo_name)
+      ),
     },
   ]);
 

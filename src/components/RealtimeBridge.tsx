@@ -40,6 +40,9 @@ export function RealtimeBridge() {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.templates.all,
           });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.priorities.all,
+          });
         } catch {
           /* ignore malformed frames */
         }

@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { TechnicianStatus } from "@/lib/types";
-import { JOB_PRIORITIES, type JobPriority } from "@/lib/types";
+import { normalizeJobPriority } from "@/lib/types";
 
 export type JobSectionFilter = "all" | "active" | "queue" | "done" | "cancelled";
 export type JobOwnershipFilter =
@@ -11,7 +11,7 @@ export type JobOwnershipFilter =
   | "mine"
   | "delegated"
   | "mine_or_delegated";
-export type JobPriorityFilter = JobPriority | "";
+export type JobPriorityFilter = string;
 export type TechStatusFilter = "all" | TechnicianStatus;
 
 const STORAGE_KEY = "tus-dashboard-filters";
@@ -73,11 +73,7 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
         set({ jobOwnershipDelegated }),
       setJobPriorityFilter: (jobPriorityFilter) =>
         set({
-          jobPriorityFilter: JOB_PRIORITIES.includes(
-            jobPriorityFilter as JobPriority
-          )
-            ? jobPriorityFilter
-            : "",
+          jobPriorityFilter: normalizeJobPriority(jobPriorityFilter),
         }),
       setTechStatusFilter: (techStatusFilter) => set({ techStatusFilter }),
       setJobDraft: (jobDraft) => set({ jobDraft }),
@@ -94,11 +90,7 @@ export const useDashboardFiltersStore = create<DashboardFiltersState>()(
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
         const s = persisted as PersistedV0 & Record<string, unknown>;
-        const jobPriorityFilter = JOB_PRIORITIES.includes(
-          s.jobPriorityFilter as JobPriority
-        )
-          ? (s.jobPriorityFilter as JobPriority)
-          : "";
+        const jobPriorityFilter = normalizeJobPriority(s.jobPriorityFilter);
         if (typeof s.jobOwnershipMine === "boolean") {
           return { ...s, jobPriorityFilter } as DashboardFiltersState;
         }

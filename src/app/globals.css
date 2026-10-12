@@ -2285,6 +2285,31 @@ html.nav-header-pop-open .top-actions {
   gap: 6px;
 }
 
+.job-photo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.job-photo-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-0);
+  display: block;
+  flex-shrink: 0;
+}
+
+.job-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .job-priority-pill {
   display: inline-flex;
   align-items: center;
@@ -2323,6 +2348,12 @@ html.nav-header-pop-open .top-actions {
   border-color: #60a5fa;
 }
 
+.job-priority-pill--custom {
+  color: #fff;
+  background: #64748b;
+  border-color: #94a3b8;
+}
+
 html[data-theme='light'] .job-priority-pill--urgent {
   color: #fff;
   background: #be123c;
@@ -2345,6 +2376,12 @@ html[data-theme='light'] .job-priority-pill--p3 {
   color: #fff;
   background: #1d4ed8;
   border-color: #1e40af;
+}
+
+html[data-theme='light'] .job-priority-pill--custom {
+  color: #fff;
+  background: #475569;
+  border-color: #334155;
 }
 
 .job-unit {
@@ -3773,9 +3810,15 @@ html[data-theme='light'] .job-priority-pill--p3 {
   margin-top: 8px;
 }
 
-.form label {
+.form label,
+.form .field {
   display: grid;
   gap: 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.form .field-label {
   color: var(--muted);
   font-size: 0.85rem;
 }

@@ -7,6 +7,7 @@ import type {
   AppUserPublic,
   Attendance,
   AttendanceStatus,
+  JobPriorityRecord,
   JobTemplate,
   JobTemplateCategory,
   JobWithDetails,
@@ -17,7 +18,12 @@ import type {
   UserLevel,
   DashboardData,
 } from "@/lib/types";
-import { JOB_PRIORITIES, USER_LEVELS, normalizeJobPriority } from "@/lib/types";
+import {
+  DEFAULT_JOB_PRIORITIES,
+  USER_LEVELS,
+  jobPriorityPillClass,
+  normalizeJobPriority,
+} from "@/lib/types";
 import {
   canAccess,
   canAssignJob,
@@ -69,6 +75,7 @@ import { isBrowserOnline, isNetworkError } from "@/lib/offline/network";
 import { listCachedForemen } from "@/lib/offline/optimistic";
 import { queryKeys } from "@/lib/query-keys";
 import { firstStepThumbUrl, stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
+import { MAX_JOB_PHOTOS } from "@/lib/job-photo-url";
 import {
   attachStepNotes,
   formatStepNoteAt,
@@ -88,6 +95,7 @@ import {
 } from "@/lib/offline/board-snapshot";
 import {
   useJobBackups,
+  useJobPriorities,
   useMasterTemplates,
   useTemplateSummaries,
   useUsers,
@@ -187,6 +195,13 @@ type Modal =
       unit?: Unit;
     }
   | { type: "delete-unit"; unit: Unit }
+  | { type: "priorities" }
+  | {
+      type: "priority-form";
+      mode: "create" | "edit";
+      item?: JobPriorityRecord;
+    }
+  | { type: "delete-priority"; item: JobPriorityRecord }
   | { type: "templates" }
   | {
       type: "template-form";
@@ -857,6 +872,10 @@ export default function HomePage() {
   const canUnitCreate = canAccess(userLevel, "unit", "create");
   const canUnitUpdate = canAccess(userLevel, "unit", "update");
   const canUnitDelete = canAccess(userLevel, "unit", "delete");
+  const canPriorityRead = canAccess(userLevel, "priority", "read");
+  const canPriorityCreate = canAccess(userLevel, "priority", "create");
+  const canPriorityUpdate = canAccess(userLevel, "priority", "update");
+  const canPriorityDelete = canAccess(userLevel, "priority", "delete");
   const canTemplateRead = canAccess(userLevel, "template", "read");
   const canTemplateCreate = canAccess(userLevel, "template", "create");
   const canTemplateUpdate = canAccess(userLevel, "template", "update");
@@ -1022,9 +1041,19 @@ export default function HomePage() {
     serial_number: "",
     active: "1",
   });
+  const [priorityForm, setPriorityForm] = useState({
+    code: "",
+    name: "",
+    sort_order: "10",
+    active: "1",
+  });
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
   const [unitImportMsg, setUnitImportMsg] = useState("");
+  const prioritiesModalOpen =
+    modal?.type === "priorities" ||
+    modal?.type === "priority-form" ||
+    modal?.type === "delete-priority";
   const templatesModalOpen =
     modal?.type === "templates" ||
     modal?.type === "template-form" ||
@@ -1086,6 +1115,14 @@ export default function HomePage() {
   const queryClient = useQueryClient();
   const { data: masterTemplatesRes, isLoading: templatesMasterLoading } =
     useMasterTemplates(canTemplateRead && templatesModalOpen);
+  const { data: activePrioritiesRes } = useJobPriorities(false, true);
+  const { data: masterPrioritiesRes, isLoading: prioritiesMasterLoading } =
+    useJobPriorities(true, canPriorityRead && prioritiesModalOpen);
+  const catalogPriorities =
+    activePrioritiesRes?.priorities?.length
+      ? activePrioritiesRes.priorities
+      : DEFAULT_JOB_PRIORITIES;
+  const masterPriorities = masterPrioritiesRes?.priorities || [];
   const masterTemplates = masterTemplatesRes?.templates || [];
   const { data: appUsers = [], isLoading: usersLoading } = useUsers(
     usersModalOpen && userLevel === "superuser"
@@ -1261,6 +1298,101 @@ export default function HomePage() {
       await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan unit");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function prioritySelectOptions(current?: string): JobPriorityRecord[] {
+    const list = [...catalogPriorities];
+    const code = normalizeJobPriority(current);
+    if (code && !list.some((p) => p.code === code)) {
+      const extra = masterPriorities.find((p) => p.code === code);
+      list.push(
+        extra || {
+          id: "",
+          code,
+          name: code,
+          sort_order: 999,
+          active: "0",
+        }
+      );
+    }
+    return list;
+  }
+
+  function priorityLabel(code: string): string {
+    const wanted = normalizeJobPriority(code);
+    const found =
+      catalogPriorities.find((p) => p.code === wanted) ||
+      masterPriorities.find((p) => p.code === wanted);
+    return found?.name || wanted;
+  }
+
+  function openPriorityCreate() {
+    setPriorityForm({ code: "", name: "", sort_order: "10", active: "1" });
+    setModal({ type: "priority-form", mode: "create" });
+  }
+
+  function openPriorityEdit(item: JobPriorityRecord) {
+    setPriorityForm({
+      code: item.code,
+      name: item.name,
+      sort_order: String(item.sort_order || 10),
+      active: item.active,
+    });
+    setModal({ type: "priority-form", mode: "edit", item });
+  }
+
+  async function invalidatePriorities() {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.priorities.all });
+    await invalidateDashboard();
+  }
+
+  async function savePriority() {
+    if (modal?.type !== "priority-form") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (modal.mode === "create") {
+        await api("/api/job-priorities", {
+          method: "POST",
+          body: JSON.stringify({
+            code: priorityForm.code,
+            name: priorityForm.name,
+            sort_order: Number(priorityForm.sort_order) || undefined,
+            active: priorityForm.active,
+          }),
+        });
+      } else if (modal.item) {
+        await api(`/api/job-priorities/${modal.item.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: priorityForm.name,
+            sort_order: Number(priorityForm.sort_order) || undefined,
+            active: priorityForm.active,
+          }),
+        });
+      }
+      setModal({ type: "priorities" });
+      await invalidatePriorities();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan prioritas");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeletePriority() {
+    if (modal?.type !== "delete-priority") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/job-priorities/${modal.item.id}`, { method: "DELETE" });
+      setModal({ type: "priorities" });
+      await invalidatePriorities();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus prioritas");
     } finally {
       setBusy(false);
     }
@@ -2256,6 +2388,8 @@ export default function HomePage() {
     []
   );
   const [stepPhotoRemoveIds, setStepPhotoRemoveIds] = useState<string[]>([]);
+  const [jobPhotoDrafts, setJobPhotoDrafts] = useState<StepPhotoDraft[]>([]);
+  const [jobPhotoRemoveIds, setJobPhotoRemoveIds] = useState<string[]>([]);
   const [stepNotePdfDraft, setStepNotePdfDraft] = useState<StepNotePdfDraft | null>(
     null
   );
@@ -2442,11 +2576,15 @@ export default function HomePage() {
     if (!canJobCreate) return;
     resetForm();
     setTemplatePreview(null);
+    setJobPhotoDrafts([]);
+    setJobPhotoRemoveIds([]);
     setModal({ type: "create" });
   }
 
   function openEdit(job: JobWithDetails) {
     if (!canManageJob(job)) return;
+    setJobPhotoDrafts([]);
+    setJobPhotoRemoveIds([]);
     loadForm({
       title: job.title,
       priority: normalizeJobPriority(job.priority),
@@ -2507,6 +2645,8 @@ export default function HomePage() {
     setAssignPickerPage(1);
     setStepPhotoDrafts([]);
     setStepPhotoRemoveIds([]);
+    setJobPhotoDrafts([]);
+    setJobPhotoRemoveIds([]);
     setStepNoteDraft("");
     setStepNoteEditingId("");
     setStepNotePdfDraft(null);
@@ -2640,6 +2780,22 @@ export default function HomePage() {
       })),
       remove_photo_ids: stepPhotoRemoveIds,
     };
+  }
+
+  function jobPhotoActionPayload() {
+    return {
+      photos: jobPhotoDrafts.map((d) => ({
+        photo_base64: d.base64,
+        thumb_base64: d.thumb_base64,
+        photo_mime: d.mime,
+        photo_name: d.name,
+      })),
+      remove_photo_ids: jobPhotoRemoveIds,
+    };
+  }
+
+  function visibleJobPhotos(job?: JobWithDetails | null) {
+    return (job?.photos || []).filter((p) => !jobPhotoRemoveIds.includes(p.id));
   }
 
   function currentHandoverFrom() {
@@ -4243,6 +4399,7 @@ export default function HomePage() {
           estimated_minutes: Number(form.estimated_minutes),
           steps: parseSteps(form.steps),
           template_id: form.template_id || undefined,
+          ...jobPhotoActionPayload(),
         }),
       });
       const jobId = String(created?.id || "").trim();
@@ -4280,6 +4437,7 @@ export default function HomePage() {
           description: form.description.trim(),
           estimated_minutes: Number(form.estimated_minutes),
           steps: canEditSteps ? parseSteps(form.steps) : undefined,
+          ...jobPhotoActionPayload(),
         }),
       });
       closeModal();
@@ -4392,15 +4550,37 @@ export default function HomePage() {
               <div className="job-title">{job.title}</div>
               {jobPriority ? (
                 <span
-                  className={`job-priority-pill job-priority-pill--${jobPriority.toLowerCase()}`}
+                  className={jobPriorityPillClass(jobPriority)}
+                  title={priorityLabel(jobPriority)}
                 >
-                  {jobPriority}
+                  {priorityLabel(jobPriority)}
                 </span>
               ) : null}
             </div>
             <div className="job-unit">
               {job.unit}
             </div>
+            {(job.photos || []).length > 0 ? (
+              <div className="job-photo-strip">
+                {job.photos!.map((photo) => (
+                  <a
+                    key={photo.id}
+                    className="job-photo-thumb"
+                    href={photo.url || photo.thumb_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={t("job.jobPhoto")}
+                  >
+                    <img
+                      src={photo.thumb_url || photo.url}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </a>
+                ))}
+              </div>
+            ) : null}
             <div className="job-tech-row">
               {!customerView &&
                 ["queued", "assigned", "in_progress", "paused"].includes(
@@ -5694,6 +5874,7 @@ export default function HomePage() {
         avatarUrl={avatarUrl}
         canJobCreate={canJobCreate}
         canUnitRead={canUnitRead}
+        canPriorityRead={canPriorityRead}
         canTemplateRead={canTemplateRead}
         modalOpen={modal != null}
         onRefresh={refreshDashboard}
@@ -5706,6 +5887,7 @@ export default function HomePage() {
         }}
         onUsersMaster={openUsersMaster}
         onUnitsMaster={() => setModal({ type: "units" })}
+        onPrioritiesMaster={() => setModal({ type: "priorities" })}
         onTemplatesMaster={openTemplatesMaster}
         onAttendance={() => setModal({ type: "attendance" })}
         onExportExcel={openExportJobsModal}
@@ -6003,9 +6185,11 @@ export default function HomePage() {
                         aria-label={t("panel.filterJobPriority")}
                       >
                         <option value="">{t("panel.priorityAll")}</option>
-                        {JOB_PRIORITIES.map((p) => (
-                          <option key={p} value={p}>
-                            {p}
+                        {prioritySelectOptions(jobPriorityFilter).map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.name && p.name !== p.code
+                              ? `${p.code} — ${p.name}`
+                              : p.code}
                           </option>
                         ))}
                       </select>
@@ -6944,9 +7128,11 @@ export default function HomePage() {
                   onChange={(e) => setForm({ priority: e.target.value })}
                 >
                   <option value="">{t("job.priorityNone")}</option>
-                  {JOB_PRIORITIES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
+                  {prioritySelectOptions(form.priority).map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.name && p.name !== p.code
+                        ? `${p.code} — ${p.name}`
+                        : p.code}
                     </option>
                   ))}
                 </select>
@@ -6984,6 +7170,29 @@ export default function HomePage() {
                   required
                 />
               </label>
+              <div className="field">
+                <span className="field-label">{t("job.jobPhoto")}</span>
+                <StepPhotoPicker
+                  existing={
+                    modal.type === "edit" ? visibleJobPhotos(modal.job) : []
+                  }
+                  drafts={jobPhotoDrafts}
+                  onDraftsChange={setJobPhotoDrafts}
+                  onRemoveExisting={(id) =>
+                    setJobPhotoRemoveIds((ids) =>
+                      ids.includes(id) ? ids : [...ids, id]
+                    )
+                  }
+                  disabled={busy}
+                  max={MAX_JOB_PHOTOS}
+                  hint={t("job.jobPhotoHint")}
+                  maxHint={t("job.jobPhotoMax").replace(
+                    "{max}",
+                    String(MAX_JOB_PHOTOS)
+                  )}
+                  emptyLabel={t("job.jobPhotoNone")}
+                />
+              </div>
               <label>
                 Estimasi (menit) *
                 <input
@@ -8717,6 +8926,217 @@ export default function HomePage() {
                 className="btn btn-danger"
                 disabled={busy}
                 onClick={confirmDeleteUnit}
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "priorities" && (
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-priorities-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(busy || prioritiesMasterLoading) && <BusyOverlay />}
+            <div className="master-head">
+              <h3 id="master-priorities-title">{t("master.priorityTitle")}</h3>
+              <p className="master-lead">{t("master.priorityHint")}</p>
+              {error && <div className="error">{error}</div>}
+            </div>
+            <div className="master-body">
+              <div className="check-list">
+                {masterPriorities.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    {t("master.priorityEmpty")}
+                  </span>
+                )}
+                {masterPriorities.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{item.code}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        {item.name}
+                        {` · urutan ${item.sort_order}`}
+                        {item.active !== "1"
+                          ? ` · ${t("master.priorityInactive")}`
+                          : ""}
+                      </div>
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canPriorityUpdate}
+                        onClick={() => openPriorityEdit(item)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        disabled={busy || !canPriorityDelete}
+                        onClick={() =>
+                          setModal({ type: "delete-priority", item })
+                        }
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="master-foot actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canPriorityCreate}
+                onClick={openPriorityCreate}
+              >
+                {t("master.priorityNew")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "priority-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "priorities" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>
+              {modal.mode === "create"
+                ? t("master.priorityNew")
+                : t("master.priorityEdit")}
+            </h3>
+            <div className="form">
+              <label>
+                {t("master.priorityCode")}
+                <input
+                  value={priorityForm.code}
+                  onChange={(e) =>
+                    setPriorityForm({
+                      ...priorityForm,
+                      code: e.target.value.toUpperCase(),
+                    })
+                  }
+                  placeholder="Mis. P4"
+                  required
+                  disabled={modal.mode === "edit"}
+                />
+              </label>
+              <label>
+                {t("master.priorityName")}
+                <input
+                  value={priorityForm.name}
+                  onChange={(e) =>
+                    setPriorityForm({ ...priorityForm, name: e.target.value })
+                  }
+                  placeholder="Mis. Prioritas 4"
+                  required
+                />
+              </label>
+              <label>
+                {t("master.prioritySort")}
+                <input
+                  type="number"
+                  min={1}
+                  value={priorityForm.sort_order}
+                  onChange={(e) =>
+                    setPriorityForm({
+                      ...priorityForm,
+                      sort_order: e.target.value,
+                    })
+                  }
+                />
+              </label>
+              {modal.mode === "edit" && (
+                <label>
+                  {t("master.priorityStatus")}
+                  <select
+                    value={priorityForm.active}
+                    onChange={(e) =>
+                      setPriorityForm({
+                        ...priorityForm,
+                        active: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="1">{t("master.priorityActive")}</option>
+                    <option value="0">{t("master.priorityInactive")}</option>
+                  </select>
+                </label>
+              )}
+              <div className="actions">
+                <button
+                  className="btn"
+                  onClick={() => setModal({ type: "priorities" })}
+                >
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    busy ||
+                    !priorityForm.code.trim() ||
+                    !priorityForm.name.trim()
+                  }
+                  onClick={() => void savePriority()}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-priority" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "priorities" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
+            <h3>{t("master.priorityDelete")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.item.code} — {modal.item.name}
+            </p>
+            <p style={{ margin: "0 0 16px" }}>
+              {t("master.priorityDeleteHint")}
+            </p>
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => setModal({ type: "priorities" })}
+              >
+                Kembali
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={() => void confirmDeletePriority()}
               >
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>

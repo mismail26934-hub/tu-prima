@@ -13,7 +13,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 3. [Template time frame (Engine / Non Engine)](#template-time-frame-engine--non-engine)
 4. [Mode step: Berurutan vs Parallel](#mode-step-berurutan-vs-parallel)
 5. [Timer & sisa estimasi](#timer--sisa-estimasi)
-6. [Prioritas job (URGENT / P1 / P2 / P3)](#prioritas-job-urgent--p1--p2--p3)
+6. [Prioritas job (master dinamis)](#prioritas-job-master-dinamis)
 7. [Archive job (complete / cancel / hapus)](#archive-job-complete--cancel--hapus)
 8. [Catatan handover](#catatan-handover-job-aktif)
 9. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
@@ -56,7 +56,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
   - dari **Job completed** → restore → `paused`
   - dari **Job cancelled** → restore → `paused` / `assigned` / `queued`
 - Filter board: All / Job aktif / Antrian / **Job completed** / **Job cancelled**
-- **Prioritas job** opsional: `URGENT` / `P1` / `P2` / `P3` (form Create/Edit, pill di kartu, filter Job aktif & Antrian)
+- **Prioritas job** opsional: kode dari master `job_priorities` (form Create/Edit, pill di kartu, filter Job aktif & Antrian; seed `URGENT` / `P1` / `P2` / `P3`)
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
 - Setiap step menampilkan **STP/Std Hours** (`std_minutes` dari template)
 - Estimasi di kartu: `Est. N mnt / H jam M mnt · Progress P%` (di bawah deskripsi job)
@@ -69,6 +69,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 ### Master data (via menu Kelola)
 
 - **Unit** — CRUD + import Excel + unduh template
+- **Prioritas** — CRUD kode prioritas job (nama, urutan, aktif/nonaktif)
 - **Teknisi** — CRUD + import Excel + unduh template
 - **Template** — CRUD time frame Engine / Non Engine + unduh template Excel + mass upload
 - **Users** — CRUD akun login (nama, **email**, **no. telp**, level, aktif)
@@ -105,7 +106,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
       ├─ Mode template → pilih Engine / Non Engine / GOH → pilih komponen
       │                 (steps + estimasi terisi dari time frame)
       ├─ Mode custom  → isi judul, unit, deskripsi, steps manual
-      └─ Prioritas (opsional) → URGENT / P1 / P2 / P3; boleh dikosongkan
+      └─ Prioritas (opsional) → pilih kode aktif dari Master Prioritas; boleh dikosongkan
 4. Assign teknisi (Foreman / Superuser)
 5. Start job
 6. Kerjakan step (berurutan ATAU parallel)
@@ -232,28 +233,45 @@ Kali pertama job terlihat, suaranya diam. Setelah itu dibacakan bila:
 
 ---
 
-## Prioritas job (URGENT / P1 / P2 / P3)
+## Prioritas job (master dinamis)
 
-Field **Selected Item Priority Job (optional)** di form Create / Edit, tepat di bawah Judul.
+Field **Selected Item Priority Job (optional)** di form Create / Edit, tepat di bawah Judul. Pilihan diambil dari tabel **`job_priorities`**, bukan daftar hardcoded.
 
-| Nilai      | Arti                |
-| ---------- | ------------------- |
-| _(kosong)_ | Tidak ada prioritas |
-| `URGENT`   | Urgent              |
-| `P1`       | Priority 1          |
-| `P2`       | Priority 2          |
-| `P3`       | Priority 3          |
+UI master: **Kelola → Master Prioritas**. Bisa tambah kode, ubah nama/urutan, dan **nonaktifkan**. Hak akses sama pola Unit: superuser / inputer / foreman CRUD · hrd / spv baca · teknisi / guest tidak.
 
-- Tersimpan di kolom **`jobs.priority`** (`VARCHAR(16)`, default `''`)
-- Nilai selain daftar di atas diabaikan (dinormalisasi ke kosong)
+### Seed awal
+
+App start (`ensureSchema`) membuat tabel bila belum ada dan mengisi empat kode jika `code` itu belum ada:
+
+| Kode     | Nama    | Urutan |
+| -------- | ------- | ------ |
+| `URGENT` | Urgent  | 10     |
+| `P1`     | P1      | 20     |
+| `P2`     | P2      | 30     |
+| `P3`     | P3      | 40     |
+
+Kode baru bebas (huruf/angka/`_`/`-`, max 16 karakter). Nama boleh berbeda dari kode.
+
+### Penyimpanan di job
+
+- Job menyimpan **kode** di **`jobs.priority`** (`VARCHAR(16)`, default `''`) — bukan id baris master
+- Dropdown Create/Edit dan filter board hanya menampilkan prioritas **aktif**
+- Job lama tetap menampilkan kodenya meski master dinonaktifkan (pill + PDF/Excel tidak berubah)
+- Form edit job yang kodenya sudah nonaktif tetap menampilkan opsi itu agar tidak terhapus tidak sengaja
+- Write job menolak kode yang tidak ada atau nonaktif, kecuali job sudah memakai kode itu (biar edit judul/unit tidak gagal)
+- Hapus master ditolak jika masih ada job memakai kodenya — nonaktifkan saja
+
+### UI & filter
+
 - Kartu job menampilkan **pill** di samping judul jika prioritas diisi
-- PDF dan export Excel ikut kolom `priority`
+- Alert navbar (foreman / teknisi) mengelompokkan job terbuka per prioritas **aktif**
+- PDF dan export Excel ikut kolom `priority` (kode)
 - Filter dropdown **Filter prioritas** di panel Job berlaku hanya untuk **Job aktif** dan **Antrian** (termasuk slider). Job completed / cancelled tidak tersaring
 - Di mobile, bar filter (section + prioritas + penugasan) ditumpuk vertikal agar label/dropdown tidak berdesakan
 
-Migrasi kolom otomatis saat app start (`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority …` di `src/db/relational-store.ts`).
+Migrasi otomatis saat app start: `CREATE TABLE IF NOT EXISTS job_priorities` + seed, plus `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority …` (`src/db/relational-store.ts`).
 
-API: `POST /api/jobs` dan `PATCH /api/jobs/[id]` menerima `priority` · `GET /api/jobs/list?section=active|queue&priority=URGENT|P1|P2|P3`
+API: `GET/POST /api/job-priorities` · `PATCH/DELETE /api/job-priorities/[id]` · `POST /api/jobs` dan `PATCH /api/jobs/[id]` menerima `priority` (kode aktif) · `GET /api/jobs/list?section=active|queue&priority=<kode>`
 
 ---
 
@@ -365,7 +383,8 @@ Database: **`tu_prima`** (via `DATABASE_URL`). Schema lengkap: `src/db/schema.sq
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `technicians`        | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email                                                                                            |
 | `units`              | id, code, name, serial_number, active                                                                                                                            |
-| `jobs`               | id, **job_scope**, title, **priority** (`URGENT`/`P1`/`P2`/`P3` atau kosong), unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
+| `job_priorities`     | id, **code** (unik), name, sort_order, active — master prioritas job (seed URGENT/P1/P2/P3)                                                                      |
+| `jobs`               | id, **job_scope**, title, **priority** (kode dari `job_priorities`, atau kosong), unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
 | `job_assignees`      | job_id, technician_id, is_lead, assigned_at                                                                                                                      |
 | `job_steps`          | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                                                             |
 | `job_events`         | timeline + **user_id / user_name / user_level**                                                                                                                  |
@@ -439,21 +458,21 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 
 **CRUD** = Create/Read/Update/Delete · **R** = Read · **—** = tidak ada
 
-| Level     | Job  | User | Teknisi | Unit | Template | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
-| --------- | ---- | ---- | ------- | ---- | -------- | ------------ | ------ | -------------------------------- | -------------- | ------ |
-| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD     | CRUD         | Ya     | Ya                               | —              | Ya     |
-| inputer   | CRUD | R    | R       | CRUD | CRUD     | R            | —      | —                                | —              | —      |
-| teknisi   | R    | R    | R       | —    | R        | R            | —      | —                                | Tambah/Ubah*   | —      |
-| foreman   | CRUD | R    | R       | CRUD | CRUD     | R            | Ya     | Ya                               | Ya             | —      |
-| spv       | R    | R    | R       | R    | R        | R            | —      | —                                | —              | —      |
-| hrd       | R    | R    | R       | R    | R        | CRUD         | —      | —                                | —              | —      |
-| guest     | R    | R    | R       | —    | —        | R            | —      | —                                | —              | —      |
+| Level     | Job  | User | Teknisi | Unit | Prioritas | Template | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
+| --------- | ---- | ---- | ------- | ---- | --------- | -------- | ------------ | ------ | -------------------------------- | -------------- | ------ |
+| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD      | CRUD     | CRUD         | Ya     | Ya                               | —              | Ya     |
+| inputer   | CRUD | R    | R       | CRUD | CRUD      | CRUD     | R            | —      | —                                | —              | —      |
+| teknisi   | R    | R    | R       | —    | —         | R        | R            | —      | —                                | Tambah/Ubah*   | —      |
+| foreman   | CRUD | R    | CRUD    | CRUD | CRUD      | CRUD     | CRUD         | Ya     | Ya                               | Ya             | —      |
+| spv       | R    | R    | R       | R    | R         | R        | R            | —      | —                                | —              | —      |
+| hrd       | R    | R    | R       | R    | R         | R        | CRUD         | —      | —                                | —              | —      |
+| guest     | R    | R    | R       | —    | —         | —        | R            | —      | —                                | —              | —      |
 
 Catatan:
 
 - Enforce di **UI** dan **API** (`401` / `403`).
-- `spv` view-only (semua resource baca); tidak bisa buat/ubah job, unit, atau template.
-- `guest` & `teknisi` tidak mendapat data Unit di dashboard.
+- `spv` view-only (semua resource baca); tidak bisa buat/ubah job, unit, prioritas, atau template.
+- `guest` & `teknisi` tidak mendapat data Unit / Master Prioritas di dashboard. Dropdown prioritas di form job tetap memakai `GET /api/job-priorities` (kode aktif) karena `job:read`.
 - Minimal satu `superuser` aktif harus tersisa.
 - **Handover / peminjaman part Tambah & Ubah**: `foreman` pengendali job, atau `teknisi` yang di-assign ke job tersebut (`*`).
 - **Handover / peminjaman part Hapus**: hanya `foreman` pengendali job; level lain tetap bisa melihat tabel read-only.
@@ -487,6 +506,7 @@ src/
     job-pdf.ts
     job-templates.ts      ← katalog time frame (MySQL job_templates)
     job-template-excel.ts ← export Excel Master Template
+    job-priorities.ts     ← master prioritas job (MySQL job_priorities)
     access.ts / permissions.ts
     duration.ts           ← timer & progress
     types.ts
@@ -528,9 +548,12 @@ data/
 | GET          | `/api/job-templates/template`                                     | Unduh blank Excel untuk mass upload                                                                                |
 | POST         | `/api/job-templates/import`                                       | Mass upload template (sheet Templates + Steps)                                                                     |
 | GET          | `/api/job-templates/download`                                     | Export katalog Excel (opsional `id` / `category`)                                                                  |
-| POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, `priority` opsional, actor audit)                                                       |
+| GET          | `/api/job-priorities`                                             | List prioritas aktif (`job:read`); `include_inactive=1` untuk master                                               |
+| POST         | `/api/job-priorities`                                             | Buat kode prioritas                                                                                                |
+| PATCH/DELETE | `/api/job-priorities/[id]`                                        | Ubah nama/urutan/aktif, atau hapus (ditolak jika masih dipakai job)                                                |
+| POST         | `/api/jobs`                                                       | Buat job (+ `template_id`, `priority` kode aktif opsional, actor audit)                                            |
 | PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job (`priority` opsional)                                                                           |
-| GET          | `/api/jobs/list?section=&page=&limit=&q=&ownership=&priority=`    | List paginated (filter `priority` hanya active/queue)                                                              |
+| GET          | `/api/jobs/list?section=&page=&limit=&q=&ownership=&priority=`    | List paginated (filter `priority=<kode>` hanya active/queue)                                                       |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel`, `reopen` |
 | POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                            |
 | PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                                    |
@@ -539,7 +562,7 @@ data/
 | GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                            |
 | GET          | `/api/backups/jobs`                                               | List ChangeLog `job_change_backups` (**superuser**)                                                                |
 | POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                                          |
-| \*           | `/api/units`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD + import/template di subpath masing-masing                                                                    |
+| \*           | `/api/units`, `/api/job-priorities`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD master (+ import/template di subpath unit/teknisi/user/hadir)                          |
 | POST         | `/api/attendance/sync-sharepoint`                                 | Meals Request → presence: No. ID Badge = SN; ada → available, tidak ada → offline (upload file atau Graph)         |
 | POST         | `/api/technicians/sync-sharepoint`                                | _Deprecated_ — sama presence sync; UI di **Daftar Hadir**                                                          |
 | POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                             |
@@ -740,7 +763,7 @@ Browser B  ←  WebSocket /ws  ←  invalidate + refetch GET /api/dashboard
 ```
 
 - Hub in-memory: `src/lib/realtime/hub.ts` — **singleton `globalThis`** agar koneksi WS dari `server.ts` dan API route Next.js berbagi client set yang sama (penting di dev & Hostinger).
-- Client: `RealtimeBridge` subscribe `ws(s)://<host>/ws`. Pesan `dashboard-changed` → invalidate dashboard + katalog template.
+- Client: `RealtimeBridge` subscribe `ws(s)://<host>/ws`. Pesan `dashboard-changed` → invalidate dashboard + katalog template + master prioritas.
 - **Tidak refetch** jika offline atau outbox masih pending (`shouldHoldServerRefresh`) — supaya cache lokal tidak ditimpa data server lama.
 - Poll 8 detik tetap jalan sebagai **cadangan** (tab aktif, online, outbox kosong).
 - MySQL tetap sumber kebenaran. WS tidak mengganti REST/outbox.
@@ -810,6 +833,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 - Jika cache Next rusak (error auth / webpack aneh): hentikan semua `npm run dev`, hapus folder `.next`, jalankan lagi **satu** server.
 - Jangan jalankan dua server (`tsx server.ts` / sisa `next dev`) bersamaan di port berbeda pada project yang sama.
 - Template time frame diubah lewat **Kelola → Master Template** (tersimpan ke MySQL `job_templates`). Job yang sudah dibuat tidak otomatis ikut berubah.
+- Prioritas job diubah lewat **Kelola → Master Prioritas** (`job_priorities`). Job menyimpan **kode**; nonaktif hanya menyembunyikan dari pilihan baru.
 - Alternatif: edit sumber Excel di `data/templates/` lalu import ulang; restart / refresh setelah ubah katalog.
 - Backup rutin: `mysqldump -u root tu_prima > backup.sql` (production: export dari hPanel / phpMyAdmin).
 - Dashboard menyertakan job `completed` + `cancelled` dari MySQL (selain job `active`).
@@ -828,7 +852,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 - **Sync hapus** handover / part loan yang sudah hilang tidak lagi macet di antrean
 - **Offline**: assign menampilkan nama teknisi; Delegasi memakai cache foreman; chip sync merinci perubahan yang akan dikirim
 - **Web Speech** membacakan peringatan sisa estimasi (oranye/merah, turun persen, habis, lembur) untuk penugas atau penerima delegasi
-- **Prioritas job** opsional (`URGENT` / `P1` / `P2` / `P3`): form Create/Edit, kolom `jobs.priority`, pill di kartu, PDF/Excel, filter Job aktif & Antrian; layout filter mobile ditumpuk vertikal
+- **Prioritas job** dinamis: master `job_priorities` (Kelola → Master Prioritas), seed URGENT/P1/P2/P3, job menyimpan kode, nonaktif tidak mengubah job lama; pill, PDF/Excel, filter, alert navbar mengikuti kode aktif
 - **Catatan per step** (`job_steps.note`) + ikon/modal di kartu job
 - **Delegasi penuh**: hanya foreman terdelegasi + superuser yang mengendalikan job (assigner asli tidak bisa undelegate)
 - **MySQL/MariaDB** sebagai database runtime (migrasi dari Excel workbook)

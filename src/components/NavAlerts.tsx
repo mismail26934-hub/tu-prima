@@ -122,34 +122,46 @@ export function NavAlerts({
         empty={t("nav.alertsOpenJobsEmpty")}
         onPick={pick}
       />
-      <AlertSection
-        title={t("nav.alertsUrgent")}
-        count={payload.urgentJobs}
-        items={payload.items.urgent}
-        empty={t("nav.alertsUrgentEmpty")}
-        onPick={pick}
-      />
-      <AlertSection
-        title={t("nav.alertsP1")}
-        count={payload.p1Jobs}
-        items={payload.items.p1}
-        empty={t("nav.alertsP1Empty")}
-        onPick={pick}
-      />
-      <AlertSection
-        title={t("nav.alertsP2")}
-        count={payload.p2Jobs}
-        items={payload.items.p2}
-        empty={t("nav.alertsP2Empty")}
-        onPick={pick}
-      />
-      <AlertSection
-        title={t("nav.alertsP3")}
-        count={payload.p3Jobs}
-        items={payload.items.p3}
-        empty={t("nav.alertsP3Empty")}
-        onPick={pick}
-      />
+      {(payload.priorityGroups?.length
+        ? payload.priorityGroups
+        : [
+            {
+              code: "URGENT",
+              name: "URGENT",
+              count: payload.urgentJobs,
+              items: payload.items.urgent,
+            },
+            {
+              code: "P1",
+              name: "P1",
+              count: payload.p1Jobs,
+              items: payload.items.p1,
+            },
+            {
+              code: "P2",
+              name: "P2",
+              count: payload.p2Jobs,
+              items: payload.items.p2,
+            },
+            {
+              code: "P3",
+              name: "P3",
+              count: payload.p3Jobs,
+              items: payload.items.p3,
+            },
+          ]
+      ).map((group) => (
+        <AlertSection
+          key={group.code}
+          title={t("nav.alertsPriority", { name: group.name || group.code })}
+          count={group.count}
+          items={group.items}
+          empty={t("nav.alertsPriorityEmpty", {
+            name: group.name || group.code,
+          })}
+          onPick={pick}
+        />
+      ))}
     </div>
   );
 

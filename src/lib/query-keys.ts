@@ -44,6 +44,11 @@ export const queryKeys = {
     ) => ["board", "technicians", status, page, limit, q] as const,
     assignPool: (q: string) => ["board", "technicians", "assign", q] as const,
   },
+  priorities: {
+    all: ["job-priorities"] as const,
+    list: (includeInactive = false) =>
+      ["job-priorities", { includeInactive }] as const,
+  },
   templates: {
     all: ["job-templates"] as const,
     catalog: ["job-templates", "catalog"] as const,

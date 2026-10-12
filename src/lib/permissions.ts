@@ -8,7 +8,8 @@ export type AccessResource =
   | "technician"
   | "unit"
   | "attendance"
-  | "template";
+  | "template"
+  | "priority";
 export type AccessAction = "create" | "read" | "update" | "delete";
 
 const CRUD: AccessAction[] = ["create", "read", "update", "delete"];
@@ -26,6 +27,7 @@ export const ACCESS_MATRIX: Record<
     unit: NONE,
     attendance: READ,
     template: NONE,
+    priority: NONE,
   },
   superuser: {
     job: CRUD,
@@ -34,6 +36,7 @@ export const ACCESS_MATRIX: Record<
     unit: CRUD,
     attendance: CRUD,
     template: CRUD,
+    priority: CRUD,
   },
   inputer: {
     job: CRUD,
@@ -42,6 +45,7 @@ export const ACCESS_MATRIX: Record<
     unit: CRUD,
     attendance: READ,
     template: CRUD,
+    priority: CRUD,
   },
   teknisi: {
     job: READ,
@@ -50,6 +54,7 @@ export const ACCESS_MATRIX: Record<
     unit: NONE,
     attendance: READ,
     template: READ,
+    priority: NONE,
   },
   foreman: {
     job: CRUD,
@@ -58,6 +63,7 @@ export const ACCESS_MATRIX: Record<
     unit: CRUD,
     attendance: CRUD,
     template: CRUD,
+    priority: CRUD,
   },
   hrd: {
     job: READ,
@@ -66,6 +72,7 @@ export const ACCESS_MATRIX: Record<
     unit: READ,
     attendance: CRUD,
     template: READ,
+    priority: READ,
   },
   spv: {
     job: READ,
@@ -74,6 +81,7 @@ export const ACCESS_MATRIX: Record<
     unit: READ,
     attendance: READ,
     template: READ,
+    priority: READ,
   },
 };
 

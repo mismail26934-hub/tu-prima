@@ -3,6 +3,7 @@ import { getPool } from "@/db/mysql-workbook";
 import { calcElapsedSec, calcProgressPct } from "@/lib/duration";
 import { parseStepTechnicianIds } from "@/lib/step-technicians";
 import { attachStepPhotoUrl } from "@/lib/step-photo-url";
+import { attachJobPhotoUrl } from "@/lib/job-photo-url";
 import { attachStepNotes, parseStepNotes } from "@/lib/step-notes";
 import type {
   DashboardData,
@@ -21,7 +22,8 @@ import type {
   TechnicianStatus,
 } from "@/lib/types";
 import { normalizeJobPriority } from "@/lib/types";
-import type { JobPriority } from "@/lib/types";
+import { listJobPriorities } from "@/lib/job-priorities";
+import { DEFAULT_JOB_PRIORITIES } from "@/lib/types";
 import { applyLiveOwnerNames } from "@/lib/job-owner-names";
 import {
   EMPTY_NAV_ALERTS,
@@ -35,7 +37,7 @@ export type JobOwnershipFilter =
   | "mine"
   | "delegated"
   | "mine_or_delegated";
-export type JobPriorityFilter = JobPriority | "";
+export type JobPriorityFilter = string;
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -112,7 +114,7 @@ function mapTechnicianRow(r: mysql.RowDataPacket): Technician {
 }
 
 function mapJobRow(r: mysql.RowDataPacket): Job {
-  return {
+  return attachJobPhotoUrl({
     id: str(r.id),
     title: str(r.title),
     priority: normalizeJobPriority(r.priority),
@@ -128,6 +130,8 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
     paused_at: str(r.paused_at),
     total_paused_sec: num(r.total_paused_sec),
     estimated_minutes: num(r.estimated_minutes),
+    photo_name: str(r.photo_name),
+    photos: str(r.photos),
     assigned_by_user_id: str(r.assigned_by_user_id),
     assigned_by_user_name: str(r.assigned_by_user_name),
     assigned_by_user_level: str(r.assigned_by_user_level),
@@ -135,7 +139,7 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
     delegated_to_user_name: str(r.delegated_to_user_name),
     delegated_at: str(r.delegated_at),
     delegated_by_user_id: str(r.delegated_by_user_id),
-  };
+  });
 }
 
 function mapStepRow(r: mysql.RowDataPacket): JobStep {
@@ -866,8 +870,7 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
     [handoverRows],
     [openCountRows],
     [openRows],
-    [priorityCountRows],
-    [priorityRows],
+    priorityQuery,
   ] = await Promise.all([
     p.query<mysql.RowDataPacket[]>(
       `SELECT COUNT(*) AS cnt
@@ -899,52 +902,76 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
        LIMIT ?`,
       [...OPEN_JOB_STATUSES, ...scope.params, ALERT_LIST_LIMIT]
     ),
-    p.query<mysql.RowDataPacket[]>(
-      `SELECT UPPER(priority) AS pri, COUNT(*) AS cnt
-       FROM jobs
-       WHERE job_scope = 'active'
-         AND status IN (${urgentPh})
-         AND UPPER(priority) IN ('URGENT','P1','P2','P3')${jobsScopeSql}
-       GROUP BY UPPER(priority)`,
-      [...URGENT_JOB_STATUSES, ...scope.params]
-    ),
-    p.query<mysql.RowDataPacket[]>(
-      `SELECT id, title, unit_label, status, priority
-       FROM jobs
-       WHERE job_scope = 'active'
-         AND status IN (${urgentPh})
-         AND UPPER(priority) IN ('URGENT','P1','P2','P3')${jobsScopeSql}
-       ORDER BY created_at DESC, id DESC`,
-      [...URGENT_JOB_STATUSES, ...scope.params]
-    ),
+    (async () => {
+      let catalog = DEFAULT_JOB_PRIORITIES;
+      try {
+        const rows = await listJobPriorities();
+        if (rows.length) catalog = rows;
+      } catch {
+        /* keep seed codes */
+      }
+      const codes = catalog.map((row) => row.code).filter(Boolean);
+      if (!codes.length) {
+        return {
+          catalog,
+          countRows: [] as mysql.RowDataPacket[],
+          jobRows: [] as mysql.RowDataPacket[],
+        };
+      }
+      const priPh = codes.map(() => "?").join(",");
+      const [[countRows], [jobRows]] = await Promise.all([
+        p.query<mysql.RowDataPacket[]>(
+          `SELECT UPPER(priority) AS pri, COUNT(*) AS cnt
+           FROM jobs
+           WHERE job_scope = 'active'
+             AND status IN (${urgentPh})
+             AND UPPER(priority) IN (${priPh})${jobsScopeSql}
+           GROUP BY UPPER(priority)`,
+          [...URGENT_JOB_STATUSES, ...codes, ...scope.params]
+        ),
+        p.query<mysql.RowDataPacket[]>(
+          `SELECT id, title, unit_label, status, priority
+           FROM jobs
+           WHERE job_scope = 'active'
+             AND status IN (${urgentPh})
+             AND UPPER(priority) IN (${priPh})${jobsScopeSql}
+           ORDER BY created_at DESC, id DESC`,
+          [...URGENT_JOB_STATUSES, ...codes, ...scope.params]
+        ),
+      ]);
+      return { catalog, countRows, jobRows };
+    })(),
   ]);
 
-  const priorityCount: Record<string, number> = {
-    URGENT: 0,
-    P1: 0,
-    P2: 0,
-    P3: 0,
-  };
+  const { catalog, countRows: priorityCountRows, jobRows: priorityRows } =
+    priorityQuery;
+  const priorityCount: Record<string, number> = {};
+  for (const row of catalog) priorityCount[row.code] = 0;
   for (const row of priorityCountRows) {
     const pri = str(row.pri).toUpperCase();
     if (pri in priorityCount) priorityCount[pri] = num(row.cnt);
   }
-  const pickPriority = (
-    pri: "URGENT" | "P1" | "P2" | "P3",
-    kind: NavAlertItem["kind"]
-  ) =>
+  const pickPriority = (pri: string, kind: NavAlertItem["kind"]) =>
     priorityRows
       .filter((row) => str(row.priority).toUpperCase() === pri)
       .slice(0, ALERT_LIST_LIMIT)
       .map((row) => mapAlertJob(row, kind, pri));
 
+  const priorityGroups = catalog.map((row) => ({
+    code: row.code,
+    name: row.name || row.code,
+    count: priorityCount[row.code] || 0,
+    items: pickPriority(row.code, "priority"),
+  }));
+
   return {
     openHandovers: num(handoverCountRows[0]?.cnt),
     openJobs: num(openCountRows[0]?.cnt),
-    urgentJobs: priorityCount.URGENT,
-    p1Jobs: priorityCount.P1,
-    p2Jobs: priorityCount.P2,
-    p3Jobs: priorityCount.P3,
+    urgentJobs: priorityCount.URGENT || 0,
+    p1Jobs: priorityCount.P1 || 0,
+    p2Jobs: priorityCount.P2 || 0,
+    p3Jobs: priorityCount.P3 || 0,
+    priorityGroups,
     items: {
       handover: handoverRows.map((row) => ({
         kind: "handover" as const,

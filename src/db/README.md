@@ -7,6 +7,7 @@
 | `users` | Login accounts |
 | `technicians` | Master teknisi |
 | `units` | Master unit |
+| `job_priorities` | Master prioritas job (code, name, sort_order, active) |
 | `jobs` | Jobs (`job_scope`: active / completed / cancelled / deleted) |
 | `job_assignees` | Assign teknisi per job |
 | `job_steps` | Steps per job |

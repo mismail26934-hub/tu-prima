@@ -18,6 +18,10 @@ export function StepPhotoPicker({
   onRemoveExisting,
   disabled,
   required,
+  max = MAX_STEP_PHOTOS,
+  hint,
+  maxHint,
+  emptyLabel,
 }: {
   existing: StepPhotoRef[];
   drafts: StepPhotoDraft[];
@@ -25,13 +29,17 @@ export function StepPhotoPicker({
   onRemoveExisting?: (photoId: string) => void;
   disabled?: boolean;
   required?: boolean;
+  max?: number;
+  hint?: string;
+  maxHint?: string;
+  emptyLabel?: string;
 }) {
   const t = useT();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const remaining = Math.max(0, MAX_STEP_PHOTOS - existing.length - drafts.length);
+  const remaining = Math.max(0, max - existing.length - drafts.length);
   const canAdd = !disabled && !busy && remaining > 0;
 
   async function onPick(list: FileList | null, input: HTMLInputElement | null) {
@@ -41,7 +49,7 @@ export function StepPhotoPicker({
     setError("");
     try {
       const next = await compressStepPhotoFiles(files.slice(0, remaining));
-      onDraftsChange([...drafts, ...next].slice(0, MAX_STEP_PHOTOS - existing.length));
+      onDraftsChange([...drafts, ...next].slice(0, max - existing.length));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("job.stepPhotoError"));
     } finally {
@@ -53,9 +61,9 @@ export function StepPhotoPicker({
   return (
     <div className="step-photo-picker">
       <p className="field-hint" style={{ marginTop: 0 }}>
-        {t("job.stepPhotoHint")}
+        {hint ?? t("job.stepPhotoHint")}
         {required ? ` ${t("job.stepPhotoRequired")}` : ""}{" "}
-        {t("job.stepPhotoMax").replace("{max}", String(MAX_STEP_PHOTOS))}
+        {maxHint ?? t("job.stepPhotoMax").replace("{max}", String(max))}
       </p>
       {existing.length || drafts.length ? (
         <div className="step-photo-grid">
@@ -98,7 +106,7 @@ export function StepPhotoPicker({
           ))}
         </div>
       ) : (
-        <div className="step-photo-empty">{t("job.stepPhotoNone")}</div>
+        <div className="step-photo-empty">{emptyLabel ?? t("job.stepPhotoNone")}</div>
       )}
       <input
         ref={cameraRef}

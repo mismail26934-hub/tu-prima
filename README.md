@@ -64,7 +64,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 - **Catatan peminjaman part** + loading tambah/ubah (foreman pengendali **atau** teknisi assigned) / hapus (foreman pengendali)
 - **Print PDF** per job (modal loading/success/error)
 - **Export to excel** (menu Kelola): satu menu → popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), kolom **stp_std_hours** + STP per step
-- **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke tabel `job_change_backups`
+- **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke tabel `job_change_backups`. Panel **BACKUP DATA** mengikuti pola ARMOR: kolom Waktu, Aksi, Jenis, Data, Pengguna, Isi + cari data/pengguna
 
 ### Master data (via menu Kelola)
 
@@ -369,9 +369,28 @@ Setiap create / update / delete job, assign, start/pause/resume/step/complete/ca
 | `user_*`                     | Pelaku                                            |
 | `undone`                     | `1` jika sudah di-undo                            |
 
-- UI: menu **Kelola → Backup / Undo** (**superuser** saja)
 - API: `GET/POST /api/backups/jobs` (**superuser** saja)
 - Undo mengembalikan state `before_json` ke job aktif di MySQL (dan membersihkan arsip complete/cancel bila relevan)
+
+#### Tampilan panel BACKUP DATA
+
+Menu **Kelola → Backup / Undo** membuka panel lebar (bukan tabel mentah `action/entity`). Susunan mengikuti layar Backup Data ARMOR.
+
+Header satu baris:
+
+- Kiri: judul **BACKUP DATA**
+- Kanan: **← Kembali**, kolom **Cari data atau pengguna**, tombol **Cari**
+
+| Kolom | Isi |
+| ----- | --- |
+| **WAKTU** | `12 Okt 26 13:38` dari `at` |
+| **AKSI** | `create` → Tambah, `update` → Ubah, `delete` → Hapus (merah), `complete` → Selesai, `cancel` → Batal; aksi lain tetap dibaca manusiawi |
+| **JENIS** | `job` → Job, `job_handover` → Handover, `job_part_loan` → Part loan |
+| **DATA** | Kode unit di belakang `·` pada `summary`, atau judul job jika unit tidak ada |
+| **PENGGUNA** | `user_name` |
+| **ISI** | Tombol **Lihat** |
+
+Pencarian menyaring kolom **DATA** (unit, judul, ringkasan) dan **PENGGUNA**. Checkbox entri yang sudah di-undo tetap ada, di bawah tabel. Dialog **Lihat** memuat ringkasan, `job_id`, status undo, dan tombol **Undo** (superuser, selama `undone` bukan `1`).
 
 ---
 
@@ -852,6 +871,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 - **Sync hapus** handover / part loan yang sudah hilang tidak lagi macet di antrean
 - **Offline**: assign menampilkan nama teknisi; Delegasi memakai cache foreman; chip sync merinci perubahan yang akan dikirim
 - **Web Speech** membacakan peringatan sisa estimasi (oranye/merah, turun persen, habis, lembur) untuk penugas atau penerima delegasi
+- **Backup Data**: panel Kelola → Backup / Undo dirapikan seperti ARMOR (Waktu, Aksi, Jenis, Data, Pengguna, Isi + cari); Undo ada di dialog Lihat
 - **Prioritas job** dinamis: master `job_priorities` (Kelola → Master Prioritas), seed URGENT/P1/P2/P3, job menyimpan kode, nonaktif tidak mengubah job lama; pill, PDF/Excel, filter, alert navbar mengikuti kode aktif
 - **Catatan per step** (`job_steps.note`) + ikon/modal di kartu job
 - **Delegasi penuh**: hanya foreman terdelegasi + superuser yang mengendalikan job (assigner asli tidak bisa undelegate)

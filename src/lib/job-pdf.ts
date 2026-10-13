@@ -6,7 +6,7 @@ import {
   calcStepElapsedSec,
   formatDuration,
 } from "@/lib/duration";
-import { stepTechnicianNames } from "@/lib/step-technicians";
+import { jobStepStdMinutes, stepTechnicianNames } from "@/lib/step-technicians";
 import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
@@ -489,7 +489,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     body: (job.steps || []).map((s) => [
       String(s.order),
       s.name,
-      formatStdMinutes(Number(s.std_minutes || 0)),
+      formatStdMinutes(jobStepStdMinutes(s, job)),
       formatPdfStatus(s.status),
       formatDuration(calcStepElapsedSec(s)),
       stepTechnicianNames(s, job) || "—",
@@ -578,7 +578,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       stepOrder: s.order,
       stepName: s.name,
       status: formatPdfStatus(s.status),
-      stp: formatStdMinutes(Number(s.std_minutes || 0)),
+      stp: formatStdMinutes(jobStepStdMinutes(s, job)),
       duration: formatDuration(calcStepElapsedSec(s)),
       technicians: stepTechnicianNames(s, job) || "—",
       notes: formatStepNotesReport(hydrateStepNotes(s)).trim(),

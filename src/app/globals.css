@@ -2011,7 +2011,9 @@ html.nav-header-pop-open .top-actions {
     min-width: 0;
     max-height: min(86dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 56px));
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    touch-action: pan-y;
     padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px));
     gap: 6px;
     background: var(--bg-1);
@@ -2036,9 +2038,16 @@ html.nav-header-pop-open .top-actions {
     background: var(--bg-0);
     border: 1px solid var(--line);
     border-radius: 14px;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    max-height: min(52dvh, 420px);
     padding: 4px;
     gap: 0;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .nav-sheet-list .nav-manage-item {
@@ -3215,6 +3224,42 @@ html[data-theme='light'] .job-priority-pill--custom {
   cursor: not-allowed;
 }
 
+.step-pause-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: -2px 0 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.step-pause-btn.is-paused {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 50%, var(--line));
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+.step-pause-btn:hover:not(:disabled) {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.step-pause-btn.is-paused:hover:not(:disabled) {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 70%, var(--line));
+}
+
+.step-pause-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .step-photo-btn img {
   width: 100%;
   height: 100%;
@@ -3436,7 +3481,8 @@ html[data-theme='light'] .job-priority-pill--custom {
 
 @media (max-width: 720px) {
   .step-note-btn,
-  .step-photo-btn {
+  .step-photo-btn,
+  .step-pause-btn {
     width: 36px;
     height: 36px;
   }
@@ -4037,6 +4083,250 @@ html[data-theme='light'] .job-priority-pill--custom {
 
 .modal.modal-wide {
   width: min(640px, 100%);
+}
+
+.backup-screen.app {
+  padding-top: 20px;
+}
+
+.backup-screen .panel-head {
+  align-items: flex-end;
+}
+
+.backup-screen .panel-head h2 {
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.backup-screen .panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.backup-screen .panel-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.backup-screen .panel-actions .btn svg {
+  flex: none;
+}
+
+.backup-screen a.btn {
+  text-decoration: none;
+}
+
+.backup-search-pair {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.backup-search-pair .backup-search {
+  width: min(280px, 70vw);
+  background: var(--bg-0);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px 0 0 8px;
+  border-right-width: 0;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.backup-search-pair .backup-search:focus {
+  outline: 2px solid var(--amber);
+  border-color: var(--amber);
+}
+
+.backup-search-pair .btn {
+  border-radius: 0 8px 8px 0;
+}
+
+.backup-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.backup-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.backup-table th,
+.backup-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.backup-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg-1) 80%, transparent);
+}
+
+.backup-table tr.is-selected td {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
+
+.backup-table td.is-over {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.backup-table .col-act {
+  width: 1%;
+}
+
+.backup-user small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.backup-table tr.backup-detail td {
+  background: var(--bg-0);
+  white-space: normal;
+}
+
+.backup-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.backup-fields div {
+  display: grid;
+  gap: 2px;
+}
+
+.backup-fields dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.backup-fields dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.backup-detail-actions {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.backup-detail-actions .btn {
+  width: auto;
+}
+
+.backup-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 18px !important;
+  white-space: normal !important;
+}
+
+.backup-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.btn-sm {
+  padding: 8px 12px;
+}
+
+@media (max-width: 720px) {
+  .backup-screen.app,
+  .backup-screen .panel {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .backup-screen .panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .backup-screen .panel-head h2 {
+    width: 100%;
+    align-self: flex-start;
+    text-align: left;
+    font-size: 1.05rem;
+  }
+
+  .backup-screen .panel-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .backup-screen .backup-btn-label {
+    display: none;
+  }
+
+  .backup-screen .panel-actions > .btn,
+  .backup-screen .backup-search-pair .btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .backup-search-pair {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .backup-search-pair .backup-search {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    border-right-width: 0;
+    border-radius: 8px 0 0 8px;
+    padding: 8px 10px;
+  }
+
+  .backup-screen .backup-search-pair .btn {
+    border-radius: 0 8px 8px 0;
+  }
 }
 
 .modal.modal-template-form {

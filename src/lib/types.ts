@@ -199,7 +199,7 @@ export interface JobStep {
   started_at: string;
   completed_at: string;
   duration_sec: number;
-  /** Standard time from template STP/Std Hours (minutes). */
+  /** Template STP/Std Hours in minutes. Display/timer divide this by step technicians. */
   std_minutes: number;
   /**
    * Technicians who worked this step (subset of job assignees).
@@ -370,6 +370,8 @@ export interface JobChangeBackup {
   job_id: string;
   summary: string;
   undone: string;
+  before_json?: string;
+  after_json?: string;
 }
 
 export interface DashboardData {

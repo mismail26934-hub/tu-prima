@@ -120,6 +120,28 @@ export function displayStepTechnicianIds(
   return resolveStepTechnicianIds(step, assignedIds);
 }
 
+/**
+ * Job-step STP shown on the card/timer: template `std_minutes` ÷ technicians
+ * on that step. Zero technicians keeps the template STP (divisor 1).
+ * Stored `job_steps.std_minutes` stays the template value.
+ */
+export function effectiveStepStdMinutes(
+  step: Pick<JobStep, "std_minutes" | "technician_ids" | "status">,
+  assignedIds: string[]
+): number {
+  const base = Math.max(0, Number(step.std_minutes) || 0);
+  if (!(base > 0)) return 0;
+  const heads = displayStepTechnicianIds(step, assignedIds).length;
+  return base / Math.max(1, heads);
+}
+
+export function jobStepStdMinutes(
+  step: Pick<JobStep, "std_minutes" | "technician_ids" | "status">,
+  job: Pick<JobWithDetails, "technicians" | "technician" | "technician_id">
+): number {
+  return effectiveStepStdMinutes(step, assignedTechnicianIds(job));
+}
+
 export function stepTechnicianNames(
   step: Pick<JobStep, "technician_ids" | "status">,
   job: JobWithDetails

@@ -374,7 +374,7 @@ Setiap create / update / delete job, assign, start/pause/resume/step/complete/ca
 
 #### Tampilan panel BACKUP DATA
 
-Menu **Kelola → Backup / Undo** membuka panel lebar (bukan tabel mentah `action/entity`). Susunan mengikuti layar Backup Data ARMOR.
+Menu **Kelola → Backup / Undo** membuka halaman `/backup` (bukan modal). Susunan mengikuti layar Backup Data ARMOR: judul, **Kembali**, cari, tabel, **Lihat** yang membuka isi di baris bawah, dan pager 10 baris.
 
 Header satu baris:
 
@@ -390,7 +390,7 @@ Header satu baris:
 | **PENGGUNA** | `user_name` |
 | **ISI** | Tombol **Lihat** |
 
-Pencarian menyaring kolom **DATA** (unit, judul, ringkasan) dan **PENGGUNA**. Checkbox entri yang sudah di-undo tetap ada, di bawah tabel. Dialog **Lihat** memuat ringkasan, `job_id`, status undo, dan tombol **Undo** (superuser, selama `undone` bukan `1`).
+Pencarian menyaring kolom **DATA** (unit, judul, ringkasan) dan **PENGGUNA**. Checkbox entri yang sudah di-undo ada di bawah tabel. **Lihat** membuka isi snapshot di baris yang sama; tombol **Undo** ada di sana (superuser, selama `undone` bukan `1`).
 
 ---
 

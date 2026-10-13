@@ -115,7 +115,7 @@ export function useJobBackups(includeUndone: boolean, enabled: boolean) {
     queryKey: queryKeys.backups.list(includeUndone),
     queryFn: async () => {
       const params = new URLSearchParams({
-        limit: "80",
+        limit: "200",
         includeUndone: includeUndone ? "1" : "0",
       });
       const res = await api<{ items?: JobChangeBackup[] }>(

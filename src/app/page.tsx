@@ -47,6 +47,7 @@ import {
 import {
   assignedTechnicianIds,
   displayStepTechnicianIds,
+  jobStepStdMinutes,
   stepTechnicianNames,
 } from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
@@ -94,7 +95,6 @@ import {
   writeBoardSnapshot,
 } from "@/lib/offline/board-snapshot";
 import {
-  useJobBackups,
   useJobPriorities,
   useMasterTemplates,
   useTemplateSummaries,
@@ -284,7 +284,6 @@ type Modal =
   | { type: "settings" }
   | { type: "export-jobs" }
   | { type: "export-jobs-confirm" }
-  | { type: "job-backups" }
   | {
       type: "process-alert";
       title: string;
@@ -400,7 +399,15 @@ function RemainingTimerCard({ job }: { job: JobWithDetails }) {
   );
 }
 
-function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; running: boolean }) {
+function StepDuration({
+  step,
+  running,
+  stdMinutes,
+}: {
+  step: JobWithDetails["steps"][0];
+  running: boolean;
+  stdMinutes: number;
+}) {
   const t = useT();
   const [sec, setSec] = useState(0);
   useEffect(() => {
@@ -411,10 +418,11 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
   }, [step, running]);
   if (step.status === "pending") return <span style={{ color: "var(--muted)" }}>—</span>;
 
-  const stdSec = Math.max(0, Number(step.std_minutes || 0) * 60);
+  const stdSec = Math.max(0, Number(stdMinutes || 0) * 60);
   const remainingSec = stdSec - sec;
   const remainingPct =
     stdSec > 0 ? (Math.max(0, remainingSec) / stdSec) * 100 : 0;
+  const stdLabelMinutes = Math.max(0, Math.round(Number(stdMinutes) || 0));
 
   // Hijau: sisa ≥50% · Oranye: 20% < sisa < 50% · Merah: sisa ≤20% atau overtime
   let tone: "green" | "orange" | "red" | null = null;
@@ -432,11 +440,11 @@ function StepDuration({ step, running }: { step: JobWithDetails["steps"][0]; run
           ? remainingSec >= 0
             ? t("job.stpRemainTip", {
                 pct: remainingPct.toFixed(1),
-                minutes: step.std_minutes,
+                minutes: stdLabelMinutes,
                 minUnit: t("common.minutes"),
               })
             : t("job.stpOverTip", {
-                minutes: step.std_minutes,
+                minutes: stdLabelMinutes,
                 minUnit: t("common.minutes"),
               })
           : undefined
@@ -1024,7 +1032,6 @@ export default function HomePage() {
     dateFrom: "",
     dateTo: "",
   });
-  const [jobBackupsIncludeUndone, setJobBackupsIncludeUndone] = useState(false);
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
   const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
@@ -1063,7 +1070,6 @@ export default function HomePage() {
     modal?.type === "users" ||
     modal?.type === "user-form" ||
     modal?.type === "delete-user";
-  const backupsModalOpen = modal?.type === "job-backups";
   const formMode = useJobFormStore((s) => s.form.mode);
   const formCategory = useJobFormStore((s) => s.form.category);
 
@@ -1108,7 +1114,6 @@ export default function HomePage() {
     invalidateDashboard,
     invalidateTemplates,
     invalidateUsers,
-    invalidateBackups,
     fetchTemplate,
   } = useWorkshopClient();
   const jobActionMutation = useJobActionMutation();
@@ -1129,15 +1134,6 @@ export default function HomePage() {
   );
   const { data: foremanPicker = [], isLoading: foremenLoading } = useForemen(
     modal?.type === "tech-form"
-  );
-  const {
-    data: jobBackups = [],
-    isLoading: backupsLoading,
-    isFetching: backupsFetching,
-    refetch: refetchBackups,
-  } = useJobBackups(
-    jobBackupsIncludeUndone,
-    backupsModalOpen && userLevel === "superuser"
   );
   const { data: templateSummariesRes, isFetching: templatesLoading } =
     useTemplateSummaries(formCategory || undefined);
@@ -3012,25 +3008,7 @@ export default function HomePage() {
       setError("Backup / Undo hanya untuk superuser");
       return;
     }
-    setError("");
-    setJobBackupsIncludeUndone(false);
-    setModal({ type: "job-backups" });
-  }
-
-  async function undoJobBackup(id: string) {
-    setBusy(true);
-    setError("");
-    try {
-      await api("/api/backups/jobs", {
-        method: "POST",
-        body: JSON.stringify({ id }),
-      });
-      await Promise.all([invalidateBackups(), invalidateDashboard()]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal undo");
-    } finally {
-      setBusy(false);
-    }
+    window.location.assign("/backup");
   }
 
   function requestExportJobsReport() {
@@ -4742,6 +4720,7 @@ export default function HomePage() {
           {job.steps.map((s) => {
             const parallel = getStepMode(job.id) === "parallel";
             const selected = (selectedStepsByJob[job.id] || []).includes(s.id);
+            const stpMinutes = jobStepStdMinutes(s, job);
             return (
               <li
                 key={s.id}
@@ -4772,10 +4751,10 @@ export default function HomePage() {
                     <span className="step-name">
                       {s.order}. {s.name}
                       {s.status === "in_progress" ? " (aktif)" : ""}
-                      {!customerView && Number(s.std_minutes || 0) > 0 && (
+                      {!customerView && stpMinutes > 0 && (
                         <span className="step-stp" title="STP / Std Hours">
                           {" "}
-                          · {t("job.stpStdHours")}: {formatStdLabel(Number(s.std_minutes))}
+                          · {t("job.stpStdHours")}: {formatStdLabel(stpMinutes)}
                         </span>
                       )}
                     </span>
@@ -4869,6 +4848,62 @@ export default function HomePage() {
                         </svg>
                       )}
                     </button>
+                    {s.status === "in_progress" &&
+                      (job.status === "in_progress" ||
+                        job.status === "paused") && (
+                      <button
+                        type="button"
+                        className={`step-pause-btn${
+                          job.status === "paused" ? " is-paused" : ""
+                        }`}
+                        disabled={busy || !progressOk}
+                        onClick={() =>
+                          setModal({
+                            type:
+                              job.status === "paused"
+                                ? "resume-job"
+                                : "pause-job",
+                            job,
+                          })
+                        }
+                        title={
+                          !progressOk
+                            ? job.status === "paused"
+                              ? "Hanya pengendali job yang dapat resume job"
+                              : "Hanya pengendali job yang dapat pause job"
+                            : job.status === "paused"
+                              ? t("job.resume")
+                              : t("job.pause")
+                        }
+                        aria-label={
+                          job.status === "paused"
+                            ? t("job.resume")
+                            : t("job.pause")
+                        }
+                      >
+                        {job.status === "paused" ? (
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        ) : (
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M6 5h4v14H6zm8 0h4v14h-4z" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
                     </>
                     )}
                     {customerView &&
@@ -4935,6 +4970,7 @@ export default function HomePage() {
                 <span className="step-meta">
                   <StepDuration
                     step={s}
+                    stdMinutes={stpMinutes}
                     running={
                       job.status === "in_progress" && s.status === "in_progress"
                     }
@@ -6506,115 +6542,6 @@ export default function HomePage() {
                   idle={t("export.action")}
                   pending={t("export.exporting")}
                 />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.type === "job-backups" && (
-        <div className="modal-backdrop" onClick={closeModal}>
-          <div
-            className="modal modal-wide"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {(busy || backupsLoading) && (
-              <BusyOverlay label={busy ? "Memproses..." : "Memuat backup..."} />
-            )}
-            <h3>Backup perubahan job</h3>
-            <p style={{ color: "var(--muted)", marginTop: 0 }}>
-              Snapshot tersimpan di database (<code>job_change_backups</code>).
-              Undo mengembalikan data sebelum perubahan (superuser).
-            </p>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 12,
-                fontSize: "0.9rem",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={jobBackupsIncludeUndone}
-                disabled={busy || backupsFetching}
-                onChange={(e) => {
-                  setJobBackupsIncludeUndone(e.target.checked);
-                }}
-              />
-              Tampilkan yang sudah di-undo
-            </label>
-            {jobBackups.length === 0 ? (
-              <p style={{ color: "var(--muted)" }}>Belum ada entri backup.</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Waktu</th>
-                      <th>Aksi</th>
-                      <th>Ringkasan</th>
-                      <th>Oleh</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobBackups.map((row) => (
-                      <tr key={row.id}>
-                        <td style={{ whiteSpace: "nowrap", fontSize: "0.82rem" }}>
-                          {row.at?.replace("T", " ").slice(0, 19)}
-                        </td>
-                        <td>
-                          <code>
-                            {row.action}/{row.entity}
-                          </code>
-                        </td>
-                        <td>
-                          {row.summary}
-                          {row.job_id ? (
-                            <div
-                              style={{ color: "var(--muted)", fontSize: "0.8rem" }}
-                            >
-                              {row.job_id}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td style={{ fontSize: "0.85rem" }}>
-                          {row.user_name || "—"}
-                          {row.user_level ? ` · ${row.user_level}` : ""}
-                          {row.undone === "1" ? (
-                            <div style={{ color: "var(--amber)" }}>sudah undo</div>
-                          ) : null}
-                        </td>
-                        <td>
-                          {row.undone !== "1" && userLevel === "superuser" ? (
-                            <button
-                              type="button"
-                              className="btn btn-step"
-                              disabled={busy}
-                              onClick={() => void undoJobBackup(row.id)}
-                            >
-                              Undo
-                            </button>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <div className="actions">
-              <button
-                className="btn"
-                disabled={busy || backupsFetching}
-                onClick={() => void refetchBackups()}
-              >
-                Refresh
-              </button>
-              <button className="btn" onClick={closeModal} disabled={busy}>
-                Tutup
               </button>
             </div>
           </div>

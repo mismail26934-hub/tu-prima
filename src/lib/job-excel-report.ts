@@ -6,7 +6,7 @@ import {
   calcStepElapsedSec,
   formatDuration,
 } from "@/lib/duration";
-import { stepTechnicianNames } from "@/lib/step-technicians";
+import { jobStepStdMinutes, stepTechnicianNames } from "@/lib/step-technicians";
 import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
 import {
   formatStepNotesPlain,
@@ -86,7 +86,7 @@ function techNames(job: JobWithDetails): string {
 function stepsText(job: JobWithDetails): string {
   return (job.steps || [])
     .map((s) => {
-      const stpMin = Number(s.std_minutes || 0);
+      const stpMin = jobStepStdMinutes(s, job);
       const stp =
         stpMin > 0
           ? ` | STP/Std Hours: ${formatStdLabel(stpMin)}`

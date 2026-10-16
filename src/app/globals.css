@@ -240,13 +240,9 @@ html[data-theme='light'] .stat--done {
   --stat-accent: var(--ds-cloudy-80);
 }
 
-html[data-theme='light'] .panel-filter select,
-html[data-theme='light'] .panel-search,
-html[data-theme='light'] input,
-html[data-theme='light'] select,
-html[data-theme='light'] textarea {
-  color: var(--ds-ink);
-  border-color: var(--ds-border);
+html[data-theme='light'] .panel-search {
+  color: var(--ds-text-ink);
+  border-color: var(--ds-border-default);
   font-weight: 400;
   background: var(--ds-white);
 }
@@ -1019,13 +1015,46 @@ html.nav-header-pop-open .top-actions {
 
 .remain-alert-field input,
 .remain-alert-field select {
+  box-sizing: border-box;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg-0);
+  min-height: 44px;
+  padding: var(--ds-spacing-sm);
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--bg-0);
   color: var(--text);
-  font: inherit;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.remain-alert-field select {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2379808f' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
+  cursor: pointer;
+}
+
+.remain-alert-field input:focus,
+.remain-alert-field select:focus {
+  outline: none;
+  border-color: var(--ds-border-active);
+  box-shadow: none;
+}
+
+html[data-theme='light'] .remain-alert-field input,
+html[data-theme='light'] .remain-alert-field select {
+  background-color: var(--ds-white);
+  border-color: var(--ds-border-default);
+  color: var(--ds-text-ink);
 }
 
 .remain-alert-lang {
@@ -2123,15 +2152,48 @@ html.nav-header-pop-open .top-actions {
 }
 
 .panel-filter select {
-  background: var(--bg-0);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.85rem;
+  box-sizing: border-box;
+  min-height: 44px;
   min-width: 140px;
   max-width: 100%;
-  box-sizing: border-box;
+  padding: var(--ds-spacing-sm);
+  padding-right: 40px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--bg-0);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2379808f' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
+  color: var(--text);
+  appearance: none;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.panel-filter select:focus {
+  outline: none;
+  border-color: var(--ds-border-active);
+  box-shadow: none;
+}
+
+.panel-filter select:disabled {
+  background-color: var(--ds-ui-disabled-bg);
+  color: var(--ds-text-subtle);
+  border-color: var(--ds-border-default);
+  cursor: not-allowed;
+  opacity: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23959dac' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
 }
 
 .panel-filter--priority select {
@@ -3300,24 +3362,8 @@ html[data-theme='light'] .job-priority-pill--custom {
 
 .handover-input,
 .handover-select {
-  width: 100%;
+  /* Sized via shared DS input/select rules below */
   min-width: 0;
-  padding: 5px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--bg-1);
-  color: var(--text);
-  font: inherit;
-}
-
-.handover-select {
-  cursor: pointer;
-}
-
-.handover-input:disabled {
-  opacity: 0.72;
-  cursor: not-allowed;
-  color: var(--muted);
 }
 
 .handover-add {
@@ -3339,25 +3385,47 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .handover-to-trigger {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
   min-width: 0;
-  padding: 5px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--bg-1);
+  min-height: 44px;
+  padding: var(--ds-spacing-sm);
+  padding-right: 40px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--bg-0);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2379808f' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
   color: var(--text);
-  font: inherit;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
   text-align: left;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.handover-to-trigger:focus-visible {
+  outline: none;
+  border-color: var(--ds-border-active);
 }
 
 .handover-to-trigger:disabled {
-  opacity: 0.6;
+  background-color: var(--ds-ui-disabled-bg);
+  color: var(--ds-text-subtle);
+  border-color: var(--ds-border-default);
   cursor: not-allowed;
+  opacity: 1;
 }
 
 .handover-to-trigger-label {
@@ -3367,13 +3435,11 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .handover-to-trigger-label.is-placeholder {
-  color: var(--muted);
+  color: var(--ds-text-subtle);
 }
 
 .handover-to-caret {
-  color: var(--muted);
-  flex-shrink: 0;
-  font-size: 0.75rem;
+  display: none;
 }
 
 .handover-to-list {
@@ -3475,10 +3541,6 @@ html[data-theme='light'] .job-priority-pill--custom {
     min-width: 0;
     justify-content: center;
     text-align: center;
-  }
-
-  .handover-to-trigger {
-    min-height: 42px;
   }
 
   .handover-table-wrap {
@@ -3616,10 +3678,6 @@ html[data-theme='light'] .job-priority-pill--custom {
     min-width: 0;
     justify-content: center;
     text-align: center;
-  }
-
-  .handover-to-trigger {
-    min-height: 42px;
   }
 
   .handover-table-wrap {
@@ -4485,7 +4543,7 @@ html[data-theme='light'] .job-priority-pill--custom {
 
 .form {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin-top: 8px;
 }
 
@@ -4494,12 +4552,18 @@ html[data-theme='light'] .job-priority-pill--custom {
   display: grid;
   gap: 4px;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-label-sm-size);
+  font-weight: var(--ds-label-weight);
+  line-height: var(--ds-label-sm-line);
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .form .field-label {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--ds-label-sm-size);
+  font-weight: var(--ds-label-weight);
 }
 
 .form label.check-item {
@@ -4508,25 +4572,160 @@ html[data-theme='light'] .job-priority-pill--custom {
   gap: 10px;
   color: var(--text);
   font-size: 0.95rem;
+  font-weight: 400;
   cursor: pointer;
   grid-template-columns: unset;
 }
 
+/* Design System TU Dropdown / inputs (same as tu-rental Figma Specs) */
 .form input,
 .form textarea,
-.form select {
-  background: var(--bg-0);
-  border: 1px solid var(--line);
+.form select,
+.panel-filter select,
+.handover-input,
+.handover-select,
+.searchable-select-trigger,
+.searchable-select-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--ds-spacing-sm);
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--bg-0);
   color: var(--text);
-  border-radius: 8px;
-  padding: 10px 12px;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  letter-spacing: 0;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.form textarea {
+  min-height: 84px;
+  resize: vertical;
+  border-radius: var(--ds-radius-sm);
+}
+
+.form select,
+.panel-filter select,
+.handover-select {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2379808f' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
+  cursor: pointer;
+}
+
+.form input::placeholder,
+.form textarea::placeholder,
+.searchable-select-input::placeholder,
+.handover-input::placeholder {
+  color: var(--ds-text-subtle);
+  opacity: 1;
+}
+
+.form input:focus,
+.form textarea:focus,
+.form select:focus,
+.panel-filter select:focus,
+.handover-input:focus,
+.handover-select:focus,
+.searchable-select-trigger:focus-visible,
+.searchable-select-input:focus,
+.searchable-select.is-open .searchable-select-trigger {
+  outline: none;
+  border-color: var(--ds-border-active);
+  box-shadow: none;
+}
+
+.form input:disabled,
+.form select:disabled,
+.panel-filter select:disabled,
+.handover-input:disabled,
+.handover-select:disabled,
+.searchable-select.is-disabled .searchable-select-trigger {
+  background-color: var(--ds-ui-disabled-bg);
+  color: var(--ds-text-subtle);
+  border-color: var(--ds-border-default);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.form select:disabled,
+.panel-filter select:disabled,
+.handover-select:disabled {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23959dac' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
+}
+
+.form input:read-only {
+  background-color: var(--bg-2);
+  cursor: default;
+}
+
+.form input:read-only:focus {
+  outline: none;
+  border-color: var(--ds-border-default);
+  box-shadow: none;
+}
+
+.form input[aria-invalid='true'],
+.form select[aria-invalid='true'],
+.handover-input[aria-invalid='true'],
+.handover-select[aria-invalid='true'] {
+  border-color: var(--ds-border-error);
+  color: var(--ds-text-error);
+}
+
+.form input[aria-invalid='true']:focus,
+.form select[aria-invalid='true']:focus {
+  border-color: var(--ds-border-error);
 }
 
 .form input[type='checkbox'] {
   width: 16px;
   height: 16px;
+  min-height: 0;
+  padding: 0;
   flex-shrink: 0;
-  accent-color: var(--amber);
+  accent-color: var(--ds-brand);
+  border-radius: 2px;
+  background-image: none;
+}
+
+html[data-theme='light'] .form input,
+html[data-theme='light'] .form textarea,
+html[data-theme='light'] .form select,
+html[data-theme='light'] .panel-filter select,
+html[data-theme='light'] .handover-input,
+html[data-theme='light'] .handover-select,
+html[data-theme='light'] .handover-to-trigger,
+html[data-theme='light'] .searchable-select-trigger,
+html[data-theme='light'] .searchable-select-input {
+  background-color: var(--ds-white);
+  border-color: var(--ds-border-default);
+  color: var(--ds-text-ink);
+}
+
+html[data-theme='light'] .form input:disabled,
+html[data-theme='light'] .form select:disabled,
+html[data-theme='light'] .panel-filter select:disabled,
+html[data-theme='light'] .handover-input:disabled,
+html[data-theme='light'] .handover-select:disabled,
+html[data-theme='light'] .handover-to-trigger:disabled,
+html[data-theme='light'] .searchable-select.is-disabled .searchable-select-trigger {
+  background-color: var(--ds-ui-disabled-bg);
+  color: var(--ds-text-subtle);
 }
 
 .searchable-select {
@@ -4552,58 +4751,53 @@ html[data-theme='light'] .job-priority-pill--custom {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: 100%;
   text-align: left;
-  background: var(--bg-0);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font: inherit;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2379808f' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-spacing-sm) center;
+  background-size: 20px;
   cursor: pointer;
 }
 
+.searchable-select.is-open .searchable-select-trigger {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2320a4b0' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m15 12.5-5-5-5 5'/%3E%3C/svg%3E");
+}
+
 .searchable-select-trigger .is-placeholder {
-  color: var(--muted);
+  color: var(--ds-text-subtle);
 }
 
 .searchable-select.is-disabled .searchable-select-trigger {
-  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .searchable-select-caret {
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1;
+  display: none;
 }
 
 .searchable-select-panel {
   display: grid;
-  gap: 6px;
+  gap: var(--ds-spacing-xs);
+  margin-top: var(--ds-spacing-xs);
 }
 
 .searchable-select-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--bg-0);
-  border: 1px solid var(--amber-border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font: inherit;
   outline: none;
 }
 
 .searchable-select-list {
   list-style: none;
   margin: 0;
-  padding: 4px;
-  max-height: 220px;
+  padding: var(--ds-spacing-sm);
+  max-height: 280px;
   overflow: auto;
   background: var(--bg-1);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-sm);
+  box-shadow: var(--ds-dropdown-shadow);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-cloudy-30) transparent;
 }
 
 .searchable-select-option {
@@ -4613,15 +4807,19 @@ html[data-theme='light'] .job-priority-pill--custom {
   background: transparent;
   border: 0;
   color: var(--text);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font: inherit;
+  border-radius: 0;
+  padding: 8px var(--ds-spacing-sm);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: 400;
+  line-height: var(--ds-body-sm-line);
   cursor: pointer;
 }
 
 .searchable-select-option.is-active,
 .searchable-select-option:hover {
-  background: color-mix(in srgb, var(--amber-dim) 35%, var(--bg-0));
+  background: color-mix(in srgb, var(--ds-border-active) 16%, transparent);
+  color: var(--text);
 }
 
 .searchable-select-option.is-selected {
@@ -4629,9 +4827,26 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .searchable-select-empty {
+  padding: 8px var(--ds-spacing-sm);
   color: var(--muted);
-  font-size: 0.9rem;
-  padding: 10px;
+  font-size: var(--ds-body-sm-size);
+  line-height: var(--ds-body-sm-line);
+}
+
+html[data-theme='light'] .searchable-select-list {
+  background: var(--ds-white);
+  border-color: var(--ds-border-default);
+  box-shadow: var(--ds-dropdown-shadow);
+}
+
+html[data-theme='light'] .searchable-select-option {
+  color: var(--ds-text-ink);
+}
+
+html[data-theme='light'] .searchable-select-option.is-active,
+html[data-theme='light'] .searchable-select-option:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-ink);
 }
 
 .check-list-paged {
@@ -5062,10 +5277,31 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .template-step-row input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  box-sizing: border-box;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: var(--ds-spacing-sm);
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--bg-0);
+  color: var(--text);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+}
+
+.template-step-row input:focus {
+  outline: none;
+  border-color: var(--ds-border-active);
+  box-shadow: none;
+}
+
+html[data-theme='light'] .template-step-row input {
+  background-color: var(--ds-white);
+  border-color: var(--ds-border-default);
+  color: var(--ds-text-ink);
 }
 
 .template-step-num {

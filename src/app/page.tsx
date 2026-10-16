@@ -63,6 +63,7 @@ import {
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
+import { EditIcon, TrashIcon } from "@/components/ActionIcons";
 import { BoardTopbar } from "@/components/BoardTopbar";
 import { SearchIcon } from "@/components/SearchIcon";
 import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
@@ -4510,20 +4511,7 @@ export default function HomePage() {
                 aria-label="Edit job"
                 title="Edit"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                </svg>
+                <EditIcon />
               </button>
               )}
               <div className="job-title">{job.title}</div>
@@ -5437,8 +5425,9 @@ export default function HomePage() {
                             <td className="col-act" data-label="Aksi">
                               <button
                                 type="button"
-                                className="btn btn-step"
+                                className="btn btn-sm btn-danger"
                                 disabled={busy}
+                                aria-label="Hapus"
                                 onClick={() =>
                                   setModal({
                                     type: "handover-delete",
@@ -5450,7 +5439,8 @@ export default function HomePage() {
                                   })
                                 }
                               >
-                                Hapus
+                                <TrashIcon />
+                                <span className="btn-label">Hapus</span>
                               </button>
                             </td>
                           )}
@@ -5728,8 +5718,9 @@ export default function HomePage() {
                             <td className="col-act" data-label="Aksi">
                               <button
                                 type="button"
-                                className="btn btn-step"
+                                className="btn btn-sm btn-danger"
                                 disabled={busy}
+                                aria-label="Hapus"
                                 onClick={() =>
                                   setModal({
                                     type: "part-loan-delete",
@@ -5741,7 +5732,8 @@ export default function HomePage() {
                                   })
                                 }
                               >
-                                Hapus
+                                <TrashIcon />
+                                <span className="btn-label">Hapus</span>
                               </button>
                             </td>
                           )}
@@ -6951,18 +6943,20 @@ export default function HomePage() {
                     </button>
                   )}
                   <button
-                    className="btn btn-danger"
+                    className="btn btn-sm btn-danger"
                     type="button"
                     disabled={
                       busy ||
                       !canDeleteForJob(modal.job) ||
                       modal.job.status === "done"
                     }
+                    aria-label="Hapus"
                     onClick={() =>
                       setModal({ type: "delete-job", job: modal.job })
                     }
                   >
-                    Hapus
+                    <TrashIcon />
+                    <span className="btn-label">Hapus</span>
                   </button>
                 </div>
               </div>
@@ -8582,20 +8576,24 @@ export default function HomePage() {
                     </div>
                     <div className="actions" style={{ marginTop: 0 }}>
                       <button
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-edit"
+                        type="button"
                         disabled={busy || !canUnitUpdate}
+                        aria-label="Edit"
                         onClick={() => openUnitEdit(u)}
                       >
-                        Edit
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-danger"
+                        type="button"
                         disabled={busy || !canUnitDelete}
+                        aria-label="Hapus"
                         onClick={() => setModal({ type: "delete-unit", unit: u })}
                       >
-                        Hapus
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
                       </button>
                     </div>
                   </div>
@@ -8936,22 +8934,26 @@ export default function HomePage() {
                     </div>
                     <div className="actions" style={{ marginTop: 0 }}>
                       <button
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-edit"
+                        type="button"
                         disabled={busy || !canPriorityUpdate}
+                        aria-label="Edit"
                         onClick={() => openPriorityEdit(item)}
                       >
-                        Edit
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-danger"
+                        type="button"
                         disabled={busy || !canPriorityDelete}
+                        aria-label="Hapus"
                         onClick={() =>
                           setModal({ type: "delete-priority", item })
                         }
                       >
-                        Hapus
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
                       </button>
                     </div>
                   </div>
@@ -9288,19 +9290,22 @@ export default function HomePage() {
                         Excel
                       </button>
                       <button
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-edit"
+                        type="button"
                         disabled={busy || !canTemplateUpdate}
+                        aria-label="Edit"
                         onClick={() => openTemplateEdit(tpl)}
                       >
-                        Edit
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-danger"
+                        type="button"
                         disabled={
                           busy || !canTemplateDelete || tpl.active === "0"
                         }
+                        aria-label="Nonaktif"
                         onClick={() =>
                           setModal({
                             type: "delete-template",
@@ -9309,7 +9314,8 @@ export default function HomePage() {
                           })
                         }
                       >
-                        Nonaktif
+                        <TrashIcon />
+                        <span className="btn-label">Nonaktif</span>
                       </button>
                     </div>
                   </div>
@@ -9357,8 +9363,9 @@ export default function HomePage() {
                 <div className="modal-header-actions">
                   <button
                     type="button"
-                    className="btn btn-danger"
+                    className="btn btn-sm btn-danger"
                     disabled={busy}
+                    aria-label="Hapus"
                     onClick={() =>
                       setModal({
                         type: "delete-template",
@@ -9367,7 +9374,8 @@ export default function HomePage() {
                       })
                     }
                   >
-                    Hapus
+                    <TrashIcon />
+                    <span className="btn-label">Hapus</span>
                   </button>
                 </div>
               )}
@@ -9969,22 +9977,26 @@ export default function HomePage() {
                     </div>
                     <div className="actions" style={{ marginTop: 0 }}>
                       <button
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-edit"
+                        type="button"
                         disabled={busy || !canTechUpdate}
+                        aria-label="Edit"
                         onClick={() => openTechEdit(tech)}
                       >
-                        Edit
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-danger"
+                        type="button"
                         disabled={
                           busy || !canTechDelete || tech.status === "busy"
                         }
+                        aria-label="Hapus"
                         onClick={() => setModal({ type: "delete-tech", tech })}
                       >
-                        Hapus
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
                       </button>
                     </div>
                   </div>
@@ -10436,22 +10448,26 @@ export default function HomePage() {
                     </div>
                     <div className="actions" style={{ marginTop: 0 }}>
                       <button
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-edit"
+                        type="button"
                         disabled={busy || !canUserUpdate}
+                        aria-label="Edit"
                         onClick={() => openUserEdit(u)}
                       >
-                        Edit
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-danger"
+                        type="button"
                         disabled={busy || !canUserDelete}
+                        aria-label="Hapus"
                         onClick={() =>
                           setModal({ type: "delete-user", user: u })
                         }
                       >
-                        Hapus
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
                       </button>
                     </div>
                   </div>
@@ -10825,22 +10841,26 @@ export default function HomePage() {
                     </div>
                     <div className="actions" style={{ marginTop: 0 }}>
                       <button
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-edit"
+                        type="button"
                         disabled={busy || !canAttendanceUpdate}
+                        aria-label="Edit"
                         onClick={() => openAttendanceEdit(a)}
                       >
-                        Edit
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
-                        className="btn btn-danger"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm btn-danger"
+                        type="button"
                         disabled={busy || !canAttendanceDelete}
+                        aria-label="Hapus"
                         onClick={() =>
                           setModal({ type: "delete-attendance", row: a })
                         }
                       >
-                        Hapus
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
                       </button>
                     </div>
                   </div>

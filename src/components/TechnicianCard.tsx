@@ -38,7 +38,7 @@ export const TechnicianCard = memo(function TechnicianCard({
         <StatusPill status={tech.status} />
         {tech.status !== "busy" && (
           <button
-            className="btn tech-presence-btn"
+            className="btn btn-xs tech-presence-btn"
             disabled={busy || !canSetTechPresence}
             onClick={() => onStatus(tech)}
           >

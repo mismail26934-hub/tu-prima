@@ -609,9 +609,14 @@ function DashboardShimmer({ label }: { label: string }) {
   return (
     <div className="dashboard-shimmer" role="status" aria-live="polite" aria-busy="true">
       <span className="sr-only">{label}</span>
-      <div className="summary-wrap" aria-hidden="true">
+      <div className="summary-wrap ds-grid" aria-hidden="true">
         {[0, 1].map((group) => (
-          <section key={group} className="summary-group">
+          <section
+            key={group}
+            className={`summary-group${
+              group === 0 ? " ds-span-board-start" : " ds-span-board-end"
+            }`}
+          >
             <ShimmerBlock className="shimmer-block--title" />
             <div className="summary">
               {[0, 1, 2].map((i) => (
@@ -624,9 +629,14 @@ function DashboardShimmer({ label }: { label: string }) {
           </section>
         ))}
       </div>
-      <div className="grid" aria-hidden="true">
+      <div className="grid ds-grid" aria-hidden="true">
         {[0, 1].map((panel) => (
-          <section key={panel} className="panel shimmer-panel">
+          <section
+            key={panel}
+            className={`panel shimmer-panel${
+              panel === 0 ? " ds-span-board-start" : " ds-span-board-end"
+            }`}
+          >
             <div className="shimmer-panel-head">
               <ShimmerBlock className="shimmer-block--heading" />
               <ShimmerBlock className="shimmer-block--search" />
@@ -6044,8 +6054,8 @@ export default function HomePage() {
         )
       ) : (
         <>
-          <div className="summary-wrap">
-            <section className="summary-group">
+          <div className="summary-wrap ds-grid">
+            <section className="summary-group ds-span-board-start">
               <h3 className="summary-title">{t("summary.technicians")}</h3>
               <div className="summary">
                 <div className="stat stat--available">
@@ -6077,7 +6087,7 @@ export default function HomePage() {
                 </div>
               </div>
             </section>
-            <section className="summary-group">
+            <section className="summary-group ds-span-board-end">
               <h3 className="summary-title">{t("summary.jobs")}</h3>
               <div className="summary">
                 <div className="stat stat--active">
@@ -6112,10 +6122,12 @@ export default function HomePage() {
           </div>
 
           <div
-            className={`grid${hideTechPanel || hideJobPanel ? " grid--single" : ""}`}
+            className={`grid ds-grid${
+              hideTechPanel || hideJobPanel ? " grid--single" : ""
+            }`}
           >
             {hideTechPanel ? (
-              <section className="panel panel--collapsed">
+              <section className="panel panel--collapsed ds-span-board-start">
                 <div className="panel-vis-bar">
                   <span className="panel-vis-label">{t("panel.techHidden")}</span>
                   <button
@@ -6130,7 +6142,7 @@ export default function HomePage() {
                 </div>
               </section>
             ) : (
-            <section className="panel">
+            <section className="panel ds-span-board-start">
               <div className="panel-vis-bar">
                 <label className="panel-filter">
                   <span className="panel-vis-label">{t("panel.filter")}</span>
@@ -6248,7 +6260,7 @@ export default function HomePage() {
             )}
 
             {hideJobPanel ? (
-              <section className="panel panel--collapsed">
+              <section className="panel panel--collapsed ds-span-board-end">
                 <div className="panel-vis-bar">
                   <span className="panel-vis-label">{t("panel.jobHidden")}</span>
                   <button
@@ -6263,7 +6275,7 @@ export default function HomePage() {
                 </div>
               </section>
             ) : (
-            <section className="panel">
+            <section className="panel ds-span-board-end">
               <div className="panel-vis-bar">
                 <div className="panel-vis-filters">
                   <label className="panel-filter">
@@ -7032,7 +7044,7 @@ export default function HomePage() {
             ) : (
               <h3>Job baru</h3>
             )}
-            <div className="form">
+            <div className="form form--lg">
               {modal.type === "create" && (
                 <>
                   <label>

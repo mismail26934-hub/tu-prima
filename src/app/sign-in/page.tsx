@@ -132,7 +132,12 @@ function LoginForm() {
         </div>
         <h1>{t("login.title")}</h1>
         <p>{t("login.hint")}</p>
-        <form className="form" method="post" action="#" onSubmit={onSubmit}>
+        <form
+          className="form form--lg"
+          method="post"
+          action="#"
+          onSubmit={onSubmit}
+        >
           <label>
             {t("login.username")}
             <input

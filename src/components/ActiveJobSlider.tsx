@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import type { JobWithDetails } from "@/lib/types";
 import { calcElapsedSec } from "@/lib/duration";
 import { useT } from "@/i18n/useT";
+import { DsPageController } from "@/components/DsPageController";
 
 const SLIDER_ENABLED_KEY = "tus-active-job-slider";
 const SLIDER_DURATION_KEY = "tus-active-job-slider-duration";
@@ -286,68 +287,46 @@ export function ActiveJobSlider({
         })}
       </span>
 
-      <div className="active-job-slider-nav">
-        <button
-          type="button"
-          className="btn active-job-slider-btn"
-          onClick={goPrev}
-          aria-label={t("slider.prev")}
-          title={t("slider.prev")}
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          className="btn active-job-slider-btn"
-          onClick={() => setPaused((p) => !p)}
-          aria-label={paused ? t("slider.play") : t("slider.pause")}
-          title={paused ? t("slider.play") : t("slider.pause")}
-        >
-          {paused ? "▶" : "⏸"}
-        </button>
-        <button
-          type="button"
-          className="btn active-job-slider-btn"
-          onClick={goNext}
-          aria-label={t("slider.next")}
-          title={t("slider.next")}
-        >
-          ›
-        </button>
-      </div>
+      <button
+        type="button"
+        className="btn btn-sm active-job-slider-btn"
+        onClick={() => setPaused((p) => !p)}
+        aria-label={paused ? t("slider.play") : t("slider.pause")}
+        title={paused ? t("slider.play") : t("slider.pause")}
+      >
+        {paused ? "▶" : "⏸"}
+      </button>
     </>
   );
 
-  const sliderDots = (
-    <div
-      className="active-job-slider-dots"
-      role="tablist"
-      aria-label={t("slider.dotsLabel")}
-    >
-      {jobs.map((job, i) => {
+  const sliderController = (
+    <DsPageController
+      className="active-job-slider-controller"
+      count={jobs.length}
+      index={index}
+      size="lg"
+      bulletsLabel={t("slider.dotsLabel")}
+      prevLabel={t("slider.prev")}
+      nextLabel={t("slider.next")}
+      tones={jobs.map((job) => {
         const tone = getRemainTone(job);
-        return (
-          <button
-            key={job.id}
-            type="button"
-            role="tab"
-            aria-selected={i === index}
-            aria-label={t("slider.goToJob", {
-              title: job.title,
-              index: i + 1,
-            })}
-            title={job.title}
-            className={`active-job-slider-dot active-job-slider-dot--${tone}${
-              i === index ? " is-active" : ""
-            }`}
-            onClick={() => {
-              goTo(i);
-              setPaused(true);
-            }}
-          />
-        );
+        if (tone === "green") return "success";
+        if (tone === "orange") return "warning";
+        return "critical";
       })}
-    </div>
+      onPrev={() => {
+        goPrev();
+        setPaused(true);
+      }}
+      onNext={() => {
+        goNext();
+        setPaused(true);
+      }}
+      onSelect={(i) => {
+        goTo(i);
+        setPaused(true);
+      }}
+    />
   );
 
   const settingsModal =
@@ -392,6 +371,7 @@ export function ActiveJobSlider({
           {enabled && (
             <div className="active-job-slider-modal-controls">
               {sliderControls}
+              {jobs.length > 0 ? sliderController : null}
             </div>
           )}
         </div>
@@ -424,7 +404,7 @@ export function ActiveJobSlider({
             {currentJob ? renderJob(currentJob) : null}
           </div>
         </div>
-        {sliderDots}
+        {sliderController}
       </div>,
       document.body
     );

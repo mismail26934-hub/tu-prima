@@ -297,20 +297,15 @@ export function BoardTopbar({
     const el = topbarRef.current;
     if (!el) return;
     let lastHeight = -1;
-    let scrollEl: HTMLElement | null = null;
-    const scroller = () =>
-      document.querySelector<HTMLElement>('.app-stage.is-framed .app-scroll');
     const sync = () => {
       const box = el.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const bottom = Math.ceil(box.bottom);
-      const framedScroller = scroller();
-      const scrollY = framedScroller
-        ? framedScroller.scrollTop
-        : (window.scrollY ??
-          document.documentElement.scrollTop ??
-          document.body.scrollTop ??
-          0);
+      const scrollY =
+        window.scrollY ??
+        document.documentElement.scrollTop ??
+        document.body.scrollTop ??
+        0;
       const isScrolled = scrollY > 4;
       el.classList.toggle('is-scrolled', isScrolled);
       document.documentElement.classList.toggle('topbar-scrolled', isScrolled);
@@ -327,29 +322,13 @@ export function BoardTopbar({
         `${bottom + 8}px`
       );
     };
-    const bindFramedScroll = () => {
-      const next = scroller();
-      if (next === scrollEl) return;
-      scrollEl?.removeEventListener('scroll', sync);
-      scrollEl = next;
-      scrollEl?.addEventListener('scroll', sync, { passive: true });
-      sync();
-    };
     sync();
-    bindFramedScroll();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
-    const mo = new MutationObserver(bindFramedScroll);
-    mo.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, { passive: true });
     return () => {
       ro.disconnect();
-      mo.disconnect();
-      scrollEl?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
       window.removeEventListener('scroll', sync);
       document.documentElement.classList.remove('topbar-scrolled');

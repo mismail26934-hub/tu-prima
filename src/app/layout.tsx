@@ -1,17 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Bebas_Neue, Source_Sans_3 } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const display = Bebas_Neue({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-display",
-});
-
-const body = Source_Sans_3({
+/* Design System TU Typography (Figma 1:5287) — Inter */
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-body",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -32,7 +28,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id" suppressHydrationWarning>
-      <body className={`${display.variable} ${body.variable}`}>
+      <body className={inter.variable}>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -1,0 +1,423 @@
+/* Design System TU — Badge, Frame/PageController, Carousel Image & Card
+   Figma: 17:4367 · 24:4785 · 24:5617 · 24:4892 */
+
+/* ——— Badge ——— */
+.ds-badge {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  height: var(--ds-badge-height);
+  padding: var(--ds-badge-pad-y) var(--ds-badge-pad-x);
+  border-radius: var(--ds-badge-radius);
+  border: 1px solid transparent;
+  font-family: var(--font-body), 'Inter', sans-serif;
+  font-size: var(--ds-badge-font-size);
+  font-weight: 700;
+  line-height: normal;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ds-badge--dot {
+  width: var(--ds-badge-dot);
+  height: var(--ds-badge-dot);
+  min-width: var(--ds-badge-dot);
+  padding: 0;
+  border: 0;
+}
+
+.ds-badge--count {
+  padding: 4px;
+  min-width: var(--ds-badge-height);
+}
+
+.ds-badge--critical {
+  background: var(--ds-badge-critical);
+  color: var(--ds-white);
+}
+
+.ds-badge--critical.ds-badge--outline {
+  background: transparent;
+  border-color: var(--ds-badge-critical);
+  color: var(--ds-badge-critical);
+}
+
+.ds-badge--neutral {
+  background: var(--ds-badge-neutral-bg);
+  color: var(--ds-badge-neutral-text);
+}
+
+.ds-badge--neutral.ds-badge--outline {
+  background: transparent;
+  border-color: var(--ds-badge-neutral-bg);
+  color: var(--ds-badge-neutral-bg);
+}
+
+.ds-badge--info {
+  background: var(--ds-badge-info);
+  color: var(--ds-white);
+}
+
+.ds-badge--info.ds-badge--outline {
+  background: transparent;
+  border-color: var(--ds-badge-info);
+  color: var(--ds-badge-info);
+}
+
+.ds-badge--dot.ds-badge--critical {
+  background: var(--ds-badge-critical);
+}
+
+.ds-badge--dot.ds-badge--neutral {
+  background: var(--ds-badge-neutral-bg);
+}
+
+.ds-badge--dot.ds-badge--info {
+  background: var(--ds-badge-info);
+}
+
+/* ——— Frame indicators + Page controller ——— */
+.ds-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ds-dot-inactive);
+  border: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.ds-dot--lg {
+  width: 12px;
+  height: 12px;
+}
+
+.ds-dot.is-active,
+.ds-dot--active {
+  background: var(--ds-dot-active);
+}
+
+.ds-dot--critical {
+  background: var(--ds-badge-critical);
+}
+
+.ds-dot--success {
+  background: var(--ds-green-80);
+}
+
+.ds-dot--warning {
+  background: var(--ds-orange-80);
+}
+
+.ds-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 12px;
+}
+
+.ds-page-controller {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-controller-gap);
+  width: 100%;
+}
+
+.ds-page-controller--sm {
+  gap: var(--ds-controller-gap-sm);
+}
+
+.ds-page-controller-bullets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 16px;
+}
+
+.ds-page-controller-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-controller-gap);
+  flex-shrink: 0;
+}
+
+.ds-page-controller--sm .ds-page-controller-actions {
+  gap: var(--ds-controller-gap-sm);
+}
+
+.ds-icon-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ds-controller-btn);
+  height: var(--ds-controller-btn);
+  padding: 10px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--ds-white);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-controller-shadow);
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ds-page-controller--sm .ds-icon-btn {
+  width: var(--ds-controller-btn-sm);
+  height: var(--ds-controller-btn-sm);
+  padding: 4px;
+}
+
+.ds-icon-btn svg {
+  width: var(--ds-controller-icon);
+  height: var(--ds-controller-icon);
+  display: block;
+}
+
+.ds-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ds-icon-btn:hover:not(:disabled) {
+    background: var(--ds-cloudy-10);
+  }
+}
+
+html[data-theme='dark'] .ds-icon-btn {
+  background: var(--ds-cloudy-110);
+  color: var(--ds-cloudy-20);
+}
+
+html[data-theme='dark'] .ds-icon-btn:hover:not(:disabled) {
+  background: var(--ds-cloudy-100);
+}
+
+/* ——— Carousel Image ——— */
+.ds-carousel-image {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ds-carousel-gap);
+  width: 100%;
+  max-width: 1152px;
+  overflow: hidden;
+}
+
+.ds-carousel-image--sm {
+  max-width: 328px;
+}
+
+.ds-carousel-image-track {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ds-carousel-gap);
+  width: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.ds-carousel-image--sm .ds-carousel-image-track {
+  gap: var(--ds-controller-gap-sm);
+}
+
+.ds-carousel-image-track::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-carousel-image-slide {
+  position: relative;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  overflow: hidden;
+  background: var(--ds-cloudy-30);
+  border-radius: var(--ds-carousel-card-radius);
+}
+
+.ds-carousel-image-slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ds-carousel-image-slide--41 {
+  width: 100%;
+  aspect-ratio: 4 / 1;
+}
+
+.ds-carousel-image-slide--83 {
+  width: min(540px, 100%);
+  aspect-ratio: 8 / 3;
+}
+
+.ds-carousel-image--sm .ds-carousel-image-slide--83 {
+  width: min(286px, 100%);
+}
+
+.ds-carousel-image-slide--86 {
+  width: min(360px, 100%);
+  aspect-ratio: 8 / 6;
+}
+
+.ds-carousel-image--sm .ds-carousel-image-slide--86 {
+  width: min(286px, 100%);
+}
+
+.ds-carousel-image-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 72px;
+  color: var(--ds-text-subtle);
+  font-size: var(--ds-body-sm-size);
+  font-weight: 600;
+}
+
+/* ——— Carousel Card ——— */
+.ds-carousel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ds-carousel-gap);
+  width: 100%;
+  max-width: 1152px;
+  overflow: hidden;
+}
+
+.ds-carousel-card--sm {
+  max-width: 328px;
+}
+
+.ds-carousel-card-track {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ds-carousel-card-gap);
+  width: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.ds-carousel-card-track::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-carousel-card-item {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 286px;
+  padding: 16px;
+  border-radius: var(--ds-carousel-card-radius);
+  border: 1px dashed var(--ds-carousel-card-border);
+  background: var(--ds-carousel-card-bg);
+  color: var(--ds-carousel-card-text);
+  font-family: var(--font-body), 'Inter', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: 400;
+  line-height: var(--ds-body-sm-line);
+  text-align: center;
+  overflow: hidden;
+}
+
+.ds-carousel-card-item--328 {
+  width: 328px;
+}
+
+.ds-carousel-card-item--286 {
+  width: 286px;
+}
+
+.ds-carousel-card-item--240 {
+  width: 240px;
+}
+
+html[data-theme='dark'] .ds-carousel-card-item {
+  background: color-mix(in srgb, var(--ds-brand) 18%, var(--bg-1));
+  border-color: var(--ds-brand-active);
+  color: var(--ds-brand-50);
+}
+
+/* ——— Responsive content band / column grid (Figma 2:4146) ———
+   Shell (.app / .topbar) already insets with padding-inline: var(--ds-margin).
+   Use .ds-grid inside that band for 4 / 8 / 12 columns. */
+.ds-band {
+  width: 100%;
+  max-width: var(--ds-max);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.ds-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--ds-columns), minmax(0, 1fr));
+  column-gap: var(--ds-gutter);
+  row-gap: var(--ds-gutter);
+  width: 100%;
+  min-width: 0;
+}
+
+/* Column spans (Figma content placement) */
+.ds-span-1 {
+  grid-column: span 1;
+}
+.ds-span-2 {
+  grid-column: span 2;
+}
+.ds-span-3 {
+  grid-column: span 3;
+}
+.ds-span-4 {
+  grid-column: span 4;
+}
+.ds-span-6 {
+  grid-column: span 6;
+}
+.ds-span-8 {
+  grid-column: span 8;
+}
+.ds-span-12 {
+  grid-column: span 12;
+}
+.ds-span-full {
+  grid-column: 1 / -1;
+}
+
+/*
+  Board / summary two-pane (Figma 2:4146 — 2 contents):
+  Phone 4-col → stack full (4+4)
+  Tablet 8-col → 4+4
+  Desktop 12-col → 4+8 (tech / jobs)
+*/
+.ds-span-board-start,
+.ds-span-board-end {
+  grid-column: span 4;
+  min-width: 0;
+}
+
+@media (min-width: 1240px) {
+  .ds-span-board-start {
+    grid-column: span 4;
+  }
+
+  .ds-span-board-end {
+    grid-column: span 8;
+  }
+}

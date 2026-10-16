@@ -25,6 +25,8 @@ type Props = {
   required?: boolean;
   emptyMessage?: string;
   id?: string;
+  /** Figma Dropdown 2.0: sm = 44/r12/14 (default), lg = 56/r8/16 */
+  size?: "sm" | "lg";
   "aria-label"?: string;
 };
 
@@ -37,6 +39,7 @@ export function SearchableSelect({
   required = false,
   emptyMessage = "Tidak ada yang cocok",
   id,
+  size = "sm",
   "aria-label": ariaLabel,
 }: Props) {
   const autoId = useId();
@@ -116,7 +119,7 @@ export function SearchableSelect({
 
   return (
     <div
-      className={`searchable-select${open ? " is-open" : ""}${disabled ? " is-disabled" : ""}`}
+      className={`searchable-select${size === "lg" ? " searchable-select--lg" : ""}${open ? " is-open" : ""}${disabled ? " is-disabled" : ""}`}
       ref={rootRef}
     >
       {/* Native select kept for form required validation / progressive enhancement */}

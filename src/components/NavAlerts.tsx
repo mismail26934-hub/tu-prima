@@ -9,6 +9,7 @@ import {
   type NavAlertItem,
 } from "@/lib/nav-alerts";
 import { NavHeaderPopBackdrop } from "@/components/NavHeaderPopBackdrop";
+import { DsBadge } from "@/components/DsBadge";
 
 type Props = {
   enabled: boolean;
@@ -214,7 +215,9 @@ export function NavAlerts({
         </svg>
         {total > 0 ? (
           <span className="nav-alerts-badge">
-            {total > 99 ? "99+" : total}
+            <DsBadge color="critical" variant="count">
+              {total}
+            </DsBadge>
           </span>
         ) : null}
       </button>

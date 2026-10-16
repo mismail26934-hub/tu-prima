@@ -675,9 +675,9 @@ function BusyLabel({
   );
 }
 
-/** Build page list like: 1 2 3 … 100 or 1 … 4 5 6 … 100 */
+/** Build page list clamped to ≤5 slots: 1 2 3 4 … N | 1 … C … N | 1 … N-3…N */
 function getPagerItems(current: number, total: number): Array<number | "…"> {
-  if (total <= 7) {
+  if (total <= 5) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
   const items: Array<number | "…"> = [];
@@ -685,13 +685,21 @@ function getPagerItems(current: number, total: number): Array<number | "…"> {
     if (items[items.length - 1] !== n) items.push(n);
   };
 
-  pushUnique(1);
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 1, current + 1);
-  if (start > 2) pushUnique("…");
-  for (let i = start; i <= end; i++) pushUnique(i);
-  if (end < total - 1) pushUnique("…");
-  pushUnique(total);
+  if (current <= 3) {
+    for (let i = 1; i <= 4; i++) pushUnique(i);
+    pushUnique("…");
+    pushUnique(total);
+  } else if (current >= total - 2) {
+    pushUnique(1);
+    pushUnique("…");
+    for (let i = total - 3; i <= total; i++) pushUnique(i);
+  } else {
+    pushUnique(1);
+    pushUnique("…");
+    pushUnique(current);
+    pushUnique("…");
+    pushUnique(total);
+  }
   return items;
 }
 
@@ -699,15 +707,18 @@ function Pager({
   page,
   totalPages,
   onChange,
+  compact = false,
 }: {
   page: number;
   totalPages: number;
   onChange: (page: number) => void;
+  /** Narrow columns: prev / n of total / next (no page chips). */
+  compact?: boolean;
 }) {
   if (totalPages <= 1) return null;
-  const items = getPagerItems(page, totalPages);
+  const items = compact ? null : getPagerItems(page, totalPages);
   return (
-    <div className="pager">
+    <div className={`pager${compact ? " pager--compact" : ""}`}>
       <button
         type="button"
         className="btn pager-nav"
@@ -720,25 +731,31 @@ function Pager({
           <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
-      <div className="pager-pages">
-        {items.map((item, idx) =>
-          item === "…" ? (
-            <span key={`e-${idx}`} className="pager-ellipsis" aria-hidden="true">
-              …
-            </span>
-          ) : (
-            <button
-              key={item}
-              type="button"
-              className={`btn pager-page${item === page ? " is-active" : ""}`}
-              aria-current={item === page ? "page" : undefined}
-              onClick={() => onChange(item)}
-            >
-              {item}
-            </button>
-          )
-        )}
-      </div>
+      {compact ? (
+        <span className="pager-meta" aria-live="polite">
+          {page} / {totalPages}
+        </span>
+      ) : (
+        <div className="pager-pages">
+          {items!.map((item, idx) =>
+            item === "…" ? (
+              <span key={`e-${idx}`} className="pager-ellipsis" aria-hidden="true">
+                …
+              </span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                className={`btn pager-page${item === page ? " is-active" : ""}`}
+                aria-current={item === page ? "page" : undefined}
+                onClick={() => onChange(item)}
+              >
+                {item}
+              </button>
+            )
+          )}
+        </div>
+      )}
       <button
         type="button"
         className="btn pager-nav"
@@ -774,7 +791,7 @@ function ArchivePager({
   if (total <= 0) return null;
   if (totalPages <= 1 && !hasNext && page <= 1) return null;
   return (
-    <div className="pager">
+    <div className="pager pager--compact">
       <button
         type="button"
         className="btn pager-nav"
@@ -787,7 +804,7 @@ function ArchivePager({
           <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
-      <span className="pager-meta" style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+      <span className="pager-meta" aria-live="polite">
         {page} / {totalPages} · {total} job
       </span>
       <button
@@ -4581,8 +4598,7 @@ export default function HomePage() {
             <div className="job-title-row">
               {!customerView && (
               <button
-                className="btn btn-icon"
-                style={{ width: 32, height: 32, minWidth: 32 }}
+                className="btn btn-icon btn-xs"
                 disabled={busy || !manage}
                 onClick={() => openEdit(job)}
                 aria-label="Edit job"
@@ -4631,8 +4647,7 @@ export default function HomePage() {
                 job.status
               ) && (
                 <button
-                  className="btn btn-icon"
-                  style={{ width: 32, height: 32, minWidth: 32 }}
+                  className="btn btn-icon btn-xs"
                   disabled={
                     busy ||
                     !assignOk ||
@@ -4677,8 +4692,7 @@ export default function HomePage() {
               <div className="job-delegate-row">
                 <button
                   type="button"
-                  className="btn"
-                  style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                  className="btn btn-xs"
                   disabled={busy}
                   onClick={() => void openDelegate(job)}
                   title="Delegasikan ke foreman lain"
@@ -4704,8 +4718,7 @@ export default function HomePage() {
               <div className="job-timer-remain-row">
                 {!customerView && job.status === "in_progress" && (
                   <button
-                    className="btn job-timer-action"
-                    style={{ padding: "6px 10px", fontSize: "0.82rem" }}
+                    className="btn btn-xs job-timer-action"
                     disabled={busy || !progressOk}
                     onClick={() => setModal({ type: "pause-job", job })}
                     title={
@@ -4719,8 +4732,7 @@ export default function HomePage() {
                 )}
                 {!customerView && job.status === "paused" && (
                   <button
-                    className="btn btn-primary job-timer-action"
-                    style={{ padding: "6px 10px", fontSize: "0.82rem" }}
+                    className="btn btn-primary btn-xs job-timer-action"
                     disabled={busy || !progressOk}
                     onClick={() => setModal({ type: "resume-job", job })}
                     title={
@@ -6247,6 +6259,7 @@ export default function HomePage() {
                       <Pager
                         page={page}
                         totalPages={totalPages}
+                        compact
                         onChange={(next) =>
                           setTechPage((p) => ({ ...p, [status]: next }))
                         }

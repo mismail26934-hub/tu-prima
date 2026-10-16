@@ -267,11 +267,11 @@
   --ds-text-size: var(--ds-body-sm-size);
   --ds-text-line: var(--ds-body-sm-line);
 
-  /* Stats — Title sm 14 phone; Title md 16 tablet+ (still < brand 18) */
-  --ds-stat-value-size: var(--ds-title-sm-size);
+  /* Stat cards Size=xs */
+  --ds-stat-value-size: var(--ds-title-sm-size); /* 14 */
   --ds-stat-value-line: 1;
   --ds-stat-label-size: var(--ds-subtitle-xs-size); /* 12 */
-  --ds-stat-label-line: var(--ds-subtitle-xs-line);
+  --ds-stat-label-line: 1.125rem;
 
   /* Nav chrome labels (Kelola, account name) — Body xs 12 */
   --ds-nav-label-size: var(--ds-body-xs-size);
@@ -315,9 +315,9 @@
     --ds-title-ui-line: var(--ds-title-md-line);
     --ds-text-size: var(--ds-body-sm-size); /* 14 < brand */
     --ds-text-line: var(--ds-body-sm-line);
-    --ds-stat-value-size: var(--ds-title-md-size); /* 16 < brand */
+    --ds-stat-value-size: var(--ds-title-sm-size); /* 14 xs */
     --ds-stat-label-size: var(--ds-subtitle-xs-size); /* 12 */
-    --ds-stat-label-line: var(--ds-subtitle-xs-line);
+    --ds-stat-label-line: 1.125rem;
   }
 }
 
@@ -336,9 +336,9 @@
     --ds-title-ui-line: var(--ds-title-md-line);
     --ds-text-size: var(--ds-body-sm-size); /* 14 */
     --ds-text-line: var(--ds-body-sm-line);
-    --ds-stat-value-size: var(--ds-title-md-size); /* 16 */
+    --ds-stat-value-size: var(--ds-title-sm-size); /* 14 xs */
     --ds-stat-label-size: var(--ds-subtitle-xs-size);
-    --ds-stat-label-line: var(--ds-subtitle-xs-line);
+    --ds-stat-label-line: 1.125rem;
   }
 }
 

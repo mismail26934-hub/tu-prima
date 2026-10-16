@@ -444,18 +444,26 @@ export function JobBackupPage() {
 }
 
 function getPagerItems(current: number, total: number): Array<number | "…"> {
-  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
+  if (total <= 5) return Array.from({ length: total }, (_, index) => index + 1);
   const items: Array<number | "…"> = [];
   const pushUnique = (item: number | "…") => {
     if (items[items.length - 1] !== item) items.push(item);
   };
-  pushUnique(1);
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 1, current + 1);
-  if (start > 2) pushUnique("…");
-  for (let index = start; index <= end; index += 1) pushUnique(index);
-  if (end < total - 1) pushUnique("…");
-  pushUnique(total);
+  if (current <= 3) {
+    for (let i = 1; i <= 4; i++) pushUnique(i);
+    pushUnique("…");
+    pushUnique(total);
+  } else if (current >= total - 2) {
+    pushUnique(1);
+    pushUnique("…");
+    for (let i = total - 3; i <= total; i++) pushUnique(i);
+  } else {
+    pushUnique(1);
+    pushUnique("…");
+    pushUnique(current);
+    pushUnique("…");
+    pushUnique(total);
+  }
   return items;
 }
 

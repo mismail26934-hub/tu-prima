@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { NavAlerts } from '@/components/NavAlerts';
 import { NavHeaderPopBackdrop } from '@/components/NavHeaderPopBackdrop';
@@ -264,14 +265,17 @@ export function BoardTopbar({
     const el = topbarRef.current;
     if (!el) return;
     let lastHeight = -1;
+    const scroller = () =>
+      document.querySelector<HTMLElement>('.app-stage.is-framed .app-scroll');
     const sync = () => {
       const box = el.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const bottom = Math.ceil(box.bottom);
       const scrollY =
-        window.scrollY ||
-        document.documentElement.scrollTop ||
-        document.body.scrollTop ||
+        scroller()?.scrollTop ??
+        window.scrollY ??
+        document.documentElement.scrollTop ??
+        document.body.scrollTop ??
         0;
       el.classList.toggle('is-scrolled', scrollY > 4);
       document.documentElement.classList.toggle('topbar-scrolled', scrollY > 4);
@@ -291,10 +295,13 @@ export function BoardTopbar({
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
+    const scrollEl = scroller();
+    scrollEl?.addEventListener('scroll', sync, { passive: true });
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, { passive: true });
     return () => {
       ro.disconnect();
+      scrollEl?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
       window.removeEventListener('scroll', sync);
       document.documentElement.classList.remove('topbar-scrolled');
@@ -517,14 +524,11 @@ export function BoardTopbar({
 
   return (
     <>
-      {portalReady &&
-        createPortal(
-          <div
-            className={`topbar-glass${scrolled ? ' is-scrolled' : ''}`}
-            aria-hidden='true'
-          />,
-          document.body
-        )}
+      {/* Sibling glass layer (same as tu-rental) — not portaled, so framed hide + sticky blur match ARMOR */}
+      <div
+        className={`topbar-glass${scrolled ? ' is-scrolled' : ''}`}
+        aria-hidden='true'
+      />
       <NavHeaderPopBackdrop
         open={manageOpen || sessionOpen}
         onClose={() => {
@@ -533,14 +537,22 @@ export function BoardTopbar({
         }}
       />
       <header className='topbar' ref={topbarRef}>
-        <div>
-          <div className='brand'>
-            <div className='brand-row'>
-              {t('app.title')}
-              <OfflineSyncChip onRefresh={onRefresh} refreshBusy={busy} />
-            </div>
-            <span>{t('brand.tagline')}</span>
-          </div>
+        <div className='brand-row'>
+          <Link className='brand-lockup' href='/' aria-label={t('app.title')}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className='brand-logo'
+              src='/trakindo-cat.png'
+              alt=''
+              suppressHydrationWarning
+            />
+            <span className='brand-divider' aria-hidden='true' />
+            <span className='brand-text'>
+              <span className='brand'>{t('app.title')}</span>
+              <span className='brand-tagline'>{t('brand.tagline')}</span>
+            </span>
+          </Link>
+          <OfflineSyncChip onRefresh={onRefresh} refreshBusy={busy} />
         </div>
         <div className='top-actions'>
           <div className='top-actions-panel top-actions-panel--bar'>

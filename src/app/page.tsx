@@ -64,6 +64,7 @@ import {
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
 import { BoardTopbar } from "@/components/BoardTopbar";
+import { SearchIcon } from "@/components/SearchIcon";
 import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
 import { TechnicianCard } from "@/components/TechnicianCard";
 import { ActiveJobSlider, ActiveJobSliderToggle } from "@/components/ActiveJobSlider";
@@ -5793,7 +5794,19 @@ export default function HomePage() {
           <>
             <header className="customer-view-bar">
               <div>
-                <div className="brand">PRIMA</div>
+                <div className="brand-lockup" aria-hidden="true">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className="brand-logo"
+                    src="/trakindo-cat.png"
+                    alt=""
+                  />
+                  <span className="brand-divider" aria-hidden="true" />
+                  <span className="brand-text">
+                    <span className="brand">{t("app.title")}</span>
+                    <span className="brand-tagline">{t("brand.tagline")}</span>
+                  </span>
+                </div>
                 <p className="customer-view-hint">{t("job.customerViewHint")}</p>
               </div>
               <button
@@ -6086,27 +6099,31 @@ export default function HomePage() {
               <div className="panel-head">
                 <h2>Teknisi</h2>
                 <div className="panel-search-row">
-                  <input
-                    className="panel-search"
-                    type="search"
-                    value={techDraft}
-                    onChange={(e) => setTechDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        applyTechSearch();
-                      }
-                    }}
-                    placeholder="Cari nama atau SN..."
-                    aria-label="Cari teknisi"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={applyTechSearch}
-                  >
-                    Cari
-                  </button>
+                  <div className="search-pair">
+                    <input
+                      className="panel-search"
+                      type="search"
+                      value={techDraft}
+                      onChange={(e) => setTechDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyTechSearch();
+                        }
+                      }}
+                      placeholder="Cari nama atau SN..."
+                      aria-label="Cari teknisi"
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label="Cari"
+                      onClick={applyTechSearch}
+                    >
+                      <SearchIcon />
+                      <span className="btn-label">Cari</span>
+                    </button>
+                  </div>
                   {techQuery && (
                     <button
                       type="button"
@@ -6310,27 +6327,31 @@ export default function HomePage() {
                     </div>
                   )}
                   <div className="panel-search-row">
-                    <input
-                      className="panel-search"
-                      type="search"
-                      value={jobDraft}
-                      onChange={(e) => setJobDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          applyJobSearch();
-                        }
-                      }}
-                      placeholder="Cari job, unit, teknisi..."
-                      aria-label="Cari job"
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={applyJobSearch}
-                    >
-                      Cari
-                    </button>
+                    <div className="search-pair">
+                      <input
+                        className="panel-search"
+                        type="search"
+                        value={jobDraft}
+                        onChange={(e) => setJobDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            applyJobSearch();
+                          }
+                        }}
+                        placeholder="Cari job, unit, teknisi..."
+                        aria-label="Cari job"
+                      />
+                      <button
+                        type="button"
+                        className="btn"
+                        aria-label="Cari"
+                        onClick={applyJobSearch}
+                      >
+                        <SearchIcon />
+                        <span className="btn-label">Cari</span>
+                      </button>
+                    </div>
                     {jobQuery && (
                       <button
                         type="button"
@@ -7246,28 +7267,32 @@ export default function HomePage() {
               <label>
                 Cari teknisi
                 <div className="panel-search-row" style={{ justifyContent: "stretch", marginTop: 4 }}>
-                  <input
-                    className="panel-search"
-                    style={{ maxWidth: "none" }}
-                    type="search"
-                    value={assignDraft}
-                    onChange={(e) => setAssignDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        applyAssignSearch();
-                      }
-                    }}
-                    placeholder="Nama atau SN..."
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={applyAssignSearch}
-                  >
-                    Cari
-                  </button>
+                  <div className="search-pair">
+                    <input
+                      className="panel-search"
+                      style={{ maxWidth: "none" }}
+                      type="search"
+                      value={assignDraft}
+                      onChange={(e) => setAssignDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyAssignSearch();
+                        }
+                      }}
+                      placeholder="Nama atau SN..."
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label="Cari"
+                      onClick={applyAssignSearch}
+                    >
+                      <SearchIcon />
+                      <span className="btn-label">Cari</span>
+                    </button>
+                  </div>
                   {assignQuery && (
                     <button
                       type="button"
@@ -8487,29 +8512,33 @@ export default function HomePage() {
                 className="panel-search-row"
                 style={{ justifyContent: "stretch" }}
               >
-                <input
-                  className="panel-search"
-                  style={{ maxWidth: "none" }}
-                  type="search"
-                  value={unitDraft}
-                  onChange={(e) => setUnitDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyUnitSearch();
-                    }
-                  }}
-                  placeholder="Cari nomor unit, model, atau serial number..."
-                  aria-label="Cari unit"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={applyUnitSearch}
-                >
-                  Cari
-                </button>
+                <div className="search-pair">
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none" }}
+                    type="search"
+                    value={unitDraft}
+                    onChange={(e) => setUnitDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyUnitSearch();
+                      }
+                    }}
+                    placeholder="Cari nomor unit, model, atau serial number..."
+                    aria-label="Cari unit"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="Cari"
+                    onClick={applyUnitSearch}
+                  >
+                    <SearchIcon />
+                    <span className="btn-label">Cari</span>
+                  </button>
+                </div>
                 {unitQuery && (
                   <button
                     type="button"
@@ -9166,29 +9195,33 @@ export default function HomePage() {
                   </option>
                   <option value="goh">GOH</option>
                 </select>
-                <input
-                  className="panel-search"
-                  style={{ maxWidth: "none", flex: 1 }}
-                  type="search"
-                  value={templateDraft}
-                  onChange={(e) => setTemplateDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyTemplateSearch();
-                    }
-                  }}
-                  placeholder="Cari nama atau id template..."
-                  aria-label="Cari template"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={applyTemplateSearch}
-                >
-                  Cari
-                </button>
+                <div className="search-pair">
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none", flex: 1 }}
+                    type="search"
+                    value={templateDraft}
+                    onChange={(e) => setTemplateDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyTemplateSearch();
+                      }
+                    }}
+                    placeholder="Cari nama atau id template..."
+                    aria-label="Cari template"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="Cari"
+                    onClick={applyTemplateSearch}
+                  >
+                    <SearchIcon />
+                    <span className="btn-label">Cari</span>
+                  </button>
+                </div>
                 {(templateQuery || templateCategoryFilter) && (
                   <button
                     type="button"
@@ -9854,29 +9887,33 @@ export default function HomePage() {
                 className="panel-search-row"
                 style={{ justifyContent: "stretch" }}
               >
-                <input
-                  className="panel-search"
-                  style={{ maxWidth: "none" }}
-                  type="search"
-                  value={masterTechDraft}
-                  onChange={(e) => setMasterTechDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyMasterTechSearch();
-                    }
-                  }}
-                  placeholder="Cari nama, SN, atau telepon..."
-                  aria-label="Cari teknisi"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={applyMasterTechSearch}
-                >
-                  Cari
-                </button>
+                <div className="search-pair">
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none" }}
+                    type="search"
+                    value={masterTechDraft}
+                    onChange={(e) => setMasterTechDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyMasterTechSearch();
+                      }
+                    }}
+                    placeholder="Cari nama, SN, atau telepon..."
+                    aria-label="Cari teknisi"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="Cari"
+                    onClick={applyMasterTechSearch}
+                  >
+                    <SearchIcon />
+                    <span className="btn-label">Cari</span>
+                  </button>
+                </div>
                 {masterTechQuery && (
                   <button
                     type="button"
@@ -10322,29 +10359,33 @@ export default function HomePage() {
                 className="panel-search-row"
                 style={{ justifyContent: "stretch" }}
               >
-                <input
-                  className="panel-search"
-                  style={{ maxWidth: "none" }}
-                  type="search"
-                  value={masterUserDraft}
-                  onChange={(e) => setMasterUserDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyMasterUserSearch();
-                    }
-                  }}
-                  placeholder="Cari username, nama, email, atau telp..."
-                  aria-label="Cari user"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={applyMasterUserSearch}
-                >
-                  Cari
-                </button>
+                <div className="search-pair">
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none" }}
+                    type="search"
+                    value={masterUserDraft}
+                    onChange={(e) => setMasterUserDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyMasterUserSearch();
+                      }
+                    }}
+                    placeholder="Cari username, nama, email, atau telp..."
+                    aria-label="Cari user"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="Cari"
+                    onClick={applyMasterUserSearch}
+                  >
+                    <SearchIcon />
+                    <span className="btn-label">Cari</span>
+                  </button>
+                </div>
                 {masterUserQuery && (
                   <button
                     type="button"
@@ -10707,28 +10748,32 @@ export default function HomePage() {
                     </option>
                   ))}
                 </select>
-                <input
-                  className="panel-search"
-                  style={{ maxWidth: "none", flex: 1 }}
-                  type="search"
-                  value={attendanceDraft}
-                  onChange={(e) => setAttendanceDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyAttendanceSearch();
-                    }
-                  }}
-                  placeholder="Cari nama, Pernr, status..."
-                  aria-label="Cari daftar hadir"
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={applyAttendanceSearch}
-                >
-                  Cari
-                </button>
+                <div className="search-pair">
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none", flex: 1 }}
+                    type="search"
+                    value={attendanceDraft}
+                    onChange={(e) => setAttendanceDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyAttendanceSearch();
+                      }
+                    }}
+                    placeholder="Cari nama, Pernr, status..."
+                    aria-label="Cari daftar hadir"
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="Cari"
+                    onClick={applyAttendanceSearch}
+                  >
+                    <SearchIcon />
+                    <span className="btn-label">Cari</span>
+                  </button>
+                </div>
                 {(attendanceQuery || attendanceDateFilter) && (
                   <button
                     type="button"

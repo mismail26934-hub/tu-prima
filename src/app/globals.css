@@ -40,6 +40,7 @@
   --topbar-glass-border: color-mix(in srgb, var(--ds-white) 10%, transparent);
   --topbar-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   --topbar-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --topbar-height: 3.5rem;
   --ctrl-size: clamp(2rem, 1.35vw + 1.55rem, 2.75rem);
   --ctrl-size-ui: clamp(1.75rem, 1vw + 1.4rem, 2.25rem);
   --ctrl-size-table: clamp(1.5rem, 0.75vw + 1.2rem, 1.75rem);
@@ -47,6 +48,14 @@
   --ctrl-radius: clamp(0.375rem, 0.2vw + 0.3rem, 0.5rem);
   --ctrl-glyph: clamp(0.875rem, 0.35vw + 0.75rem, 1.125rem);
   --ctrl-gap: clamp(0.25rem, 0.4vw + 0.15rem, 0.5rem);
+  /* Design System TU — Responsive Layout Grid (same as tu-rental) */
+  --ds-bp-md: 600px;
+  --ds-bp-lg: 1024px;
+  --ds-max: none;
+  --ds-columns: 4;
+  --ds-gutter: 16px;
+  --ds-gutter-min: 4px;
+  --ds-margin: 16px;
   --remain-green-bg: var(--ds-green-100);
   --remain-green-border: var(--ds-green-70);
   --remain-orange-bg: var(--ds-orange-100);
@@ -54,6 +63,26 @@
   --remain-red-bg: var(--ds-red-100);
   --remain-red-border: var(--ds-red-60);
   color-scheme: dark;
+}
+
+@media (min-width: 600px) {
+  :root,
+  [data-theme='dark'],
+  [data-theme='light'] {
+    --ds-columns: 8;
+    --ds-gutter: 24px;
+    --ds-margin: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root,
+  [data-theme='dark'],
+  [data-theme='light'] {
+    --ds-columns: 12;
+    --ds-gutter: 24px;
+    --ds-margin: 16px;
+  }
 }
 
 [data-theme='light'] {
@@ -135,16 +164,29 @@ html[data-theme='light'] body {
   font-weight: 500;
 }
 
-html[data-theme='light'] .brand {
-  text-shadow: none;
-  font-weight: 900;
-  color: var(--ds-ink);
+.brand-lockup:hover,
+.brand-lockup:visited,
+.brand-lockup:focus {
+  text-decoration: none;
 }
 
-html[data-theme='light'] .brand span {
-  opacity: 0.72;
+.brand-lockup:hover .brand,
+.brand-lockup:visited .brand,
+.brand-lockup:focus .brand {
+  color: var(--amber);
+}
+
+html[data-theme='light'] .brand,
+html[data-theme='light'] .brand-lockup:hover .brand,
+html[data-theme='light'] .brand-lockup:visited .brand,
+html[data-theme='light'] .brand-lockup:focus .brand {
   color: var(--ds-ink);
-  font-weight: 700;
+  text-shadow: none;
+}
+
+html[data-theme='light'] .brand-tagline {
+  color: var(--ds-ink);
+  opacity: 0.72;
 }
 
 html[data-theme='light'] .muted,
@@ -207,6 +249,13 @@ html[data-theme='light'] textarea {
   border-color: var(--ds-border);
   font-weight: 400;
   background: var(--ds-white);
+}
+
+html[data-theme='light'] .search-pair .panel-search,
+html[data-theme='light'] .search-pair .backup-search,
+html[data-theme='light'] .backup-search-pair .backup-search {
+  background: transparent;
+  border-color: transparent;
 }
 
 html[data-theme='light'] .stat {
@@ -280,13 +329,114 @@ button {
 }
 
 .app {
-  max-width: 1280px;
   width: 100%;
-  margin: 0 auto;
-  padding: 28px 20px 48px;
+  max-width: none;
+  margin: 0;
+  padding: 20px var(--ds-margin) 48px;
   padding-top: calc(12px + var(--topbar-height, 5.5rem));
   box-sizing: border-box;
   min-width: 0;
+}
+
+/* Desktop frame: lay out at 1440px, then scale that picture to the window.
+   Browser zoom shrinks the viewport; the board keeps the same proportions (like ARMOR). */
+html.is-framed {
+  --ctrl-size: 2.75rem;
+  --ctrl-size-ui: 2.25rem;
+  --ctrl-size-table: 1.75rem;
+  --ctrl-size-sm: 2rem;
+  --ctrl-radius: 0.5rem;
+  --ctrl-glyph: 1.125rem;
+  --ctrl-gap: 0.5rem;
+}
+
+html.is-framed,
+html.is-framed body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-stage.is-framed {
+  display: flex;
+  justify-content: center;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-stage.is-framed .app-scale-slot {
+  width: calc(1440px * var(--app-scale, 1));
+  height: 100%;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.app-stage.is-framed .app-frame {
+  width: 1440px;
+  height: calc(100% / var(--app-scale, 1));
+  transform: scale(var(--app-scale, 1));
+  transform-origin: top left;
+}
+
+.app-stage.is-framed .app-scroll {
+  height: 100%;
+  overflow: auto;
+  background: var(--page-bg);
+}
+
+html.is-framed .topbar {
+  position: sticky;
+  top: 0;
+  left: auto;
+  right: auto;
+  width: auto;
+  z-index: 110;
+  padding: 0.375rem var(--ds-margin);
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
+}
+
+html.is-framed .brand-lockup {
+  gap: 0.625rem;
+}
+
+html.is-framed .brand {
+  font-size: 1.125rem;
+}
+
+html.is-framed .btn:not(.btn-icon),
+html.is-framed .btn-primary:not(.btn-icon) {
+  padding: 0 1rem;
+}
+
+/* Glass layer lives inside scaled frame — hide it; sticky topbar owns the scrolled look */
+html.is-framed .topbar-glass {
+  display: none;
+}
+
+/*
+  Parent transform: scale() disables backdrop-filter. ARMOR uses the same glass tokens
+  and reads as a solid dark bar over scrolling content — match that opacity.
+*/
+html.is-framed.topbar-scrolled .topbar {
+  background: color-mix(in srgb, var(--page-bg) 94%, transparent);
+  border-bottom: 1px solid var(--topbar-glass-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: none;
+}
+
+html.is-framed .app {
+  padding-top: 12px;
+}
+
+html.is-framed .app-login {
+  min-height: calc(100vh / var(--app-scale, 1));
+}
+
+html.is-framed .nav-session-portal-menu {
+  transform: scale(var(--app-scale, 1));
+  transform-origin: top right;
 }
 
 /* WhatsApp / share: /?job=…&view=customer — single job, no board chrome */
@@ -305,8 +455,12 @@ button {
 }
 
 .customer-view-bar .brand {
-  font-size: 1.5rem;
-  line-height: 1.1;
+  font-size: clamp(1rem, 0.35vw + 0.9rem, 1.125rem);
+  line-height: 1.2;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-weight: var(--ds-title-lg-weight);
+  letter-spacing: var(--ds-title-lg-tracking);
+  text-shadow: none;
 }
 
 .customer-view-hint {
@@ -352,11 +506,14 @@ button {
   right: 14px;
 }
 
+/* Login hero wordmark — DS Title lg scale (same face as navbar .brand) */
 .login-card h1 {
   margin: 0 0 8px;
-  font-family: var(--font-display), Impact, sans-serif;
-  letter-spacing: 0.05em;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-weight: var(--ds-title-lg-weight);
+  letter-spacing: var(--ds-title-lg-tracking);
   color: var(--amber);
+  font-size: 3rem;
 }
 
 .login-card p {
@@ -366,7 +523,7 @@ button {
 
 @media (max-width: 720px) {
   .app {
-    padding: 16px max(16px, 4vw) calc(28px + env(safe-area-inset-bottom, 0px));
+    padding: 16px var(--ds-margin) calc(28px + env(safe-area-inset-bottom, 0px));
     padding-top: calc(10px + var(--topbar-height, 4.25rem));
   }
 }
@@ -386,7 +543,7 @@ button {
   margin: 0;
   box-sizing: border-box;
   background: transparent;
-  padding: 8px max(20px, calc((100% - 1280px) / 2 + 20px)) 12px;
+  padding: clamp(0.25rem, 0.2vw + 0.2rem, 0.375rem) var(--ds-margin);
   border-bottom: 1px solid transparent;
   transition:
     border-color 0.25s ease,
@@ -394,35 +551,47 @@ button {
     background-color 0.25s ease;
 }
 
-/* Frosted glass layer (portaled to body — reliable backdrop-filter) */
+/* Frosted glass layer — same as tu-rental / ARMOR (sibling of .topbar, not portaled) */
 .topbar-glass {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  inset: 0 0 auto 0;
   z-index: 105;
-  height: var(--topbar-height, 5.5rem);
+  height: var(--topbar-height);
   pointer-events: none;
   background: transparent;
   border-bottom: 1px solid transparent;
-  box-shadow: none;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    backdrop-filter 0.25s ease,
-    -webkit-backdrop-filter 0.25s ease;
 }
 
-html[data-theme='light'] .topbar {
-  background: transparent;
-  border-bottom-color: transparent;
+html.topbar-scrolled .topbar-glass,
+.topbar-glass.is-scrolled {
+  background: var(--topbar-glass-bg);
+  border-bottom-color: var(--topbar-glass-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
+html.nav-header-pop-open .topbar-glass,
+html.menu-open .topbar-glass,
+html.modal-open .topbar-glass {
+  background: var(--topbar-glass-bg);
+  border-bottom-color: var(--topbar-glass-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+html[data-theme='light'] .topbar,
 html[data-theme='light'] .topbar-glass {
   background: transparent;
   border-bottom-color: transparent;
-  box-shadow: none;
+}
+
+html[data-theme='light'].topbar-scrolled .topbar-glass,
+html[data-theme='light'] .topbar-glass.is-scrolled,
+html[data-theme='light'].nav-header-pop-open .topbar-glass,
+html[data-theme='light'].menu-open .topbar-glass,
+html[data-theme='light'].modal-open .topbar-glass {
+  background: var(--topbar-glass-bg);
+  border-bottom-color: var(--topbar-glass-border);
 }
 
 .topbar.is-scrolled,
@@ -431,63 +600,108 @@ html.topbar-scrolled .topbar {
   box-shadow: none;
 }
 
-.topbar-glass.is-scrolled,
-html.topbar-scrolled .topbar-glass,
-html.nav-header-pop-open .topbar-glass,
-html.menu-open .topbar-glass,
-html.modal-open .topbar-glass {
-  background: var(--topbar-glass-bg);
-  border-bottom-color: var(--topbar-glass-border);
-  box-shadow: var(--topbar-glass-shadow);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-}
-
-html[data-theme='light'] .topbar-glass.is-scrolled,
-html[data-theme='light'].topbar-scrolled .topbar-glass,
-html[data-theme='light'].nav-header-pop-open .topbar-glass,
-html[data-theme='light'].menu-open .topbar-glass,
-html[data-theme='light'].modal-open .topbar-glass {
-  background: var(--topbar-glass-bg);
+html[data-theme='light'].is-framed.topbar-scrolled .topbar {
+  background: color-mix(in srgb, var(--page-bg) 94%, transparent);
   border-bottom: 1px solid var(--topbar-glass-border);
-  box-shadow: var(--topbar-glass-shadow);
-}
-
-html.menu-open .topbar-glass,
-html.nav-header-pop-open .topbar-glass {
-  background: var(--topbar-glass-bg-strong);
-}
-
-html[data-theme='light'].menu-open .topbar-glass,
-html[data-theme='light'].nav-header-pop-open .topbar-glass {
-  background: var(--topbar-glass-bg-strong);
 }
 
 @supports not (
   (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
 ) {
-  .topbar-glass.is-scrolled,
   html.topbar-scrolled .topbar-glass,
+  .topbar-glass.is-scrolled,
   html.nav-header-pop-open .topbar-glass,
   html.menu-open .topbar-glass,
-  html.modal-open .topbar-glass {
+  html.modal-open .topbar-glass,
+  html.is-framed.topbar-scrolled .topbar {
     background: var(--topbar-glass-bg-strong);
   }
 }
 
+/* Navbar lockup — Trakindo CAT + DS Title/Subtitle (same as tu-rental) */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(0.5rem, 0.4vw + 0.4rem, 0.625rem);
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--ctrl-size);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-logo {
+  display: block;
+  box-sizing: border-box;
+  height: var(--ctrl-size);
+  width: auto;
+  flex: 0 0 auto;
+  object-fit: contain;
+  border: 1px solid color-mix(in srgb, var(--ds-cloudy-120) 18%, transparent);
+  border-radius: 2px;
+  background: #fff;
+}
+
+.brand-divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  margin: 3px 0;
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.1;
+}
+
 .brand {
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(2.4rem, 5vw, 3.6rem);
-  letter-spacing: 0.04em;
-  line-height: 0.95;
+  display: block;
+  min-width: 0;
   color: var(--amber);
-  text-shadow: 0 2px 0 var(--brand-shadow);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: clamp(1rem, 0.35vw + 0.9rem, 1.125rem); /* Title md → lg 16–18 */
+  font-weight: var(--ds-title-lg-weight);
+  font-synthesis: none;
+  letter-spacing: var(--ds-title-lg-tracking);
+  line-height: 1.2;
+  text-shadow: none;
+}
+
+.brand-tagline {
+  display: none;
+  margin: 0;
+  max-width: min(420px, 42vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-xs-size); /* 12 */
+  font-weight: var(--ds-subtitle-xs-weight); /* 600 */
+  letter-spacing: 0;
+  line-height: var(--ds-body-xs-line); /* 18 */
+  color: var(--muted);
+  opacity: 1;
+}
+
+@media (min-width: 801px) {
+  .brand-tagline {
+    display: block;
+  }
 }
 
 .brand-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .brand-row .offline-sync {
@@ -535,20 +749,6 @@ html[data-theme='light'].nav-header-pop-open .topbar-glass {
   font-weight: 700;
 }
 
-.brand span {
-  display: block;
-  color: var(--text);
-  font-size: clamp(0.72rem, 1.7vw, 0.98rem);
-  letter-spacing: 0.03em;
-  margin-top: 6px;
-  opacity: 0.82;
-  max-width: min(560px, 90vw);
-  line-height: 1.3;
-  text-transform: none;
-  font-family: var(--font-body), 'Segoe UI', sans-serif;
-  font-weight: 600;
-}
-
 .top-actions {
   display: flex;
   align-items: center;
@@ -585,6 +785,35 @@ html[data-theme='light'].nav-header-pop-open .topbar-glass {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: var(--ctrl-size);
+  min-height: var(--ctrl-size);
+  max-height: var(--ctrl-size);
+  border-radius: var(--ctrl-radius);
+}
+
+/* Navbar text buttons (Kelola, + Job baru, account) = same height as refresh icon */
+.topbar .btn:not(.btn-icon),
+.top-actions .btn:not(.btn-icon),
+.top-actions-mobile .btn:not(.btn-icon) {
+  height: var(--ctrl-size);
+  min-height: var(--ctrl-size);
+  max-height: var(--ctrl-size);
+  border-radius: var(--ctrl-radius);
+}
+
+.topbar .btn.btn-icon,
+.top-actions .btn.btn-icon,
+.top-actions-mobile .btn.btn-icon {
+  width: var(--ctrl-size);
+  height: var(--ctrl-size);
+  min-width: var(--ctrl-size);
+  min-height: var(--ctrl-size);
+  max-width: var(--ctrl-size);
+  max-height: var(--ctrl-size);
+  padding: 0;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 var(--ctrl-size);
+  border-radius: var(--ctrl-radius);
 }
 
 .nav-manage-caret {
@@ -928,12 +1157,127 @@ html.nav-header-pop-open .top-actions {
   margin: 0 0 8px;
 }
 
-.nav-account {
+/* Account chip — same face / hover / focus / press as + Job baru (.btn) */
+.btn.nav-account,
+.nav-account,
+.top-actions .nav-account,
+.topbar .nav-account {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 12px;
-  min-height: 42px;
+  gap: 8px;
+  height: var(--ctrl-size);
+  min-height: var(--ctrl-size);
+  max-height: var(--ctrl-size);
+  padding: 0 12px;
+  border-radius: var(--ctrl-radius);
+  border: 1px solid transparent;
+  background: var(--ds-btn-primary);
+  color: var(--ds-cloudy-120);
+}
+
+.btn.nav-account .nav-user,
+.top-actions .nav-account .nav-user,
+.topbar .nav-account .nav-user {
+  color: var(--ds-cloudy-120);
+}
+
+.btn.nav-account .nav-user-name,
+.top-actions .nav-account .nav-user-name,
+.topbar .nav-account .nav-user-name {
+  color: var(--ds-cloudy-120);
+}
+
+.btn.nav-account .nav-user-level,
+.top-actions .nav-account .nav-user-level,
+.topbar .nav-account .nav-user-level {
+  color: color-mix(in srgb, var(--ds-cloudy-120) 72%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn.nav-account:hover:not(:disabled),
+  .top-actions .nav-account:hover:not(:disabled),
+  .topbar .nav-account:hover:not(:disabled) {
+    background: var(--ds-btn-secondary);
+    color: var(--ds-white);
+    border-color: transparent;
+  }
+}
+
+.btn.nav-account:active:not(:disabled),
+.btn.nav-account:focus-visible,
+.btn.nav-account[aria-expanded='true'],
+.top-actions .nav-account:active:not(:disabled),
+.top-actions .nav-account:focus-visible,
+.top-actions .nav-account[aria-expanded='true'],
+.topbar .nav-account:active:not(:disabled),
+.topbar .nav-account:focus-visible,
+.topbar .nav-account[aria-expanded='true'] {
+  background: var(--ds-btn-secondary);
+  color: var(--ds-white);
+  border-color: transparent;
+  outline: none;
+}
+
+.btn.nav-account:focus-visible,
+.top-actions .nav-account:focus-visible,
+.topbar .nav-account:focus-visible {
+  border: 2px solid var(--ds-cloudy-110);
+}
+
+.btn.nav-account:hover:not(:disabled) .nav-user,
+.btn.nav-account:hover:not(:disabled) .nav-user-name,
+.btn.nav-account:hover:not(:disabled) .nav-user-level,
+.btn.nav-account:active:not(:disabled) .nav-user,
+.btn.nav-account:active:not(:disabled) .nav-user-name,
+.btn.nav-account:active:not(:disabled) .nav-user-level,
+.btn.nav-account:focus-visible .nav-user,
+.btn.nav-account:focus-visible .nav-user-name,
+.btn.nav-account:focus-visible .nav-user-level,
+.btn.nav-account[aria-expanded='true'] .nav-user,
+.btn.nav-account[aria-expanded='true'] .nav-user-name,
+.btn.nav-account[aria-expanded='true'] .nav-user-level,
+.top-actions .nav-account:hover:not(:disabled) .nav-user,
+.top-actions .nav-account:hover:not(:disabled) .nav-user-name,
+.top-actions .nav-account:hover:not(:disabled) .nav-user-level,
+.top-actions .nav-account:active:not(:disabled) .nav-user,
+.top-actions .nav-account:active:not(:disabled) .nav-user-name,
+.top-actions .nav-account:active:not(:disabled) .nav-user-level,
+.top-actions .nav-account:focus-visible .nav-user,
+.top-actions .nav-account:focus-visible .nav-user-name,
+.top-actions .nav-account:focus-visible .nav-user-level,
+.top-actions .nav-account[aria-expanded='true'] .nav-user,
+.top-actions .nav-account[aria-expanded='true'] .nav-user-name,
+.top-actions .nav-account[aria-expanded='true'] .nav-user-level,
+.topbar .nav-account:hover:not(:disabled) .nav-user,
+.topbar .nav-account:hover:not(:disabled) .nav-user-name,
+.topbar .nav-account:hover:not(:disabled) .nav-user-level,
+.topbar .nav-account:active:not(:disabled) .nav-user,
+.topbar .nav-account:active:not(:disabled) .nav-user-name,
+.topbar .nav-account:active:not(:disabled) .nav-user-level,
+.topbar .nav-account:focus-visible .nav-user,
+.topbar .nav-account:focus-visible .nav-user-name,
+.topbar .nav-account:focus-visible .nav-user-level,
+.topbar .nav-account[aria-expanded='true'] .nav-user,
+.topbar .nav-account[aria-expanded='true'] .nav-user-name,
+.topbar .nav-account[aria-expanded='true'] .nav-user-level {
+  color: var(--ds-white);
+}
+
+.btn.nav-account:hover:not(:disabled) .nav-avatar,
+.btn.nav-account:active:not(:disabled) .nav-avatar,
+.btn.nav-account:focus-visible .nav-avatar,
+.btn.nav-account[aria-expanded='true'] .nav-avatar,
+.top-actions .nav-account:hover:not(:disabled) .nav-avatar,
+.top-actions .nav-account:active:not(:disabled) .nav-avatar,
+.top-actions .nav-account:focus-visible .nav-avatar,
+.top-actions .nav-account[aria-expanded='true'] .nav-avatar,
+.topbar .nav-account:hover:not(:disabled) .nav-avatar,
+.topbar .nav-account:active:not(:disabled) .nav-avatar,
+.topbar .nav-account:focus-visible .nav-avatar,
+.topbar .nav-account[aria-expanded='true'] .nav-avatar {
+  background: color-mix(in srgb, var(--ds-white) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ds-white) 35%, transparent);
+  color: var(--ds-white);
 }
 
 .nav-avatar {
@@ -982,11 +1326,14 @@ html.nav-header-pop-open .top-actions {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
-  line-height: 1.2;
-  max-width: 140px;
+  justify-content: center;
+  line-height: 1.1;
+  max-width: 120px;
   overflow: hidden;
-  color: var(--muted);
-  font-size: 0.88rem;
+  text-align: left;
+  color: var(--ds-cloudy-120);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
@@ -999,13 +1346,17 @@ html.nav-header-pop-open .top-actions {
 }
 
 .nav-user-name {
-  color: var(--text);
+  color: var(--ds-cloudy-120);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.05;
 }
 
 .nav-user-level {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 500;
+  color: color-mix(in srgb, var(--ds-cloudy-120) 72%, transparent);
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1.1;
   text-transform: capitalize;
 }
 
@@ -1133,6 +1484,7 @@ html.nav-header-pop-open .top-actions {
 }
 
 .nav-user--menu .nav-user-name {
+  color: var(--text);
   font-weight: 700;
   font-size: 1.02rem;
   line-height: 1.2;
@@ -1190,6 +1542,7 @@ html.nav-header-pop-open .top-actions {
 }
 
 .nav-user--menu .nav-user-level {
+  color: var(--muted);
   font-size: 0.8rem;
 }
 
@@ -1214,9 +1567,12 @@ html.nav-header-pop-open .top-actions {
 
 /* App buttons — match tu-rental / Hari (Primary Yellow-80) in dark & light.
    Enable: yellow + ink. Hover / pressed / focus: black + white.
-   Disabled: Cloudy-50. Delete (.btn-danger): red enable, inverse on interact. */
+   Disabled: Cloudy-50. Delete (.btn-danger): red enable, inverse on interact.
+   Default page height = --ctrl-size-ui (navbar uses --ctrl-size). */
 .btn,
-.btn-primary {
+.btn-primary,
+.btn-secondary,
+.btn-edit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1246,38 +1602,50 @@ html.nav-header-pop-open .top-actions {
 }
 
 .btn svg,
-.btn-primary svg {
+.btn-primary svg,
+.btn-secondary svg,
+.btn-edit svg {
   flex: none;
   color: inherit;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .btn:hover:not(:disabled):not(.btn-danger):not(.btn-ghost),
-  .btn-primary:hover:not(:disabled) {
+  .btn:hover:not(:disabled):not(.btn-danger),
+  .btn-primary:hover:not(:disabled),
+  .btn-secondary:hover:not(:disabled),
+  .btn-edit:hover:not(:disabled) {
     background: var(--ds-btn-secondary);
     color: var(--ds-white);
     border-color: transparent;
   }
 }
 
-.btn:active:not(:disabled):not(.btn-danger):not(.btn-ghost),
+.btn:active:not(:disabled):not(.btn-danger),
 .btn-primary:active:not(:disabled),
-.btn:focus-visible:not(.btn-danger):not(.btn-ghost),
-.btn-primary:focus-visible {
+.btn-secondary:active:not(:disabled),
+.btn-edit:active:not(:disabled),
+.btn:focus-visible:not(.btn-danger),
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-edit:focus-visible {
   background: var(--ds-btn-secondary);
   color: var(--ds-white);
   border-color: transparent;
   outline: none;
 }
 
-.btn:focus-visible:not(.btn-danger):not(.btn-ghost),
-.btn-primary:focus-visible {
+.btn:focus-visible:not(.btn-danger),
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-edit:focus-visible {
   border: 2px solid var(--ds-cloudy-110);
 }
 
 .btn:disabled,
 .btn[aria-disabled='true'],
-.btn-primary:disabled {
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-edit:disabled {
   background: var(--ds-btn-disabled);
   color: var(--ds-text-disabled);
   border-color: transparent;
@@ -1286,8 +1654,37 @@ html.nav-header-pop-open .top-actions {
   box-shadow: none;
 }
 
+.btn-lg {
+  height: 52px;
+  border-radius: 8px;
+  font-size: var(--ds-btn-md-size);
+  line-height: var(--ds-btn-md-line);
+  font-weight: var(--ds-btn-weight);
+}
+
+.btn-sm {
+  height: var(--ctrl-size-table);
+  min-height: var(--ctrl-size-table);
+  max-height: var(--ctrl-size-table);
+  border-radius: 6px;
+  font-size: var(--ds-btn-xs-size);
+  line-height: var(--ds-btn-xs-line);
+  font-weight: var(--ds-btn-weight);
+}
+
+.btn-xs {
+  height: 28px;
+  padding: 0 12px;
+  gap: 4px;
+  border-radius: 4px;
+  font-size: var(--ds-btn-xs-size);
+  line-height: var(--ds-btn-xs-line);
+  font-weight: var(--ds-btn-weight);
+}
+
 .btn.is-on,
-.btn[aria-pressed='true'] {
+.btn[aria-pressed='true'],
+.btn.is-active {
   background: var(--ds-btn-primary);
   color: var(--ds-cloudy-120);
   border-color: transparent;
@@ -1297,7 +1694,8 @@ html.nav-header-pop-open .top-actions {
 
 @media (hover: hover) and (pointer: fine) {
   .btn.is-on:hover:not(:disabled),
-  .btn[aria-pressed='true']:hover:not(:disabled) {
+  .btn[aria-pressed='true']:hover:not(:disabled),
+  .btn.is-active:hover:not(:disabled) {
     background: var(--ds-btn-secondary);
     color: var(--ds-white);
     box-shadow: none;
@@ -1340,33 +1738,35 @@ html.nav-header-pop-open .top-actions {
   cursor: not-allowed;
 }
 
+/* Alias kept for old markup — same yellow primary as .btn (tu-rental has no ghost) */
 .btn-ghost {
-  background: transparent;
-  color: var(--text);
-  border-color: var(--line);
+  background: var(--ds-btn-primary);
+  color: var(--ds-cloudy-120);
+  border-color: transparent;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .btn-ghost:hover:not(:disabled) {
-    background: var(--bg-2);
-    color: var(--text);
-    border-color: var(--line);
+    background: var(--ds-btn-secondary);
+    color: var(--ds-white);
+    border-color: transparent;
   }
 }
 
+/* Default icon = page UI size; navbar overrides to --ctrl-size */
 .btn.btn-icon,
 .btn-icon {
   box-sizing: border-box;
-  width: var(--ctrl-size);
-  height: var(--ctrl-size);
-  min-width: var(--ctrl-size);
-  min-height: var(--ctrl-size);
-  max-width: var(--ctrl-size);
-  max-height: var(--ctrl-size);
+  width: var(--ctrl-size-ui);
+  height: var(--ctrl-size-ui);
+  min-width: var(--ctrl-size-ui);
+  min-height: var(--ctrl-size-ui);
+  max-width: var(--ctrl-size-ui);
+  max-height: var(--ctrl-size-ui);
   padding: 0;
   gap: 0;
   aspect-ratio: 1 / 1;
-  flex: 0 0 var(--ctrl-size);
+  flex: 0 0 var(--ctrl-size-ui);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1775,10 +2175,14 @@ html.nav-header-pop-open .top-actions {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  width: 36px !important;
-  height: 36px !important;
-  min-width: 36px;
+  width: var(--ctrl-size-ui) !important;
+  height: var(--ctrl-size-ui) !important;
+  min-width: var(--ctrl-size-ui);
+  min-height: var(--ctrl-size-ui);
+  max-width: var(--ctrl-size-ui);
+  max-height: var(--ctrl-size-ui);
   padding: 0 !important;
+  border-radius: var(--ctrl-radius);
 }
 
 .panel--collapsed {
@@ -1814,6 +2218,79 @@ html.nav-header-pop-open .top-actions {
   min-width: 0;
 }
 
+/* Search field + Cari as one control (same as tu-rental / ARMOR) */
+.search-pair {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--ds-radius-md);
+  background: var(--bg-0);
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.search-pair:focus-within {
+  border-color: var(--amber-border);
+  box-shadow: none;
+}
+
+.search-pair .panel-search,
+.search-pair .backup-search {
+  flex: 1 1 auto;
+  width: min(280px, 70vw);
+  min-width: 0;
+  max-width: none;
+  min-height: var(--ctrl-size-ui);
+  height: auto;
+  margin: 0;
+  padding: 0 var(--ds-spacing-sm);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  outline: none;
+  font: inherit;
+}
+
+.search-pair .panel-search:focus,
+.search-pair .backup-search:focus {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.search-pair .btn {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: var(--ctrl-size-ui);
+  margin: 0;
+  border-radius: 0;
+  border-left: 1px solid
+    color-mix(in srgb, var(--ds-cloudy-120) 22%, transparent);
+}
+
+.btn-label {
+  white-space: nowrap;
+}
+
+html[data-theme='light'] .search-pair {
+  background: var(--ds-white);
+  border-color: var(--ds-border-default);
+}
+
+html[data-theme='light'] .search-pair:focus-within {
+  border-color: var(--ds-border-active);
+  box-shadow: none;
+}
+
 .panel-search {
   flex: 1;
   min-width: 0;
@@ -1821,7 +2298,7 @@ html.nav-header-pop-open .top-actions {
   background: var(--bg-0);
   border: 1px solid var(--line);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--ds-radius-md);
   padding: 8px 12px;
 }
 
@@ -1839,7 +2316,7 @@ html.nav-header-pop-open .top-actions {
   .topbar {
     align-items: flex-start;
     gap: 10px;
-    padding: 8px max(16px, 4vw) 10px;
+    padding: 8px var(--ds-margin) 10px;
     padding-top: max(8px, env(safe-area-inset-top, 0px));
     min-width: 0;
   }
@@ -1849,12 +2326,20 @@ html.nav-header-pop-open .top-actions {
     min-width: 0;
   }
 
-  .brand {
-    font-size: clamp(1.7rem, 8vw, 2.05rem);
-    line-height: 1;
+  .brand-divider {
+    margin: 2px 0;
   }
 
-  /* Sync / Offline sits under the PRIMA wordmark so it doesn't collide with +Job. */
+  .brand {
+    font-size: var(--ds-title-md-size); /* 16 */
+    line-height: 1.2;
+  }
+
+  .brand-tagline {
+    display: none;
+  }
+
+  /* Sync / Offline sits under the lockup so it doesn't collide with +Job. */
   .brand-row {
     display: flex;
     flex-direction: column;
@@ -1868,10 +2353,6 @@ html.nav-header-pop-open .top-actions {
     max-width: 100%;
   }
 
-  .brand span {
-    display: none;
-  }
-
   .top-actions-mobile {
     display: inline-flex;
     flex-wrap: nowrap;
@@ -1881,14 +2362,16 @@ html.nav-header-pop-open .top-actions {
   }
 
   .top-actions-mobile .btn-icon {
-    width: 42px;
-    height: 42px;
+    width: var(--ctrl-size);
+    height: var(--ctrl-size);
   }
 
   .top-actions-mobile .btn-primary {
-    min-height: 42px;
+    height: var(--ctrl-size);
+    min-height: var(--ctrl-size);
+    max-height: var(--ctrl-size);
     padding: 0 12px;
-    border-radius: 10px;
+    border-radius: var(--ctrl-radius);
     font-size: 0.92rem;
   }
 
@@ -1979,6 +2462,18 @@ html.nav-header-pop-open .top-actions {
     flex-wrap: nowrap;
   }
 
+  .panel-search-row .search-pair {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .search-pair .panel-search,
+  .search-pair .backup-search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
   .panel-search {
     flex: 1 1 auto;
     width: 100%;
@@ -1988,6 +2483,26 @@ html.nav-header-pop-open .top-actions {
 
   .panel-search-row .btn {
     flex-shrink: 0;
+  }
+
+  .panel-search-row .search-pair .btn {
+    width: var(--ctrl-size-ui);
+    min-width: var(--ctrl-size-ui);
+    max-width: var(--ctrl-size-ui);
+    padding: 0;
+    gap: 0;
+  }
+
+  .panel-search-row .search-pair .btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .panel-vis-bar {
@@ -2261,10 +2776,12 @@ html.nav-header-pop-open .top-actions {
 }
 
 .pager-page.is-active {
-  background: linear-gradient(180deg, var(--amber-bright), var(--amber-dim));
-  color: var(--amber-ink);
-  border-color: var(--amber-border);
-  font-weight: 700;
+  background: var(--ds-btn-primary);
+  color: var(--ds-cloudy-120);
+  border-color: transparent;
+  font-weight: var(--ds-btn-weight);
+  box-shadow: inset 0 0 0 2px
+    color-mix(in srgb, var(--ds-cloudy-120) 35%, transparent);
 }
 
 .pager-ellipsis {
@@ -3242,17 +3759,19 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .btn-mode {
-  padding: 4px 10px;
-  font-size: 0.78rem;
-  min-height: 0;
-  opacity: 0.75;
+  height: auto;
+  min-height: var(--ctrl-size-table);
+  padding: 0 10px;
+  font-size: var(--ds-btn-xs-size);
+  line-height: var(--ds-btn-xs-line);
 }
 
 .btn-mode.is-active {
-  opacity: 1;
-  border-color: var(--amber);
-  color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  background: var(--ds-btn-primary);
+  color: var(--ds-cloudy-120);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px
+    color-mix(in srgb, var(--ds-cloudy-120) 35%, transparent);
 }
 
 .step-batch {
@@ -3890,10 +4409,11 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .btn-step {
-  padding: 3px 8px;
-  font-size: 0.75rem;
-  min-height: 0;
-  line-height: 1.2;
+  height: auto;
+  min-height: var(--ctrl-size-table);
+  padding: 0 8px;
+  font-size: var(--ds-btn-xs-size);
+  line-height: var(--ds-btn-xs-line);
 }
 
 .step-hint {
@@ -4237,31 +4757,53 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .backup-search-pair {
+  /* Alias of .search-pair for backup screen */
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
+  gap: 0;
   min-width: 0;
   max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--ds-radius-md);
+  background: var(--bg-0);
+  overflow: hidden;
+}
+
+.backup-search-pair:focus-within {
+  border-color: var(--amber-border);
+  box-shadow: none;
 }
 
 .backup-search-pair .backup-search {
+  flex: 1 1 auto;
   width: min(280px, 70vw);
-  background: var(--bg-0);
-  border: 1px solid var(--line);
+  min-width: 0;
+  min-height: var(--ctrl-size-ui);
+  margin: 0;
+  padding: 0 var(--ds-spacing-sm);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text);
-  border-radius: 8px 0 0 8px;
-  border-right-width: 0;
-  padding: 10px 12px;
   font: inherit;
+  outline: none;
 }
 
 .backup-search-pair .backup-search:focus {
-  outline: 2px solid var(--amber);
-  border-color: var(--amber);
+  outline: none;
+  border: 0;
+  box-shadow: none;
 }
 
 .backup-search-pair .btn {
-  border-radius: 0 8px 8px 0;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: var(--ctrl-size-ui);
+  margin: 0;
+  border-radius: 0;
+  border-left: 1px solid
+    color-mix(in srgb, var(--ds-cloudy-120) 22%, transparent);
 }
 
 .backup-table-wrap {
@@ -5024,7 +5566,7 @@ html.modal-open .topbar-glass {
     grid-template-rows: minmax(0, 1fr);
     place-items: stretch;
     align-content: stretch;
-    padding: var(--topbar-offset, 7rem) max(16px, 4vw) 20px;
+    padding: var(--topbar-offset, 7rem) var(--ds-margin) 20px;
   }
 
   .modal {
@@ -5317,7 +5859,7 @@ html.modal-open .topbar-glass {
   border: 1px solid var(--line);
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
-  padding: 18px max(16px, 4vw) calc(18px + env(safe-area-inset-bottom, 0px));
+  padding: 18px var(--ds-margin) calc(18px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.38);
   animation: offline-sheet-rise 0.28s ease both;
   font-family: var(--font-body), 'Segoe UI', sans-serif;
@@ -5725,16 +6267,9 @@ html.active-job-slider-mode .job-tech-row .btn-icon {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: calc(var(--topbar-height, 5.5rem) + 10px) max(16px, 4vw) 16px;
+  padding: calc(var(--topbar-height, 5.5rem) + 10px) var(--ds-margin) 16px;
   box-sizing: border-box;
-  background:
-    radial-gradient(
-      1200px 600px at 10% -10%,
-      var(--glow-1) 0%,
-      transparent 55%
-    ),
-    radial-gradient(900px 500px at 100% 0%, var(--glow-2) 0%, transparent 50%),
-    linear-gradient(180deg, var(--bg-0), var(--bg-deep) 100%);
+  background: var(--page-bg);
   min-height: 100dvh;
 }
 
@@ -5756,8 +6291,8 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
   min-height: 0;
   display: flex;
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .active-job-slider-job-shell {
@@ -6054,10 +6589,11 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
 
   .tech-presence-btn {
     margin-left: auto;
-    min-height: 36px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    border-radius: 999px;
+    height: var(--ctrl-size-ui);
+    min-height: var(--ctrl-size-ui);
+    padding: 0 12px;
+    font-size: var(--ds-btn-sm-size);
+    border-radius: var(--ctrl-radius);
   }
 
   .tech-actions {
@@ -6072,10 +6608,26 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
     font-size: 1rem;
   }
 
+  .search-pair {
+    border-radius: var(--ds-radius-md);
+  }
+
+  .search-pair .panel-search {
+    min-height: var(--ctrl-size-ui);
+    border-radius: 0;
+    padding: 0 var(--ds-spacing-sm);
+  }
+
   .panel-search-row .btn {
     min-height: 44px;
     border-radius: 12px;
     padding: 0 16px;
+  }
+
+  .panel-search-row .search-pair .btn {
+    min-height: var(--ctrl-size-ui);
+    border-radius: 0;
+    padding: 0;
   }
 
   .panel-filter select {

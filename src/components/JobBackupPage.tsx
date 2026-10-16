@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useJobBackups } from "@/hooks/useMasterQueries";
+import { SearchIcon } from "@/components/SearchIcon";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { JobChangeBackup } from "@/lib/types";
@@ -217,7 +218,7 @@ export function JobBackupPage() {
               <BackIcon />
               <span className="backup-btn-label">Kembali</span>
             </Link>
-            <div className="backup-search-pair">
+            <div className="search-pair backup-search-pair">
               <input
                 className="backup-search"
                 type="search"
@@ -242,7 +243,7 @@ export function JobBackupPage() {
                 onClick={() => applySearch(searchDraft.trim())}
               >
                 <SearchIcon />
-                <span className="backup-btn-label">Cari</span>
+                <span className="btn-label">Cari</span>
               </button>
             </div>
           </div>
@@ -522,15 +523,6 @@ function BackIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M19 12H5" />
       <path d="M12 19l-7-7 7-7" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20l-3.5-3.5" />
     </svg>
   );
 }

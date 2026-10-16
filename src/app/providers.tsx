@@ -14,6 +14,7 @@ import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snaps
 import { queryKeys } from "@/lib/query-keys";
 import type { AppUserPublic, DashboardData, JobTemplate } from "@/lib/types";
 import { AUTH_BASE_PATH } from "@/lib/auth-path";
+import { AppFrame } from "@/components/AppFrame";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { SessionCache } from "@/components/SessionCache";
 import { BoardSnapshotSync } from "@/components/BoardSnapshotSync";
@@ -189,7 +190,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <SessionCache />
         <BoardSnapshotSync />
         <RealtimeBridge />
-        {children}
+        <AppFrame>{children}</AppFrame>
         {process.env.NODE_ENV === "development" ? (
           <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
         ) : null}

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import { signOut, useSession } from "next-auth/react";
 import type {
@@ -295,6 +302,25 @@ type Modal =
 
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
 const HIDE_JOB_PANEL_KEY = "tus-hide-job-panel";
+const REFRESH_SHIMMER_KEY = "tu-prima-refresh-shimmer";
+/** Keep shimmer visible long enough to read, even when cache answers instantly. */
+const REFRESH_SHIMMER_MIN_MS = 750;
+
+function isBrowserReloadNavigation(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (sessionStorage.getItem(REFRESH_SHIMMER_KEY) === "1") {
+      sessionStorage.removeItem(REFRESH_SHIMMER_KEY);
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  const nav = performance.getEntriesByType(
+    "navigation"
+  )[0] as PerformanceNavigationTiming | undefined;
+  return nav?.type === "reload";
+}
 
 function readBoolFlag(key: string, fallback = false): boolean {
   try {
@@ -1080,6 +1106,8 @@ export default function HomePage() {
   const [clientReady, setClientReady] = useState(false);
   const [dashLoadGaveUp, setDashLoadGaveUp] = useState(false);
   const [snapDash, setSnapDash] = useState<DashboardData | undefined>();
+  const [refreshShimmer, setRefreshShimmer] = useState(false);
+  const refreshShimmerStartedAt = useRef(0);
   useEffect(() => {
     void useDashboardFiltersStore.persist.rehydrate();
     setSnapDash(readBoardSnapshot()?.dashboard);
@@ -1109,9 +1137,6 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [queryData]);
   const data = queryData ?? snapDash;
-  const refreshDashboard = useCallback(() => {
-    window.location.reload();
-  }, []);
   const {
     invalidateDashboard,
     invalidateTemplates,
@@ -1120,6 +1145,48 @@ export default function HomePage() {
   } = useWorkshopClient();
   const jobActionMutation = useJobActionMutation();
   const queryClient = useQueryClient();
+
+  const startRefreshShimmer = useCallback(() => {
+    refreshShimmerStartedAt.current = Date.now();
+    setRefreshShimmer(true);
+  }, []);
+
+  const stopRefreshShimmer = useCallback(() => {
+    const elapsed = Date.now() - refreshShimmerStartedAt.current;
+    const wait = Math.max(0, REFRESH_SHIMMER_MIN_MS - elapsed);
+    window.setTimeout(() => setRefreshShimmer(false), wait);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isBrowserReloadNavigation()) return;
+    startRefreshShimmer();
+  }, [startRefreshShimmer]);
+
+  useEffect(() => {
+    if (!refreshShimmer) return;
+    if (dashboardFetching) return;
+    const elapsed = Date.now() - refreshShimmerStartedAt.current;
+    const wait = Math.max(0, REFRESH_SHIMMER_MIN_MS - elapsed);
+    const timer = setTimeout(() => setRefreshShimmer(false), wait);
+    return () => clearTimeout(timer);
+  }, [refreshShimmer, dashboardFetching, queryData]);
+
+  const refreshDashboard = useCallback(() => {
+    startRefreshShimmer();
+    void (async () => {
+      try {
+        await invalidateDashboard();
+        await queryClient.refetchQueries({
+          queryKey: queryKeys.dashboard,
+          type: "active",
+        });
+      } catch {
+        /* keep showing shimmer until min duration */
+      } finally {
+        stopRefreshShimmer();
+      }
+    })();
+  }, [invalidateDashboard, queryClient, startRefreshShimmer, stopRefreshShimmer]);
   const { data: masterTemplatesRes, isLoading: templatesMasterLoading } =
     useMasterTemplates(canTemplateRead && templatesModalOpen);
   const { data: activePrioritiesRes } = useJobPriorities(false, true);
@@ -5902,11 +5969,12 @@ export default function HomePage() {
   return (
     <>
       <BoardTopbar
-        busy={busy}
+        busy={busy || refreshShimmer}
         loggingOut={loggingOut}
         theme={theme}
         isLoggedIn={isLoggedIn}
         sessionPending={sessionPending}
+        refreshShimmer={refreshShimmer}
         sessionShimmerWithAlerts={sessionShimmerWithAlerts}
         showNavAlerts={showNavAlerts}
         userLevel={userLevel}
@@ -5961,12 +6029,13 @@ export default function HomePage() {
         </div>
       )}
 
-      {!data ? (
-        !dashLoadGaveUp &&
-        !snapDash &&
-        (!clientReady ||
-          dashboardFetching ||
-          (persistRestoring && !restoreGaveUp)) ? (
+      {refreshShimmer || !data ? (
+        refreshShimmer ||
+        (!dashLoadGaveUp &&
+          !snapDash &&
+          (!clientReady ||
+            dashboardFetching ||
+            (persistRestoring && !restoreGaveUp))) ? (
           <DashboardShimmer label={t("loading.dashboard")} />
         ) : (
           <p className="empty-state" style={{ padding: "24px 0", color: "var(--muted)" }}>

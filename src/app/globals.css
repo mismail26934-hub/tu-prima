@@ -36,7 +36,11 @@
   --glow-amber: color-mix(in srgb, var(--ds-yellow-80) 40%, transparent);
   --glow-pulse: color-mix(in srgb, var(--ds-yellow-80) 33%, transparent);
   --topbar-glass-bg: color-mix(in srgb, var(--ds-cloudy-130) 88%, transparent);
-  --topbar-glass-bg-strong: color-mix(in srgb, var(--ds-cloudy-130) 96%, transparent);
+  --topbar-glass-bg-strong: color-mix(
+    in srgb,
+    var(--ds-cloudy-130) 96%,
+    transparent
+  );
   --topbar-glass-border: color-mix(in srgb, var(--ds-white) 10%, transparent);
   --topbar-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   --topbar-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -119,8 +123,16 @@
   --glow-amber: color-mix(in srgb, var(--ds-yellow-80) 28%, transparent);
   --glow-pulse: color-mix(in srgb, var(--ds-yellow-80) 35%, transparent);
   --topbar-glass-bg: color-mix(in srgb, var(--ds-cloudy-0) 92%, transparent);
-  --topbar-glass-bg-strong: color-mix(in srgb, var(--ds-cloudy-0) 98%, transparent);
-  --topbar-glass-border: color-mix(in srgb, var(--ds-cloudy-120) 16%, transparent);
+  --topbar-glass-bg-strong: color-mix(
+    in srgb,
+    var(--ds-cloudy-0) 98%,
+    transparent
+  );
+  --topbar-glass-border: color-mix(
+    in srgb,
+    var(--ds-cloudy-120) 16%,
+    transparent
+  );
   --topbar-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   --topbar-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --remain-green-bg: var(--ds-green-90);
@@ -404,9 +416,8 @@ html.is-framed .topbar {
   width: auto;
   z-index: 110;
   padding: 0.375rem var(--ds-margin);
-  background: transparent;
-  border-bottom: 1px solid transparent;
-  box-shadow: none;
+  /* No background transition — Chrome drops backdrop-filter while it animates */
+  transition: none;
 }
 
 html.is-framed .brand-lockup {
@@ -422,18 +433,17 @@ html.is-framed .btn-primary:not(.btn-icon) {
   padding: 0 1rem;
 }
 
-/* Glass layer lives inside scaled frame — hide it; sticky topbar owns the scrolled look */
+/* Same as tu-rental/ARMOR: glass layer hidden; sticky topbar owns frosted look */
 html.is-framed .topbar-glass {
   display: none;
 }
 
-/* Framed: glass layer hidden; sticky topbar takes the scrolled frosted look (same as tu-rental) */
-html.is-framed.topbar-scrolled .topbar {
+/* Match ARMOR: unprefixed backdrop-filter only (LightningCSS was dropping it when -webkit was also present) */
+html.is-framed.topbar-scrolled .topbar,
+html.is-framed .topbar.is-scrolled {
   background: var(--topbar-glass-bg);
   border-bottom: 1px solid var(--topbar-glass-border);
   backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  box-shadow: none;
 }
 
 html.is-framed .app {
@@ -561,13 +571,10 @@ html.is-framed .nav-session-portal-menu {
   background: transparent;
   padding: clamp(0.25rem, 0.2vw + 0.2rem, 0.375rem) var(--ds-margin);
   border-bottom: 1px solid transparent;
-  transition:
-    border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    background-color 0.25s ease;
+  /* Do not transition background — it breaks backdrop-filter blur in Chromium */
 }
 
-/* Frosted glass layer — same as tu-rental / ARMOR (sibling of .topbar, not portaled) */
+/* Frosted glass layer — same as tu-rental / ARMOR */
 .topbar-glass {
   position: fixed;
   inset: 0 0 auto 0;
@@ -583,7 +590,6 @@ html.topbar-scrolled .topbar-glass,
   background: var(--topbar-glass-bg);
   border-bottom-color: var(--topbar-glass-border);
   backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 html.nav-header-pop-open .topbar-glass,
@@ -592,7 +598,6 @@ html.modal-open .topbar-glass {
   background: var(--topbar-glass-bg);
   border-bottom-color: var(--topbar-glass-border);
   backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 html[data-theme='light'] .topbar,
@@ -610,28 +615,21 @@ html[data-theme='light'].modal-open .topbar-glass {
   border-bottom-color: var(--topbar-glass-border);
 }
 
-.topbar.is-scrolled,
-html.topbar-scrolled .topbar {
-  border-bottom-color: transparent;
-  box-shadow: none;
-}
-
-html[data-theme='light'].is-framed.topbar-scrolled .topbar {
+html[data-theme='light'].is-framed.topbar-scrolled .topbar,
+html[data-theme='light'].is-framed .topbar.is-scrolled {
   background: var(--topbar-glass-bg);
   border-bottom: 1px solid var(--topbar-glass-border);
   backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
-@supports not (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
+@supports not (backdrop-filter: blur(1px)) {
   html.topbar-scrolled .topbar-glass,
   .topbar-glass.is-scrolled,
   html.nav-header-pop-open .topbar-glass,
   html.menu-open .topbar-glass,
   html.modal-open .topbar-glass,
-  html.is-framed.topbar-scrolled .topbar {
+  html.is-framed.topbar-scrolled .topbar,
+  html.is-framed .topbar.is-scrolled {
     background: var(--topbar-glass-bg-strong);
   }
 }
@@ -4868,7 +4866,9 @@ html[data-theme='light'] .panel-filter select:disabled,
 html[data-theme='light'] .handover-input:disabled,
 html[data-theme='light'] .handover-select:disabled,
 html[data-theme='light'] .handover-to-trigger:disabled,
-html[data-theme='light'] .searchable-select.is-disabled .searchable-select-trigger {
+html[data-theme='light']
+  .searchable-select.is-disabled
+  .searchable-select-trigger {
   background-color: var(--ds-ui-disabled-bg);
   color: var(--ds-text-subtle);
 }
@@ -6460,10 +6460,69 @@ html.offline-sheet-open {
 }
 
 .shimmer-block--nav-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
+  width: var(--ctrl-size);
+  height: var(--ctrl-size);
+  border-radius: var(--ctrl-radius);
   flex-shrink: 0;
+}
+
+.shimmer-block--nav-btn {
+  width: 5.5rem;
+  height: var(--ctrl-size);
+  border-radius: var(--ctrl-radius);
+  flex-shrink: 0;
+}
+
+.shimmer-block--nav-btn-wide {
+  width: 6.5rem;
+}
+
+.shimmer-block--nav-account {
+  width: 7.5rem;
+  height: var(--ctrl-size);
+  border-radius: var(--ctrl-radius);
+  flex-shrink: 0;
+}
+
+.shimmer-block--nav-sync {
+  width: 5.5rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.nav-refresh-shimmer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nav-refresh-shimmer-bar,
+.nav-refresh-shimmer-mobile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.nav-refresh-shimmer-mobile {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .nav-refresh-shimmer-bar {
+    display: none;
+  }
+
+  .nav-refresh-shimmer-mobile {
+    display: flex;
+  }
+
+  .shimmer-block--nav-sync {
+    display: none;
+  }
 }
 
 .shimmer-block--nav-name {
@@ -6597,7 +6656,6 @@ html.offline-sheet-open {
   background: var(--topbar-glass-bg);
   border-bottom: 1px solid var(--topbar-glass-border);
   backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .active-job-slider-duration {

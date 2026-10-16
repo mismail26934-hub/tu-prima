@@ -18,6 +18,8 @@ type BoardTopbarProps = {
   theme: 'light' | 'dark';
   isLoggedIn: boolean;
   sessionPending: boolean;
+  /** Full navbar action shimmer on page refresh (logo stays visible). */
+  refreshShimmer?: boolean;
   sessionShimmerWithAlerts: boolean;
   showNavAlerts: boolean;
   userLevel: UserLevel | string;
@@ -82,6 +84,35 @@ function NavAccountShimmer({
         </span>
         <ShimmerBlock className='shimmer-block--nav-avatar' />
       </span>
+    </div>
+  );
+}
+
+function NavBarRefreshShimmer({ label }: { label: string }) {
+  return (
+    <div
+      className='nav-refresh-shimmer'
+      role='status'
+      aria-live='polite'
+      aria-busy='true'
+    >
+      <span className='sr-only'>{label}</span>
+      <div className='nav-refresh-shimmer-bar' aria-hidden='true'>
+        <ShimmerBlock className='shimmer-block--nav-btn shimmer-block--nav-btn-wide' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-btn' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-account' />
+      </div>
+      <div className='nav-refresh-shimmer-mobile' aria-hidden='true'>
+        <ShimmerBlock className='shimmer-block--nav-btn' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+        <ShimmerBlock className='shimmer-block--nav-icon' />
+      </div>
     </div>
   );
 }
@@ -213,6 +244,7 @@ export function BoardTopbar({
   theme,
   isLoggedIn,
   sessionPending,
+  refreshShimmer = false,
   sessionShimmerWithAlerts,
   showNavAlerts,
   userLevel,
@@ -265,21 +297,24 @@ export function BoardTopbar({
     const el = topbarRef.current;
     if (!el) return;
     let lastHeight = -1;
+    let scrollEl: HTMLElement | null = null;
     const scroller = () =>
       document.querySelector<HTMLElement>('.app-stage.is-framed .app-scroll');
     const sync = () => {
       const box = el.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const bottom = Math.ceil(box.bottom);
-      const scrollY =
-        scroller()?.scrollTop ??
-        window.scrollY ??
-        document.documentElement.scrollTop ??
-        document.body.scrollTop ??
-        0;
-      el.classList.toggle('is-scrolled', scrollY > 4);
-      document.documentElement.classList.toggle('topbar-scrolled', scrollY > 4);
-      setScrolled(scrollY > 4);
+      const framedScroller = scroller();
+      const scrollY = framedScroller
+        ? framedScroller.scrollTop
+        : (window.scrollY ??
+          document.documentElement.scrollTop ??
+          document.body.scrollTop ??
+          0);
+      const isScrolled = scrollY > 4;
+      el.classList.toggle('is-scrolled', isScrolled);
+      document.documentElement.classList.toggle('topbar-scrolled', isScrolled);
+      setScrolled(isScrolled);
       if (height !== lastHeight) {
         lastHeight = height;
         document.documentElement.style.setProperty(
@@ -292,15 +327,28 @@ export function BoardTopbar({
         `${bottom + 8}px`
       );
     };
+    const bindFramedScroll = () => {
+      const next = scroller();
+      if (next === scrollEl) return;
+      scrollEl?.removeEventListener('scroll', sync);
+      scrollEl = next;
+      scrollEl?.addEventListener('scroll', sync, { passive: true });
+      sync();
+    };
     sync();
+    bindFramedScroll();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
-    const scrollEl = scroller();
-    scrollEl?.addEventListener('scroll', sync, { passive: true });
+    const mo = new MutationObserver(bindFramedScroll);
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, { passive: true });
     return () => {
       ro.disconnect();
+      mo.disconnect();
       scrollEl?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
       window.removeEventListener('scroll', sync);
@@ -361,6 +409,14 @@ export function BoardTopbar({
       setMobileMenuOpen(false);
     }
   }, [modalOpen]);
+
+  useEffect(() => {
+    if (!refreshShimmer) return;
+    setManageOpen(false);
+    setSessionOpen(false);
+    setMobileMenuOpen(false);
+    setSheetAccountOpen(false);
+  }, [refreshShimmer]);
 
   useEffect(() => {
     function onPop(e: Event) {
@@ -524,7 +580,7 @@ export function BoardTopbar({
 
   return (
     <>
-      {/* Sibling glass layer (same as tu-rental) — not portaled, so framed hide + sticky blur match ARMOR */}
+      {/* Sibling glass layer (same as tu-rental/ARMOR) — sticky topbar owns blur when framed */}
       <div
         className={`topbar-glass${scrolled ? ' is-scrolled' : ''}`}
         aria-hidden='true'
@@ -536,7 +592,10 @@ export function BoardTopbar({
           setSessionOpen(false);
         }}
       />
-      <header className='topbar' ref={topbarRef}>
+      <header
+        className={`topbar${scrolled ? ' is-scrolled' : ''}`}
+        ref={topbarRef}
+      >
         <div className='brand-row'>
           <Link className='brand-lockup' href='/' aria-label={t('app.title')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -552,306 +611,323 @@ export function BoardTopbar({
               <span className='brand-tagline'>{t('brand.tagline')}</span>
             </span>
           </Link>
-          <OfflineSyncChip onRefresh={onRefresh} refreshBusy={busy} />
+          {refreshShimmer ? (
+            <ShimmerBlock className='shimmer-block--nav-sync' />
+          ) : (
+            <OfflineSyncChip onRefresh={onRefresh} refreshBusy={busy} />
+          )}
         </div>
         <div className='top-actions'>
-          <div className='top-actions-panel top-actions-panel--bar'>
-            <div
-              className={`nav-manage${manageOpen ? ' is-open' : ''}`}
-              ref={manageRef}
-            >
-              <button
-                className='btn'
-                type='button'
-                disabled={busy}
-                aria-haspopup='menu'
-                aria-expanded={manageOpen}
-                onClick={() => {
-                  setSessionOpen(false);
-                  const next = !manageOpen;
-                  if (next) {
-                    window.dispatchEvent(
-                      new CustomEvent('prima-header-pop', { detail: 'manage' })
-                    );
-                  }
-                  setManageOpen(next);
-                }}
-              >
-                {t('nav.manage')}
-                <svg
-                  className='nav-manage-caret'
-                  width='12'
-                  height='12'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  aria-hidden='true'
+          {refreshShimmer ? (
+            <NavBarRefreshShimmer label={t('loading.dashboard')} />
+          ) : (
+            <>
+              <div className='top-actions-panel top-actions-panel--bar'>
+                <div
+                  className={`nav-manage${manageOpen ? ' is-open' : ''}`}
+                  ref={manageRef}
                 >
-                  <path d='M6 9l6 6 6-6' />
-                </svg>
-              </button>
-              {manageOpen && (
-                <div className='nav-manage-menu' role='menu'>
-                  {manageItems}
+                  <button
+                    className='btn'
+                    type='button'
+                    disabled={busy}
+                    aria-haspopup='menu'
+                    aria-expanded={manageOpen}
+                    onClick={() => {
+                      setSessionOpen(false);
+                      const next = !manageOpen;
+                      if (next) {
+                        window.dispatchEvent(
+                          new CustomEvent('prima-header-pop', {
+                            detail: 'manage',
+                          })
+                        );
+                      }
+                      setManageOpen(next);
+                    }}
+                  >
+                    {t('nav.manage')}
+                    <svg
+                      className='nav-manage-caret'
+                      width='12'
+                      height='12'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2.5'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      aria-hidden='true'
+                    >
+                      <path d='M6 9l6 6 6-6' />
+                    </svg>
+                  </button>
+                  {manageOpen && (
+                    <div className='nav-manage-menu' role='menu'>
+                      {manageItems}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <button
-              className='btn btn-icon'
-              disabled={busy}
-              type='button'
-              onClick={onRefresh}
-              aria-label={t('nav.refresh')}
-              title={t('nav.refresh')}
-            >
-              <RefreshIcon />
-            </button>
-            <LanguageToggle />
-            <button
-              className='btn btn-icon'
-              type='button'
-              onClick={onToggleTheme}
-              aria-label={
-                theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')
-              }
-              title={theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')}
-            >
-              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-            </button>
-            <button
-              className='btn btn-primary'
-              disabled={busy || !canJobCreate}
-              onClick={onNewJob}
-            >
-              {t('nav.newJob')}
-            </button>
-            <div className='nav-end'>
-              {sessionPending ? (
-                <NavAccountShimmer
-                  label={t('nav.accountLoading')}
-                  withAlerts={sessionShimmerWithAlerts}
-                />
-              ) : (
-                <>
-                  {isLoggedIn ? (
-                    <RemainAlertMuteToggle
-                      onBeforeOpen={() => {
-                        setManageOpen(false);
-                        setSessionOpen(false);
-                      }}
+                <button
+                  className='btn btn-icon'
+                  disabled={busy}
+                  type='button'
+                  onClick={onRefresh}
+                  aria-label={t('nav.refresh')}
+                  title={t('nav.refresh')}
+                >
+                  <RefreshIcon />
+                </button>
+                <LanguageToggle />
+                <button
+                  className='btn btn-icon'
+                  type='button'
+                  onClick={onToggleTheme}
+                  aria-label={
+                    theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')
+                  }
+                  title={
+                    theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')
+                  }
+                >
+                  {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                </button>
+                <button
+                  className='btn btn-primary'
+                  disabled={busy || !canJobCreate}
+                  onClick={onNewJob}
+                >
+                  {t('nav.newJob')}
+                </button>
+                <div className='nav-end'>
+                  {sessionPending ? (
+                    <NavAccountShimmer
+                      label={t('nav.accountLoading')}
+                      withAlerts={sessionShimmerWithAlerts}
                     />
-                  ) : null}
+                  ) : (
+                    <>
+                      {isLoggedIn ? (
+                        <RemainAlertMuteToggle
+                          onBeforeOpen={() => {
+                            setManageOpen(false);
+                            setSessionOpen(false);
+                          }}
+                        />
+                      ) : null}
+                      <NavAlerts
+                        enabled={showNavAlerts}
+                        onBeforeOpen={() => {
+                          setManageOpen(false);
+                          setSessionOpen(false);
+                        }}
+                        onOpenJob={(jobId, kind) => {
+                          setManageOpen(false);
+                          setSessionOpen(false);
+                          onOpenJob(jobId, kind);
+                        }}
+                      />
+                      <div className='nav-session'>
+                        {isLoggedIn ? (
+                          <div
+                            className={`nav-session-menu${sessionOpen ? ' is-open' : ''}`}
+                            ref={sessionRef}
+                          >
+                            <button
+                              className='btn nav-account'
+                              type='button'
+                              disabled={busy || loggingOut}
+                              aria-label={t('nav.accountMenu')}
+                              aria-haspopup='menu'
+                              aria-expanded={sessionOpen}
+                              title={`${displayName} · ${userLevel}`}
+                              onClick={() => {
+                                setManageOpen(false);
+                                const next = !sessionOpen;
+                                if (next) {
+                                  window.dispatchEvent(
+                                    new CustomEvent('prima-header-pop', {
+                                      detail: 'session',
+                                    })
+                                  );
+                                  const el = sessionRef.current;
+                                  if (el) {
+                                    const box = el.getBoundingClientRect();
+                                    setSessionMenuPos({
+                                      top: Math.round(box.bottom + 6),
+                                      right: Math.round(
+                                        window.innerWidth - box.right
+                                      ),
+                                    });
+                                  }
+                                } else {
+                                  setSessionMenuPos(null);
+                                }
+                                setSessionOpen(next);
+                              }}
+                            >
+                              <span className='nav-user'>
+                                <span className='nav-user-name'>
+                                  {displayNameShort}
+                                </span>
+                                <span className='nav-user-level'>
+                                  {userLevel}
+                                </span>
+                              </span>
+                              <AccountAvatar url={avatarUrl} size={28} />
+                            </button>
+                            {sessionOpen &&
+                              portalReady &&
+                              sessionMenuPos &&
+                              createPortal(
+                                <div
+                                  className='nav-manage-menu nav-session-portal-menu'
+                                  role='menu'
+                                  style={{
+                                    top: sessionMenuPos.top,
+                                    right: sessionMenuPos.right,
+                                  }}
+                                >
+                                  <button
+                                    type='button'
+                                    role='menuitem'
+                                    className='nav-manage-item'
+                                    disabled={busy || loggingOut}
+                                    onClick={() => {
+                                      closeMenu();
+                                      void onEditProfile();
+                                    }}
+                                  >
+                                    {t('nav.editProfile')}
+                                  </button>
+                                  <button
+                                    type='button'
+                                    role='menuitem'
+                                    className='nav-manage-item'
+                                    disabled={busy || loggingOut}
+                                    onClick={() => {
+                                      closeMenu();
+                                      onChangePassword();
+                                    }}
+                                  >
+                                    {t('nav.editPassword')}
+                                  </button>
+                                  <button
+                                    type='button'
+                                    role='menuitem'
+                                    className='nav-manage-item'
+                                    disabled={busy || loggingOut}
+                                    onClick={() => {
+                                      closeMenu();
+                                      onLogout();
+                                    }}
+                                  >
+                                    {t('nav.logout')}
+                                  </button>
+                                </div>,
+                                document.body
+                              )}
+                          </div>
+                        ) : (
+                          <button
+                            className='btn'
+                            disabled={busy || loggingOut}
+                            onClick={onLogin}
+                          >
+                            {t('nav.login')}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className='top-actions-mobile'>
+                <button
+                  className='btn btn-primary'
+                  disabled={busy || !canJobCreate}
+                  onClick={onNewJob}
+                >
+                  {t('nav.newJobShort')}
+                </button>
+                <button
+                  className='btn btn-icon'
+                  type='button'
+                  disabled={busy}
+                  onClick={onRefresh}
+                  aria-label={t('nav.refresh')}
+                  title={t('nav.refresh')}
+                >
+                  <RefreshIcon />
+                </button>
+                {sessionPending ? (
+                  sessionShimmerWithAlerts ? (
+                    <ShimmerBlock className='shimmer-block--nav-icon' />
+                  ) : null
+                ) : (
                   <NavAlerts
                     enabled={showNavAlerts}
                     onBeforeOpen={() => {
-                      setManageOpen(false);
                       setSessionOpen(false);
+                      setMobileMenuOpen(false);
                     }}
                     onOpenJob={(jobId, kind) => {
-                      setManageOpen(false);
-                      setSessionOpen(false);
+                      setMobileMenuOpen(false);
                       onOpenJob(jobId, kind);
                     }}
                   />
-                  <div className='nav-session'>
-                    {isLoggedIn ? (
-                      <div
-                        className={`nav-session-menu${sessionOpen ? ' is-open' : ''}`}
-                        ref={sessionRef}
-                      >
-                        <button
-                          className='btn nav-account'
-                          type='button'
-                          disabled={busy || loggingOut}
-                          aria-label={t('nav.accountMenu')}
-                          aria-haspopup='menu'
-                          aria-expanded={sessionOpen}
-                          title={`${displayName} · ${userLevel}`}
-                          onClick={() => {
-                            setManageOpen(false);
-                            const next = !sessionOpen;
-                            if (next) {
-                              window.dispatchEvent(
-                                new CustomEvent('prima-header-pop', {
-                                  detail: 'session',
-                                })
-                              );
-                              const el = sessionRef.current;
-                              if (el) {
-                                const box = el.getBoundingClientRect();
-                                setSessionMenuPos({
-                                  top: Math.round(box.bottom + 6),
-                                  right: Math.round(
-                                    window.innerWidth - box.right
-                                  ),
-                                });
-                              }
-                            } else {
-                              setSessionMenuPos(null);
-                            }
-                            setSessionOpen(next);
-                          }}
-                        >
-                          <span className='nav-user'>
-                            <span className='nav-user-name'>
-                              {displayNameShort}
-                            </span>
-                            <span className='nav-user-level'>{userLevel}</span>
-                          </span>
-                          <AccountAvatar url={avatarUrl} size={28} />
-                        </button>
-                        {sessionOpen &&
-                          portalReady &&
-                          sessionMenuPos &&
-                          createPortal(
-                            <div
-                              className='nav-manage-menu nav-session-portal-menu'
-                              role='menu'
-                              style={{
-                                top: sessionMenuPos.top,
-                                right: sessionMenuPos.right,
-                              }}
-                            >
-                              <button
-                                type='button'
-                                role='menuitem'
-                                className='nav-manage-item'
-                                disabled={busy || loggingOut}
-                                onClick={() => {
-                                  closeMenu();
-                                  void onEditProfile();
-                                }}
-                              >
-                                {t('nav.editProfile')}
-                              </button>
-                              <button
-                                type='button'
-                                role='menuitem'
-                                className='nav-manage-item'
-                                disabled={busy || loggingOut}
-                                onClick={() => {
-                                  closeMenu();
-                                  onChangePassword();
-                                }}
-                              >
-                                {t('nav.editPassword')}
-                              </button>
-                              <button
-                                type='button'
-                                role='menuitem'
-                                className='nav-manage-item'
-                                disabled={busy || loggingOut}
-                                onClick={() => {
-                                  closeMenu();
-                                  onLogout();
-                                }}
-                              >
-                                {t('nav.logout')}
-                              </button>
-                            </div>,
-                            document.body
-                          )}
-                      </div>
-                    ) : (
-                      <button
-                        className='btn'
-                        disabled={busy || loggingOut}
-                        onClick={onLogin}
-                      >
-                        {t('nav.login')}
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className='top-actions-mobile'>
-            <button
-              className='btn btn-primary'
-              disabled={busy || !canJobCreate}
-              onClick={onNewJob}
-            >
-              {t('nav.newJobShort')}
-            </button>
-            <button
-              className='btn btn-icon'
-              type='button'
-              disabled={busy}
-              onClick={onRefresh}
-              aria-label={t('nav.refresh')}
-              title={t('nav.refresh')}
-            >
-              <RefreshIcon />
-            </button>
-            {sessionPending ? (
-              sessionShimmerWithAlerts ? (
-                <ShimmerBlock className='shimmer-block--nav-icon' />
-              ) : null
-            ) : (
-              <NavAlerts
-                enabled={showNavAlerts}
-                onBeforeOpen={() => {
-                  setSessionOpen(false);
-                  setMobileMenuOpen(false);
-                }}
-                onOpenJob={(jobId, kind) => {
-                  setMobileMenuOpen(false);
-                  onOpenJob(jobId, kind);
-                }}
-              />
-            )}
-            <button
-              className='btn btn-icon top-menu-toggle'
-              type='button'
-              aria-label={
-                mobileMenuOpen ? t('nav.closeMenu') : t('nav.openMenu')
-              }
-              aria-expanded={mobileMenuOpen}
-              onClick={() => {
-                window.dispatchEvent(
-                  new CustomEvent('prima-header-pop', { detail: 'menu' })
-                );
-                setMobileMenuOpen((o) => !o);
-              }}
-            >
-              {mobileMenuOpen ? (
-                <svg
-                  width='18'
-                  height='18'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2'
-                  strokeLinecap='round'
-                  aria-hidden='true'
+                )}
+                <button
+                  className='btn btn-icon top-menu-toggle'
+                  type='button'
+                  aria-label={
+                    mobileMenuOpen ? t('nav.closeMenu') : t('nav.openMenu')
+                  }
+                  aria-expanded={mobileMenuOpen}
+                  onClick={() => {
+                    window.dispatchEvent(
+                      new CustomEvent('prima-header-pop', { detail: 'menu' })
+                    );
+                    setMobileMenuOpen((o) => !o);
+                  }}
                 >
-                  <path d='M6 6l12 12M18 6L6 18' />
-                </svg>
-              ) : (
-                <svg
-                  width='18'
-                  height='18'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2'
-                  strokeLinecap='round'
-                  aria-hidden='true'
-                >
-                  <path d='M4 7h16M4 12h16M4 17h16' />
-                </svg>
-              )}
-            </button>
-          </div>
+                  {mobileMenuOpen ? (
+                    <svg
+                      width='18'
+                      height='18'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      aria-hidden='true'
+                    >
+                      <path d='M6 6l12 12M18 6L6 18' />
+                    </svg>
+                  ) : (
+                    <svg
+                      width='18'
+                      height='18'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      aria-hidden='true'
+                    >
+                      <path d='M4 7h16M4 12h16M4 17h16' />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
-      {mobileMenuOpen &&
+      {!refreshShimmer &&
+        mobileMenuOpen &&
         portalReady &&
         createPortal(
           <>
@@ -942,9 +1018,7 @@ export function BoardTopbar({
                 >
                   {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                 </button>
-                {isLoggedIn ? (
-                  <RemainAlertMuteToggle variant='menu' />
-                ) : null}
+                {isLoggedIn ? <RemainAlertMuteToggle variant='menu' /> : null}
               </div>
               <p className='nav-menu-label'>{t('nav.manage')}</p>
               <div className='nav-sheet-list' role='menu'>

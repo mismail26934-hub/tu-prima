@@ -534,6 +534,12 @@ html.is-framed .nav-session-portal-menu {
   color: var(--muted);
 }
 
+.login-card .form > .btn,
+.login-card .form > button[type='submit'] {
+  width: 100%;
+  margin-top: 4px;
+}
+
 @media (max-width: 720px) {
   .app {
     padding: 16px var(--ds-margin) calc(28px + env(safe-area-inset-bottom, 0px));
@@ -1700,12 +1706,17 @@ html[data-theme='light'] .remain-alert-field select {
   box-shadow: none;
 }
 
+/* Figma DS Button Size=lg — 52×, radius 8, type 16/24 Bold */
 .btn-lg {
   height: 52px;
+  min-height: 52px;
+  max-height: 52px;
+  padding: 0 16px;
   border-radius: 8px;
   font-size: var(--ds-btn-md-size);
   line-height: var(--ds-btn-md-line);
   font-weight: var(--ds-btn-weight);
+  letter-spacing: var(--ds-btn-tracking);
 }
 
 .btn-sm {

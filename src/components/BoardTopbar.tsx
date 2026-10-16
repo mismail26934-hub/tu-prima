@@ -790,35 +790,20 @@ export function BoardTopbar({
             </button>
             {sessionPending ? (
               sessionShimmerWithAlerts ? (
-                <span className='nav-session-shimmer' aria-hidden='true'>
-                  <ShimmerBlock className='shimmer-block--nav-icon' />
-                  <ShimmerBlock className='shimmer-block--nav-icon' />
-                </span>
-              ) : (
                 <ShimmerBlock className='shimmer-block--nav-icon' />
-              )
+              ) : null
             ) : (
-              <>
-                {isLoggedIn ? (
-                  <RemainAlertMuteToggle
-                    onBeforeOpen={() => {
-                      setSessionOpen(false);
-                      setMobileMenuOpen(false);
-                    }}
-                  />
-                ) : null}
-                <NavAlerts
-                  enabled={showNavAlerts}
-                  onBeforeOpen={() => {
-                    setSessionOpen(false);
-                    setMobileMenuOpen(false);
-                  }}
-                  onOpenJob={(jobId, kind) => {
-                    setMobileMenuOpen(false);
-                    onOpenJob(jobId, kind);
-                  }}
-                />
-              </>
+              <NavAlerts
+                enabled={showNavAlerts}
+                onBeforeOpen={() => {
+                  setSessionOpen(false);
+                  setMobileMenuOpen(false);
+                }}
+                onOpenJob={(jobId, kind) => {
+                  setMobileMenuOpen(false);
+                  onOpenJob(jobId, kind);
+                }}
+              />
             )}
             <button
               className='btn btn-icon top-menu-toggle'
@@ -958,6 +943,9 @@ export function BoardTopbar({
                   {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                 </button>
               </div>
+              {isLoggedIn ? (
+                <RemainAlertMuteToggle variant='menu' />
+              ) : null}
               <p className='nav-menu-label'>{t('nav.manage')}</p>
               <div className='nav-sheet-list' role='menu'>
                 {manageItems}

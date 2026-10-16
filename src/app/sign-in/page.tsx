@@ -152,7 +152,7 @@ function LoginForm() {
             </div>
           )}
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-lg"
             disabled={busy || locked}
             type="submit"
           >

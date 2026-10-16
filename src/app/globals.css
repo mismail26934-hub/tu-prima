@@ -2076,6 +2076,7 @@ html[data-theme='light'] .remain-alert-field select {
   font-weight: var(--ds-title-page-weight);
   line-height: var(--ds-title-page-line);
   letter-spacing: var(--ds-title-page-tracking);
+  text-transform: uppercase;
 }
 
 .panel-head {

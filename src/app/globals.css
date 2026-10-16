@@ -4209,11 +4209,21 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 @media (max-width: 720px) {
+  /* Smaller than navbar (--ctrl-size) */
   .step-note-btn,
   .step-photo-btn,
   .step-pause-btn {
-    width: 36px;
-    height: 36px;
+    width: var(--ctrl-size-table);
+    height: var(--ctrl-size-table);
+    min-width: var(--ctrl-size-table);
+    min-height: var(--ctrl-size-table);
+  }
+
+  .step-note-btn svg,
+  .step-photo-btn svg,
+  .step-pause-btn svg {
+    width: 14px;
+    height: 14px;
   }
 }
 
@@ -4456,8 +4466,25 @@ html[data-theme='light'] .job-priority-pill--custom {
   }
 
   .steps .step-actions .btn-step {
-    min-height: 36px;
-    padding: 8px 12px;
+    height: var(--ctrl-size-table);
+    min-height: var(--ctrl-size-table);
+    max-height: var(--ctrl-size-table);
+    padding: 0 8px;
+    font-size: var(--ds-btn-xs-size);
+    line-height: var(--ds-btn-xs-line);
+    border-radius: 6px;
+  }
+
+  .job .actions .btn,
+  .actions-spread .btn,
+  .actions-spread .step-batch .btn {
+    height: var(--ctrl-size-table);
+    min-height: var(--ctrl-size-table);
+    max-height: var(--ctrl-size-table);
+    padding: 0 10px;
+    font-size: var(--ds-btn-xs-size);
+    line-height: var(--ds-btn-xs-line);
+    border-radius: 6px;
   }
 
   .actions-spread {
@@ -4500,14 +4527,20 @@ html[data-theme='light'] .job-priority-pill--custom {
   }
 
   .steps .step-actions .btn-step {
-    min-height: 36px;
-    padding: 8px 12px;
+    height: var(--ctrl-size-table);
+    min-height: var(--ctrl-size-table);
+    max-height: var(--ctrl-size-table);
+    padding: 0 8px;
+    font-size: var(--ds-btn-xs-size);
+    line-height: var(--ds-btn-xs-line);
+    border-radius: 6px;
   }
 }
 
 .btn-step {
-  height: auto;
+  height: var(--ctrl-size-table);
   min-height: var(--ctrl-size-table);
+  max-height: var(--ctrl-size-table);
   padding: 0 8px;
   font-size: var(--ds-btn-xs-size);
   line-height: var(--ds-btn-xs-line);
@@ -6926,10 +6959,29 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
     font-size: var(--ds-title-page-size);
   }
 
-  .pager-nav,
+  /* Smaller than navbar (--ctrl-size); table-scale control */
+  .pager-nav {
+    width: var(--ctrl-size-table);
+    height: var(--ctrl-size-table);
+    min-width: var(--ctrl-size-table);
+    min-height: var(--ctrl-size-table);
+    max-height: var(--ctrl-size-table);
+    padding: 0 !important;
+    border-radius: 6px;
+  }
+
   .pager-page {
-    min-height: 40px;
-    min-width: 40px;
-    height: 40px;
+    height: var(--ctrl-size-table);
+    min-height: var(--ctrl-size-table);
+    max-height: var(--ctrl-size-table);
+    min-width: var(--ctrl-size-table);
+    padding: 0 4px !important;
+    font-size: var(--ds-btn-xs-size) !important;
+    border-radius: 6px;
+  }
+
+  .pager-ellipsis {
+    line-height: var(--ctrl-size-table);
+    font-size: var(--ds-btn-xs-size);
   }
 }

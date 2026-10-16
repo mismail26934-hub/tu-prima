@@ -4772,7 +4772,7 @@ export default function HomePage() {
           <div className="step-mode-toggle" role="group" aria-label="Mode step">
             <button
               type="button"
-              className={`btn btn-mode${getStepMode(job.id) === "sequential" ? " is-active" : ""}`}
+              className={`btn btn-xs btn-mode${getStepMode(job.id) === "sequential" ? " is-active" : ""}`}
               disabled={busy}
               onClick={() => setStepMode(job.id, "sequential")}
             >
@@ -4780,7 +4780,7 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              className={`btn btn-mode${getStepMode(job.id) === "parallel" ? " is-active" : ""}`}
+              className={`btn btn-xs btn-mode${getStepMode(job.id) === "parallel" ? " is-active" : ""}`}
               disabled={busy}
               onClick={() => setStepMode(job.id, "parallel")}
             >
@@ -5058,7 +5058,7 @@ export default function HomePage() {
                     canCompleteForStep(job, s) && (
                       <span className="step-actions">
                         <button
-                          className="btn btn-step btn-primary"
+                          className="btn btn-xs btn-step btn-primary"
                           disabled={busy}
                           onClick={() => {
                             initStepTechnicianIds(job, s);
@@ -6075,7 +6075,9 @@ export default function HomePage() {
                     <StatIcon kind="available" />
                   </span>
                   <div className="stat-body">
-                    <div className="label">{t("summary.available")}</div>
+                    <div className="label" title={t("summary.available")}>
+                      {t("summary.available")}
+                    </div>
                     <div className="value">{data.summary.available}</div>
                   </div>
                 </div>
@@ -6084,7 +6086,9 @@ export default function HomePage() {
                     <StatIcon kind="busy" />
                   </span>
                   <div className="stat-body">
-                    <div className="label">{t("summary.busy")}</div>
+                    <div className="label" title={t("summary.busy")}>
+                      {t("summary.busy")}
+                    </div>
                     <div className="value">{data.summary.busy}</div>
                   </div>
                 </div>
@@ -6093,7 +6097,9 @@ export default function HomePage() {
                     <StatIcon kind="offline" />
                   </span>
                   <div className="stat-body">
-                    <div className="label">{t("summary.offline")}</div>
+                    <div className="label" title={t("summary.offline")}>
+                      {t("summary.offline")}
+                    </div>
                     <div className="value">{data.summary.offline}</div>
                   </div>
                 </div>
@@ -6107,7 +6113,9 @@ export default function HomePage() {
                     <StatIcon kind="active" />
                   </span>
                   <div className="stat-body">
-                    <div className="label">{t("summary.activeJobs")}</div>
+                    <div className="label" title={t("summary.activeJobs")}>
+                      {t("summary.activeJobs")}
+                    </div>
                     <div className="value">{data.summary.active_jobs}</div>
                   </div>
                 </div>
@@ -6116,7 +6124,9 @@ export default function HomePage() {
                     <StatIcon kind="queue" />
                   </span>
                   <div className="stat-body">
-                    <div className="label">{t("summary.queue")}</div>
+                    <div className="label" title={t("summary.queue")}>
+                      {t("summary.queue")}
+                    </div>
                     <div className="value">{data.summary.queued_jobs}</div>
                   </div>
                 </div>
@@ -6125,7 +6135,9 @@ export default function HomePage() {
                     <StatIcon kind="done" />
                   </span>
                   <div className="stat-body">
-                    <div className="label">{t("summary.completed")}</div>
+                    <div className="label" title={t("summary.completed")}>
+                      {t("summary.completed")}
+                    </div>
                     <div className="value">{data.summary.completed_jobs}</div>
                   </div>
                 </div>

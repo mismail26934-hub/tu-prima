@@ -212,6 +212,23 @@ html[data-theme='light'] .panel-head h2 {
   font-weight: var(--ds-title-page-weight);
 }
 
+html[data-theme='light'] .login-card h1,
+html[data-theme='light'] .modal h3,
+html[data-theme='light'] .modal-header h3,
+html[data-theme='light'] .master-head h3,
+html[data-theme='light'] .import-preview-head h3 {
+  font-weight: var(--ds-title-lg-weight);
+  color: var(--ds-ink);
+}
+
+html[data-theme='light'] .form label,
+html[data-theme='light'] .form .field,
+html[data-theme='light'] .form .field-label,
+html[data-theme='light'] .panel-vis-label {
+  color: var(--ds-text-neutral);
+  font-weight: var(--ds-label-weight);
+}
+
 html[data-theme='light'] .stat .value,
 html[data-theme='light'] .tech .name {
   font-weight: 700;
@@ -1846,10 +1863,12 @@ html[data-theme='light'] .remain-alert-field select {
 
 .summary-title {
   margin: 0 0 8px;
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: 1.15rem;
-  letter-spacing: 0.08em;
-  font-weight: 400;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-page-size);
+  font-weight: var(--ds-title-page-weight);
+  line-height: var(--ds-title-page-line);
+  letter-spacing: var(--ds-title-page-tracking);
+  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -1910,22 +1929,24 @@ html[data-theme='light'] .remain-alert-field select {
 
 .stat .label {
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: var(--ds-label-xs-size);
+  font-weight: var(--ds-label-weight);
+  line-height: var(--ds-label-xs-line);
+  letter-spacing: 0;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  line-height: 1.25;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .stat .value {
-  font-family: var(--font-display), Impact, sans-serif;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
   font-size: 1.75rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+  margin-top: 0;
 }
 
 .stat--available {
@@ -1977,7 +1998,6 @@ html[data-theme='light'] .remain-alert-field select {
 
   .stat .label {
     font-size: 0.66rem;
-    letter-spacing: 0.03em;
   }
 
   .stat .value {
@@ -2024,8 +2044,8 @@ html[data-theme='light'] .remain-alert-field select {
 
   .stat .label {
     font-size: 0.62rem;
-    letter-spacing: 0.04em;
-    font-weight: 800;
+    font-weight: var(--ds-label-weight);
+    letter-spacing: 0;
     line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
@@ -2097,12 +2117,15 @@ html[data-theme='light'] .remain-alert-field select {
   box-sizing: border-box;
 }
 
-.panel h2 {
+/* DS Typography Title — section heads outside tables (same as tu-rental) */
+.panel h2,
+.panel-head h2 {
   margin: 0 0 14px;
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: 1.55rem;
-  letter-spacing: 0.06em;
-  font-weight: 400;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-page-size);
+  font-weight: var(--ds-title-page-weight);
+  line-height: var(--ds-title-page-line);
+  letter-spacing: var(--ds-title-page-tracking);
 }
 
 .panel-head {
@@ -2137,8 +2160,11 @@ html[data-theme='light'] .remain-alert-field select {
 
 .panel-vis-label {
   color: var(--muted);
-  font-size: 0.82rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-label-xs-size);
+  font-weight: var(--ds-label-weight);
+  line-height: var(--ds-label-xs-line);
+  letter-spacing: 0;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -2260,6 +2286,10 @@ html[data-theme='light'] .remain-alert-field select {
 
 .panel-head h2 {
   margin: 0;
+}
+
+.muted {
+  color: var(--muted);
 }
 
 .panel-head-title-row {
@@ -2793,9 +2823,12 @@ html[data-theme='light'] .search-pair:focus-within {
 
 .tech-col h3 {
   margin: 0 0 8px;
-  font-size: 0.78rem;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-label-xs-size);
+  font-weight: var(--ds-label-weight);
+  line-height: var(--ds-label-xs-line);
+  letter-spacing: 0;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
   color: var(--muted);
 }
 
@@ -2976,8 +3009,11 @@ html[data-theme='light'] .search-pair:focus-within {
 }
 
 .job-title {
-  font-weight: 700;
-  font-size: 1.05rem;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-md-size);
+  font-weight: var(--ds-title-md-weight);
+  line-height: var(--ds-title-md-line);
+  letter-spacing: var(--ds-title-md-tracking);
 }
 
 .job-title-row {
@@ -3117,9 +3153,11 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .timer {
-  font-family: var(--font-display), Impact, sans-serif;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
   font-size: 1.6rem;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--amber);
   line-height: 1;
 }
@@ -3152,9 +3190,10 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .remain-card-value {
-  font-family: var(--font-display), Impact, sans-serif;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
   font-size: 1.05rem;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   color: #fff;
 }
@@ -4942,10 +4981,11 @@ html[data-theme='light'] .searchable-select-option:hover {
 }
 
 .backup-screen .panel-head h2 {
-  font-family: var(--font-body), "Segoe UI", sans-serif;
-  font-size: 1.7rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-page-size);
+  font-weight: var(--ds-title-page-weight);
+  line-height: var(--ds-title-page-line);
+  letter-spacing: var(--ds-title-page-tracking);
 }
 
 .backup-screen .panel-actions {
@@ -5154,7 +5194,6 @@ html[data-theme='light'] .searchable-select-option:hover {
     width: 100%;
     align-self: flex-start;
     text-align: left;
-    font-size: 1.05rem;
   }
 
   .backup-screen .panel-actions {
@@ -5396,6 +5435,11 @@ html[data-theme='light'] .template-step-row input {
 
 .master-head h3 {
   margin: 0 0 6px;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-lg-size);
+  font-weight: var(--ds-title-lg-weight);
+  line-height: var(--ds-title-lg-line);
+  letter-spacing: var(--ds-title-lg-tracking);
 }
 
 .master-lead {
@@ -5480,6 +5524,11 @@ html[data-theme='light'] .template-step-row input {
 
 .import-preview-head h3 {
   margin: 0 0 6px;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-lg-size);
+  font-weight: var(--ds-title-lg-weight);
+  line-height: var(--ds-title-lg-line);
+  letter-spacing: var(--ds-title-lg-tracking);
 }
 
 .import-preview-lead {
@@ -5732,12 +5781,14 @@ html[data-theme='light'] .template-step-row input {
   }
 }
 
-.modal h3 {
+.modal h3,
+.modal-header h3 {
   margin: 0 0 12px;
-  font-family: var(--font-display), Impact, sans-serif;
-  letter-spacing: 0.05em;
-  font-size: 1.5rem;
-  font-weight: 400;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-title-lg-size);
+  font-weight: var(--ds-title-lg-weight);
+  line-height: var(--ds-title-lg-line);
+  letter-spacing: var(--ds-title-lg-tracking);
 }
 
 .modal-header {
@@ -6780,8 +6831,6 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
   }
 
   .summary-title {
-    font-size: 0.78rem;
-    letter-spacing: 0.14em;
     margin-bottom: 8px;
   }
 
@@ -6874,7 +6923,7 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
   }
 
   .panel-head h2 {
-    font-size: 1.35rem;
+    font-size: var(--ds-title-page-size);
   }
 
   .pager-nav,

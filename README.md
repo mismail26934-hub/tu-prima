@@ -28,7 +28,8 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 18. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
 19. [Realtime WebSocket](#realtime-websocket)
 20. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
-21. [Catatan operasional](#catatan-operasional)
+21. [Tema Light / Dark (Design System TU)](#tema-light--dark-design-system-tu)
+22. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -40,7 +41,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 - Board job aktif + antrian, progress %, status job
 - Timer live per **job** dan per **step**
 - Kartu **sisa estimasi** (estimasi − waktu berjalan) dengan warna status
-- Toggle **Light / Dark** mode (tersimpan di browser)
+- Toggle **Light / Dark** mode (tersimpan di browser) — warna button / text / background selaras dengan Design System TU (`tu-rental`)
 - Toggle bahasa **ID / EN** (tersimpan di browser)
 - Panel teknisi / job bisa disembunyikan (preferensi lokal)
 - **Mode offline**: CRUD tetap jalan jika server/jaringan mati (salinan lokal + antrian sync)
@@ -846,6 +847,23 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 ---
 
+## Tema Light / Dark (Design System TU)
+
+Warna UI (background, text, button) mengikuti **Design System TU Color Guideline**, sama dengan project sibling **`tu-rental` / ARMOR** — bukan tema kuning CAT + hitam solid.
+
+| Mode | Background | Text | Button primary |
+| ---- | ---------- | ---- | -------------- |
+| **Dark** | Cloudy-130 (`#1a1d22`) | Cloudy-20 | Yellow-80 (`#fdba12`) + ink |
+| **Light** | Cloudy-0 (`#fafbfc`) | Ink (`#2c313a`), muted netral | Yellow-80 (`#fdba12`) + ink |
+
+- Preferensi tema: `localStorage` key `tus-theme` (`light` / `dark`), di-apply lewat `data-theme` di `<html>`
+- Token warna & tipografi tombol: `src/styles/ds-tokens.css`
+- Mapping theme + komponen: `src/app/globals.css`
+- Hover / focus button: hitam + putih; disabled: Cloudy-50; danger: merah DS
+- `themeColor` viewport: `#fdba12` (brand yellow)
+
+---
+
 ## Catatan operasional
 
 - Database runtime: **MySQL/MariaDB** (`tu_prima`). Jangan edit langsung di phpMyAdmin saat app sedang menulis — gunakan UI atau backup dulu.
@@ -864,6 +882,7 @@ Alias lama `SHAREPOINT_TECH_EXCEL_URL` masih dibaca.
 
 ### Ringkasan perubahan terkini
 
+- **Tema Light / Dark**: CSS button / text / background diselaraskan dengan Design System TU (`tu-rental`); token di `src/styles/ds-tokens.css`
 - **Tampilan customer** (`/?job=…&view=customer`): hanya satu job, tanpa navbar / filter / panel teknisi / slider / STP; tautan WhatsApp memakai mode ini; boleh dibuka tanpa login
 - **Dashboard `/`**: user belum login dialihkan ke `/sign-in` (kecuali customer view di atas)
 - **Complete job** ditolak selama ada handover **DONE = No** (UI + server)

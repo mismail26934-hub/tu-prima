@@ -1,0 +1,207 @@
+/* Design System TU — Color Guideline + Specs + Typography
+   Figma: 3YV8o4WPgdeWLEv86doPUs
+   Color Guideline (1:4913), Specs / Dropdown (24:6035), Typography (1:5287) */
+
+:root {
+  /* Brand (teal / Trakindo) */
+  --ds-brand: #20a4b0;
+  --ds-brand-soft: #def3f5;
+  --ds-brand-active: #3cb6c1;
+  --ds-brand-60: #5fc8d2;
+  --ds-brand-50: #85d7df;
+  --ds-brand-40: #a9e4e9;
+  --ds-brand-30: #c7edf0;
+  --ds-brand-20: #def3f5;
+  --ds-brand-10: #edf7f8;
+  --ds-brand-0: #fef9ed;
+
+  /* Action yellow */
+  --ds-yellow-0: #fef9ed;
+  --ds-yellow-10: #fff3d6;
+  --ds-yellow-20: #ffecbd;
+  --ds-yellow-30: #ffe198;
+  --ds-yellow-40: #ffd879;
+  --ds-yellow-50: #ffd266;
+  --ds-yellow-60: #ffcf55;
+  --ds-yellow-70: #ffc840;
+  --ds-yellow-80: #fdba12;
+
+  --ds-btn-primary: #fdba12;
+  --ds-btn-secondary: #181818;
+  --ds-btn-disabled: #cfd3db;
+
+  /* UI accent */
+  --ds-orange-0: #faf7f6;
+  --ds-orange-10: #faf3ee;
+  --ds-orange-20: #faeadf;
+  --ds-orange-30: #f9ddc9;
+  --ds-orange-40: #f9cbab;
+  --ds-orange-50: #f8b586;
+  --ds-orange-60: #f69c5d;
+  --ds-orange-70: #f48333;
+  --ds-orange-80: #f26d0f;
+  --ds-orange-90: #d75e09;
+  --ds-orange-100: #a54604;
+  --ds-orange-110: #471e00;
+
+  --ds-blue-0: #f6f8fa;
+  --ds-blue-10: #eef4fa;
+  --ds-blue-20: #e0eefa;
+  --ds-blue-30: #cce4f9;
+  --ds-blue-40: #b0d8f9;
+  --ds-blue-50: #8ec8f8;
+  --ds-blue-60: #69b7f6;
+  --ds-blue-70: #42a5f5;
+  --ds-blue-80: #2196f3;
+  --ds-blue-90: #1480d8;
+  --ds-blue-100: #07579c;
+  --ds-blue-110: #00315c;
+
+  --ds-green-0: #f6faf6;
+  --ds-green-10: #f0f9f0;
+  --ds-green-20: #e5f6e5;
+  --ds-green-30: #d3f1d4;
+  --ds-green-40: #bdeabe;
+  --ds-green-50: #a1e0a3;
+  --ds-green-60: #82d286;
+  --ds-green-70: #65c168;
+  --ds-green-80: #4caf50;
+  --ds-green-90: #3b9d3f;
+  --ds-green-100: #257428;
+  --ds-green-110: #0f3810;
+
+  --ds-red-0: #faf6f6;
+  --ds-red-10: #f9eeef;
+  --ds-red-20: #f8e1e2;
+  --ds-red-30: #f7cdcf;
+  --ds-red-40: #f5b2b6;
+  --ds-red-50: #f29197;
+  --ds-red-60: #ee6d74;
+  --ds-red-70: #ea4952;
+  --ds-red-80: #e52a34;
+  --ds-red-90: #cd1924;
+  --ds-red-100: #9a0912;
+  --ds-red-110: #470004;
+
+  /* Neutral / Cloudy */
+  --ds-cloudy-0: #fafbfc;
+  --ds-cloudy-10: #f6f8fb;
+  --ds-cloudy-20: #f2f5fa;
+  --ds-cloudy-30: #e8ecf4;
+  --ds-cloudy-40: #dadfea;
+  --ds-cloudy-50: #cfd3db;
+  --ds-cloudy-60: #b0b8c7;
+  --ds-cloudy-70: #959dac;
+  --ds-cloudy-80: #79808f;
+  --ds-cloudy-90: #5e677b;
+  --ds-cloudy-100: #4b5262;
+  --ds-cloudy-110: #2c313a;
+  --ds-cloudy-120: #1a202c;
+  --ds-cloudy-130: #1a1d22;
+  --ds-white: #ffffff;
+
+  /* Semantic aliases */
+  --ds-ink: #2c313a;
+  --ds-text-neutral: #5e677b;
+  --ds-text-disabled: #959dac;
+  --ds-text-invert: #ffffff;
+  --ds-border: #cfd3db;
+  --ds-border-active: #3cb6c1;
+  --ds-border-info: #2196f3;
+  --ds-border-success: #4caf50;
+  --ds-border-warning: #f26d0f;
+  --ds-border-critical: #e52a34;
+  --ds-bg-subtle-info: #e0eefa;
+  --ds-bg-subtle-success: #e5f6e5;
+  --ds-bg-subtle-warning: #faf4e0;
+  --ds-bg-subtle-critical: #f8e1e2;
+  --ds-bg-hover: #f6f8fb;
+  --ds-bg-disabled: #f2f5fa;
+  --ds-text-critical: #cd1924;
+  --ds-shadow-raised: 0 16px 20px 4px #81868e29;
+  --ds-dropdown-shadow: 0 8px 24px rgba(26, 32, 44, 0.12);
+
+  /* Specs (Figma 24:6035) — Dropdown token sheet aliases */
+  --ds-spacing-xs: 4px;
+  --ds-spacing-sm: 12px;
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 12px;
+  --ds-text-ink: var(--ds-ink);
+  --ds-text-subtle: var(--ds-text-disabled);
+  --ds-text-error: var(--ds-text-critical);
+  --ds-border-default: var(--ds-border);
+  --ds-border-error: var(--ds-border-critical);
+  --ds-ui-disabled-bg: var(--ds-bg-disabled);
+  --ds-icon-ink: var(--ds-ink);
+  --ds-icon-brand: var(--ds-brand);
+  --ds-icon-disabled: var(--ds-text-disabled);
+  --ds-icon-neutral: var(--ds-cloudy-80);
+  --ds-subtitle-xs-size: 12px;
+  --ds-subtitle-xs-line: 18px;
+  --ds-body-sm-size: 14px;
+  --ds-body-sm-line: 22px;
+  --ds-body-xs-size: 12px;
+  --ds-body-xs-line: 18px;
+
+  /* Typography (Figma 1:5287) — Inter scale; app face = Source Sans 3 via --font-body
+     Mobile → Desktop fluid with clamp where used in UI. */
+
+  /* Page section titles outside tables — below navbar ARMOR (16–18)
+     Title sm → Title md (14–16), never larger than .brand */
+  --ds-title-page-size: clamp(0.875rem, 0.25vw + 0.8rem, 1rem); /* 14–16px */
+  --ds-title-page-line: clamp(1.375rem, 0.35vw + 1.2rem, 1.5rem); /* 22–24px */
+  --ds-title-page-weight: 700;
+  --ds-title-page-tracking: 0;
+
+  /* Title lg (modals / secondary heads): 18/28 */
+  --ds-title-lg-size: 1.125rem;
+  --ds-title-lg-line: 1.75rem;
+  --ds-title-lg-weight: 700;
+  --ds-title-lg-tracking: -0.03125rem;
+
+  /* Title md: 16/24 */
+  --ds-title-md-size: 1rem;
+  --ds-title-md-line: 1.5rem;
+  --ds-title-md-weight: 700;
+  --ds-title-md-tracking: 0;
+
+  /* Title sm: 14/22 */
+  --ds-title-sm-size: 0.875rem;
+  --ds-title-sm-line: 1.375rem;
+  --ds-title-sm-weight: 700;
+
+  /* Subtitle */
+  --ds-subtitle-md-size: 1rem;
+  --ds-subtitle-md-line: 1.5rem;
+  --ds-subtitle-md-weight: 600;
+  --ds-subtitle-sm-size: 0.875rem;
+  --ds-subtitle-sm-line: 1.375rem;
+  --ds-subtitle-sm-weight: 600;
+  --ds-subtitle-xs-weight: 600;
+
+  /* Body regular / bold */
+  --ds-body-md-size: 1rem;
+  --ds-body-md-line: 1.5rem;
+  --ds-body-sm-weight: 400;
+  --ds-body-sm-bold-weight: 700;
+  --ds-body-xs-weight: 400;
+
+  /* Button type — Bold; default sm, lg = md, xs = xs */
+  --ds-btn-md-size: 1rem; /* 16 */
+  --ds-btn-md-line: 1.5rem; /* 24 */
+  --ds-btn-sm-size: 0.875rem; /* 14 */
+  --ds-btn-sm-line: 1.375rem; /* 22 */
+  --ds-btn-xs-size: 0.75rem; /* 12 */
+  --ds-btn-xs-line: 1.125rem; /* 18 */
+  --ds-btn-weight: 700;
+  --ds-btn-tracking: 0;
+
+  /* Label (form field labels) */
+  --ds-label-md-size: 1rem;
+  --ds-label-md-line: 1.5rem;
+  --ds-label-sm-size: 0.875rem;
+  --ds-label-sm-line: 1.375rem;
+  --ds-label-xs-size: 0.75rem;
+  --ds-label-xs-line: 1.125rem;
+  --ds-label-weight: 600;
+}

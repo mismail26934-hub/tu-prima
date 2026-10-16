@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "@/i18n/useT";
 import {
   stopRemainAlertSpeech,
@@ -152,6 +153,7 @@ export function RemainAlertMuteToggle({
   const muted = useRemainAlertStore((s) => s.muted);
   const hydrate = useRemainAlertStore((s) => s.hydrate);
   const [internalOpen, setInternalOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const controlled = openProp !== undefined;
   const open = controlled ? openProp : internalOpen;
@@ -160,6 +162,10 @@ export function RemainAlertMuteToggle({
     if (!controlled) setInternalOpen(next);
     onOpenChange?.(next);
   }
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     hydrate();
@@ -182,22 +188,76 @@ export function RemainAlertMuteToggle({
   }, [controlled]);
 
   useEffect(() => {
-    if (!open || variant === "menu") return;
+    if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, variant, controlled]);
+  }, [open, controlled]);
 
   const title = t("nav.alertSoundSettings");
 
+  function toggleOpen() {
+    unlockRemainAlertAudio();
+    onBeforeOpen?.();
+    const next = !open;
+    if (next) {
+      window.dispatchEvent(
+        new CustomEvent("prima-header-pop", { detail: "sound" })
+      );
+    }
+    setOpen(next);
+  }
+
   if (variant === "menu") {
+    const modal =
+      portalReady && open
+        ? createPortal(
+            <div
+              className="nav-sheet-account-backdrop remain-alert-modal-backdrop"
+              onClick={() => setOpen(false)}
+            >
+              <div
+                className="nav-sheet-account-modal remain-alert-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="nav-sheet-account-head">
+                  <strong>{title}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-icon"
+                    aria-label={t("nav.closeMenu")}
+                    onClick={() => setOpen(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <AlertSoundFields />
+              </div>
+            </div>,
+            document.body
+          )
+        : null;
+
     return (
-      <div className="remain-alert-settings remain-alert-settings--menu">
-        <p className="nav-menu-label">{title}</p>
-        <AlertSoundFields />
-      </div>
+      <>
+        <button
+          className={`btn btn-icon remain-alert-mute${muted ? " is-muted" : ""}`}
+          type="button"
+          aria-label={title}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title={title}
+          onClick={toggleOpen}
+        >
+          <SpeakerIcon muted={muted} />
+        </button>
+        {modal}
+      </>
     );
   }
 
@@ -214,17 +274,7 @@ export function RemainAlertMuteToggle({
         aria-haspopup="dialog"
         aria-expanded={open}
         title={title}
-        onClick={() => {
-          unlockRemainAlertAudio();
-          onBeforeOpen?.();
-          const next = !open;
-          if (next) {
-            window.dispatchEvent(
-              new CustomEvent("prima-header-pop", { detail: "sound" })
-            );
-          }
-          setOpen(next);
-        }}
+        onClick={toggleOpen}
       >
         <SpeakerIcon muted={muted} />
       </button>

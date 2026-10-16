@@ -35,14 +35,22 @@ function LoginForm() {
   const t = useT();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const authError = searchParams.get("error");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() =>
+    authError ? t("login.error") : ""
+  );
   const [lockUntilByUser, setLockUntilByUser] = useState<Record<string, number>>(
     {}
   );
   const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!authError) return;
+    setError(t("login.error"));
+  }, [authError, t]);
 
   const userKey = username.trim().toLowerCase();
   const lockUntil = lockUntilByUser[userKey] || 0;
@@ -124,10 +132,11 @@ function LoginForm() {
         </div>
         <h1>{t("login.title")}</h1>
         <p>{t("login.hint")}</p>
-        <form className="form" onSubmit={onSubmit}>
+        <form className="form" method="post" action="#" onSubmit={onSubmit}>
           <label>
             {t("login.username")}
             <input
+              name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
@@ -137,6 +146,7 @@ function LoginForm() {
           <label>
             {t("login.password")}
             <input
+              name="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

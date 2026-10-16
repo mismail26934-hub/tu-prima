@@ -427,12 +427,9 @@ html.is-framed .topbar-glass {
   display: none;
 }
 
-/*
-  Parent transform: scale() disables backdrop-filter. ARMOR uses the same glass tokens
-  and reads as a solid dark bar over scrolling content — match that opacity.
-*/
+/* Framed: glass layer hidden; sticky topbar takes the scrolled frosted look (same as tu-rental) */
 html.is-framed.topbar-scrolled .topbar {
-  background: color-mix(in srgb, var(--page-bg) 94%, transparent);
+  background: var(--topbar-glass-bg);
   border-bottom: 1px solid var(--topbar-glass-border);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -620,8 +617,10 @@ html.topbar-scrolled .topbar {
 }
 
 html[data-theme='light'].is-framed.topbar-scrolled .topbar {
-  background: color-mix(in srgb, var(--page-bg) 94%, transparent);
+  background: var(--topbar-glass-bg);
   border-bottom: 1px solid var(--topbar-glass-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 @supports not (
@@ -993,8 +992,18 @@ html.nav-header-pop-open .top-actions {
   color: var(--muted);
 }
 
-.remain-alert-settings--menu .remain-alert-fields {
-  margin-bottom: 8px;
+.remain-alert-modal {
+  gap: 8px;
+  padding: 10px;
+}
+
+.remain-alert-modal .remain-alert-fields {
+  padding: 4px 2px 6px;
+}
+
+.remain-alert-modal-backdrop {
+  z-index: 10040;
+  place-items: center;
 }
 
 .remain-alert-fields {
@@ -1463,11 +1472,16 @@ html[data-theme='light'] .remain-alert-field select {
 }
 
 .nav-sheet-logout {
-  flex: 0 0 auto;
-  width: 44px !important;
-  height: 44px;
-  min-height: 44px !important;
-  padding: 0;
+  flex: 0 0 var(--ctrl-size-ui);
+  box-sizing: border-box;
+  width: var(--ctrl-size-ui) !important;
+  height: var(--ctrl-size-ui) !important;
+  min-width: var(--ctrl-size-ui) !important;
+  min-height: var(--ctrl-size-ui) !important;
+  max-width: var(--ctrl-size-ui) !important;
+  max-height: var(--ctrl-size-ui) !important;
+  padding: 0 !important;
+  aspect-ratio: 1 / 1;
 }
 
 .nav-user--guest {
@@ -2117,11 +2131,12 @@ html[data-theme='light'] .remain-alert-field select {
 }
 
 .panel {
+  /* Same as tu-rental: translucent fill, no panel glass blur (glass is navbar-only) */
   background: color-mix(in srgb, var(--bg-1) 88%, transparent);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
-  backdrop-filter: blur(6px);
+  margin-bottom: 16px;
   animation: rise 0.6s ease both 0.1s;
   min-width: 0;
   max-width: 100%;
@@ -2360,7 +2375,11 @@ html[data-theme='light'] .remain-alert-field select {
   color: var(--text);
   box-shadow: none;
   outline: none;
-  font: inherit;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  letter-spacing: 0;
 }
 
 .search-pair .panel-search:focus,
@@ -2394,7 +2413,8 @@ html[data-theme='light'] .search-pair:focus-within {
   box-shadow: none;
 }
 
-.panel-search {
+.panel-search,
+.backup-search {
   flex: 1;
   min-width: 0;
   max-width: 240px;
@@ -2403,6 +2423,29 @@ html[data-theme='light'] .search-pair:focus-within {
   color: var(--text);
   border-radius: var(--ds-radius-md);
   padding: 8px 12px;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  letter-spacing: 0;
+}
+
+/* Search hint text — DS body-sm + subtle (all search surfaces) */
+.panel-search::placeholder,
+.backup-search::placeholder,
+.search-pair .panel-search::placeholder,
+.search-pair .backup-search::placeholder,
+.backup-search-pair .backup-search::placeholder,
+.searchable-select-input::placeholder,
+.modal-handover-to input::placeholder,
+.handover-to-list input::placeholder {
+  color: var(--ds-text-subtle);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  letter-spacing: 0;
+  opacity: 1;
 }
 
 .tech-cols {
@@ -2809,11 +2852,25 @@ html[data-theme='light'] .search-pair:focus-within {
   }
 
   .top-actions-panel--float .nav-menu-prefs .btn,
+  .top-actions-panel--float .nav-menu-prefs .btn.btn-icon,
   .top-actions-panel--float .nav-sheet-logout {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: var(--ctrl-size-ui) !important;
+    height: var(--ctrl-size-ui) !important;
+    min-width: var(--ctrl-size-ui) !important;
+    min-height: var(--ctrl-size-ui) !important;
+    max-width: var(--ctrl-size-ui) !important;
+    max-height: var(--ctrl-size-ui) !important;
+    padding: 0 !important;
+    aspect-ratio: 1 / 1;
+    flex: 0 0 var(--ctrl-size-ui);
+    border-radius: var(--ctrl-radius);
+  }
+
+  .top-actions-panel--float .nav-menu-prefs .btn svg,
+  .top-actions-panel--float .nav-sheet-logout svg {
+    width: var(--ctrl-glyph);
+    height: var(--ctrl-glyph);
   }
 
   .top-actions-panel--float .nav-sheet-profile-row .nav-user--menu-btn {
@@ -4712,6 +4769,11 @@ html[data-theme='light'] .job-priority-pill--custom {
 .searchable-select-input::placeholder,
 .handover-input::placeholder {
   color: var(--ds-text-subtle);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  letter-spacing: 0;
   opacity: 1;
 }
 
@@ -4849,6 +4911,10 @@ html[data-theme='light'] .searchable-select.is-disabled .searchable-select-trigg
 
 .searchable-select-trigger .is-placeholder {
   color: var(--ds-text-subtle);
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
 }
 
 .searchable-select.is-disabled .searchable-select-trigger {
@@ -5078,6 +5144,7 @@ html[data-theme='light'] .searchable-select-option:hover {
   flex: 1 1 auto;
   width: min(280px, 70vw);
   min-width: 0;
+  max-width: none;
   min-height: var(--ctrl-size-ui);
   margin: 0;
   padding: 0 var(--ds-spacing-sm);
@@ -5085,7 +5152,11 @@ html[data-theme='light'] .searchable-select-option:hover {
   border-radius: 0;
   background: transparent;
   color: var(--text);
-  font: inherit;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-sm-size);
+  font-weight: var(--ds-body-sm-weight);
+  line-height: var(--ds-body-sm-line);
+  letter-spacing: 0;
   outline: none;
 }
 
@@ -6523,9 +6594,10 @@ html.offline-sheet-open {
   z-index: 115;
   flex-shrink: 0;
   margin-bottom: 0;
-  background: color-mix(in srgb, var(--bg-1) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--topbar-glass-bg);
+  border-bottom: 1px solid var(--topbar-glass-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .active-job-slider-duration {
@@ -6855,8 +6927,6 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
 
   .panel,
   .login-card {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
     background: var(--bg-1);
     animation: none;
     border-radius: 16px;
@@ -6930,21 +7000,40 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
     justify-content: space-between;
   }
 
-  .panel-search {
+  .panel-search,
+  .backup-search {
     min-height: 44px;
     border-radius: 12px;
     padding: 10px 14px;
-    font-size: 1rem;
+    /* 16px avoids iOS input zoom; keep weight/line DS-proportional */
+    font-size: 16px;
+    font-weight: var(--ds-body-sm-weight);
+    line-height: 1.375;
+  }
+
+  .panel-search::placeholder,
+  .backup-search::placeholder,
+  .search-pair .panel-search::placeholder,
+  .search-pair .backup-search::placeholder,
+  .backup-search-pair .backup-search::placeholder {
+    font-size: 16px;
+    font-weight: var(--ds-body-sm-weight);
+    line-height: 1.375;
   }
 
   .search-pair {
     border-radius: var(--ds-radius-md);
   }
 
-  .search-pair .panel-search {
+  .search-pair .panel-search,
+  .search-pair .backup-search,
+  .backup-search-pair .backup-search {
     min-height: var(--ctrl-size-ui);
     border-radius: 0;
     padding: 0 var(--ds-spacing-sm);
+    font-size: 16px;
+    font-weight: var(--ds-body-sm-weight);
+    line-height: 1.375;
   }
 
   .panel-search-row .btn {

@@ -942,10 +942,10 @@ export function BoardTopbar({
                 >
                   {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                 </button>
+                {isLoggedIn ? (
+                  <RemainAlertMuteToggle variant='menu' />
+                ) : null}
               </div>
-              {isLoggedIn ? (
-                <RemainAlertMuteToggle variant='menu' />
-              ) : null}
               <p className='nav-menu-label'>{t('nav.manage')}</p>
               <div className='nav-sheet-list' role='menu'>
                 {manageItems}

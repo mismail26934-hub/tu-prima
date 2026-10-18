@@ -806,11 +806,8 @@ html[data-theme='light'].modal-open .topbar-glass {
   transform: rotate(180deg);
 }
 
-/* Desktop: Kelola = text + caret; +Job = plus icon + label (no “+” in copy) */
-.nav-manage-icon {
-  display: none;
-}
-
+/* Desktop Large (≥1240): Kelola + Job baru = icon (same as tablet) + label */
+.nav-manage-icon,
 .nav-new-job-icon {
   display: block;
   width: 1em;

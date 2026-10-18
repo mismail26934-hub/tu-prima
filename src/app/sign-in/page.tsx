@@ -141,9 +141,9 @@ function LoginForm() {
           <span className="brand-divider" aria-hidden="true" />
           <span className="brand-text">
             <h1>{t("login.title")}</h1>
-            <span className="brand-tagline">{t("brand.tagline")}</span>
           </span>
         </div>
+        <p className="login-tagline">{t("brand.tagline")}</p>
         <form
           className="form form--lg"
           method="post"

@@ -442,9 +442,9 @@ button {
   right: 14px;
 }
 
-/* Login brand lockup — same Trakindo + title + tagline as ARMOR navbar */
+/* Login brand lockup — logo + divider + PRIMA */
 .login-card .login-brand-lockup {
-  margin: 0 0 14px;
+  margin: 0 0 8px;
   max-width: 100%;
   overflow: visible;
   gap: clamp(0.5rem, 0.4vw + 0.4rem, 0.625rem);
@@ -453,12 +453,6 @@ button {
 .login-card .login-brand-lockup .brand-logo {
   height: var(--ctrl-size);
   width: auto;
-}
-
-.login-card .login-brand-lockup .brand-tagline {
-  display: block;
-  max-width: none;
-  white-space: normal;
 }
 
 /* Login wordmark — largest type in DS scale (Title 3xl) */
@@ -472,9 +466,24 @@ button {
   font-size: var(--ds-title-3xl-size);
 }
 
-.login-card p {
+.login-card p,
+.login-card .login-tagline {
   margin: 0 0 14px;
   color: var(--muted);
+}
+
+/* Replaces old “Silakan login…” — always visible on login */
+.login-card .login-tagline {
+  display: block !important;
+  max-width: none;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: unset;
+  font-family: var(--font-body), 'Segoe UI', sans-serif;
+  font-size: var(--ds-body-xs-size);
+  font-weight: var(--ds-subtitle-xs-weight);
+  line-height: var(--ds-body-xs-line);
+  letter-spacing: 0;
 }
 
 .login-card .form > .btn,

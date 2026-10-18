@@ -441,15 +441,39 @@ button {
   right: 14px;
 }
 
-/* Login wordmark — same Figma face as navbar PRIMA (Title lg) */
-.login-card h1 {
+/* Login brand lockup — logo size matches tu-rental chrome (--ctrl-size → 2.75rem desktop) */
+.login-card .login-brand-lockup {
   margin: 0 0 8px;
+  max-width: 100%;
+  overflow: visible;
+  gap: clamp(0.5rem, 0.4vw + 0.4rem, 0.625rem);
+}
+
+.login-card .login-brand-lockup .brand-logo {
+  height: 2.75rem;
+  min-height: 2.75rem;
+  max-height: 2.75rem;
+}
+
+.login-card .login-brand-lockup .brand-divider {
+  display: none;
+}
+
+.login-card .login-brand-lockup .brand-tagline {
+  display: block;
+  max-width: none;
+  white-space: normal;
+}
+
+/* Login wordmark — largest type in DS scale (Title 3xl) */
+.login-card h1 {
+  margin: 0;
   font-family: var(--font-body), 'Segoe UI', sans-serif;
   font-weight: var(--ds-title-lg-weight);
   letter-spacing: var(--ds-title-lg-tracking);
-  line-height: var(--ds-title-lg-line);
+  line-height: var(--ds-title-3xl-line);
   color: var(--amber);
-  font-size: var(--ds-title-lg-size);
+  font-size: var(--ds-title-3xl-size);
 }
 
 .login-card p {
@@ -562,7 +586,10 @@ html[data-theme='light'].modal-open .topbar-glass {
 .brand-logo {
   display: block;
   box-sizing: border-box;
+  /* Same as tu-rental/ARMOR navbar chrome */
   height: var(--ctrl-size);
+  min-height: var(--ctrl-size);
+  max-height: var(--ctrl-size);
   width: auto;
   flex: 0 0 auto;
   object-fit: contain;
@@ -2415,7 +2442,8 @@ html[data-theme='light'] .search-pair:focus-within {
   }
 
   .topbar {
-    align-items: flex-start;
+    /* Match tu-rental/ARMOR mobile chrome height */
+    align-items: center;
     gap: 10px;
     padding-block: 8px 10px;
     padding-inline: max(var(--ds-margin), env(safe-area-inset-left, 0px))

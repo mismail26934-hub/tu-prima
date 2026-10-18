@@ -130,7 +130,19 @@ function LoginForm() {
         <div className="login-lang">
           <LanguageToggle />
         </div>
-        <h1>{t("login.title")}</h1>
+        <div className="brand-lockup login-brand-lockup">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="brand-logo"
+            src="/trakindo-cat.png"
+            alt=""
+            suppressHydrationWarning
+          />
+          <span className="brand-text">
+            <h1>{t("login.title")}</h1>
+            <span className="brand-tagline">{t("brand.tagline")}</span>
+          </span>
+        </div>
         <p>{t("login.hint")}</p>
         <form
           className="form form--lg"

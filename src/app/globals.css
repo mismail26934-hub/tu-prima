@@ -47,14 +47,15 @@
   --topbar-glass-border: color-mix(in srgb, var(--ds-white) 10%, transparent);
   --topbar-glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   --topbar-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --topbar-height: 3.5rem;
-  --ctrl-size: clamp(2rem, 1.35vw + 1.55rem, 2.75rem);
-  --ctrl-size-ui: clamp(1.75rem, 1vw + 1.4rem, 2.25rem);
-  --ctrl-size-table: clamp(1.5rem, 0.75vw + 1.2rem, 1.75rem);
-  --ctrl-size-sm: clamp(1.75rem, 1vw + 1.35rem, 2rem);
-  --ctrl-radius: clamp(0.375rem, 0.2vw + 0.3rem, 0.5rem);
-  --ctrl-glyph: clamp(0.875rem, 0.35vw + 0.75rem, 1.125rem);
-  --ctrl-gap: clamp(0.25rem, 0.4vw + 0.15rem, 0.5rem);
+  /* Chrome sizes in px — match tu-rental/ARMOR (16px root). PRIMA html is 14px. */
+  --topbar-height: 56px;
+  --ctrl-size: clamp(32px, 1.35vw + 24.8px, 44px);
+  --ctrl-size-ui: clamp(28px, 1vw + 22.4px, 36px);
+  --ctrl-size-table: clamp(24px, 0.75vw + 19.2px, 28px);
+  --ctrl-size-sm: clamp(28px, 1vw + 21.6px, 32px);
+  --ctrl-radius: clamp(6px, 0.2vw + 4.8px, 8px);
+  --ctrl-glyph: clamp(14px, 0.35vw + 12px, 18px);
+  --ctrl-gap: clamp(4px, 0.4vw + 2.4px, 8px);
   /* Responsive grid tokens live in ds-tokens.css (Figma 2:4146) */
   --remain-green-bg: var(--ds-green-100);
   --remain-green-border: var(--ds-green-70);
@@ -355,13 +356,13 @@ button {
   :root,
   [data-theme='dark'],
   [data-theme='light'] {
-    --ctrl-size: 2.75rem;
-    --ctrl-size-ui: 2.25rem;
-    --ctrl-size-table: 1.75rem;
-    --ctrl-size-sm: 2rem;
-    --ctrl-radius: 0.5rem;
-    --ctrl-glyph: 1.125rem;
-    --ctrl-gap: 0.5rem;
+    --ctrl-size: 44px;
+    --ctrl-size-ui: 36px;
+    --ctrl-size-table: 28px;
+    --ctrl-size-sm: 32px;
+    --ctrl-radius: 8px;
+    --ctrl-glyph: 18px;
+    --ctrl-gap: 8px;
   }
 
   .brand-lockup {
@@ -441,22 +442,17 @@ button {
   right: 14px;
 }
 
-/* Login brand lockup — logo size matches tu-rental chrome (--ctrl-size → 2.75rem desktop) */
+/* Login brand lockup — same Trakindo + title + tagline as ARMOR navbar */
 .login-card .login-brand-lockup {
-  margin: 0 0 8px;
+  margin: 0 0 14px;
   max-width: 100%;
   overflow: visible;
   gap: clamp(0.5rem, 0.4vw + 0.4rem, 0.625rem);
 }
 
 .login-card .login-brand-lockup .brand-logo {
-  height: 2.75rem;
-  min-height: 2.75rem;
-  max-height: 2.75rem;
-}
-
-.login-card .login-brand-lockup .brand-divider {
-  display: none;
+  height: var(--ctrl-size);
+  width: auto;
 }
 
 .login-card .login-brand-lockup .brand-tagline {
@@ -586,10 +582,8 @@ html[data-theme='light'].modal-open .topbar-glass {
 .brand-logo {
   display: block;
   box-sizing: border-box;
-  /* Same as tu-rental/ARMOR navbar chrome */
+  /* Pixel-matched to tu-rental/ARMOR (--ctrl-size in px) */
   height: var(--ctrl-size);
-  min-height: var(--ctrl-size);
-  max-height: var(--ctrl-size);
   width: auto;
   flex: 0 0 auto;
   object-fit: contain;

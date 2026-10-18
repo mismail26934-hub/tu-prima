@@ -308,8 +308,7 @@ const id = {
   "export.confirmYes": "Ya, unduh Excel",
 
   "login.title": "PRIMA",
-  "login.hint":
-    "Silakan login untuk mengakses dashboard. Akun disimpan di database.",
+  "login.hint": "Progress Report & Inspection for Mechanic Allocation",
   "login.username": "Username",
   "login.password": "Password",
   "login.submit": "Login",
@@ -716,8 +715,7 @@ const en: Record<MessageKey, string> = {
   "export.confirmYes": "Yes, download Excel",
 
   "login.title": "PRIMA",
-  "login.hint":
-    "Please sign in to access the dashboard. Accounts are stored in the database.",
+  "login.hint": "Progress Report & Inspection for Mechanic Allocation",
   "login.username": "Username",
   "login.password": "Password",
   "login.submit": "Login",

@@ -138,12 +138,12 @@ function LoginForm() {
             alt=""
             suppressHydrationWarning
           />
+          <span className="brand-divider" aria-hidden="true" />
           <span className="brand-text">
             <h1>{t("login.title")}</h1>
             <span className="brand-tagline">{t("brand.tagline")}</span>
           </span>
         </div>
-        <p>{t("login.hint")}</p>
         <form
           className="form form--lg"
           method="post"

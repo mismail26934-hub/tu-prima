@@ -212,7 +212,8 @@
      Hierarchy: PRIMA brand is the largest chrome face (Title lg).
      All other UI type stays below brand on the Figma scale. */
 
-  /* Brand wordmark PRIMA — Title md 16 (phone) → Title lg 18 (tablet+) */
+  /* Brand wordmark PRIMA — Title md 16 (phone) → Title lg 18 (tablet+)
+     Brand sizes in px so they match tu-rental/ARMOR (16px root); PRIMA html is 14px. */
   --ds-title-lg-size: 1.125rem; /* 18 */
   --ds-title-lg-line: 1.75rem; /* 28 */
   --ds-title-lg-weight: 700;
@@ -234,8 +235,9 @@
   --ds-title-3xl-size: 1.75rem;
   --ds-title-3xl-line: 2.625rem;
 
-  --ds-brand-size: var(--ds-title-md-size);
-  --ds-brand-line: var(--ds-title-md-line);
+  --ds-brand-size: 16px;
+  --ds-brand-line: 24px;
+  --ds-brand-tracking: -0.5px;
 
   /* Section titles (panel / summary) — Title sm 14, always < brand */
   --ds-title-page-size: var(--ds-title-sm-size);
@@ -307,8 +309,9 @@
     --ds-gutter: 24px;
     --ds-margin: 32px;
 
-    --ds-brand-size: var(--ds-title-lg-size); /* PRIMA 18 — largest */
-    --ds-brand-line: var(--ds-title-lg-line);
+    --ds-brand-size: 18px; /* match ARMOR Title lg @ 16px root */
+    --ds-brand-line: 28px;
+    --ds-brand-tracking: -0.5px;
     --ds-title-page-size: var(--ds-title-sm-size); /* 14 < brand */
     --ds-title-page-line: var(--ds-title-sm-line);
     --ds-title-ui-size: var(--ds-title-md-size); /* 16 < brand */
@@ -328,8 +331,9 @@
     --ds-gutter: 24px;
     --ds-margin: 64px;
 
-    --ds-brand-size: var(--ds-title-lg-size); /* PRIMA 18 */
-    --ds-brand-line: var(--ds-title-lg-line);
+    --ds-brand-size: 18px;
+    --ds-brand-line: 28px;
+    --ds-brand-tracking: -0.5px;
     --ds-title-page-size: var(--ds-title-sm-size); /* 14 */
     --ds-title-page-line: var(--ds-title-sm-line);
     --ds-title-ui-size: var(--ds-title-md-size); /* 16 */

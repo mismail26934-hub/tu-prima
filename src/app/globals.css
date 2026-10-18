@@ -626,7 +626,7 @@ html[data-theme='light'].modal-open .topbar-glass {
   font-size: var(--ds-brand-size);
   font-weight: var(--ds-title-lg-weight);
   font-synthesis: none;
-  letter-spacing: var(--ds-title-lg-tracking);
+  letter-spacing: var(--ds-brand-tracking);
   line-height: var(--ds-brand-line);
   text-shadow: none;
 }
@@ -639,18 +639,25 @@ html[data-theme='light'].modal-open .topbar-glass {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-body), 'Segoe UI', sans-serif;
-  font-size: var(--ds-body-xs-size); /* 12 */
-  font-weight: var(--ds-subtitle-xs-weight); /* 600 */
+  font-size: 12px; /* match ARMOR / ds-body-xs */
+  font-weight: 600;
   letter-spacing: 0;
-  line-height: var(--ds-body-xs-line); /* 18 */
+  line-height: 18px;
   color: var(--muted);
   opacity: 1;
 }
 
-/* Tablet+ (Figma >600) — show brand tagline */
+/* Tablet+ (Figma >600) — show brand tagline (match tu-rental) */
 @media (min-width: 600px) {
   .brand-tagline {
     display: block;
+  }
+}
+
+/* Narrow / phone — hide tagline again (same cascade as tu-rental ≤720) */
+@media (max-width: 720px) {
+  .brand-tagline {
+    display: none;
   }
 }
 
@@ -797,6 +804,18 @@ html[data-theme='light'].modal-open .topbar-glass {
 
 .nav-manage.is-open .nav-manage-caret {
   transform: rotate(180deg);
+}
+
+/* Desktop: Kelola = text + caret; +Job = plus icon + label (no “+” in copy) */
+.nav-manage-icon {
+  display: none;
+}
+
+.nav-new-job-icon {
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
 }
 
 .nav-manage-menu {
@@ -1369,6 +1388,102 @@ html[data-theme='light'] .remain-alert-field select {
   font-weight: 600;
   line-height: 1.1;
   text-transform: capitalize;
+}
+
+/*
+  Tablet Medium 768 (Figma 2:4146) — navbar icon-only
+  btn 32 · gap 4 · icon 24 · 8 col
+  Placed after .nav-account rules so padding/width overrides win.
+*/
+@media (min-width: 600px) and (max-width: 1239px) {
+  .topbar .top-actions-panel--bar,
+  html[data-ds-device='tablet'] .top-actions-panel--bar {
+    gap: 4px;
+  }
+
+  .topbar .top-actions-panel--bar .nav-manage-icon,
+  .topbar .top-actions-panel--bar .nav-new-job-icon,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-manage-icon,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-new-job-icon {
+    display: block !important;
+    width: var(--ds-controller-icon) !important;
+    height: var(--ds-controller-icon) !important;
+    flex: 0 0 auto;
+  }
+
+  .topbar .top-actions-panel--bar .btn-label,
+  .topbar .top-actions-panel--bar .nav-manage-caret,
+  .topbar .top-actions-panel--bar .nav-user,
+  .topbar .top-actions-panel--bar .nav-user-name,
+  .topbar .top-actions-panel--bar .nav-user-level,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn-label,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-manage-caret,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-user,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-user-name,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-user-level {
+    display: none !important;
+  }
+
+  .topbar .top-actions-panel--bar .btn,
+  .topbar .top-actions-panel--bar .btn.btn-icon,
+  .topbar .top-actions-panel--bar .btn:not(.btn-icon),
+  .topbar .top-actions-panel--bar .nav-manage > .btn,
+  .topbar .top-actions-panel--bar .btn.nav-account,
+  .topbar .top-actions-panel--bar .nav-account,
+  .topbar .top-actions .top-actions-panel--bar .btn,
+  .topbar .top-actions .top-actions-panel--bar .btn.nav-account,
+  .topbar .top-actions .top-actions-panel--bar .nav-account,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn.btn-icon,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn:not(.btn-icon),
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-manage > .btn,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn.nav-account,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-account {
+    width: var(--ds-controller-btn-sm) !important;
+    height: var(--ds-controller-btn-sm) !important;
+    min-width: var(--ds-controller-btn-sm) !important;
+    min-height: var(--ds-controller-btn-sm) !important;
+    max-width: var(--ds-controller-btn-sm) !important;
+    max-height: var(--ds-controller-btn-sm) !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    aspect-ratio: 1 / 1;
+    flex: 0 0 var(--ds-controller-btn-sm) !important;
+    border-radius: var(--ctrl-radius);
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .topbar .top-actions-panel--bar .btn svg,
+  .topbar .top-actions-panel--bar .btn.btn-icon svg,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn svg,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .btn.btn-icon svg {
+    width: var(--ds-controller-icon) !important;
+    height: var(--ds-controller-icon) !important;
+  }
+
+  .topbar .top-actions-panel--bar .lang-toggle-code,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .lang-toggle-code {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .topbar .top-actions-panel--bar .nav-account .nav-avatar,
+  .topbar .top-actions-panel--bar .nav-avatar,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-account .nav-avatar,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-avatar {
+    width: var(--ds-controller-icon) !important;
+    height: var(--ds-controller-icon) !important;
+    min-width: var(--ds-controller-icon) !important;
+    min-height: var(--ds-controller-icon) !important;
+    max-width: var(--ds-controller-icon) !important;
+    max-height: var(--ds-controller-icon) !important;
+  }
+
+  .topbar .top-actions-panel--bar .nav-end,
+  html[data-ds-device='tablet'] .top-actions-panel--bar .nav-end {
+    gap: 4px;
+  }
 }
 
 .nav-user--menu {
@@ -2490,18 +2605,25 @@ html[data-theme='light'] .search-pair:focus-within {
     gap: 6px;
   }
 
-  .top-actions-mobile .btn-icon {
+  .top-actions-mobile .btn-icon,
+  .top-actions-mobile .btn-primary.btn-icon {
     width: var(--ctrl-size);
     height: var(--ctrl-size);
+    min-width: var(--ctrl-size);
+    min-height: var(--ctrl-size);
+    max-width: var(--ctrl-size);
+    max-height: var(--ctrl-size);
+    padding: 0;
+    gap: 0;
+    aspect-ratio: 1 / 1;
+    flex: 0 0 var(--ctrl-size);
+    border-radius: var(--ctrl-radius);
   }
 
-  .top-actions-mobile .btn-primary {
-    height: var(--ctrl-size);
-    min-height: var(--ctrl-size);
-    max-height: var(--ctrl-size);
-    padding: 0 12px;
-    border-radius: var(--ctrl-radius);
-    font-size: 0.92rem;
+  .top-actions-mobile .btn-primary.btn-icon .nav-new-job-icon {
+    display: block;
+    width: 1.125rem;
+    height: 1.125rem;
   }
 
   .top-actions {

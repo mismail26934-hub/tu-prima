@@ -238,6 +238,46 @@ function LogoutIcon() {
   );
 }
 
+/** Tablet navbar — Kelola (icon-only). */
+function ManageIcon() {
+  return (
+    <svg
+      className='nav-manage-icon'
+      width='18'
+      height='18'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      aria-hidden='true'
+    >
+      <path d='M4 6h16M4 12h16M4 18h10' />
+    </svg>
+  );
+}
+
+/** Tablet navbar — + Job (icon-only). */
+function PlusIcon() {
+  return (
+    <svg
+      className='nav-new-job-icon'
+      width='18'
+      height='18'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      aria-hidden='true'
+    >
+      <path d='M12 5v14M5 12h14' />
+    </svg>
+  );
+}
+
 export function BoardTopbar({
   busy,
   loggingOut,
@@ -610,6 +650,8 @@ export function BoardTopbar({
                     className='btn'
                     type='button'
                     disabled={busy}
+                    aria-label={t('nav.manage')}
+                    title={t('nav.manage')}
                     aria-haspopup='menu'
                     aria-expanded={manageOpen}
                     onClick={() => {
@@ -625,7 +667,8 @@ export function BoardTopbar({
                       setManageOpen(next);
                     }}
                   >
-                    {t('nav.manage')}
+                    <ManageIcon />
+                    <span className='btn-label'>{t('nav.manage')}</span>
                     <svg
                       className='nav-manage-caret'
                       width='12'
@@ -675,8 +718,11 @@ export function BoardTopbar({
                   className='btn btn-primary'
                   disabled={busy || !canJobCreate}
                   onClick={onNewJob}
+                  aria-label={t('nav.newJob')}
+                  title={t('nav.newJob')}
                 >
-                  {t('nav.newJob')}
+                  <PlusIcon />
+                  <span className='btn-label'>{t('nav.newJob')}</span>
                 </button>
                 <div className='nav-end'>
                   {sessionPending ? (
@@ -824,11 +870,13 @@ export function BoardTopbar({
 
               <div className='top-actions-mobile'>
                 <button
-                  className='btn btn-primary'
+                  className='btn btn-primary btn-icon'
                   disabled={busy || !canJobCreate}
                   onClick={onNewJob}
+                  aria-label={t('nav.newJob')}
+                  title={t('nav.newJob')}
                 >
-                  {t('nav.newJobShort')}
+                  <PlusIcon />
                 </button>
                 <button
                   className='btn btn-icon'

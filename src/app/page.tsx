@@ -72,6 +72,7 @@ import {
 import { useT } from "@/i18n/useT";
 import { EditIcon, TrashIcon } from "@/components/ActionIcons";
 import { BoardTopbar } from "@/components/BoardTopbar";
+import { JobBackupPage } from "@/components/JobBackupPage";
 import { SearchIcon } from "@/components/SearchIcon";
 import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
 import { TechnicianCard } from "@/components/TechnicianCard";
@@ -291,6 +292,7 @@ type Modal =
   | { type: "edit-profile" }
   | { type: "logout" }
   | { type: "settings" }
+  | { type: "backups" }
   | { type: "export-jobs" }
   | { type: "export-jobs-confirm" }
   | {
@@ -1346,6 +1348,17 @@ export default function HomePage() {
       document.documentElement.classList.remove("modal-open");
     };
   }, [modal]);
+
+  useEffect(() => {
+    if (sessionPending) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("manage") !== "backup") return;
+    params.delete("manage");
+    const next = params.toString();
+    window.history.replaceState(null, "", next ? `/?${next}` : "/");
+    if (userLevel !== "superuser") return;
+    setModal({ type: "backups" });
+  }, [sessionPending, userLevel]);
 
   function openUnitCreate() {
     setUnitForm({ code: "", name: "", serial_number: "", active: "1" });
@@ -3104,7 +3117,7 @@ export default function HomePage() {
       setError("Backup / Undo hanya untuk superuser");
       return;
     }
-    window.location.assign("/backup");
+    setModal({ type: "backups" });
   }
 
   function requestExportJobsReport() {
@@ -6572,7 +6585,7 @@ export default function HomePage() {
       )}
 
       {modal?.type === "export-jobs" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div className="modal-backdrop manage-dialog" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t("export.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -6668,7 +6681,7 @@ export default function HomePage() {
       )}
 
       {modal?.type === "export-jobs-confirm" && (
-        <div className="modal-backdrop" onClick={() => setModal({ type: "export-jobs" })}>
+        <div className="modal-backdrop manage-dialog" onClick={() => setModal({ type: "export-jobs" })}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t("export.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -11192,6 +11205,20 @@ export default function HomePage() {
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "backups" && (
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Backup data"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <JobBackupPage embedded onBack={closeModal} />
           </div>
         </div>
       )}

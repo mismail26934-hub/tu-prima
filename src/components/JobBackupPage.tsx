@@ -136,7 +136,13 @@ function readBundle(raw: string | undefined): {
   }
 }
 
-export function JobBackupPage() {
+export function JobBackupPage({
+  embedded = false,
+  onBack,
+}: {
+  embedded?: boolean;
+  onBack?: () => void;
+} = {}) {
   const queryClient = useQueryClient();
   const [includeUndone, setIncludeUndone] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
@@ -209,15 +215,22 @@ export function JobBackupPage() {
   }
 
   return (
-    <main className="app backup-screen">
+    <main className={embedded ? "backup-screen backup-screen--embedded" : "app backup-screen"}>
       <section className="panel">
         <div className="panel-head">
           <h2>BACKUP DATA</h2>
           <div className="panel-actions">
-            <Link className="btn" href="/" aria-label="Kembali">
-              <BackIcon />
-              <span className="backup-btn-label">Kembali</span>
-            </Link>
+            {onBack ? (
+              <button type="button" className="btn" aria-label="Kembali" onClick={onBack}>
+                <BackIcon />
+                <span className="backup-btn-label">Kembali</span>
+              </button>
+            ) : (
+              <Link className="btn" href="/" aria-label="Kembali">
+                <BackIcon />
+                <span className="backup-btn-label">Kembali</span>
+              </Link>
+            )}
             <div className="search-pair backup-search-pair">
               <input
                 className="backup-search"
@@ -358,7 +371,7 @@ export function JobBackupPage() {
       </section>
       {undoAlert ? (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop manage-dialog"
           onClick={
             undoAlert.phase === "loading"
               ? undefined

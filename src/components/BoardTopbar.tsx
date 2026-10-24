@@ -124,28 +124,15 @@ function AccountAvatar({ url, size = 28 }: { url: string; size?: number }) {
   }, [url]);
   if (!url || failed) {
     return (
-      <span
-        className='nav-avatar'
-        style={{
-          width: size,
-          height: size,
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
+      <span className='nav-avatar nav-avatar-fallback' aria-hidden='true'>
         <svg
-          width={Math.max(14, Math.round(size * 0.55))}
-          height={Math.max(14, Math.round(size * 0.55))}
-          viewBox='0 0 24 24'
+          xmlns='http://www.w3.org/2000/svg'
+          width={size}
+          height={size}
+          viewBox='0 0 32 32'
           fill='none'
-          stroke='currentColor'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-          aria-hidden='true'
         >
-          <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
-          <circle cx='12' cy='7' r='4' />
+          <circle cx='16' cy='16' r='16' fill='white' />
         </svg>
       </span>
     );
@@ -238,7 +225,7 @@ function LogoutIcon() {
   );
 }
 
-/** Tablet navbar — Kelola (icon-only). */
+/** Kelola — hard hat + caret, matching the collapsed rail. */
 function ManageIcon() {
   return (
     <svg
@@ -253,12 +240,31 @@ function ManageIcon() {
       strokeLinejoin='round'
       aria-hidden='true'
     >
-      <path d='M4 6h16M4 12h16M4 18h10' />
+      <path d='M10 10V6.5a2 2 0 0 1 4 0V10' />
+      <path d='M4 15.5v-2a8 8 0 0 1 16 0v2' />
+      <path d='M2 18.5a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v2z' />
     </svg>
   );
 }
 
 /** Tablet navbar — + Job (icon-only). */
+function MenuIcon() {
+  return (
+    <svg
+      width='20'
+      height='20'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      aria-hidden='true'
+    >
+      <path d='M4 7h16M4 12h16M4 17h16' />
+    </svg>
+  );
+}
+
 function PlusIcon() {
   return (
     <svg
@@ -325,9 +331,14 @@ export function BoardTopbar({
   const [sessionOpen, setSessionOpen] = useState(false);
   const [sessionMenuPos, setSessionMenuPos] = useState<{
     top: number;
-    right: number;
+    left: number;
+  } | null>(null);
+  const [manageMenuPos, setManageMenuPos] = useState<{
+    top: number;
+    left: number;
   } | null>(null);
   const [sheetAccountOpen, setSheetAccountOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     setPortalReady(true);
@@ -376,15 +387,37 @@ export function BoardTopbar({
   }, []);
 
   useEffect(() => {
-    if (!manageOpen) return;
+    if (!manageOpen || sidebarOpen) {
+      setManageMenuPos(null);
+      return;
+    }
+    function syncPos() {
+      const el = manageRef.current;
+      if (!el) return;
+      const box = el.getBoundingClientRect();
+      const maxHeight = Math.min(480, window.innerHeight - 16);
+      let top = box.top;
+      if (top + maxHeight > window.innerHeight - 8) {
+        top = Math.max(8, window.innerHeight - 8 - maxHeight);
+      }
+      setManageMenuPos({
+        top: Math.round(top),
+        left: Math.round(box.right + 10),
+      });
+    }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setManageOpen(false);
     }
+    syncPos();
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', syncPos);
+    topbarRef.current?.addEventListener('scroll', syncPos);
     return () => {
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', syncPos);
+      topbarRef.current?.removeEventListener('scroll', syncPos);
     };
-  }, [manageOpen]);
+  }, [manageOpen, sidebarOpen]);
 
   useEffect(() => {
     if (!sessionOpen || mobileMenuOpen) {
@@ -396,8 +429,8 @@ export function BoardTopbar({
       if (!el) return;
       const box = el.getBoundingClientRect();
       setSessionMenuPos({
-        top: Math.round(box.bottom + 6),
-        right: Math.round(window.innerWidth - box.right),
+        top: Math.round(box.top),
+        left: Math.round(box.right + 10),
       });
     }
     function onKey(e: KeyboardEvent) {
@@ -611,11 +644,28 @@ export function BoardTopbar({
           setSessionOpen(false);
         }}
       />
+      {sidebarOpen ? (
+        <button
+          type='button'
+          className='app-sidebar-backdrop'
+          aria-label={t('nav.closeMenu')}
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
       <header
-        className={`topbar${scrolled ? ' is-scrolled' : ''}`}
+        className={`topbar app-sidebar${sidebarOpen ? ' is-open' : ''}${scrolled ? ' is-scrolled' : ''}`}
         ref={topbarRef}
       >
-        <div className='brand-row'>
+        <div className='app-sidebar-head'>
+          <button
+            type='button'
+            className='app-sidebar-toggle'
+            aria-expanded={sidebarOpen}
+            aria-label={sidebarOpen ? t('nav.closeMenu') : t('nav.openMenu')}
+            onClick={() => setSidebarOpen((open) => !open)}
+          >
+            <MenuIcon />
+          </button>
           <Link className='brand-lockup' href='/' aria-label={t('app.title')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -630,6 +680,8 @@ export function BoardTopbar({
               <span className='brand-tagline'>{t('brand.tagline')}</span>
             </span>
           </Link>
+        </div>
+        <div className='brand-row'>
           {refreshShimmer ? (
             <ShimmerBlock className='shimmer-block--nav-sync' />
           ) : (
@@ -642,6 +694,120 @@ export function BoardTopbar({
           ) : (
             <>
               <div className='top-actions-panel top-actions-panel--bar'>
+                {sessionPending ? (
+                  <NavAccountShimmer
+                    label={t('nav.accountLoading')}
+                    withAlerts={false}
+                  />
+                ) : (
+                  <div className='nav-session'>
+                    {isLoggedIn ? (
+                      <div
+                        className={`nav-session-menu${sessionOpen ? ' is-open' : ''}`}
+                        ref={sessionRef}
+                      >
+                        <button
+                          className='btn nav-account'
+                          type='button'
+                          disabled={busy || loggingOut}
+                          aria-label={t('nav.accountMenu')}
+                          aria-haspopup='menu'
+                          aria-expanded={sessionOpen}
+                          title={`${displayName} · ${userLevel}`}
+                          onClick={() => {
+                            setManageOpen(false);
+                            const next = !sessionOpen;
+                            if (next) {
+                              window.dispatchEvent(
+                                new CustomEvent('prima-header-pop', {
+                                  detail: 'session',
+                                })
+                              );
+                              const el = sessionRef.current;
+                              if (el) {
+                                const box = el.getBoundingClientRect();
+                                setSessionMenuPos({
+                                  top: Math.round(box.top),
+                                  left: Math.round(box.right + 10),
+                                });
+                              }
+                            } else {
+                              setSessionMenuPos(null);
+                            }
+                            setSessionOpen(next);
+                          }}
+                        >
+                          <span className='nav-user'>
+                            <span className='nav-user-name'>
+                              {displayNameShort}
+                            </span>
+                            <span className='nav-user-level'>{userLevel}</span>
+                          </span>
+                          <AccountAvatar url={avatarUrl} size={32} />
+                        </button>
+                        {sessionOpen &&
+                          portalReady &&
+                          sessionMenuPos &&
+                          createPortal(
+                            <div
+                              className='nav-manage-menu nav-session-portal-menu'
+                              role='menu'
+                              style={{
+                                top: sessionMenuPos.top,
+                                left: sessionMenuPos.left,
+                              }}
+                            >
+                              <button
+                                type='button'
+                                role='menuitem'
+                                className='nav-manage-item'
+                                disabled={busy || loggingOut}
+                                onClick={() => {
+                                  closeMenu();
+                                  void onEditProfile();
+                                }}
+                              >
+                                {t('nav.editProfile')}
+                              </button>
+                              <button
+                                type='button'
+                                role='menuitem'
+                                className='nav-manage-item'
+                                disabled={busy || loggingOut}
+                                onClick={() => {
+                                  closeMenu();
+                                  onChangePassword();
+                                }}
+                              >
+                                {t('nav.editPassword')}
+                              </button>
+                              <button
+                                type='button'
+                                role='menuitem'
+                                className='nav-manage-item'
+                                disabled={busy || loggingOut}
+                                onClick={() => {
+                                  closeMenu();
+                                  onLogout();
+                                }}
+                              >
+                                {t('nav.logout')}
+                              </button>
+                            </div>,
+                            document.body
+                          )}
+                      </div>
+                    ) : (
+                      <button
+                        className='btn'
+                        disabled={busy || loggingOut}
+                        onClick={onLogin}
+                      >
+                        {t('nav.login')}
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div
                   className={`nav-manage${manageOpen ? ' is-open' : ''}`}
                   ref={manageRef}
@@ -684,7 +850,7 @@ export function BoardTopbar({
                       <path d='M6 9l6 6 6-6' />
                     </svg>
                   </button>
-                  {manageOpen && (
+                  {manageOpen && sidebarOpen && (
                     <div className='nav-manage-menu' role='menu'>
                       {manageItems}
                     </div>
@@ -726,10 +892,12 @@ export function BoardTopbar({
                 </button>
                 <div className='nav-end'>
                   {sessionPending ? (
-                    <NavAccountShimmer
-                      label={t('nav.accountLoading')}
-                      withAlerts={sessionShimmerWithAlerts}
-                    />
+                    sessionShimmerWithAlerts ? (
+                      <>
+                        <ShimmerBlock className='shimmer-block--nav-icon' />
+                        <ShimmerBlock className='shimmer-block--nav-icon' />
+                      </>
+                    ) : null
                   ) : (
                     <>
                       {isLoggedIn ? (
@@ -752,117 +920,6 @@ export function BoardTopbar({
                           onOpenJob(jobId, kind);
                         }}
                       />
-                      <div className='nav-session'>
-                        {isLoggedIn ? (
-                          <div
-                            className={`nav-session-menu${sessionOpen ? ' is-open' : ''}`}
-                            ref={sessionRef}
-                          >
-                            <button
-                              className='btn nav-account'
-                              type='button'
-                              disabled={busy || loggingOut}
-                              aria-label={t('nav.accountMenu')}
-                              aria-haspopup='menu'
-                              aria-expanded={sessionOpen}
-                              title={`${displayName} · ${userLevel}`}
-                              onClick={() => {
-                                setManageOpen(false);
-                                const next = !sessionOpen;
-                                if (next) {
-                                  window.dispatchEvent(
-                                    new CustomEvent('prima-header-pop', {
-                                      detail: 'session',
-                                    })
-                                  );
-                                  const el = sessionRef.current;
-                                  if (el) {
-                                    const box = el.getBoundingClientRect();
-                                    setSessionMenuPos({
-                                      top: Math.round(box.bottom + 6),
-                                      right: Math.round(
-                                        window.innerWidth - box.right
-                                      ),
-                                    });
-                                  }
-                                } else {
-                                  setSessionMenuPos(null);
-                                }
-                                setSessionOpen(next);
-                              }}
-                            >
-                              <span className='nav-user'>
-                                <span className='nav-user-name'>
-                                  {displayNameShort}
-                                </span>
-                                <span className='nav-user-level'>
-                                  {userLevel}
-                                </span>
-                              </span>
-                              <AccountAvatar url={avatarUrl} size={28} />
-                            </button>
-                            {sessionOpen &&
-                              portalReady &&
-                              sessionMenuPos &&
-                              createPortal(
-                                <div
-                                  className='nav-manage-menu nav-session-portal-menu'
-                                  role='menu'
-                                  style={{
-                                    top: sessionMenuPos.top,
-                                    right: sessionMenuPos.right,
-                                  }}
-                                >
-                                  <button
-                                    type='button'
-                                    role='menuitem'
-                                    className='nav-manage-item'
-                                    disabled={busy || loggingOut}
-                                    onClick={() => {
-                                      closeMenu();
-                                      void onEditProfile();
-                                    }}
-                                  >
-                                    {t('nav.editProfile')}
-                                  </button>
-                                  <button
-                                    type='button'
-                                    role='menuitem'
-                                    className='nav-manage-item'
-                                    disabled={busy || loggingOut}
-                                    onClick={() => {
-                                      closeMenu();
-                                      onChangePassword();
-                                    }}
-                                  >
-                                    {t('nav.editPassword')}
-                                  </button>
-                                  <button
-                                    type='button'
-                                    role='menuitem'
-                                    className='nav-manage-item'
-                                    disabled={busy || loggingOut}
-                                    onClick={() => {
-                                      closeMenu();
-                                      onLogout();
-                                    }}
-                                  >
-                                    {t('nav.logout')}
-                                  </button>
-                                </div>,
-                                document.body
-                              )}
-                          </div>
-                        ) : (
-                          <button
-                            className='btn'
-                            disabled={busy || loggingOut}
-                            onClick={onLogin}
-                          >
-                            {t('nav.login')}
-                          </button>
-                        )}
-                      </div>
                     </>
                   )}
                 </div>
@@ -1107,6 +1164,22 @@ export function BoardTopbar({
               </div>
             )}
           </>,
+          document.body
+        )}
+      {manageOpen &&
+        !sidebarOpen &&
+        portalReady &&
+        manageMenuPos &&
+        createPortal(
+          <div
+            className='nav-manage-menu nav-manage-flyout'
+            role='menu'
+            aria-label={t('nav.manage')}
+            style={{ top: manageMenuPos.top, left: manageMenuPos.left }}
+          >
+            <p className='nav-manage-flyout-title'>{t('nav.manage')}</p>
+            {manageItems}
+          </div>,
           document.body
         )}
     </>

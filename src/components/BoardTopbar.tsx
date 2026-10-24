@@ -24,7 +24,6 @@ type BoardTopbarProps = {
   showNavAlerts: boolean;
   userLevel: UserLevel | string;
   displayName: string;
-  displayNameShort: string;
   avatarUrl: string;
   canJobCreate: boolean;
   canUnitRead: boolean;
@@ -225,6 +224,90 @@ function LogoutIcon() {
   );
 }
 
+function ManageItemIcon({
+  name,
+}: {
+  name:
+    | 'settings'
+    | 'techs'
+    | 'users'
+    | 'units'
+    | 'priorities'
+    | 'templates'
+    | 'attendance'
+    | 'export'
+    | 'backup';
+}) {
+  return (
+    <svg
+      className='nav-manage-item-icon'
+      width='18'
+      height='18'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      aria-hidden='true'
+    >
+      {name === 'settings' && (
+        <>
+          <circle cx='12' cy='12' r='3' />
+          <path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' />
+        </>
+      )}
+      {name === 'techs' && (
+        <>
+          <path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' />
+          <circle cx='9' cy='7' r='4' />
+          <path d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' />
+        </>
+      )}
+      {name === 'users' && (
+        <>
+          <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
+          <circle cx='12' cy='7' r='4' />
+        </>
+      )}
+      {name === 'units' && (
+        <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
+      )}
+      {name === 'priorities' && (
+        <>
+          <path d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z' />
+          <path d='M4 22V15' />
+        </>
+      )}
+      {name === 'templates' && (
+        <>
+          <path d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2' />
+          <rect x='8' y='2' width='8' height='4' rx='1' />
+          <path d='M8 12h8M8 16h5' />
+        </>
+      )}
+      {name === 'attendance' && (
+        <>
+          <rect x='3' y='4' width='18' height='18' rx='2' />
+          <path d='M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4' />
+        </>
+      )}
+      {name === 'export' && (
+        <>
+          <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
+          <path d='M7 10l5 5 5-5M12 15V3' />
+        </>
+      )}
+      {name === 'backup' && (
+        <>
+          <path d='M3 12a9 9 0 1 0 3-6.7' />
+          <path d='M3 4v5h5' />
+        </>
+      )}
+    </svg>
+  );
+}
+
 /** Kelola — hard hat + caret, matching the collapsed rail. */
 function ManageIcon() {
   return (
@@ -295,7 +378,6 @@ export function BoardTopbar({
   showNavAlerts,
   userLevel,
   displayName,
-  displayNameShort,
   avatarUrl,
   canJobCreate,
   canUnitRead,
@@ -322,18 +404,14 @@ export function BoardTopbar({
 }: BoardTopbarProps) {
   const t = useT();
   const topbarRef = useRef<HTMLElement>(null);
-  const manageRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<HTMLDivElement>(null);
+  const railTipRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [sessionMenuPos, setSessionMenuPos] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-  const [manageMenuPos, setManageMenuPos] = useState<{
     top: number;
     left: number;
   } | null>(null);
@@ -387,37 +465,19 @@ export function BoardTopbar({
   }, []);
 
   useEffect(() => {
-    if (!manageOpen || sidebarOpen) {
-      setManageMenuPos(null);
-      return;
-    }
-    function syncPos() {
-      const el = manageRef.current;
-      if (!el) return;
-      const box = el.getBoundingClientRect();
-      const maxHeight = Math.min(480, window.innerHeight - 16);
-      let top = box.top;
-      if (top + maxHeight > window.innerHeight - 8) {
-        top = Math.max(8, window.innerHeight - 8 - maxHeight);
-      }
-      setManageMenuPos({
-        top: Math.round(top),
-        left: Math.round(box.right + 10),
-      });
-    }
+    if (!sidebarOpen) return;
+    const tip = railTipRef.current;
+    if (tip) tip.hidden = true;
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!manageOpen) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setManageOpen(false);
     }
-    syncPos();
     document.addEventListener('keydown', onKey);
-    window.addEventListener('resize', syncPos);
-    topbarRef.current?.addEventListener('scroll', syncPos);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', syncPos);
-      topbarRef.current?.removeEventListener('scroll', syncPos);
-    };
-  }, [manageOpen, sidebarOpen]);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [manageOpen]);
 
   useEffect(() => {
     if (!sessionOpen || mobileMenuOpen) {
@@ -504,6 +564,61 @@ export function BoardTopbar({
     };
   }, [mobileMenuOpen]);
 
+  function hideRailTip() {
+    const tip = railTipRef.current;
+    if (tip) tip.hidden = true;
+    topbarRef.current
+      ?.querySelectorAll<HTMLElement>('[data-saved-title]')
+      .forEach((el) => {
+        const saved = el.dataset.savedTitle;
+        if (saved) el.setAttribute('title', saved);
+        delete el.dataset.savedTitle;
+      });
+  }
+
+  function showRailTip(target: EventTarget | null) {
+    const header = topbarRef.current;
+    const tip = railTipRef.current;
+    if (!header || !tip || sidebarOpen) {
+      hideRailTip();
+      return;
+    }
+    const el = target instanceof Element ? target : null;
+    const btn = el?.closest<HTMLElement>(
+      '.app-sidebar-toggle, .nav-account, .nav-manage > .btn, .nav-manage-item, .top-actions-panel--bar > .btn, .lang-toggle-icon, .nav-alerts-btn, .remain-alert-mute'
+    );
+    if (!btn || !header.contains(btn)) {
+      hideRailTip();
+      return;
+    }
+    const text =
+      btn.getAttribute('data-rail-tip') ||
+      btn.getAttribute('title') ||
+      btn.dataset.savedTitle ||
+      btn.getAttribute('aria-label') ||
+      '';
+    if (!text) {
+      hideRailTip();
+      return;
+    }
+    header.querySelectorAll<HTMLElement>('[data-saved-title]').forEach((el) => {
+      if (el === btn) return;
+      const saved = el.dataset.savedTitle;
+      if (saved) el.setAttribute('title', saved);
+      delete el.dataset.savedTitle;
+    });
+    const saved = btn.getAttribute('title');
+    if (saved) {
+      btn.dataset.savedTitle = saved;
+      btn.removeAttribute('title');
+    }
+    const box = btn.getBoundingClientRect();
+    tip.textContent = text;
+    tip.style.top = `${Math.round(box.top + box.height / 2)}px`;
+    tip.style.left = `${Math.round(box.right + 12)}px`;
+    tip.hidden = false;
+  }
+
   function closeMenu() {
     setMobileMenuOpen(false);
     setSessionOpen(false);
@@ -518,11 +633,13 @@ export function BoardTopbar({
         role='menuitem'
         className='nav-manage-item'
         disabled={busy}
+        title={t('nav.settings')}
         onClick={() => {
           closeMenu();
           onSettings();
         }}
       >
+        <ManageItemIcon name='settings' />
         {t('nav.settings')}
       </button>
       <button
@@ -530,11 +647,13 @@ export function BoardTopbar({
         role='menuitem'
         className='nav-manage-item'
         disabled={busy}
+        title={t('nav.technicians')}
         onClick={() => {
           closeMenu();
           onTechnicians();
         }}
       >
+        <ManageItemIcon name='techs' />
         {t('nav.technicians')}
       </button>
       {userLevel === 'superuser' && (
@@ -543,11 +662,13 @@ export function BoardTopbar({
           role='menuitem'
           className='nav-manage-item'
           disabled={busy}
+          title={t('nav.usersMaster')}
           onClick={() => {
             closeMenu();
             onUsersMaster();
           }}
         >
+          <ManageItemIcon name='users' />
           {t('nav.usersMaster')}
         </button>
       )}
@@ -556,11 +677,13 @@ export function BoardTopbar({
         role='menuitem'
         className='nav-manage-item'
         disabled={busy || !canUnitRead}
+        title={t('nav.unitsMaster')}
         onClick={() => {
           closeMenu();
           onUnitsMaster();
         }}
       >
+        <ManageItemIcon name='units' />
         {t('nav.unitsMaster')}
       </button>
       <button
@@ -568,11 +691,13 @@ export function BoardTopbar({
         role='menuitem'
         className='nav-manage-item'
         disabled={busy || !canPriorityRead}
+        title={t('nav.prioritiesMaster')}
         onClick={() => {
           closeMenu();
           onPrioritiesMaster();
         }}
       >
+        <ManageItemIcon name='priorities' />
         {t('nav.prioritiesMaster')}
       </button>
       <button
@@ -580,11 +705,13 @@ export function BoardTopbar({
         role='menuitem'
         className='nav-manage-item'
         disabled={busy || !canTemplateRead}
+        title={t('nav.templatesMaster')}
         onClick={() => {
           closeMenu();
           onTemplatesMaster();
         }}
       >
+        <ManageItemIcon name='templates' />
         {t('nav.templatesMaster')}
       </button>
       <button
@@ -592,11 +719,13 @@ export function BoardTopbar({
         role='menuitem'
         className='nav-manage-item'
         disabled={busy}
+        title={t('nav.attendance')}
         onClick={() => {
           closeMenu();
           onAttendance();
         }}
       >
+        <ManageItemIcon name='attendance' />
         {t('nav.attendance')}
       </button>
       <button
@@ -610,6 +739,7 @@ export function BoardTopbar({
           onExportExcel();
         }}
       >
+        <ManageItemIcon name='export' />
         {t('nav.exportExcel')}
       </button>
       {userLevel === 'superuser' && (
@@ -624,6 +754,7 @@ export function BoardTopbar({
             onJobBackups();
           }}
         >
+          <ManageItemIcon name='backup' />
           {t('nav.backupUndo')}
         </button>
       )}
@@ -638,9 +769,8 @@ export function BoardTopbar({
         aria-hidden='true'
       />
       <NavHeaderPopBackdrop
-        open={manageOpen || sessionOpen}
+        open={sessionOpen}
         onClose={() => {
-          setManageOpen(false);
           setSessionOpen(false);
         }}
       />
@@ -655,6 +785,12 @@ export function BoardTopbar({
       <header
         className={`topbar app-sidebar${sidebarOpen ? ' is-open' : ''}${scrolled ? ' is-scrolled' : ''}`}
         ref={topbarRef}
+        onMouseOver={(e) => showRailTip(e.target)}
+        onMouseOut={(e) => {
+          const next = e.relatedTarget;
+          if (next instanceof Node && topbarRef.current?.contains(next)) return;
+          hideRailTip();
+        }}
       >
         <div className='app-sidebar-head'>
           <button
@@ -737,13 +873,10 @@ export function BoardTopbar({
                             setSessionOpen(next);
                           }}
                         >
-                          <span className='nav-user'>
-                            <span className='nav-user-name'>
-                              {displayNameShort}
-                            </span>
-                            <span className='nav-user-level'>{userLevel}</span>
-                          </span>
                           <AccountAvatar url={avatarUrl} size={32} />
+                          <span className='nav-user'>
+                            <span className='nav-user-name'>{displayName}</span>
+                          </span>
                         </button>
                         {sessionOpen &&
                           portalReady &&
@@ -810,7 +943,6 @@ export function BoardTopbar({
                 )}
                 <div
                   className={`nav-manage${manageOpen ? ' is-open' : ''}`}
-                  ref={manageRef}
                 >
                   <button
                     className='btn'
@@ -822,19 +954,10 @@ export function BoardTopbar({
                     aria-expanded={manageOpen}
                     onClick={() => {
                       setSessionOpen(false);
-                      const next = !manageOpen;
-                      if (next) {
-                        window.dispatchEvent(
-                          new CustomEvent('prima-header-pop', {
-                            detail: 'manage',
-                          })
-                        );
-                      }
-                      setManageOpen(next);
+                      setManageOpen((open) => !open);
                     }}
                   >
                     <ManageIcon />
-                    <span className='btn-label'>{t('nav.manage')}</span>
                     <svg
                       className='nav-manage-caret'
                       width='12'
@@ -849,8 +972,9 @@ export function BoardTopbar({
                     >
                       <path d='M6 9l6 6 6-6' />
                     </svg>
+                    <span className='btn-label'>{t('nav.manage')}</span>
                   </button>
-                  {manageOpen && sidebarOpen && (
+                  {manageOpen && (
                     <div className='nav-manage-menu' role='menu'>
                       {manageItems}
                     </div>
@@ -1009,6 +1133,7 @@ export function BoardTopbar({
           )}
         </div>
       </header>
+      <div ref={railTipRef} className='nav-rail-tip' hidden role='tooltip' />
 
       {!refreshShimmer &&
         mobileMenuOpen &&
@@ -1164,22 +1289,6 @@ export function BoardTopbar({
               </div>
             )}
           </>,
-          document.body
-        )}
-      {manageOpen &&
-        !sidebarOpen &&
-        portalReady &&
-        manageMenuPos &&
-        createPortal(
-          <div
-            className='nav-manage-menu nav-manage-flyout'
-            role='menu'
-            aria-label={t('nav.manage')}
-            style={{ top: manageMenuPos.top, left: manageMenuPos.left }}
-          >
-            <p className='nav-manage-flyout-title'>{t('nav.manage')}</p>
-            {manageItems}
-          </div>,
           document.body
         )}
     </>

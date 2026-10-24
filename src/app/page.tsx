@@ -1052,11 +1052,6 @@ export default function HomePage() {
   }
 
   const displayName = session?.user?.name || session?.user?.email || "";
-  const displayNameShort = (() => {
-    const parts = displayName.trim().split(/\s+/).filter(Boolean);
-    if (parts.length <= 1) return displayName;
-    return parts.map((part) => part[0]?.toUpperCase() || "").join("");
-  })();
   const [error, setError] = useState("");
   const [modal, setModal] = useState<Modal>(null);
   const modalJob =
@@ -6014,7 +6009,6 @@ export default function HomePage() {
         showNavAlerts={showNavAlerts}
         userLevel={userLevel}
         displayName={displayName}
-        displayNameShort={displayNameShort}
         avatarUrl={avatarUrl}
         canJobCreate={canJobCreate}
         canUnitRead={canUnitRead}

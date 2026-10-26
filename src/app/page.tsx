@@ -302,6 +302,51 @@ type Modal =
       phase: "loading" | "success" | "error";
     };
 
+function activeNavForModal(modal: Modal): string | null {
+  if (!modal) return null;
+  switch (modal.type) {
+    case "settings":
+      return "settings";
+    case "techs":
+    case "tech-form":
+    case "tech-import-preview":
+    case "delete-tech":
+    case "tech-status":
+      return "techs";
+    case "users":
+    case "user-form":
+    case "delete-user":
+      return "users";
+    case "units":
+    case "unit-form":
+    case "unit-import-preview":
+    case "delete-unit":
+      return "units";
+    case "priorities":
+    case "priority-form":
+    case "delete-priority":
+      return "priorities";
+    case "templates":
+    case "template-form":
+    case "template-import-preview":
+    case "delete-template":
+      return "templates";
+    case "attendance":
+    case "attendance-form":
+    case "delete-attendance":
+      return "attendance";
+    case "export-jobs":
+    case "export-jobs-confirm":
+      return "export";
+    case "backups":
+      return "backup";
+    case "create":
+      return "new-job";
+    default:
+      return null;
+  }
+}
+
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
 const HIDE_JOB_PANEL_KEY = "tus-hide-job-panel";
 const REFRESH_SHIMMER_KEY = "tu-prima-refresh-shimmer";
@@ -5886,8 +5931,10 @@ export default function HomePage() {
                 <div className="brand-lockup" aria-hidden="true">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    className="brand-logo"
-                    src="/trakindo-cat.png"
+                    className="brand-mark"
+                    src="/trakindo-cat.svg"
+                    width={115}
+                    height={29}
                     alt=""
                   />
                   <span className="brand-divider" aria-hidden="true" />
@@ -6015,6 +6062,7 @@ export default function HomePage() {
         canPriorityRead={canPriorityRead}
         canTemplateRead={canTemplateRead}
         modalOpen={modal != null}
+        activeNav={activeNavForModal(modal)}
         onRefresh={refreshDashboard}
         onToggleTheme={toggleTheme}
         onNewJob={() => openCreate()}

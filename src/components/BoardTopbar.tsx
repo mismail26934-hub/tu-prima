@@ -30,6 +30,8 @@ type BoardTopbarProps = {
   canPriorityRead: boolean;
   canTemplateRead: boolean;
   modalOpen: boolean;
+  /** Sidebar item for the screen that is open now. */
+  activeNav?: string | null;
   onRefresh: () => void;
   onToggleTheme: () => void;
   onNewJob: () => void;
@@ -241,8 +243,8 @@ function ManageItemIcon({
   return (
     <svg
       className='nav-manage-item-icon'
-      width='18'
-      height='18'
+      width='24'
+      height='24'
       viewBox='0 0 24 24'
       fill='none'
       stroke='currentColor'
@@ -313,8 +315,8 @@ function ManageIcon() {
   return (
     <svg
       className='nav-manage-icon'
-      width='18'
-      height='18'
+      width='24'
+      height='24'
       viewBox='0 0 24 24'
       fill='none'
       stroke='currentColor'
@@ -333,18 +335,14 @@ function ManageIcon() {
 /** Tablet navbar — + Job (icon-only). */
 function MenuIcon() {
   return (
-    <svg
-      width='20'
-      height='20'
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      aria-hidden='true'
-    >
-      <path d='M4 7h16M4 12h16M4 17h16' />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className='sidebar-menu-icon'
+      src='/sidebar-menu.svg'
+      width={20}
+      height={20}
+      alt=''
+    />
   );
 }
 
@@ -352,8 +350,8 @@ function PlusIcon() {
   return (
     <svg
       className='nav-new-job-icon'
-      width='18'
-      height='18'
+      width='24'
+      height='24'
       viewBox='0 0 24 24'
       fill='none'
       stroke='currentColor'
@@ -384,6 +382,7 @@ export function BoardTopbar({
   canPriorityRead,
   canTemplateRead,
   modalOpen,
+  activeNav = null,
   onRefresh,
   onToggleTheme,
   onNewJob,
@@ -515,12 +514,11 @@ export function BoardTopbar({
   }, [mobileMenuOpen]);
 
   useEffect(() => {
-    if (modalOpen) {
-      setManageOpen(false);
-      setSessionOpen(false);
-      setMobileMenuOpen(false);
-    }
-  }, [modalOpen]);
+    if (!modalOpen) return;
+    setSessionOpen(false);
+    setMobileMenuOpen(false);
+    setManageOpen(Boolean(activeNav && activeNav !== 'new-job'));
+  }, [modalOpen, activeNav]);
 
   useEffect(() => {
     if (!refreshShimmer) return;
@@ -619,11 +617,15 @@ export function BoardTopbar({
     tip.hidden = false;
   }
 
-  function closeMenu() {
+  function closeMenu(keepManage = false) {
     setMobileMenuOpen(false);
     setSessionOpen(false);
-    setManageOpen(false);
     setSheetAccountOpen(false);
+    if (!keepManage) setManageOpen(false);
+  }
+
+  function manageItemClass(key: string) {
+    return `nav-manage-item${activeNav === key ? ' is-active' : ''}`;
   }
 
   const manageItems = (
@@ -631,11 +633,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('settings')}
         disabled={busy}
         title={t('nav.settings')}
+        aria-current={activeNav === 'settings' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onSettings();
         }}
       >
@@ -645,11 +648,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('techs')}
         disabled={busy}
         title={t('nav.technicians')}
+        aria-current={activeNav === 'techs' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onTechnicians();
         }}
       >
@@ -660,11 +664,12 @@ export function BoardTopbar({
         <button
           type='button'
           role='menuitem'
-          className='nav-manage-item'
+          className={manageItemClass('users')}
           disabled={busy}
           title={t('nav.usersMaster')}
+          aria-current={activeNav === 'users' ? 'page' : undefined}
           onClick={() => {
-            closeMenu();
+            closeMenu(true);
             onUsersMaster();
           }}
         >
@@ -675,11 +680,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('units')}
         disabled={busy || !canUnitRead}
         title={t('nav.unitsMaster')}
+        aria-current={activeNav === 'units' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onUnitsMaster();
         }}
       >
@@ -689,11 +695,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('priorities')}
         disabled={busy || !canPriorityRead}
         title={t('nav.prioritiesMaster')}
+        aria-current={activeNav === 'priorities' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onPrioritiesMaster();
         }}
       >
@@ -703,11 +710,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('templates')}
         disabled={busy || !canTemplateRead}
         title={t('nav.templatesMaster')}
+        aria-current={activeNav === 'templates' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onTemplatesMaster();
         }}
       >
@@ -717,11 +725,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('attendance')}
         disabled={busy}
         title={t('nav.attendance')}
+        aria-current={activeNav === 'attendance' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onAttendance();
         }}
       >
@@ -731,11 +740,12 @@ export function BoardTopbar({
       <button
         type='button'
         role='menuitem'
-        className='nav-manage-item'
+        className={manageItemClass('export')}
         disabled={busy || !isLoggedIn}
         title={isLoggedIn ? t('nav.exportExcelTip') : t('nav.exportNeedLogin')}
+        aria-current={activeNav === 'export' ? 'page' : undefined}
         onClick={() => {
-          closeMenu();
+          closeMenu(true);
           onExportExcel();
         }}
       >
@@ -746,11 +756,12 @@ export function BoardTopbar({
         <button
           type='button'
           role='menuitem'
-          className='nav-manage-item'
+          className={manageItemClass('backup')}
           disabled={busy}
           title='Riwayat backup perubahan job (undo)'
+          aria-current={activeNav === 'backup' ? 'page' : undefined}
           onClick={() => {
-            closeMenu();
+            closeMenu(true);
             onJobBackups();
           }}
         >
@@ -805,16 +816,12 @@ export function BoardTopbar({
           <Link className='brand-lockup' href='/' aria-label={t('app.title')}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              className='brand-logo'
-              src='/trakindo-cat.png'
+              className='brand-mark'
+              src='/trakindo-cat.svg'
+              width={115}
+              height={29}
               alt=''
-              suppressHydrationWarning
             />
-            <span className='brand-divider' aria-hidden='true' />
-            <span className='brand-text'>
-              <span className='brand'>{t('app.title')}</span>
-              <span className='brand-tagline'>{t('brand.tagline')}</span>
-            </span>
           </Link>
         </div>
         <div className='brand-row'>
@@ -1005,7 +1012,7 @@ export function BoardTopbar({
                   {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                 </button>
                 <button
-                  className='btn btn-primary'
+                  className={`btn btn-primary${activeNav === 'new-job' ? ' is-active' : ''}`}
                   disabled={busy || !canJobCreate}
                   onClick={onNewJob}
                   aria-label={t('nav.newJob')}
@@ -1132,6 +1139,11 @@ export function BoardTopbar({
             </>
           )}
         </div>
+        <Link className='app-sidebar-foot' href='/' aria-label={t('app.title')}>
+          <span className='brand-text'>
+            <span className='brand'>{t('app.title')}</span>
+          </span>
+        </Link>
       </header>
       <div ref={railTipRef} className='nav-rail-tip' hidden role='tooltip' />
 

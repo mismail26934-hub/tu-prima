@@ -7477,11 +7477,11 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
   }
 }
 
-/* Sidebar — Figma TU-TOD closed rail 80px (1946:2124) and open panel 348px (1369:3328) */
+/* Sidebar — Figma TU-TOD closed rail / open panel; widths via --sidebar-rail / --sidebar-open */
 html:has(.app-sidebar) .app {
   padding-top: 20px;
   padding-left: calc(
-    80px + max(var(--ds-margin), env(safe-area-inset-left, 0px))
+    var(--sidebar-rail) + max(var(--ds-margin), env(safe-area-inset-left, 0px))
   );
 }
 
@@ -7508,7 +7508,7 @@ html:has(.app-sidebar) .topbar-glass {
   right: auto;
   bottom: 0;
   left: 0;
-  width: 80px;
+  width: var(--sidebar-rail);
   height: 100dvh;
   padding: 0;
   overflow: hidden;
@@ -7518,7 +7518,7 @@ html:has(.app-sidebar) .topbar-glass {
 }
 
 .topbar.app-sidebar.is-open {
-  width: 348px;
+  width: min(100vw, var(--sidebar-open));
   background: #1f1b22;
   z-index: 130;
 }
@@ -7526,13 +7526,13 @@ html:has(.app-sidebar) .topbar-glass {
 .app-sidebar-head {
   display: flex;
   align-items: center;
-  flex: 0 0 80px;
+  flex: 0 0 var(--sidebar-rail);
   order: 0;
   position: relative;
   z-index: 6;
   flex-shrink: 0;
-  height: 80px;
-  min-height: 80px;
+  height: var(--sidebar-rail);
+  min-height: var(--sidebar-rail);
   background: #1f1b22;
   border-bottom: 2px solid #23293b;
 }
@@ -7545,9 +7545,9 @@ html:has(.app-sidebar) .topbar-glass {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 80px;
-  width: 80px;
-  height: 80px;
+  flex: 0 0 var(--sidebar-rail);
+  width: var(--sidebar-rail);
+  height: var(--sidebar-rail);
   border: 0;
   background: transparent;
   color: #fff;
@@ -7694,9 +7694,9 @@ html:has(.app-sidebar) .topbar-glass {
 }
 
 .topbar.app-sidebar:not(.is-open) .nav-manage > .btn {
-  width: 72px !important;
-  min-width: 72px !important;
-  max-width: 72px !important;
+  width: min(72px, calc(var(--sidebar-rail) - 8px)) !important;
+  min-width: min(72px, calc(var(--sidebar-rail) - 8px)) !important;
+  max-width: min(72px, calc(var(--sidebar-rail) - 8px)) !important;
   gap: 2px !important;
   padding: 0 6px !important;
 }
@@ -7732,8 +7732,8 @@ html:has(.app-sidebar) .topbar-glass {
   width: 48px;
   height: 40px;
   min-height: 40px;
-  /* 24px icon centered on the caret (caret center is 53px from the rail edge). */
-  margin: 0 0 0 29px;
+  /* 24px icon centered on the caret (caret center ≈ 0.6625 × rail from the edge). */
+  margin: 0 0 0 calc(var(--sidebar-rail) * 0.3625);
   padding: 0;
   justify-content: center;
   gap: 0;
@@ -8000,7 +8000,7 @@ html:has(.app-sidebar) .topbar-glass {
 @media (max-width: 720px) {
   html:has(.app-sidebar) .app {
     padding-top: 16px;
-    padding-left: 80px;
+    padding-left: var(--sidebar-rail);
   }
 
   .app-sidebar .top-actions-panel--bar {
@@ -8072,14 +8072,14 @@ html[data-theme='light'] .topbar.app-sidebar .nav-manage-caret {
 html:has(.topbar.app-sidebar) .modal-backdrop.master-backdrop,
 html:has(.topbar.app-sidebar) .modal-backdrop.import-preview-backdrop,
 html:has(.topbar.app-sidebar) .modal-backdrop.manage-dialog {
-  left: 80px;
+  left: var(--sidebar-rail);
   z-index: 110;
 }
 
 html:has(.topbar.app-sidebar.is-open) .modal-backdrop.master-backdrop,
 html:has(.topbar.app-sidebar.is-open) .modal-backdrop.import-preview-backdrop,
 html:has(.topbar.app-sidebar.is-open) .modal-backdrop.manage-dialog {
-  left: 348px;
+  left: min(100vw, var(--sidebar-open));
 }
 
 html.modal-open:has(.modal-backdrop.master-backdrop) .topbar.app-sidebar,

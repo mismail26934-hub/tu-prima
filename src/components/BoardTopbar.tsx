@@ -25,7 +25,6 @@ type BoardTopbarProps = {
   userLevel: UserLevel | string;
   displayName: string;
   avatarUrl: string;
-  canJobCreate: boolean;
   canUnitRead: boolean;
   canPriorityRead: boolean;
   canTemplateRead: boolean;
@@ -34,7 +33,6 @@ type BoardTopbarProps = {
   activeNav?: string | null;
   onRefresh: () => void;
   onToggleTheme: () => void;
-  onNewJob: () => void;
   onSettings: () => void;
   onTechnicians: () => void;
   onUsersMaster: () => void;
@@ -187,25 +185,6 @@ function MoonIcon() {
   );
 }
 
-function RefreshIcon() {
-  return (
-    <svg
-      width='18'
-      height='18'
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      aria-hidden='true'
-    >
-      <path d='M21 12a9 9 0 1 1-2.1-5.7' />
-      <path d='M21 3v6h-6' />
-    </svg>
-  );
-}
-
 function LogoutIcon() {
   return (
     <svg
@@ -332,7 +311,6 @@ function ManageIcon() {
   );
 }
 
-/** Tablet navbar — + Job (icon-only). */
 function MenuIcon() {
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -346,23 +324,34 @@ function MenuIcon() {
   );
 }
 
-function PlusIcon() {
-  return (
-    <svg
-      className='nav-new-job-icon'
-      width='24'
-      height='24'
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      aria-hidden='true'
-    >
-      <path d='M12 5v14M5 12h14' />
-    </svg>
-  );
+/** Place the account portal menu beside the trigger, clamped inside the viewport. */
+function placeAccountMenu(trigger: DOMRect): {
+  top: number;
+  left: number;
+  width: number;
+} {
+  const margin = 16;
+  const gap = 10;
+  const width = Math.min(264, Math.max(200, window.innerWidth - margin * 2));
+  const estHeight = 300;
+  let left = trigger.right + gap;
+  if (left + width > window.innerWidth - margin) {
+    const flipLeft = trigger.left - gap - width;
+    left =
+      flipLeft >= margin
+        ? flipLeft
+        : Math.max(margin, window.innerWidth - margin - width);
+  }
+  let top = trigger.top;
+  if (top + estHeight > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - margin - estHeight);
+  }
+  top = Math.min(Math.max(margin, top), window.innerHeight - margin - 64);
+  return {
+    top: Math.round(top),
+    left: Math.round(left),
+    width: Math.round(width),
+  };
 }
 
 export function BoardTopbar({
@@ -377,7 +366,6 @@ export function BoardTopbar({
   userLevel,
   displayName,
   avatarUrl,
-  canJobCreate,
   canUnitRead,
   canPriorityRead,
   canTemplateRead,
@@ -385,7 +373,6 @@ export function BoardTopbar({
   activeNav = null,
   onRefresh,
   onToggleTheme,
-  onNewJob,
   onSettings,
   onTechnicians,
   onUsersMaster,
@@ -413,6 +400,7 @@ export function BoardTopbar({
   const [sessionMenuPos, setSessionMenuPos] = useState<{
     top: number;
     left: number;
+    width: number;
   } | null>(null);
   const [sheetAccountOpen, setSheetAccountOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -445,9 +433,17 @@ export function BoardTopbar({
           `${height}px`
         );
       }
+      // Vertical sidebar is 100dvh — use the head row only for modal top inset.
+      const isSidebar = el.classList.contains('app-sidebar');
+      const head = isSidebar
+        ? el.querySelector<HTMLElement>('.app-sidebar-head')
+        : null;
+      const offsetBottom = head
+        ? Math.ceil(head.getBoundingClientRect().bottom)
+        : bottom;
       document.documentElement.style.setProperty(
         '--topbar-offset',
-        `${bottom + 8}px`
+        `${offsetBottom + 8}px`
       );
     };
     sync();
@@ -486,11 +482,7 @@ export function BoardTopbar({
     function syncPos() {
       const el = sessionRef.current;
       if (!el) return;
-      const box = el.getBoundingClientRect();
-      setSessionMenuPos({
-        top: Math.round(box.top),
-        left: Math.round(box.right + 10),
-      });
+      setSessionMenuPos(placeAccountMenu(el.getBoundingClientRect()));
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setSessionOpen(false);
@@ -498,9 +490,11 @@ export function BoardTopbar({
     syncPos();
     document.addEventListener('keydown', onKey);
     window.addEventListener('resize', syncPos);
+    window.addEventListener('scroll', syncPos, { passive: true });
     return () => {
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', syncPos);
+      window.removeEventListener('scroll', syncPos);
     };
   }, [sessionOpen, mobileMenuOpen]);
 
@@ -531,6 +525,9 @@ export function BoardTopbar({
   useEffect(() => {
     function onPop(e: Event) {
       const detail = (e as CustomEvent<string>).detail;
+      // Sound / alerts open their own dialogs; keep the account menu mounted
+      // so RemainAlertMuteToggle is not torn down before its modal paints.
+      if (detail === 'sound' || detail === 'alerts') return;
       if (detail === 'manage') {
         setSessionOpen(false);
         return;
@@ -868,11 +865,9 @@ export function BoardTopbar({
                               );
                               const el = sessionRef.current;
                               if (el) {
-                                const box = el.getBoundingClientRect();
-                                setSessionMenuPos({
-                                  top: Math.round(box.top),
-                                  left: Math.round(box.right + 10),
-                                });
+                                setSessionMenuPos(
+                                  placeAccountMenu(el.getBoundingClientRect())
+                                );
                               }
                             } else {
                               setSessionMenuPos(null);
@@ -895,6 +890,7 @@ export function BoardTopbar({
                               style={{
                                 top: sessionMenuPos.top,
                                 left: sessionMenuPos.left,
+                                width: sessionMenuPos.width,
                               }}
                             >
                               <button
@@ -921,6 +917,46 @@ export function BoardTopbar({
                               >
                                 {t('nav.editPassword')}
                               </button>
+                              <p
+                                className='nav-session-group-label'
+                                role='presentation'
+                              >
+                                {t('nav.settings')}
+                              </p>
+                              <div
+                                className='nav-session-prefs'
+                                role='group'
+                                aria-label={t('nav.settings')}
+                              >
+                                <LanguageToggle />
+                                <button
+                                  className='btn btn-icon'
+                                  type='button'
+                                  onClick={onToggleTheme}
+                                  aria-label={
+                                    theme === 'dark'
+                                      ? t('nav.lightMode')
+                                      : t('nav.darkMode')
+                                  }
+                                  title={
+                                    theme === 'dark'
+                                      ? t('nav.lightMode')
+                                      : t('nav.darkMode')
+                                  }
+                                >
+                                  {theme === 'dark' ? (
+                                    <SunIcon />
+                                  ) : (
+                                    <MoonIcon />
+                                  )}
+                                </button>
+                                <RemainAlertMuteToggle
+                                  variant='menu'
+                                  onBeforeOpen={() => {
+                                    setManageOpen(false);
+                                  }}
+                                />
+                              </div>
                               <button
                                 type='button'
                                 role='menuitem'
@@ -987,95 +1023,51 @@ export function BoardTopbar({
                     </div>
                   )}
                 </div>
-                <button
-                  className='btn btn-icon'
-                  disabled={busy}
-                  type='button'
-                  onClick={onRefresh}
-                  aria-label={t('nav.refresh')}
-                  title={t('nav.refresh')}
-                >
-                  <RefreshIcon />
-                </button>
-                <LanguageToggle />
-                <button
-                  className='btn btn-icon'
-                  type='button'
-                  onClick={onToggleTheme}
-                  aria-label={
-                    theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')
-                  }
-                  title={
-                    theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')
-                  }
-                >
-                  {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-                </button>
-                <button
-                  className={`btn btn-primary${activeNav === 'new-job' ? ' is-active' : ''}`}
-                  disabled={busy || !canJobCreate}
-                  onClick={onNewJob}
-                  aria-label={t('nav.newJob')}
-                  title={t('nav.newJob')}
-                >
-                  <PlusIcon />
-                  <span className='btn-label'>{t('nav.newJob')}</span>
-                </button>
+                {!isLoggedIn && !sessionPending ? (
+                  <>
+                    <LanguageToggle />
+                    <button
+                      className='btn btn-icon'
+                      type='button'
+                      onClick={onToggleTheme}
+                      aria-label={
+                        theme === 'dark'
+                          ? t('nav.lightMode')
+                          : t('nav.darkMode')
+                      }
+                      title={
+                        theme === 'dark'
+                          ? t('nav.lightMode')
+                          : t('nav.darkMode')
+                      }
+                    >
+                      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                    </button>
+                  </>
+                ) : null}
                 <div className='nav-end'>
                   {sessionPending ? (
                     sessionShimmerWithAlerts ? (
-                      <>
-                        <ShimmerBlock className='shimmer-block--nav-icon' />
-                        <ShimmerBlock className='shimmer-block--nav-icon' />
-                      </>
+                      <ShimmerBlock className='shimmer-block--nav-icon' />
                     ) : null
                   ) : (
-                    <>
-                      {isLoggedIn ? (
-                        <RemainAlertMuteToggle
-                          onBeforeOpen={() => {
-                            setManageOpen(false);
-                            setSessionOpen(false);
-                          }}
-                        />
-                      ) : null}
-                      <NavAlerts
-                        enabled={showNavAlerts}
-                        onBeforeOpen={() => {
-                          setManageOpen(false);
-                          setSessionOpen(false);
-                        }}
-                        onOpenJob={(jobId, kind) => {
-                          setManageOpen(false);
-                          setSessionOpen(false);
-                          onOpenJob(jobId, kind);
-                        }}
-                      />
-                    </>
+                    <NavAlerts
+                      enabled={showNavAlerts}
+                      onBeforeOpen={() => {
+                        setManageOpen(false);
+                        setSessionOpen(false);
+                      }}
+                      onOpenJob={(jobId, kind) => {
+                        setManageOpen(false);
+                        setSessionOpen(false);
+                        onOpenJob(jobId, kind);
+                      }}
+                    />
                   )}
                 </div>
               </div>
 
               <div className='top-actions-mobile'>
-                <button
-                  className='btn btn-primary btn-icon'
-                  disabled={busy || !canJobCreate}
-                  onClick={onNewJob}
-                  aria-label={t('nav.newJob')}
-                  title={t('nav.newJob')}
-                >
-                  <PlusIcon />
-                </button>
-                <button
-                  className='btn btn-icon'
-                  type='button'
-                  disabled={busy}
-                  onClick={onRefresh}
-                  aria-label={t('nav.refresh')}
-                  title={t('nav.refresh')}
-                >
-                  <RefreshIcon />
-                </button>
                 {sessionPending ? (
                   sessionShimmerWithAlerts ? (
                     <ShimmerBlock className='shimmer-block--nav-icon' />
@@ -1297,6 +1289,37 @@ export function BoardTopbar({
                   >
                     {t('nav.editPassword')}
                   </button>
+                  <p
+                    className='nav-session-group-label'
+                    role='presentation'
+                  >
+                    {t('nav.settings')}
+                  </p>
+                  <div
+                    className='nav-session-prefs'
+                    role='group'
+                    aria-label={t('nav.settings')}
+                  >
+                    <LanguageToggle />
+                    <button
+                      className='btn btn-icon'
+                      type='button'
+                      onClick={onToggleTheme}
+                      aria-label={
+                        theme === 'dark'
+                          ? t('nav.lightMode')
+                          : t('nav.darkMode')
+                      }
+                      title={
+                        theme === 'dark'
+                          ? t('nav.lightMode')
+                          : t('nav.darkMode')
+                      }
+                    >
+                      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                    </button>
+                    <RemainAlertMuteToggle variant='menu' />
+                  </div>
                 </div>
               </div>
             )}

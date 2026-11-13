@@ -15,11 +15,13 @@
   --ds-ref-lg: 1280px;
   /*
     Sidebar widths — clamp across DS refs (Small 360 · Medium 768 · Large 1280)
-    Closed rail: 64 → ~72 → 80 (Figma 1946:2124 = 80 @ Large)
+    Closed rail: 56 → ~66 → 80 (Figma 1946:2124 = 80 @ Large; phone tighter for hamburger)
     Open panel:  280 → ~310 → 348 (Figma 1369:3328 = 348 @ Large)
     preferred = min + (100vw - 360px) * (max - min) / (1280 - 360)
   */
-  --sidebar-rail: clamp(64px, 1.73913vw + 57.739px, 80px);
+  --sidebar-rail: clamp(56px, 2.6087vw + 46.609px, 80px);
+  /* Head/hamburger row — shorter than rail width on small screens */
+  --sidebar-head: clamp(40px, 1.5vw + 34.6px, 56px);
   --sidebar-open: clamp(280px, 7.3913vw + 253.391px, 348px);
   --ds-max: none;
   --ds-columns: 4;
@@ -362,6 +364,8 @@ html[data-ds-device='phone'] {
   --ds-columns: 4;
   --ds-gutter: 16px;
   --ds-margin: 16px;
+  --sidebar-rail: 56px;
+  --sidebar-head: 40px;
 }
 
 html[data-ds-device='tablet'] {

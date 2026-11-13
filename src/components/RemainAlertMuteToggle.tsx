@@ -200,14 +200,19 @@ export function RemainAlertMuteToggle({
 
   function toggleOpen() {
     unlockRemainAlertAudio();
-    onBeforeOpen?.();
     const next = !open;
     if (next) {
+      // Open first so parent onBeforeOpen can close other menus without
+      // unmounting this toggle before the dialog exists.
+      setOpen(true);
       window.dispatchEvent(
         new CustomEvent("prima-header-pop", { detail: "sound" })
       );
+      onBeforeOpen?.();
+      return;
     }
-    setOpen(next);
+    onBeforeOpen?.();
+    setOpen(false);
   }
 
   if (variant === "menu") {

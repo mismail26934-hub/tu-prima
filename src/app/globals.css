@@ -963,6 +963,135 @@ html.nav-header-pop-open .top-actions {
   position: fixed;
   top: auto;
   right: auto;
+  box-sizing: border-box;
+  width: min(264px, calc(100vw - 32px));
+  min-width: 0;
+  max-width: calc(100vw - 32px);
+  max-height: min(420px, calc(100dvh - 32px));
+  margin: 0;
+  padding: 8px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  border-radius: 12px;
+  z-index: 10025;
+}
+
+.nav-session-portal-menu .nav-manage-item {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.nav-session-group-label {
+  margin: 10px 8px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.nav-session-prefs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0 4px 8px;
+  padding: 6px 4px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.nav-session-prefs .remain-alert-settings {
+  display: inline-flex;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.nav-session-portal-menu .nav-session-prefs .btn,
+.nav-session-portal-menu .nav-session-prefs .btn.btn-icon,
+.nav-sheet-account-modal .nav-session-prefs .btn,
+.nav-sheet-account-modal .nav-session-prefs .btn.btn-icon {
+  width: var(--ctrl-size-ui) !important;
+  height: var(--ctrl-size-ui) !important;
+  min-width: var(--ctrl-size-ui) !important;
+  min-height: var(--ctrl-size-ui) !important;
+  max-width: var(--ctrl-size-ui) !important;
+  max-height: var(--ctrl-size-ui) !important;
+  margin: 0;
+  padding: 0 !important;
+  flex: 0 0 var(--ctrl-size-ui) !important;
+  border-radius: var(--ctrl-radius);
+  background: var(--bg-2);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.nav-session-portal-menu .nav-session-prefs .btn:hover:not(:disabled),
+.nav-sheet-account-modal .nav-session-prefs .btn:hover:not(:disabled) {
+  background: var(--bg-1);
+  color: var(--amber);
+}
+
+.nav-sheet-account-modal .nav-session-group-label {
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
+.nav-sheet-account-modal .nav-session-prefs {
+  margin-left: 0;
+  margin-right: 0;
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+
+/* Phone Small — bottom sheet card (DS ref 360, CSS < 600) */
+@media (max-width: 599px) {
+  .nav-session-portal-menu {
+    top: auto !important;
+    left: max(16px, env(safe-area-inset-left, 0px)) !important;
+    right: max(16px, env(safe-area-inset-right, 0px)) !important;
+    bottom: max(16px, env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important;
+    max-width: none;
+    max-height: min(70dvh, calc(100dvh - 32px));
+    padding: 10px;
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .nav-session-portal-menu .nav-manage-item {
+    min-height: 48px;
+  }
+
+  .nav-session-prefs {
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 8px 4px 12px;
+  }
+}
+
+/* Tablet Medium — flyout beside rail (DS ref 768, CSS 600–1239) */
+@media (min-width: 600px) and (max-width: 1239px) {
+  .nav-session-portal-menu {
+    width: min(248px, calc(100vw - 32px));
+    padding: 8px;
+    border-radius: 12px;
+  }
+}
+
+/* Desktop Large — flyout (DS ref 1280, CSS ≥ 1240) */
+@media (min-width: 1240px) {
+  .nav-session-portal-menu {
+    width: min(264px, calc(100vw - 32px));
+    padding: 8px;
+    border-radius: 12px;
+  }
 }
 
 .remain-alert-pop-title {
@@ -2452,6 +2581,73 @@ html[data-theme='light'] .remain-alert-field select {
   min-width: 0;
 }
 
+.panel-vis-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* New job — in job panel header (phone icon / tablet short / desktop full) */
+.panel-new-job {
+  flex: 0 0 auto;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.panel-new-job-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.panel-new-job-label {
+  display: none;
+}
+
+.panel-new-job-label-short {
+  display: none;
+}
+
+/* Phone Small — icon only */
+@media (max-width: 599px) {
+  .panel-search-row .panel-new-job {
+    width: var(--ctrl-size-ui);
+    min-width: var(--ctrl-size-ui);
+    max-width: var(--ctrl-size-ui);
+    padding: 0;
+    gap: 0;
+  }
+
+  .panel-search-row .panel-new-job .panel-new-job-label,
+  .panel-search-row .panel-new-job .panel-new-job-label-short {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* Tablet Medium — short label "Job" */
+@media (min-width: 600px) and (max-width: 1239px) {
+  .panel-new-job-label-short {
+    display: inline;
+  }
+}
+
+/* Desktop Large — full label "Job baru" / "New job" */
+@media (min-width: 1240px) {
+  .panel-new-job-label {
+    display: inline;
+  }
+}
+
 /* Search field + Cari as one control (same as tu-rental / ARMOR) */
 .search-pair {
   display: flex;
@@ -2732,11 +2928,17 @@ html[data-theme='light'] .search-pair:focus-within {
     width: 100%;
     justify-content: stretch;
     flex-wrap: nowrap;
+    gap: 6px;
   }
 
   .panel-search-row .search-pair {
     flex: 1 1 auto;
-    width: 100%;
+    width: auto;
+    min-width: 0;
+  }
+
+  .panel-search-row .panel-new-job {
+    flex: 0 0 auto;
   }
 
   .search-pair .panel-search,
@@ -7526,19 +7728,24 @@ html:has(.app-sidebar) .topbar-glass {
 .app-sidebar-head {
   display: flex;
   align-items: center;
-  flex: 0 0 var(--sidebar-rail);
+  justify-content: center;
+  flex: 0 0 var(--sidebar-head);
   order: 0;
   position: relative;
   z-index: 6;
   flex-shrink: 0;
-  height: var(--sidebar-rail);
-  min-height: var(--sidebar-rail);
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--sidebar-head);
+  min-height: var(--sidebar-head);
+  max-height: var(--sidebar-head);
   background: #1f1b22;
-  border-bottom: 2px solid #23293b;
+  border-bottom: 1px solid #23293b;
 }
 
 .topbar.app-sidebar.is-open .app-sidebar-head {
   background: #1f1b22;
+  justify-content: flex-start;
 }
 
 .app-sidebar-toggle {
@@ -7546,8 +7753,10 @@ html:has(.app-sidebar) .topbar-glass {
   align-items: center;
   justify-content: center;
   flex: 0 0 var(--sidebar-rail);
+  box-sizing: border-box;
   width: var(--sidebar-rail);
-  height: var(--sidebar-rail);
+  height: var(--sidebar-head);
+  max-height: var(--sidebar-head);
   border: 0;
   background: transparent;
   color: #fff;
@@ -7642,16 +7851,17 @@ html:has(.app-sidebar) .topbar-glass {
 .topbar.app-sidebar .btn.nav-account,
 .topbar.app-sidebar .nav-account,
 .topbar.app-sidebar .lang-toggle-icon {
-  width: 61px !important;
-  height: 61px !important;
-  min-width: 61px !important;
-  min-height: 61px !important;
-  max-width: 61px !important;
-  max-height: 61px !important;
+  --sidebar-hit: min(61px, calc(var(--sidebar-rail) - 8px));
+  width: var(--sidebar-hit) !important;
+  height: var(--sidebar-hit) !important;
+  min-width: var(--sidebar-hit) !important;
+  min-height: var(--sidebar-hit) !important;
+  max-width: var(--sidebar-hit) !important;
+  max-height: var(--sidebar-hit) !important;
   margin: 0 auto;
   padding: 0 !important;
   gap: 0 !important;
-  flex: 0 0 61px !important;
+  flex: 0 0 var(--sidebar-hit) !important;
   aspect-ratio: auto;
   justify-content: center;
   border-radius: 8px;
@@ -7997,6 +8207,53 @@ html:has(.app-sidebar) .topbar-glass {
   border-radius: 0;
 }
 
+/* Phone / small — compact hamburger row (shorter than rail width) */
+@media (max-width: 767px) {
+  :root,
+  html {
+    --sidebar-rail: 56px;
+    --sidebar-head: 40px;
+  }
+
+  .topbar.app-sidebar .app-sidebar-head {
+    flex: 0 0 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    border-bottom-width: 1px;
+  }
+
+  .topbar.app-sidebar .app-sidebar-toggle {
+    flex: 0 0 56px !important;
+    width: 56px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  .app-sidebar-toggle .sidebar-menu-icon {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+  }
+
+  .topbar.app-sidebar .top-actions-panel--bar .btn,
+  .topbar.app-sidebar .top-actions-panel--bar .btn.btn-icon,
+  .topbar.app-sidebar .top-actions-panel--bar .btn:not(.btn-icon),
+  .topbar.app-sidebar .nav-manage > .btn,
+  .topbar.app-sidebar .btn.nav-account,
+  .topbar.app-sidebar .nav-account,
+  .topbar.app-sidebar .lang-toggle-icon {
+    --sidebar-hit: 44px;
+  }
+
+  .topbar.app-sidebar:not(.is-open) .nav-manage > .btn {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+  }
+}
+
 @media (max-width: 720px) {
   html:has(.app-sidebar) .app {
     padding-top: 16px;
@@ -8084,7 +8341,35 @@ html:has(.topbar.app-sidebar.is-open) .modal-backdrop.manage-dialog {
 
 html.modal-open:has(.modal-backdrop.master-backdrop) .topbar.app-sidebar,
 html.modal-open:has(.modal-backdrop.import-preview-backdrop)
-  .topbar.app-sidebar,
-html.modal-open:has(.modal-backdrop.manage-dialog) .topbar.app-sidebar {
+  .topbar.app-sidebar {
   z-index: 140;
+}
+
+/* Export / small manage dialogs sit above the rail on phone */
+html.modal-open:has(.modal-backdrop.manage-dialog) .topbar.app-sidebar {
+  z-index: 120;
+}
+
+@media (max-width: 720px) {
+  html:has(.topbar.app-sidebar) .modal-backdrop.manage-dialog {
+    z-index: 10040;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    padding: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    /* Keep clear of compact sidebar head; do not use full-rail --topbar-offset */
+    padding-top: max(16px, calc(var(--sidebar-head, 40px) + 12px));
+  }
+
+  html:has(.topbar.app-sidebar) .modal-backdrop.manage-dialog .modal {
+    width: min(480px, 100%);
+    max-width: 100%;
+    max-height: min(90dvh, calc(100dvh - 48px));
+    align-self: center;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 }

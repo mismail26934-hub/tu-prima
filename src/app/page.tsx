@@ -542,6 +542,25 @@ function PanelToggleIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function NewJobPlusIcon() {
+  return (
+    <svg
+      className="panel-new-job-icon"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 type StatIconKind =
   | "available"
   | "busy"
@@ -6057,7 +6076,6 @@ export default function HomePage() {
         userLevel={userLevel}
         displayName={displayName}
         avatarUrl={avatarUrl}
-        canJobCreate={canJobCreate}
         canUnitRead={canUnitRead}
         canPriorityRead={canPriorityRead}
         canTemplateRead={canTemplateRead}
@@ -6065,7 +6083,6 @@ export default function HomePage() {
         activeNav={activeNavForModal(modal)}
         onRefresh={refreshDashboard}
         onToggleTheme={toggleTheme}
-        onNewJob={() => openCreate()}
         onSettings={() => setModal({ type: "settings" })}
         onTechnicians={() => {
           setTechImportMsg("");
@@ -6343,15 +6360,27 @@ export default function HomePage() {
               <section className="panel panel--collapsed ds-span-board-end">
                 <div className="panel-vis-bar">
                   <span className="panel-vis-label">{t("panel.jobHidden")}</span>
-                  <button
-                    type="button"
-                    className="btn btn-icon panel-vis-btn"
-                    onClick={toggleHideJobPanel}
-                    aria-label={t("panel.showJob")}
-                    title={t("panel.show")}
-                  >
-                    <PanelToggleIcon collapsed />
-                  </button>
+                  <div className="panel-vis-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-icon panel-new-job"
+                      disabled={!canJobCreate}
+                      onClick={() => openCreate()}
+                      aria-label={t("nav.newJob")}
+                      title={t("nav.newJob")}
+                    >
+                      <NewJobPlusIcon />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-icon panel-vis-btn"
+                      onClick={toggleHideJobPanel}
+                      aria-label={t("panel.showJob")}
+                      title={t("panel.show")}
+                    >
+                      <PanelToggleIcon collapsed />
+                    </button>
+                  </div>
                 </div>
               </section>
             ) : (
@@ -6514,6 +6543,22 @@ export default function HomePage() {
                         Reset
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn btn-primary panel-new-job"
+                      disabled={!canJobCreate}
+                      onClick={() => openCreate()}
+                      aria-label={t("nav.newJob")}
+                      title={t("nav.newJob")}
+                    >
+                      <NewJobPlusIcon />
+                      <span className="btn-label panel-new-job-label">
+                        {t("nav.newJob")}
+                      </span>
+                      <span className="btn-label panel-new-job-label-short">
+                        {t("nav.newJobShort")}
+                      </span>
+                    </button>
                   </div>
                 </div>
               {(jobSectionFilter === "all" || jobSectionFilter === "active") && (

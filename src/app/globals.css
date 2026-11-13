@@ -6510,8 +6510,8 @@ html.modal-open .topbar-glass {
 }
 
 @media (max-width: 720px) {
-  /* Mobile: keep navbar features usable above Job baru / regular modals */
-  html.modal-open .topbar {
+  /* Mobile horizontal topbar: keep chrome above Job baru / regular modals */
+  html.modal-open .topbar:not(.app-sidebar) {
     z-index: 10020;
   }
 
@@ -6519,9 +6519,14 @@ html.modal-open .topbar-glass {
     z-index: 10015;
   }
 
-  html.modal-open .top-actions {
+  html.modal-open .topbar:not(.app-sidebar) .top-actions {
     position: relative;
     z-index: 10020;
+  }
+
+  /* Vertical sidebar must stay under dialogs (logout, export, etc.) */
+  html.modal-open:has(.topbar.app-sidebar) .topbar.app-sidebar {
+    z-index: 120;
   }
 
   /* Full-screen Kelola / import still cover the navbar */
@@ -8351,7 +8356,14 @@ html.modal-open:has(.modal-backdrop.manage-dialog) .topbar.app-sidebar {
 }
 
 @media (max-width: 720px) {
-  html:has(.topbar.app-sidebar) .modal-backdrop.manage-dialog {
+  /*
+    Phone/small: cover the full viewport (including open sidebar).
+    Insetting by --sidebar-open left almost no width for the dialog.
+  */
+  html:has(.topbar.app-sidebar)
+    .modal-backdrop:not(.master-backdrop):not(.import-preview-backdrop) {
+    left: 0 !important;
+    right: 0;
     z-index: 10040;
     display: grid;
     place-items: center;
@@ -8360,14 +8372,15 @@ html.modal-open:has(.modal-backdrop.manage-dialog) .topbar.app-sidebar {
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
-    /* Keep clear of compact sidebar head; do not use full-rail --topbar-offset */
-    padding-top: max(16px, calc(var(--sidebar-head, 40px) + 12px));
+    padding-top: max(16px, env(safe-area-inset-top, 0px));
   }
 
-  html:has(.topbar.app-sidebar) .modal-backdrop.manage-dialog .modal {
+  html:has(.topbar.app-sidebar)
+    .modal-backdrop:not(.master-backdrop):not(.import-preview-backdrop)
+    .modal {
     width: min(480px, 100%);
     max-width: 100%;
-    max-height: min(90dvh, calc(100dvh - 48px));
+    max-height: min(90dvh, calc(100dvh - 32px));
     align-self: center;
     overflow-x: hidden;
     overflow-y: auto;

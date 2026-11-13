@@ -511,6 +511,7 @@ export function BoardTopbar({
     if (!modalOpen) return;
     setSessionOpen(false);
     setMobileMenuOpen(false);
+    setSidebarOpen(false);
     setManageOpen(Boolean(activeNav && activeNav !== 'new-job'));
   }, [modalOpen, activeNav]);
 

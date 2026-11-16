@@ -8479,4 +8479,14 @@ html.modal-open:has(.modal-backdrop.manage-dialog) .topbar.app-sidebar {
     overflow-x: hidden;
     overflow-y: auto;
   }
+
+  /*
+    Kelola pages (Settings / master / import): keep rail inset only.
+    Do not shrink beside --sidebar-open — overlay like Teknisi / Job.
+  */
+  html:has(.topbar.app-sidebar.is-open) .modal-backdrop.master-backdrop,
+  html:has(.topbar.app-sidebar.is-open) .modal-backdrop.import-preview-backdrop,
+  html:has(.topbar.app-sidebar.is-open) .modal-backdrop.manage-dialog {
+    left: var(--sidebar-rail);
+  }
 }

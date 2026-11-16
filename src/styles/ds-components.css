@@ -13,7 +13,7 @@
   padding: var(--ds-badge-pad-y) var(--ds-badge-pad-x);
   border-radius: var(--ds-badge-radius);
   border: 1px solid transparent;
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-badge-font-size);
   font-weight: 700;
   line-height: normal;
@@ -329,7 +329,7 @@ html[data-theme='dark'] .ds-icon-btn:hover:not(:disabled) {
   border: 1px dashed var(--ds-carousel-card-border);
   background: var(--ds-carousel-card-bg);
   color: var(--ds-carousel-card-text);
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-sm-size);
   font-weight: 400;
   line-height: var(--ds-body-sm-line);

@@ -1,5 +1,5 @@
 /* Design System TU — Color Guideline + Specs + Typography + Responsive Layout
-   Figma: xkqwaYJnltsvh4V9N8A7vr (Design System TU)
+   Figma: 3YV8o4WPgdeWLEv86doPUs (Design System TU — Copy)
    Color (1:4913), Typography (1:5287), Responsive (2:4146), Specs (24:6035) */
 
 :root {
@@ -13,6 +13,16 @@
   --ds-ref-sm: 360px;
   --ds-ref-md: 768px;
   --ds-ref-lg: 1280px;
+  /*
+    Sidebar widths — clamp across DS refs (Small 360 · Medium 768 · Large 1280)
+    Closed rail: 56 → ~66 → 80 (Figma 1946:2124 = 80 @ Large; phone tighter for hamburger)
+    Open panel:  280 → ~310 → 348 (Figma 1369:3328 = 348 @ Large)
+    preferred = min + (100vw - 360px) * (max - min) / (1280 - 360)
+  */
+  --sidebar-rail: clamp(56px, 2.6087vw + 46.609px, 80px);
+  /* Head/hamburger row — shorter than rail width on small screens */
+  --sidebar-head: clamp(40px, 1.5vw + 34.6px, 56px);
+  --sidebar-open: clamp(280px, 7.3913vw + 253.391px, 348px);
   --ds-max: none;
   --ds-columns: 4;
   --ds-gutter: 16px;
@@ -160,7 +170,7 @@
   --ds-body-xs-size: 12px;
   --ds-body-xs-line: 18px;
 
-  /* Typography (Figma 1:5287) — Inter scale; --font-body / --font-display load Inter */
+  /* Typography (Figma 1:5287) — Roboto scale; --font-body / --font-display load Roboto */
 
   /* Button sizes (Figma 3:4420) */
   --ds-btn-lg-height: 52px;
@@ -213,27 +223,29 @@
      All other UI type stays below brand on the Figma scale. */
 
   /* Brand wordmark PRIMA — Title md 16 (phone) → Title lg 18 (tablet+)
-     Brand sizes in px so they match tu-rental/ARMOR (16px root); PRIMA html is 14px. */
-  --ds-title-lg-size: 1.125rem; /* 18 */
-  --ds-title-lg-line: 1.75rem; /* 28 */
+     Sizes in px (html root is 14px; rem would drift from Figma). */
+  --ds-title-lg-size: 18px;
+  --ds-title-lg-line: 28px;
   --ds-title-lg-weight: 700;
-  --ds-title-lg-tracking: -0.03125rem;
+  --ds-title-lg-tracking: -0.5px;
 
-  --ds-title-md-size: 1rem; /* 16 */
-  --ds-title-md-line: 1.5rem; /* 24 */
+  --ds-title-md-size: 16px;
+  --ds-title-md-line: 24px;
   --ds-title-md-weight: 700;
   --ds-title-md-tracking: 0;
 
-  --ds-title-sm-size: 0.875rem; /* 14 */
-  --ds-title-sm-line: 1.375rem; /* 22 */
+  --ds-title-sm-size: 14px;
+  --ds-title-sm-line: 22px;
   --ds-title-sm-weight: 700;
 
-  --ds-title-xl-size: 1.25rem; /* 20 — reserved; not used above brand */
-  --ds-title-xl-line: 1.875rem;
-  --ds-title-2xl-size: 1.5rem;
-  --ds-title-2xl-line: 2.25rem;
-  --ds-title-3xl-size: 1.75rem;
-  --ds-title-3xl-line: 2.625rem;
+  /* Title XL 20/30 Bold — px so it stays 20/30 at 14px html root */
+  --ds-title-xl-size: 20px;
+  --ds-title-xl-line: 30px;
+  --ds-title-xl-weight: 700;
+  --ds-title-2xl-size: 24px;
+  --ds-title-2xl-line: 36px;
+  --ds-title-3xl-size: 28px;
+  --ds-title-3xl-line: 42px;
 
   --ds-brand-size: 16px;
   --ds-brand-line: 24px;
@@ -249,20 +261,20 @@
   --ds-title-ui-size: var(--ds-title-sm-size);
   --ds-title-ui-line: var(--ds-title-sm-line);
 
-  /* Subtitle */
-  --ds-subtitle-md-size: 1rem;
-  --ds-subtitle-md-line: 1.5rem;
-  --ds-subtitle-md-weight: 600;
-  --ds-subtitle-sm-size: 0.875rem;
-  --ds-subtitle-sm-line: 1.375rem;
-  --ds-subtitle-sm-weight: 600;
-  --ds-subtitle-xs-weight: 600;
+  /* Subtitle — Semibold → Roboto Medium 500 (no 600 face) */
+  --ds-subtitle-md-size: 16px;
+  --ds-subtitle-md-line: 24px;
+  --ds-subtitle-md-weight: 500;
+  --ds-subtitle-sm-size: 14px;
+  --ds-subtitle-sm-line: 22px;
+  --ds-subtitle-sm-weight: 500;
+  --ds-subtitle-xs-weight: 500;
 
   /* Body — default sm 14 (< brand) */
-  --ds-body-lg-size: 1.125rem;
-  --ds-body-lg-line: 1.75rem;
-  --ds-body-md-size: 1rem;
-  --ds-body-md-line: 1.5rem;
+  --ds-body-lg-size: 18px;
+  --ds-body-lg-line: 28px;
+  --ds-body-md-size: 16px;
+  --ds-body-md-line: 24px;
   --ds-body-sm-weight: 400;
   --ds-body-sm-bold-weight: 700;
   --ds-body-xs-weight: 400;
@@ -280,26 +292,28 @@
   --ds-nav-label-line: 1.05;
 
   /* Button type — Bold; Mobile default sm; Desktop default md */
-  --ds-btn-md-size: 1rem; /* 16 */
-  --ds-btn-md-line: 1.5rem; /* 24 */
-  --ds-btn-sm-size: 0.875rem; /* 14 */
-  --ds-btn-sm-line: 1.375rem; /* 22 */
-  --ds-btn-xs-size: 0.75rem; /* 12 */
-  --ds-btn-xs-line: 1.125rem; /* 18 */
+  --ds-btn-md-size: 16px;
+  --ds-btn-md-line: 24px;
+  --ds-btn-sm-size: 14px;
+  --ds-btn-sm-line: 22px;
+  --ds-btn-xs-size: 12px;
+  --ds-btn-xs-line: 18px;
   --ds-btn-weight: 700;
   --ds-btn-tracking: 0;
   /* Default body button type = sm (navbar sets its own type) */
   --ds-btn-type-size: var(--ds-btn-sm-size);
   --ds-btn-type-line: var(--ds-btn-sm-line);
 
-  /* Label (form field labels) */
-  --ds-label-md-size: 1rem;
-  --ds-label-md-line: 1.5rem;
-  --ds-label-sm-size: 0.875rem;
-  --ds-label-sm-line: 1.375rem;
-  --ds-label-xs-size: 0.75rem;
-  --ds-label-xs-line: 1.125rem;
-  --ds-label-weight: 600;
+  /* Label (form field labels) — Semibold → Roboto Medium 500 */
+  --ds-label-md-size: 16px;
+  --ds-label-md-line: 24px;
+  --ds-label-sm-size: 14px;
+  --ds-label-sm-line: 22px;
+  --ds-label-xs-size: 12px;
+  --ds-label-xs-line: 18px;
+  --ds-label-2xs-size: 10px;
+  --ds-label-2xs-line: 16px;
+  --ds-label-weight: 500;
 }
 
 /* Tablet — Medium (≥600) */
@@ -354,6 +368,8 @@ html[data-ds-device='phone'] {
   --ds-columns: 4;
   --ds-gutter: 16px;
   --ds-margin: 16px;
+  --sidebar-rail: 56px;
+  --sidebar-head: 40px;
 }
 
 html[data-ds-device='tablet'] {

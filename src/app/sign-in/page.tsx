@@ -133,8 +133,10 @@ function LoginForm() {
         <div className="brand-lockup login-brand-lockup">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            className="brand-logo"
-            src="/trakindo-cat.png"
+            className="brand-mark"
+            src="/trakindo-cat.svg"
+            width={115}
+            height={29}
             alt=""
             suppressHydrationWarning
           />

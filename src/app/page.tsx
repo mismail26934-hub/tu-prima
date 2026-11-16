@@ -72,6 +72,7 @@ import {
 import { useT } from "@/i18n/useT";
 import { EditIcon, TrashIcon } from "@/components/ActionIcons";
 import { BoardTopbar } from "@/components/BoardTopbar";
+import { JobBackupPage } from "@/components/JobBackupPage";
 import { SearchIcon } from "@/components/SearchIcon";
 import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
 import { TechnicianCard } from "@/components/TechnicianCard";
@@ -291,6 +292,7 @@ type Modal =
   | { type: "edit-profile" }
   | { type: "logout" }
   | { type: "settings" }
+  | { type: "backups" }
   | { type: "export-jobs" }
   | { type: "export-jobs-confirm" }
   | {
@@ -299,6 +301,51 @@ type Modal =
       message: string;
       phase: "loading" | "success" | "error";
     };
+
+function activeNavForModal(modal: Modal): string | null {
+  if (!modal) return null;
+  switch (modal.type) {
+    case "settings":
+      return "settings";
+    case "techs":
+    case "tech-form":
+    case "tech-import-preview":
+    case "delete-tech":
+    case "tech-status":
+      return "techs";
+    case "users":
+    case "user-form":
+    case "delete-user":
+      return "users";
+    case "units":
+    case "unit-form":
+    case "unit-import-preview":
+    case "delete-unit":
+      return "units";
+    case "priorities":
+    case "priority-form":
+    case "delete-priority":
+      return "priorities";
+    case "templates":
+    case "template-form":
+    case "template-import-preview":
+    case "delete-template":
+      return "templates";
+    case "attendance":
+    case "attendance-form":
+    case "delete-attendance":
+      return "attendance";
+    case "export-jobs":
+    case "export-jobs-confirm":
+      return "export";
+    case "backups":
+      return "backup";
+    case "create":
+      return "new-job";
+    default:
+      return null;
+  }
+}
 
 const HIDE_TECH_PANEL_KEY = "tus-hide-tech-panel";
 const HIDE_JOB_PANEL_KEY = "tus-hide-job-panel";
@@ -491,6 +538,25 @@ function PanelToggleIcon({ collapsed }: { collapsed: boolean }) {
   ) : (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M18 15l-6-6-6 6" />
+    </svg>
+  );
+}
+
+function NewJobPlusIcon() {
+  return (
+    <svg
+      className="panel-new-job-icon"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
@@ -1050,11 +1116,6 @@ export default function HomePage() {
   }
 
   const displayName = session?.user?.name || session?.user?.email || "";
-  const displayNameShort = (() => {
-    const parts = displayName.trim().split(/\s+/).filter(Boolean);
-    if (parts.length <= 1) return displayName;
-    return parts.map((part) => part[0]?.toUpperCase() || "").join("");
-  })();
   const [error, setError] = useState("");
   const [modal, setModal] = useState<Modal>(null);
   const modalJob =
@@ -1346,6 +1407,17 @@ export default function HomePage() {
       document.documentElement.classList.remove("modal-open");
     };
   }, [modal]);
+
+  useEffect(() => {
+    if (sessionPending) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("manage") !== "backup") return;
+    params.delete("manage");
+    const next = params.toString();
+    window.history.replaceState(null, "", next ? `/?${next}` : "/");
+    if (userLevel !== "superuser") return;
+    setModal({ type: "backups" });
+  }, [sessionPending, userLevel]);
 
   function openUnitCreate() {
     setUnitForm({ code: "", name: "", serial_number: "", active: "1" });
@@ -3104,7 +3176,7 @@ export default function HomePage() {
       setError("Backup / Undo hanya untuk superuser");
       return;
     }
-    window.location.assign("/backup");
+    setModal({ type: "backups" });
   }
 
   function requestExportJobsReport() {
@@ -5878,8 +5950,10 @@ export default function HomePage() {
                 <div className="brand-lockup" aria-hidden="true">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    className="brand-logo"
-                    src="/trakindo-cat.png"
+                    className="brand-mark"
+                    src="/trakindo-cat.svg"
+                    width={115}
+                    height={29}
                     alt=""
                   />
                   <span className="brand-divider" aria-hidden="true" />
@@ -6001,16 +6075,14 @@ export default function HomePage() {
         showNavAlerts={showNavAlerts}
         userLevel={userLevel}
         displayName={displayName}
-        displayNameShort={displayNameShort}
         avatarUrl={avatarUrl}
-        canJobCreate={canJobCreate}
         canUnitRead={canUnitRead}
         canPriorityRead={canPriorityRead}
         canTemplateRead={canTemplateRead}
         modalOpen={modal != null}
+        activeNav={activeNavForModal(modal)}
         onRefresh={refreshDashboard}
         onToggleTheme={toggleTheme}
-        onNewJob={() => openCreate()}
         onSettings={() => setModal({ type: "settings" })}
         onTechnicians={() => {
           setTechImportMsg("");
@@ -6288,15 +6360,27 @@ export default function HomePage() {
               <section className="panel panel--collapsed ds-span-board-end">
                 <div className="panel-vis-bar">
                   <span className="panel-vis-label">{t("panel.jobHidden")}</span>
-                  <button
-                    type="button"
-                    className="btn btn-icon panel-vis-btn"
-                    onClick={toggleHideJobPanel}
-                    aria-label={t("panel.showJob")}
-                    title={t("panel.show")}
-                  >
-                    <PanelToggleIcon collapsed />
-                  </button>
+                  <div className="panel-vis-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-icon panel-new-job"
+                      disabled={!canJobCreate}
+                      onClick={() => openCreate()}
+                      aria-label={t("nav.newJob")}
+                      title={t("nav.newJob")}
+                    >
+                      <NewJobPlusIcon />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-icon panel-vis-btn"
+                      onClick={toggleHideJobPanel}
+                      aria-label={t("panel.showJob")}
+                      title={t("panel.show")}
+                    >
+                      <PanelToggleIcon collapsed />
+                    </button>
+                  </div>
                 </div>
               </section>
             ) : (
@@ -6459,6 +6543,22 @@ export default function HomePage() {
                         Reset
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn btn-primary panel-new-job"
+                      disabled={!canJobCreate}
+                      onClick={() => openCreate()}
+                      aria-label={t("nav.newJob")}
+                      title={t("nav.newJob")}
+                    >
+                      <NewJobPlusIcon />
+                      <span className="btn-label panel-new-job-label">
+                        {t("nav.newJob")}
+                      </span>
+                      <span className="btn-label panel-new-job-label-short">
+                        {t("nav.newJobShort")}
+                      </span>
+                    </button>
                   </div>
                 </div>
               {(jobSectionFilter === "all" || jobSectionFilter === "active") && (
@@ -6572,7 +6672,7 @@ export default function HomePage() {
       )}
 
       {modal?.type === "export-jobs" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div className="modal-backdrop manage-dialog" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t("export.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -6668,7 +6768,7 @@ export default function HomePage() {
       )}
 
       {modal?.type === "export-jobs-confirm" && (
-        <div className="modal-backdrop" onClick={() => setModal({ type: "export-jobs" })}>
+        <div className="modal-backdrop manage-dialog" onClick={() => setModal({ type: "export-jobs" })}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t("export.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -11192,6 +11292,20 @@ export default function HomePage() {
                 <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "backups" && (
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Backup data"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <JobBackupPage embedded onBack={closeModal} />
           </div>
         </div>
       )}

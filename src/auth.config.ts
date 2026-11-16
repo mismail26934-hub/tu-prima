@@ -6,6 +6,8 @@ function authUrlIsHttps() {
   return url.startsWith("https://");
 }
 
+const https = authUrlIsHttps();
+
 /** Edge-compatible config only (no Node/fs). Used by middleware. */
 export const authConfig = {
   basePath: AUTH_BASE_PATH,
@@ -21,19 +23,18 @@ export const authConfig = {
   },
   providers: [],
   trustHost: true,
-  // Chrome rejects Secure cookies on http://hostname:3000 (`npm start` / production).
-  useSecureCookies: authUrlIsHttps(),
-  cookies: authUrlIsHttps()
-    ? undefined
-    : {
-        sessionToken: {
-          name: "authjs.session-token",
-          options: {
-            httpOnly: true,
-            sameSite: "lax" as const,
-            path: "/",
-            secure: false,
-          },
-        },
+  // Secure cookies require HTTPS. HTTP local fallback keeps secure: false
+  // so Chrome accepts the session cookie on http://hostname:3000.
+  useSecureCookies: https,
+  cookies: {
+    sessionToken: {
+      name: https ? "__Secure-authjs.session-token" : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: https,
       },
+    },
+  },
 } satisfies NextAuthConfig;

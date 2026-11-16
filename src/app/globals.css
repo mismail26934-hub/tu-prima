@@ -4,7 +4,7 @@
 /* Theme mapped to Design System TU Color Guideline (same as tu-rental) */
 :root,
 [data-theme='dark'] {
-  /* Display face = same Inter family as body (Figma Typography) */
+  /* Display face = same Roboto family as body (Figma Typography 1:5287) */
   --font-display: var(--font-body);
   --bg-0: var(--ds-cloudy-130);
   --bg-1: var(--ds-cloudy-120);
@@ -138,7 +138,7 @@ body {
   padding: 0;
   min-height: 100%;
   color: var(--text);
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-text-size);
   line-height: var(--ds-text-line);
   background: var(--page-bg);
@@ -1878,7 +1878,7 @@ html[data-theme='light'] .remain-alert-field select {
   background: var(--ds-btn-primary);
   color: var(--ds-cloudy-120);
   border-radius: var(--ds-btn-sm-radius);
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-btn-sm-size);
   font-weight: var(--ds-btn-weight);
   line-height: var(--ds-btn-sm-line);
@@ -2411,7 +2411,7 @@ html[data-theme='light'] .remain-alert-field select {
 /* Figma Dropdown 24:7282 Size=sm — Label = mobile/subtitle/xs (12/18 SemiBold) */
 .panel-vis-label {
   color: var(--muted);
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-subtitle-xs-size);
   font-weight: var(--ds-subtitle-xs-weight);
   line-height: var(--ds-subtitle-xs-line);
@@ -2446,7 +2446,7 @@ html[data-theme='light'] .remain-alert-field select {
   color: var(--text);
   appearance: none;
   /* Figma Dropdown Size=sm — Selected = mobile/body/regular/sm (14/22 Regular) */
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-sm-size);
   font-weight: var(--ds-body-sm-weight);
   line-height: var(--ds-body-sm-line);
@@ -2458,7 +2458,7 @@ html[data-theme='light'] .remain-alert-field select {
 
 .panel-vis-bar .panel-filter select,
 .panel-vis-filters .panel-filter select {
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-sm-size);
   font-weight: var(--ds-body-sm-weight);
   line-height: var(--ds-body-sm-line);
@@ -2466,7 +2466,7 @@ html[data-theme='light'] .remain-alert-field select {
 }
 
 .panel-filter select option {
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-sm-size);
   font-weight: var(--ds-body-sm-weight);
   line-height: var(--ds-body-sm-line);
@@ -2510,7 +2510,7 @@ html[data-theme='light'] .remain-alert-field select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-sm-size);
   font-weight: var(--ds-body-sm-weight);
   line-height: var(--ds-body-sm-line);
@@ -3450,7 +3450,7 @@ html[data-theme='light'] .pager-nav:disabled {
 
 /* Technician card — Figma xs type + Button xs (12/18 · h28) */
 .tech .name {
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-xs-size);
   font-weight: var(--ds-body-sm-bold-weight);
   line-height: var(--ds-body-xs-line);
@@ -3466,7 +3466,7 @@ html[data-theme='light'] .pager-nav:disabled {
 
 .tech .meta {
   color: var(--muted);
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-xs-size);
   font-weight: var(--ds-body-xs-weight);
   line-height: var(--ds-body-xs-line);
@@ -3655,7 +3655,7 @@ html[data-theme='light'] .pager-nav:disabled {
   padding: var(--ds-badge-pad-y) var(--ds-badge-pad-x);
   border-radius: var(--ds-badge-radius);
   border: 1px solid transparent;
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-badge-font-size);
   font-weight: 700;
   letter-spacing: 0;
@@ -5304,7 +5304,7 @@ html[data-theme='light'] .job-priority-pill--custom {
   border-radius: var(--ds-dropdown-sm-radius);
   background-color: var(--bg-0);
   color: var(--text);
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: var(--ds-body-sm-size);
   font-weight: var(--ds-body-sm-weight);
   line-height: var(--ds-body-sm-line);
@@ -7131,6 +7131,17 @@ html.offline-sheet-open {
   flex-shrink: 0;
 }
 
+/*
+  Rail collapsed: hide all nav shimmers.
+  brand-row (sync) is already display:none; the cream pill users see is
+  NavBarRefreshShimmer / NavAccountShimmer overflowing the narrow rail.
+*/
+.topbar.app-sidebar:not(.is-open) .nav-refresh-shimmer,
+.topbar.app-sidebar:not(.is-open) .nav-session-shimmer,
+.topbar.app-sidebar:not(.is-open) .shimmer-block {
+  display: none !important;
+}
+
 .nav-refresh-shimmer {
   display: flex;
   align-items: center;
@@ -7368,8 +7379,13 @@ html.active-job-slider-mode .job-tech-row .btn-icon {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-block: calc(var(--topbar-height, 5.5rem) + 10px) 16px;
-  padding-inline: max(var(--ds-margin), env(safe-area-inset-left, 0px))
+  /* Use --topbar-offset (head row), not full sidebar 100dvh height */
+  padding-block: var(--topbar-offset, calc(var(--topbar-height, 5.5rem) + 10px))
+    16px;
+  padding-inline: max(
+      calc(var(--sidebar-rail, 0px) + var(--ds-margin)),
+      env(safe-area-inset-left, 0px)
+    )
     max(var(--ds-margin), env(safe-area-inset-right, 0px));
   box-sizing: border-box;
   background: var(--page-bg);
@@ -7543,7 +7559,8 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
 
 @media (max-width: 720px) {
   .active-job-slider-screen {
-    padding: calc(var(--topbar-height, 4.5rem) + 8px) max(12px, 3vw) 12px;
+    padding: var(--topbar-offset, calc(var(--topbar-height, 4.5rem) + 8px))
+      max(12px, 3vw) 12px;
     gap: 8px;
   }
 
@@ -8067,7 +8084,7 @@ html:has(.app-sidebar) .topbar-glass {
   padding: 8px 14px;
   border-radius: 8px;
   background: #3b3241;
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -8191,7 +8208,7 @@ html:has(.app-sidebar) .topbar-glass {
 }
 
 .topbar.app-sidebar.is-open .top-actions-panel--bar .btn-label {
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.05;
@@ -8261,7 +8278,7 @@ html:has(.app-sidebar) .topbar-glass {
 }
 
 .app-sidebar.is-open .nav-manage-item {
-  font-family: var(--font-body), 'Inter', sans-serif;
+  font-family: var(--font-body), 'Roboto', sans-serif;
   color: #fff;
   font-size: 12px;
   font-weight: 800;

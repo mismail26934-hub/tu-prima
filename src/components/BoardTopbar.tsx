@@ -414,7 +414,14 @@ export function BoardTopbar({
     if (!el) return;
     let lastHeight = -1;
     const sync = () => {
-      const box = el.getBoundingClientRect();
+      // Vertical sidebar is 100dvh — measure the head row only so slider/modals
+      // don't get padding ≈ viewport height (blank crushed content).
+      const isSidebar = el.classList.contains('app-sidebar');
+      const head = isSidebar
+        ? el.querySelector<HTMLElement>('.app-sidebar-head')
+        : null;
+      const measureEl = head ?? el;
+      const box = measureEl.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const bottom = Math.ceil(box.bottom);
       const scrollY =
@@ -433,22 +440,16 @@ export function BoardTopbar({
           `${height}px`
         );
       }
-      // Vertical sidebar is 100dvh — use the head row only for modal top inset.
-      const isSidebar = el.classList.contains('app-sidebar');
-      const head = isSidebar
-        ? el.querySelector<HTMLElement>('.app-sidebar-head')
-        : null;
-      const offsetBottom = head
-        ? Math.ceil(head.getBoundingClientRect().bottom)
-        : bottom;
       document.documentElement.style.setProperty(
         '--topbar-offset',
-        `${offsetBottom + 8}px`
+        `${bottom + 8}px`
       );
     };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
+    const headEl = el.querySelector<HTMLElement>('.app-sidebar-head');
+    if (headEl) ro.observe(headEl);
     window.addEventListener('resize', sync);
     window.addEventListener('scroll', sync, { passive: true });
     return () => {

@@ -582,7 +582,7 @@ export function BoardTopbar({
     }
     const el = target instanceof Element ? target : null;
     const btn = el?.closest<HTMLElement>(
-      '.app-sidebar-toggle, .nav-account, .nav-manage > .btn, .nav-manage-item, .top-actions-panel--bar > .btn, .lang-toggle-icon, .nav-alerts-btn, .remain-alert-mute'
+      '.app-sidebar-toggle, .nav-account, .nav-manage > .btn, .nav-manage-item, .top-actions-panel--bar > .btn, .lang-toggle-icon, .nav-alerts-btn, .remain-alert-mute, .offline-sync-chip'
     );
     if (!btn || !header.contains(btn)) {
       hideRailTip();
@@ -827,7 +827,11 @@ export function BoardTopbar({
           {refreshShimmer ? (
             <ShimmerBlock className='shimmer-block--nav-sync' />
           ) : (
-            <OfflineSyncChip onRefresh={onRefresh} refreshBusy={busy} />
+            <OfflineSyncChip
+              onRefresh={onRefresh}
+              refreshBusy={busy}
+              railCompact={!sidebarOpen}
+            />
           )}
         </div>
         <div className='top-actions'>

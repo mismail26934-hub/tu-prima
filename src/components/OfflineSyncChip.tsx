@@ -9,6 +9,8 @@ import { listOutbox, subscribeOutbox, type OutboxItem } from '@/lib/offline/outb
 
 const MOBILE_MQ = '(max-width: 720px)';
 
+type ChipTone = 'offline' | 'sync' | 'error';
+
 function useMobileSheet() {
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
@@ -21,15 +23,86 @@ function useMobileSheet() {
   return mobile;
 }
 
+/** Rail-collapsed glyph — clearer than a bare status dot. */
+function OfflineRailIcon({ tone }: { tone: ChipTone }) {
+  if (tone === 'sync') {
+    return (
+      <svg
+        className='offline-sync-icon'
+        width='18'
+        height='18'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        aria-hidden='true'
+      >
+        <path d='M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' />
+        <path d='M3 3v5h5' />
+        <path d='M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16' />
+        <path d='M16 16h5v5' />
+      </svg>
+    );
+  }
+  if (tone === 'error') {
+    return (
+      <svg
+        className='offline-sync-icon'
+        width='18'
+        height='18'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        aria-hidden='true'
+      >
+        <circle cx='12' cy='12' r='10' />
+        <path d='M12 8v4' />
+        <path d='M12 16h.01' />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      className='offline-sync-icon'
+      width='18'
+      height='18'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      aria-hidden='true'
+    >
+      <path d='M12 20h.01' />
+      <path d='M8.5 16.429a5 5 0 0 1 7 0' />
+      <path d='M5 12.859a10 10 0 0 1 5.17-2.69' />
+      <path d='M19 12.859a10 10 0 0 0-2.007-1.523' />
+      <path d='M2 8.82a15 15 0 0 1 4.177-2.318' />
+      <path d='M22 8.82a15 15 0 0 0-11.288-3.764' />
+      <path d='M1 1l22 22' />
+    </svg>
+  );
+}
+
 export function OfflineSyncChip({
   onRefresh,
   refreshBusy,
+  railCompact = false,
 }: {
   onRefresh?: () => void;
   refreshBusy?: boolean;
+  /** Sidebar rail collapsed — icon-only chip + sheet panel. */
+  railCompact?: boolean;
 }) {
   const t = useT();
   const isMobile = useMobileSheet();
+  const useSheet = isMobile || railCompact;
   const { online, pending, syncing, error, retry } = useOfflineStatus();
   const [open, setOpen] = useState(false);
   const [queued, setQueued] = useState<OutboxItem[]>([]);
@@ -53,28 +126,28 @@ export function OfflineSyncChip({
   const visible = !online || pending > 0 || Boolean(error) || syncing;
 
   useEffect(() => {
-    if (!open || isMobile) return;
+    if (!open || useSheet) return;
     const onDoc = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
-  }, [open, isMobile]);
+  }, [open, useSheet]);
 
   useEffect(() => {
     if (!visible) setOpen(false);
   }, [visible]);
 
   useEffect(() => {
-    if (!open || !isMobile) return;
+    if (!open || !useSheet) return;
     document.documentElement.classList.add('offline-sheet-open');
     return () =>
       document.documentElement.classList.remove('offline-sheet-open');
-  }, [open, isMobile]);
+  }, [open, useSheet]);
 
   if (!visible) return null;
 
-  const tone = !online ? 'offline' : error ? 'error' : 'sync';
+  const tone: ChipTone = !online ? 'offline' : error ? 'error' : 'sync';
   const chipLabel = !online
     ? pending > 0
       ? t('offline.chipOfflinePending', { count: pending })
@@ -149,7 +222,7 @@ export function OfflineSyncChip({
       ) : null}
       <div
         className={`offline-sync-pop-actions${
-          isMobile ? ' offline-sync-pop-actions--stack' : ''
+          useSheet ? ' offline-sync-pop-actions--stack' : ''
         }`}
       >
         {!online ? (
@@ -183,7 +256,7 @@ export function OfflineSyncChip({
             </button>
           </>
         )}
-        {isMobile ? (
+        {useSheet ? (
           <button
             className='btn offline-sync-btn'
             type='button'
@@ -197,24 +270,35 @@ export function OfflineSyncChip({
   );
 
   return (
-    <div className={`offline-sync${open ? ' is-open' : ''}`} ref={rootRef}>
+    <div
+      className={`offline-sync${open ? ' is-open' : ''}${
+        railCompact ? ' offline-sync--rail' : ''
+      }`}
+      ref={rootRef}
+    >
       <button
         className={`offline-sync-chip offline-sync-chip--${tone}`}
         type='button'
         aria-haspopup='dialog'
         aria-expanded={open}
+        aria-label={chipLabel}
+        data-rail-tip={chipLabel}
         title={detail}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className='offline-sync-dot' aria-hidden='true' />
-        {chipLabel}
+        {railCompact ? (
+          <OfflineRailIcon tone={tone} />
+        ) : (
+          <span className='offline-sync-dot' aria-hidden='true' />
+        )}
+        <span className='offline-sync-label'>{chipLabel}</span>
       </button>
-      {open && !isMobile ? (
+      {open && !useSheet ? (
         <div className='offline-sync-pop' role='dialog' aria-label={panelTitle}>
           {panelBody}
         </div>
       ) : null}
-      {open && isMobile && typeof document !== 'undefined'
+      {open && useSheet && typeof document !== 'undefined'
         ? createPortal(
             <div
               className='offline-sync-sheet-backdrop'

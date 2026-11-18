@@ -7887,9 +7887,16 @@ html:has(.app-sidebar) .topbar-glass {
 .app-sidebar-foot {
   display: none;
   order: 3;
-  flex: 0 0 auto;
+  box-sizing: border-box;
+  flex: 0 0 var(--sidebar-head);
+  align-items: center;
   margin-top: auto;
-  padding: 16px 24px 20px;
+  width: 100%;
+  height: var(--sidebar-head);
+  min-height: var(--sidebar-head);
+  max-height: var(--sidebar-head);
+  padding: 0 24px;
+  border-top: 1px solid #23293b;
   text-decoration: none;
   color: inherit;
 }

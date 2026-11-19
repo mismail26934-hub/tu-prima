@@ -14,11 +14,13 @@ import type {
   AppUserPublic,
   Attendance,
   AttendanceStatus,
+  Customer,
   JobPriorityRecord,
   JobTemplate,
   JobTemplateCategory,
   JobWithDetails,
   PartLoanStatus,
+  Shift,
   Technician,
   TechnicianStatus,
   Unit,
@@ -105,9 +107,12 @@ import {
   writeBoardSnapshot,
 } from "@/lib/offline/board-snapshot";
 import {
+  useCustomers,
   useJobPriorities,
   useMasterTemplates,
+  useShifts,
   useTemplateSummaries,
+  useTechnicianUserCandidates,
   useUsers,
   useForemen,
 } from "@/hooks/useMasterQueries";
@@ -205,6 +210,20 @@ type Modal =
       unit?: Unit;
     }
   | { type: "delete-unit"; unit: Unit }
+  | { type: "customers" }
+  | {
+      type: "customer-form";
+      mode: "create" | "edit";
+      item?: Customer;
+    }
+  | { type: "delete-customer"; item: Customer }
+  | { type: "shifts" }
+  | {
+      type: "shift-form";
+      mode: "create" | "edit";
+      item?: Shift;
+    }
+  | { type: "delete-shift"; item: Shift }
   | { type: "priorities" }
   | {
       type: "priority-form";
@@ -271,7 +290,7 @@ type Modal =
   | {
       type: "tech-form";
       mode: "create" | "edit";
-      tech?: Technician;
+      tech?: Technician & { shift_id?: string; shift_name?: string };
     }
   | { type: "delete-tech"; tech: Technician }
   | { type: "attendance" }
@@ -322,6 +341,14 @@ function activeNavForModal(modal: Modal): string | null {
     case "unit-import-preview":
     case "delete-unit":
       return "units";
+    case "customers":
+    case "customer-form":
+    case "delete-customer":
+      return "customers";
+    case "shifts":
+    case "shift-form":
+    case "delete-shift":
+      return "shifts";
     case "priorities":
     case "priority-form":
     case "delete-priority":
@@ -1001,6 +1028,14 @@ export default function HomePage() {
   const canUnitCreate = canAccess(userLevel, "unit", "create");
   const canUnitUpdate = canAccess(userLevel, "unit", "update");
   const canUnitDelete = canAccess(userLevel, "unit", "delete");
+  const canCustomerRead = canAccess(userLevel, "customer", "read");
+  const canCustomerCreate = canAccess(userLevel, "customer", "create");
+  const canCustomerUpdate = canAccess(userLevel, "customer", "update");
+  const canCustomerDelete = canAccess(userLevel, "customer", "delete");
+  const canShiftRead = canAccess(userLevel, "shift", "read");
+  const canShiftCreate = canAccess(userLevel, "shift", "create");
+  const canShiftUpdate = canAccess(userLevel, "shift", "update");
+  const canShiftDelete = canAccess(userLevel, "shift", "delete");
   const canPriorityRead = canAccess(userLevel, "priority", "read");
   const canPriorityCreate = canAccess(userLevel, "priority", "create");
   const canPriorityUpdate = canAccess(userLevel, "priority", "update");
@@ -1170,9 +1205,26 @@ export default function HomePage() {
     sort_order: "10",
     active: "1",
   });
+  const [customerForm, setCustomerForm] = useState({
+    code: "",
+    name: "",
+    active: "1",
+  });
+  const [shiftForm, setShiftForm] = useState({
+    name: "",
+    active: "1",
+  });
   const [unitDraft, setUnitDraft] = useState("");
   const [unitQuery, setUnitQuery] = useState("");
   const [unitImportMsg, setUnitImportMsg] = useState("");
+  const customersModalOpen =
+    modal?.type === "customers" ||
+    modal?.type === "customer-form" ||
+    modal?.type === "delete-customer";
+  const shiftsModalOpen =
+    modal?.type === "shifts" ||
+    modal?.type === "shift-form" ||
+    modal?.type === "delete-shift";
   const prioritiesModalOpen =
     modal?.type === "priorities" ||
     modal?.type === "priority-form" ||
@@ -1280,11 +1332,23 @@ export default function HomePage() {
   const { data: activePrioritiesRes } = useJobPriorities(false, true);
   const { data: masterPrioritiesRes, isLoading: prioritiesMasterLoading } =
     useJobPriorities(true, canPriorityRead && prioritiesModalOpen);
+  const { data: activeCustomersRes } = useCustomers(false, true);
+  const { data: masterCustomersRes, isLoading: customersMasterLoading } =
+    useCustomers(true, canCustomerRead && customersModalOpen);
+  const shiftsForUserForm =
+    usersModalOpen && userLevel === "superuser";
+  const { data: masterShiftsRes, isLoading: shiftsMasterLoading } = useShifts(
+    true,
+    (canShiftRead && shiftsModalOpen) || shiftsForUserForm
+  );
   const catalogPriorities =
     activePrioritiesRes?.priorities?.length
       ? activePrioritiesRes.priorities
       : DEFAULT_JOB_PRIORITIES;
   const masterPriorities = masterPrioritiesRes?.priorities || [];
+  const catalogCustomers = activeCustomersRes?.customers || [];
+  const masterCustomers = masterCustomersRes?.customers || [];
+  const masterShifts = masterShiftsRes?.shifts || [];
   const masterTemplates = masterTemplatesRes?.templates || [];
   const { data: appUsers = [], isLoading: usersLoading } = useUsers(
     usersModalOpen && userLevel === "superuser"
@@ -1292,6 +1356,16 @@ export default function HomePage() {
   const { data: foremanPicker = [], isLoading: foremenLoading } = useForemen(
     modal?.type === "tech-form"
   );
+  const {
+    data: technicianCandidatesRes,
+    isLoading: technicianCandidatesLoading,
+    error: technicianCandidatesError,
+  } = useTechnicianUserCandidates(
+    modal?.type === "tech-form" && modal.mode === "create"
+  );
+  const technicianUserCandidates = technicianCandidatesRes?.users || [];
+  const technicianCandidatesAvailable =
+    technicianCandidatesRes?.available_count ?? 0;
   const { data: templateSummariesRes, isFetching: templatesLoading } =
     useTemplateSummaries(formCategory || undefined);
   const templateSummaries = templateSummariesRes?.templates || [];
@@ -1322,11 +1396,13 @@ export default function HomePage() {
   const [templateMasterPage, setTemplateMasterPage] = useState(1);
   const [templateImportMsg, setTemplateImportMsg] = useState("");
   const [techForm, setTechForm] = useState({
+    user_id: "",
     name: "",
     sn: "",
     badge_id: "",
     email: "",
     phone: "",
+    shift_name: "",
     status: "available" as Exclude<TechnicianStatus, "busy">,
     superior_user_id: "",
   });
@@ -1340,6 +1416,7 @@ export default function HomePage() {
     email: "",
     phone: "",
     level: "teknisi" as UserLevel,
+    shift_id: "",
     active: "1",
   });
   const [masterUserDraft, setMasterUserDraft] = useState("");
@@ -1491,6 +1568,139 @@ export default function HomePage() {
       catalogPriorities.find((p) => p.code === wanted) ||
       masterPriorities.find((p) => p.code === wanted);
     return found?.name || wanted;
+  }
+
+  function openCustomerCreate() {
+    setCustomerForm({ code: "", name: "", active: "1" });
+    setModal({ type: "customer-form", mode: "create" });
+  }
+
+  function openCustomerEdit(item: Customer) {
+    setCustomerForm({
+      code: item.code,
+      name: item.name,
+      active: item.active,
+    });
+    setModal({ type: "customer-form", mode: "edit", item });
+  }
+
+  async function invalidateCustomers() {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
+    await invalidateDashboard();
+  }
+
+  async function saveCustomer() {
+    if (modal?.type !== "customer-form") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (modal.mode === "create") {
+        await api("/api/customers", {
+          method: "POST",
+          body: JSON.stringify({
+            code: customerForm.code,
+            name: customerForm.name,
+            active: customerForm.active,
+          }),
+        });
+      } else if (modal.item) {
+        await api(`/api/customers/${modal.item.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            code: customerForm.code,
+            name: customerForm.name,
+            active: customerForm.active,
+          }),
+        });
+      }
+      setModal({ type: "customers" });
+      await invalidateCustomers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan customer");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteCustomer() {
+    if (modal?.type !== "delete-customer") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/customers/${modal.item.id}`, { method: "DELETE" });
+      setModal({ type: "customers" });
+      await invalidateCustomers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus customer");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openShiftCreate() {
+    setShiftForm({ name: "", active: "1" });
+    setModal({ type: "shift-form", mode: "create" });
+  }
+
+  function openShiftEdit(item: Shift) {
+    setShiftForm({
+      name: item.name,
+      active: item.active,
+    });
+    setModal({ type: "shift-form", mode: "edit", item });
+  }
+
+  async function invalidateShifts() {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.shifts.all });
+    await invalidateDashboard();
+  }
+
+  async function saveShift() {
+    if (modal?.type !== "shift-form") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (modal.mode === "create") {
+        await api("/api/shifts", {
+          method: "POST",
+          body: JSON.stringify({
+            name: shiftForm.name,
+            active: shiftForm.active,
+          }),
+        });
+      } else if (modal.item) {
+        await api(`/api/shifts/${modal.item.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: shiftForm.name,
+            active: shiftForm.active,
+          }),
+        });
+      }
+      setModal({ type: "shifts" });
+      await invalidateShifts();
+      await invalidateTechnicianLists();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal simpan shift");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteShift() {
+    if (modal?.type !== "delete-shift") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/shifts/${modal.item.id}`, { method: "DELETE" });
+      setModal({ type: "shifts" });
+      await invalidateShifts();
+      await invalidateTechnicianLists();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal hapus shift");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openPriorityCreate() {
@@ -1981,28 +2191,87 @@ export default function HomePage() {
 
   function openTechCreate() {
     setTechForm({
+      user_id: "",
       name: "",
       sn: "",
       badge_id: "",
       email: "",
       phone: "",
+      shift_name: "",
       status: "available",
       superior_user_id: "",
     });
     setModal({ type: "tech-form", mode: "create" });
   }
 
-  function openTechEdit(tech: Technician) {
+  function openTechEdit(tech: Technician & { shift_name?: string }) {
     setTechForm({
+      user_id: tech.user_id || "",
       name: tech.name,
       sn: tech.sn,
       badge_id: tech.badge_id || "",
       email: tech.email || "",
       phone: tech.phone || "",
+      shift_name: tech.shift_name || "",
       status: tech.status === "offline" ? "offline" : "available",
       superior_user_id: tech.superior_user_id || "",
     });
     setModal({ type: "tech-form", mode: "edit", tech });
+  }
+
+  function applyTechnicianUserCandidate(userId: string) {
+    const user = technicianUserCandidates.find((u) => u.id === userId);
+    if (!user) {
+      setError("");
+      setTechForm((prev) => ({
+        ...prev,
+        user_id: "",
+        name: "",
+        sn: "",
+        badge_id: "",
+        email: "",
+        phone: "",
+        shift_name: "",
+      }));
+      return;
+    }
+    if (user.already_linked) {
+      setError(
+        `User "${user.name || user.username}" sudah terdaftar di Master Teknisi`
+      );
+      setTechForm((prev) => ({
+        ...prev,
+        user_id: "",
+        name: "",
+        sn: "",
+        badge_id: "",
+        email: "",
+        phone: "",
+        shift_name: "",
+      }));
+      return;
+    }
+    setError("");
+    const username = String(user.username || "").trim();
+    setTechForm((prev) => ({
+      ...prev,
+      user_id: user.id,
+      name: String(user.name || username).trim(),
+      sn: username,
+      badge_id: username,
+      email: String(user.email || "").trim(),
+      phone: String(user.phone || "").trim(),
+      shift_name: String(user.shift_name || "").trim(),
+    }));
+  }
+
+  async function invalidateTechnicianLists() {
+    await queryClient.invalidateQueries({
+      queryKey: ["board", "technicians"],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.technicianCandidates,
+    });
   }
 
   async function saveTech() {
@@ -2014,6 +2283,10 @@ export default function HomePage() {
       !techForm.email.trim() ||
       !techForm.phone.trim()
     ) {
+      return;
+    }
+    if (modal.mode === "create" && !techForm.user_id.trim()) {
+      setError("Pilih user teknisi dari Master User");
       return;
     }
     setBusy(true);
@@ -2032,7 +2305,10 @@ export default function HomePage() {
         const loginUsername = techForm.sn.trim();
         await api("/api/technicians", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            ...payload,
+            user_id: techForm.user_id,
+          }),
         });
         setMasterTechDraft(loginUsername);
         setMasterTechQuery(loginUsername);
@@ -2045,6 +2321,7 @@ export default function HomePage() {
       }
       setModal({ type: "techs" });
       await invalidateDashboard();
+      await invalidateTechnicianLists();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan teknisi");
     } finally {
@@ -2171,6 +2448,7 @@ export default function HomePage() {
       email: "",
       phone: "",
       level: "teknisi",
+      shift_id: "",
       active: "1",
     });
     setModal({ type: "user-form", mode: "create" });
@@ -2184,9 +2462,18 @@ export default function HomePage() {
       email: user.email || "",
       phone: user.phone || "",
       level: user.level,
+      shift_id: user.shift_id || "",
       active: user.active,
     });
     setModal({ type: "user-form", mode: "edit", user });
+  }
+
+  function shiftLabelForUser(shiftId: string | undefined): string {
+    const id = String(shiftId || "").trim();
+    if (!id) return "";
+    const found = masterShifts.find((s) => s.id === id);
+    if (!found) return id;
+    return found.name || found.code || id;
   }
 
   async function saveUser() {
@@ -2206,6 +2493,7 @@ export default function HomePage() {
             email: userForm.email,
             phone: userForm.phone,
             level: userForm.level,
+            shift_id: userForm.shift_id,
             active: userForm.active,
           }),
         });
@@ -2218,12 +2506,14 @@ export default function HomePage() {
             email: userForm.email,
             phone: userForm.phone,
             level: userForm.level,
+            shift_id: userForm.shift_id,
             active: userForm.active,
             ...(userForm.password ? { password: userForm.password } : {}),
           }),
         });
       }
       await invalidateUsers();
+      await invalidateTechnicianLists();
       setModal({ type: "users" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan user");
@@ -2239,6 +2529,7 @@ export default function HomePage() {
     try {
       await api(`/api/users/${modal.user.id}`, { method: "DELETE" });
       await invalidateUsers();
+      await invalidateTechnicianLists();
       setModal({ type: "users" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal hapus user");
@@ -2753,6 +3044,12 @@ export default function HomePage() {
       title: job.title,
       priority: normalizeJobPriority(job.priority),
       unit_id: job.unit_id || "",
+      customer_id: job.customer_id || "",
+      smu: job.smu != null && Number(job.smu) > 0 ? String(job.smu) : "",
+      arrived_at: String(job.arrived_at || "").slice(0, 16),
+      promise_at: String(job.promise_at || "").slice(0, 16),
+      est_revision_at: String(job.est_revision_at || "").slice(0, 16),
+      release_at: String(job.release_at || "").slice(0, 16),
       description: job.description,
       estimated_minutes: String(job.estimated_minutes || 60),
       steps: job.steps.map((s) => s.name).join("\n"),
@@ -3110,6 +3407,8 @@ export default function HomePage() {
   const jobFormValid =
     form.title.trim().length > 0 &&
     form.unit_id.trim().length > 0 &&
+    form.customer_id.trim().length > 0 &&
+    form.arrived_at.trim().length > 0 &&
     form.description.trim().length > 0 &&
     Number(form.estimated_minutes) > 0 &&
     (isTemplateCreate
@@ -3752,14 +4051,17 @@ export default function HomePage() {
   const filteredMasterUsers = useMemo(() => {
     const q = masterUserQuery.trim().toLowerCase();
     if (!q) return appUsers;
-    return appUsers.filter(
-      (u) =>
+    return appUsers.filter((u) => {
+      const shiftText = shiftLabelForUser(u.shift_id).toLowerCase();
+      return (
         u.username.toLowerCase().includes(q) ||
         u.name.toLowerCase().includes(q) ||
         (u.email || "").toLowerCase().includes(q) ||
-        (u.phone || "").toLowerCase().includes(q)
-    );
-  }, [appUsers, masterUserQuery]);
+        (u.phone || "").toLowerCase().includes(q) ||
+        shiftText.includes(q)
+      );
+    });
+  }, [appUsers, masterUserQuery, masterShifts]);
 
   useEffect(() => {
     setMasterUserPage(1);
@@ -3855,7 +4157,10 @@ export default function HomePage() {
     techForm.sn.trim().length > 0 &&
     techForm.badge_id.trim().length > 0 &&
     techForm.email.trim().length > 0 &&
-    techForm.phone.trim().length > 0;
+    techForm.phone.trim().length > 0 &&
+    (modal?.type !== "tech-form" ||
+      modal.mode !== "create" ||
+      techForm.user_id.trim().length > 0);
 
   const techAvailableQuery = useTechniciansList({
     status: "available",
@@ -4535,12 +4840,24 @@ export default function HomePage() {
     setBusy(true);
     setError("");
     try {
+      const selectedCustomer =
+        catalogCustomers.find((c) => c.id === form.customer_id) ||
+        masterCustomers.find((c) => c.id === form.customer_id);
       const created = await api<{ id?: string }>("/api/jobs", {
         method: "POST",
         body: JSON.stringify({
           title: form.title.trim(),
           priority: form.priority,
           unit_id: form.unit_id,
+          customer_id: form.customer_id,
+          customer: selectedCustomer
+            ? `${selectedCustomer.code} — ${selectedCustomer.name}`
+            : "",
+          smu: form.smu.trim() === "" ? 0 : Number(form.smu),
+          arrived_at: form.arrived_at,
+          promise_at: form.promise_at,
+          est_revision_at: form.est_revision_at,
+          release_at: form.release_at,
           description: form.description.trim(),
           estimated_minutes: Number(form.estimated_minutes),
           steps: parseSteps(form.steps),
@@ -4574,12 +4891,24 @@ export default function HomePage() {
     setError("");
     try {
       const canEditSteps = ["queued", "assigned"].includes(modal.job.status);
+      const selectedCustomer =
+        catalogCustomers.find((c) => c.id === form.customer_id) ||
+        masterCustomers.find((c) => c.id === form.customer_id);
       await api(`/api/jobs/${modal.job.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           title: form.title.trim(),
           priority: form.priority,
           unit_id: form.unit_id,
+          customer_id: form.customer_id,
+          customer: selectedCustomer
+            ? `${selectedCustomer.code} — ${selectedCustomer.name}`
+            : "",
+          smu: form.smu.trim() === "" ? 0 : Number(form.smu),
+          arrived_at: form.arrived_at,
+          promise_at: form.promise_at,
+          est_revision_at: form.est_revision_at,
+          release_at: form.release_at,
           description: form.description.trim(),
           estimated_minutes: Number(form.estimated_minutes),
           steps: canEditSteps ? parseSteps(form.steps) : undefined,
@@ -6077,6 +6406,8 @@ export default function HomePage() {
         displayName={displayName}
         avatarUrl={avatarUrl}
         canUnitRead={canUnitRead}
+        canCustomerRead={canCustomerRead}
+        canShiftRead={canShiftRead}
         canPriorityRead={canPriorityRead}
         canTemplateRead={canTemplateRead}
         modalOpen={modal != null}
@@ -6090,6 +6421,8 @@ export default function HomePage() {
         }}
         onUsersMaster={openUsersMaster}
         onUnitsMaster={() => setModal({ type: "units" })}
+        onCustomersMaster={() => setModal({ type: "customers" })}
+        onShiftsMaster={() => setModal({ type: "shifts" })}
         onPrioritiesMaster={() => setModal({ type: "priorities" })}
         onTemplatesMaster={openTemplatesMaster}
         onAttendance={() => setModal({ type: "attendance" })}
@@ -7307,6 +7640,82 @@ export default function HomePage() {
                       searchText: `${u.code} ${u.name} ${u.serial_number || ""}`,
                     }))}
                   onChange={(next) => setForm({ unit_id: next })}
+                />
+              </label>
+              <label>
+                {t("job.customer")} *
+                <SearchableSelect
+                  value={form.customer_id}
+                  required
+                  placeholder={t("job.customerNone")}
+                  emptyMessage="Tidak ada customer yang cocok"
+                  aria-label={t("job.customer")}
+                  options={[
+                    ...catalogCustomers,
+                    ...masterCustomers.filter(
+                      (c) =>
+                        !catalogCustomers.some((a) => a.id === c.id) &&
+                        modal.type === "edit" &&
+                        c.id === form.customer_id
+                    ),
+                  ]
+                    .filter(
+                      (c) =>
+                        c.active === "1" ||
+                        (modal.type === "edit" && c.id === form.customer_id)
+                    )
+                    .map((c) => ({
+                      value: c.id,
+                      label: `${c.code} — ${c.name}${
+                        c.active !== "1" ? " (nonaktif)" : ""
+                      }`,
+                      searchText: `${c.code} ${c.name}`,
+                    }))}
+                  onChange={(next) => setForm({ customer_id: next })}
+                />
+              </label>
+              <label>
+                {t("job.smu")}
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.smu}
+                  onChange={(e) => setForm({ smu: e.target.value })}
+                  placeholder="0.00"
+                />
+              </label>
+              <label>
+                {t("job.arrivedAt")} *
+                <input
+                  type="datetime-local"
+                  value={form.arrived_at}
+                  onChange={(e) => setForm({ arrived_at: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                {t("job.promiseAt")}
+                <input
+                  type="datetime-local"
+                  value={form.promise_at}
+                  onChange={(e) => setForm({ promise_at: e.target.value })}
+                />
+              </label>
+              <label>
+                {t("job.estRevision")}
+                <input
+                  type="datetime-local"
+                  value={form.est_revision_at}
+                  onChange={(e) => setForm({ est_revision_at: e.target.value })}
+                />
+              </label>
+              <label>
+                {t("job.releaseAt")}
+                <input
+                  type="datetime-local"
+                  value={form.release_at}
+                  onChange={(e) => setForm({ release_at: e.target.value })}
                 />
               </label>
               <label>
@@ -9094,6 +9503,390 @@ export default function HomePage() {
         </div>
       )}
 
+      {modal?.type === "customers" && (
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-customers-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(busy || customersMasterLoading) && <BusyOverlay />}
+            <div className="master-head">
+              <h3 id="master-customers-title">{t("master.customerTitle")}</h3>
+              <p className="master-lead">{t("master.customerHint")}</p>
+              {error && <div className="error">{error}</div>}
+            </div>
+            <div className="master-body">
+              <div className="check-list">
+                {masterCustomers.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    {t("master.customerEmpty")}
+                  </span>
+                )}
+                {masterCustomers.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{item.code}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+                        {item.name}
+                        {item.active !== "1"
+                          ? ` · ${t("master.customerInactive")}`
+                          : ""}
+                      </div>
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn btn-sm btn-edit"
+                        type="button"
+                        disabled={busy || !canCustomerUpdate}
+                        aria-label="Edit"
+                        onClick={() => openCustomerEdit(item)}
+                      >
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        type="button"
+                        disabled={busy || !canCustomerDelete}
+                        aria-label="Hapus"
+                        onClick={() =>
+                          setModal({ type: "delete-customer", item })
+                        }
+                      >
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="master-foot actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canCustomerCreate}
+                onClick={openCustomerCreate}
+              >
+                {t("master.customerNew")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "customer-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "customers" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>
+              {modal.mode === "create"
+                ? t("master.customerNew")
+                : t("master.customerEdit")}
+            </h3>
+            <div className="form">
+              <label>
+                {t("master.customerCode")}
+                <input
+                  value={customerForm.code}
+                  onChange={(e) =>
+                    setCustomerForm({
+                      ...customerForm,
+                      code: e.target.value.toUpperCase(),
+                    })
+                  }
+                  placeholder="Mis. CUST01"
+                  required
+                />
+              </label>
+              <label>
+                {t("master.customerName")}
+                <input
+                  value={customerForm.name}
+                  onChange={(e) =>
+                    setCustomerForm({ ...customerForm, name: e.target.value })
+                  }
+                  placeholder="Mis. PT Contoh"
+                  required
+                />
+              </label>
+              {modal.mode === "edit" && (
+                <label>
+                  {t("master.customerStatus")}
+                  <select
+                    value={customerForm.active}
+                    onChange={(e) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        active: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="1">{t("master.customerActive")}</option>
+                    <option value="0">{t("master.customerInactive")}</option>
+                  </select>
+                </label>
+              )}
+              <div className="actions">
+                <button
+                  className="btn"
+                  onClick={() => setModal({ type: "customers" })}
+                >
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    busy ||
+                    !customerForm.code.trim() ||
+                    !customerForm.name.trim()
+                  }
+                  onClick={() => void saveCustomer()}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-customer" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "customers" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
+            <h3>{t("master.customerDelete")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.item.code} — {modal.item.name}
+            </p>
+            <p style={{ color: "var(--muted)" }}>
+              {t("master.customerDeleteHint")}
+            </p>
+            {error && <div className="error">{error}</div>}
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => setModal({ type: "customers" })}
+              >
+                Batal
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={() => void confirmDeleteCustomer()}
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "shifts" && (
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-shifts-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(busy || shiftsMasterLoading) && <BusyOverlay />}
+            <div className="master-head">
+              <h3 id="master-shifts-title">{t("master.shiftTitle")}</h3>
+              <p className="master-lead">{t("master.shiftHint")}</p>
+              {error && <div className="error">{error}</div>}
+            </div>
+            <div className="master-body">
+              <div className="check-list">
+                {masterShifts.length === 0 && (
+                  <span style={{ color: "var(--muted)" }}>
+                    {t("master.shiftEmpty")}
+                  </span>
+                )}
+                {masterShifts.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "6px 0",
+                      borderBottom: "1px dashed var(--line-dashed)",
+                    }}
+                  >
+                    <div>
+                      <strong>{item.name}</strong>
+                      {item.active !== "1" && (
+                        <div
+                          style={{ color: "var(--muted)", fontSize: "0.9rem" }}
+                        >
+                          {t("master.shiftInactive")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="actions" style={{ marginTop: 0 }}>
+                      <button
+                        className="btn btn-sm btn-edit"
+                        type="button"
+                        disabled={busy || !canShiftUpdate}
+                        aria-label="Edit"
+                        onClick={() => openShiftEdit(item)}
+                      >
+                        <EditIcon />
+                        <span className="btn-label">Edit</span>
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        type="button"
+                        disabled={busy || !canShiftDelete}
+                        aria-label="Hapus"
+                        onClick={() =>
+                          setModal({ type: "delete-shift", item })
+                        }
+                      >
+                        <TrashIcon />
+                        <span className="btn-label">Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="master-foot actions">
+              <button className="btn" onClick={closeModal}>
+                Tutup
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !canShiftCreate}
+                onClick={openShiftCreate}
+              >
+                {t("master.shiftNew")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "shift-form" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "shifts" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <h3>
+              {modal.mode === "create"
+                ? t("master.shiftNew")
+                : t("master.shiftEdit")}
+            </h3>
+            {error && <div className="error">{error}</div>}
+            <div className="form">
+              <label>
+                {t("master.shiftName")}
+                <input
+                  value={shiftForm.name}
+                  onChange={(e) =>
+                    setShiftForm({ ...shiftForm, name: e.target.value })
+                  }
+                  placeholder="Mis. Shift Pagi"
+                  required
+                />
+              </label>
+              {modal.mode === "edit" && (
+                <label>
+                  {t("master.shiftStatus")}
+                  <select
+                    value={shiftForm.active}
+                    onChange={(e) =>
+                      setShiftForm({
+                        ...shiftForm,
+                        active: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="1">{t("master.shiftActive")}</option>
+                    <option value="0">{t("master.shiftInactive")}</option>
+                  </select>
+                </label>
+              )}
+              <div className="actions">
+                <button
+                  className="btn"
+                  onClick={() => setModal({ type: "shifts" })}
+                >
+                  Kembali
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !shiftForm.name.trim()}
+                  onClick={() => void saveShift()}
+                >
+                  <BusyLabel busy={busy} idle="Simpan" pending="Menyimpan..." />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "delete-shift" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setModal({ type: "shifts" })}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {busy && <BusyOverlay label="Menghapus..." />}
+            <h3>{t("master.shiftDelete")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.item.name}
+            </p>
+            <p style={{ color: "var(--muted)" }}>
+              {t("master.shiftDeleteHint")}
+            </p>
+            {error && <div className="error">{error}</div>}
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => setModal({ type: "shifts" })}
+              >
+                Batal
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={() => void confirmDeleteShift()}
+              >
+                <BusyLabel busy={busy} idle="Ya, hapus" pending="Menghapus..." />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "priorities" && (
         <div className="modal-backdrop master-backdrop" onClick={closeModal}>
           <div
@@ -10114,7 +10907,7 @@ export default function HomePage() {
                         applyMasterTechSearch();
                       }
                     }}
-                    placeholder="Cari nama, SN, atau telepon..."
+                    placeholder="Cari nama, SN, telepon, atau shift..."
                     aria-label="Cari teknisi"
                     autoFocus
                   />
@@ -10175,6 +10968,7 @@ export default function HomePage() {
                         {tech.superior_user_name
                           ? ` · Superior: ${tech.superior_user_name}`
                           : ""}
+                        {tech.shift_name ? ` · Shift: ${tech.shift_name}` : ""}
                         {` · ${tech.status}`}
                         {tech.user_id
                           ? ` · ${t("tech.loginReady", { username: tech.sn })}`
@@ -10398,25 +11192,84 @@ export default function HomePage() {
             <h3>{modal.mode === "create" ? "Teknisi baru" : "Edit teknisi"}</h3>
             {error && <div className="error">{error}</div>}
             <div className="form">
-              <label>
-                Nama *
-                <input
-                  value={techForm.name}
-                  onChange={(e) => setTechForm({ ...techForm, name: e.target.value })}
-                  required
-                />
-              </label>
+              {modal.mode === "create" ? (
+                <>
+                  <label>
+                    Nama *
+                    <SearchableSelect
+                      value={techForm.user_id}
+                      required
+                      disabled={technicianCandidatesLoading}
+                      placeholder={
+                        technicianCandidatesLoading
+                          ? "Memuat user teknisi..."
+                          : t("tech.pickUser")
+                      }
+                      emptyMessage={t("tech.pickUserEmpty")}
+                      aria-label="Nama"
+                      options={technicianUserCandidates.map((u) => ({
+                        value: u.id,
+                        label: `${u.name || u.username}${
+                          u.name && u.username && u.name !== u.username
+                            ? ` — ${u.username}`
+                            : ""
+                        }${u.shift_name ? ` · ${u.shift_name}` : ""}${
+                          u.already_linked
+                            ? ` · ${t("tech.pickUserLinkedSuffix")}`
+                            : ""
+                        }`,
+                        searchText: `${u.name} ${u.username} ${u.email} ${u.phone} ${u.shift_name || ""}`,
+                      }))}
+                      onChange={applyTechnicianUserCandidate}
+                    />
+                  </label>
+                  <p className="field-hint" style={{ marginTop: 0 }}>
+                    {t("tech.createFromUserHint")}
+                  </p>
+                  {technicianCandidatesError && (
+                    <div className="error">
+                      {technicianCandidatesError instanceof Error
+                        ? technicianCandidatesError.message
+                        : "Gagal memuat daftar user teknisi"}
+                    </div>
+                  )}
+                  {!technicianCandidatesLoading &&
+                    technicianCandidatesAvailable === 0 &&
+                    technicianUserCandidates.length > 0 && (
+                      <p className="field-hint" style={{ marginTop: 0 }}>
+                        {t("tech.pickUserAllLinked")}
+                      </p>
+                    )}
+                </>
+              ) : (
+                <label>
+                  Nama *
+                  <input
+                    value={techForm.name}
+                    onChange={(e) =>
+                      setTechForm({ ...techForm, name: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+              )}
               <label>
                 SN / Pernr *
                 <input
                   value={techForm.sn}
-                  onChange={(e) => setTechForm({ ...techForm, sn: e.target.value })}
+                  onChange={(e) =>
+                    setTechForm({ ...techForm, sn: e.target.value })
+                  }
+                  readOnly={modal.mode === "create"}
+                  disabled={modal.mode === "create"}
                   required
                 />
               </label>
-              <p className="field-hint" style={{ marginTop: 0 }}>
-                {t("tech.loginHint")}
-              </p>
+              {modal.mode === "edit" && (
+                <p className="field-hint" style={{ marginTop: 0 }}>
+                  {t("tech.loginHint")}
+                </p>
+              )}
               <label>
                 No. ID Badge *
                 <input
@@ -10432,7 +11285,11 @@ export default function HomePage() {
                 <input
                   type="email"
                   value={techForm.email}
-                  onChange={(e) => setTechForm({ ...techForm, email: e.target.value })}
+                  onChange={(e) =>
+                    setTechForm({ ...techForm, email: e.target.value })
+                  }
+                  readOnly={modal.mode === "create"}
+                  disabled={modal.mode === "create"}
                   required
                 />
               </label>
@@ -10440,10 +11297,24 @@ export default function HomePage() {
                 Telepon *
                 <input
                   value={techForm.phone}
-                  onChange={(e) => setTechForm({ ...techForm, phone: e.target.value })}
+                  onChange={(e) =>
+                    setTechForm({ ...techForm, phone: e.target.value })
+                  }
+                  readOnly={modal.mode === "create"}
+                  disabled={modal.mode === "create"}
                   required
                 />
               </label>
+              {modal.mode === "create" && (
+                <label>
+                  {t("master.userShift")}
+                  <input
+                    value={techForm.shift_name || "—"}
+                    disabled
+                    readOnly
+                  />
+                </label>
+              )}
               <label>
                 Superior
                 <SearchableSelect
@@ -10485,6 +11356,16 @@ export default function HomePage() {
                   }
                 />
               </label>
+              {modal.mode === "edit" && (
+                <label>
+                  {t("master.userShift")}
+                  <input
+                    value={modal.tech?.shift_name || "—"}
+                    disabled
+                    readOnly
+                  />
+                </label>
+              )}
               {modal.tech?.status === "busy" ? (
                 <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
                   Status: busy — tidak bisa diubah sampai job selesai.
@@ -10651,6 +11532,13 @@ export default function HomePage() {
                           {[u.email, u.phone].filter(Boolean).join(" · ")}
                         </div>
                       )}
+                      {u.shift_id && (
+                        <div
+                          style={{ color: "var(--muted)", fontSize: "0.85rem" }}
+                        >
+                          Shift: {shiftLabelForUser(u.shift_id)}
+                        </div>
+                      )}
                     </div>
                     <div className="actions" style={{ marginTop: 0 }}>
                       <button
@@ -10785,6 +11673,37 @@ export default function HomePage() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label>
+                {t("master.userShift")}
+                <SearchableSelect
+                  value={userForm.shift_id}
+                  placeholder={t("master.userShiftNone")}
+                  emptyMessage="Tidak ada shift yang cocok"
+                  aria-label={t("master.userShift")}
+                  options={[
+                    {
+                      value: "",
+                      label: t("master.userShiftNone"),
+                      searchText: "none kosong clear",
+                    },
+                    ...masterShifts
+                      .filter(
+                        (s) =>
+                          s.active === "1" || s.id === userForm.shift_id
+                      )
+                      .map((s) => ({
+                        value: s.id,
+                        label: `${s.name}${
+                          s.active !== "1" ? " (nonaktif)" : ""
+                        }`,
+                        searchText: s.name,
+                      })),
+                  ]}
+                  onChange={(next) =>
+                    setUserForm({ ...userForm, shift_id: next })
+                  }
+                />
               </label>
               <label>
                 Status *

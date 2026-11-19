@@ -10,6 +10,12 @@ export interface JobFormData {
   title: string;
   priority: string;
   unit_id: string;
+  customer_id: string;
+  smu: string;
+  arrived_at: string;
+  promise_at: string;
+  est_revision_at: string;
+  release_at: string;
   description: string;
   estimated_minutes: string;
   steps: string;
@@ -22,6 +28,12 @@ const emptyForm = (): JobFormData => ({
   title: "",
   priority: "",
   unit_id: "",
+  customer_id: "",
+  smu: "",
+  arrived_at: "",
+  promise_at: "",
+  est_revision_at: "",
+  release_at: "",
   description: "",
   estimated_minutes: "90",
   steps: "",
@@ -31,7 +43,19 @@ interface JobFormState {
   form: JobFormData;
   setForm: (patch: Partial<JobFormData>) => void;
   resetForm: () => void;
-  loadForm: (data: Partial<JobFormData> & Pick<JobFormData, "title" | "unit_id" | "description" | "estimated_minutes" | "steps">) => void;
+  loadForm: (
+    data: Partial<JobFormData> &
+      Pick<
+        JobFormData,
+        | "title"
+        | "unit_id"
+        | "customer_id"
+        | "arrived_at"
+        | "description"
+        | "estimated_minutes"
+        | "steps"
+      >
+  ) => void;
 }
 
 export const useJobFormStore = create<JobFormState>((set) => ({

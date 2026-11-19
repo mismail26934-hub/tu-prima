@@ -26,6 +26,8 @@ type BoardTopbarProps = {
   displayName: string;
   avatarUrl: string;
   canUnitRead: boolean;
+  canCustomerRead: boolean;
+  canShiftRead: boolean;
   canPriorityRead: boolean;
   canTemplateRead: boolean;
   modalOpen: boolean;
@@ -37,6 +39,8 @@ type BoardTopbarProps = {
   onTechnicians: () => void;
   onUsersMaster: () => void;
   onUnitsMaster: () => void;
+  onCustomersMaster: () => void;
+  onShiftsMaster: () => void;
   onPrioritiesMaster: () => void;
   onTemplatesMaster: () => void;
   onAttendance: () => void;
@@ -213,6 +217,8 @@ function ManageItemIcon({
     | 'techs'
     | 'users'
     | 'units'
+    | 'customers'
+    | 'shifts'
     | 'priorities'
     | 'templates'
     | 'attendance'
@@ -253,6 +259,19 @@ function ManageItemIcon({
       )}
       {name === 'units' && (
         <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
+      )}
+      {name === 'customers' && (
+        <>
+          <path d='M3 21h18' />
+          <path d='M5 21V7l7-4 7 4v14' />
+          <path d='M9 21v-6h6v6' />
+        </>
+      )}
+      {name === 'shifts' && (
+        <>
+          <circle cx='12' cy='12' r='9' />
+          <path d='M12 7v5l3 2' />
+        </>
       )}
       {name === 'priorities' && (
         <>
@@ -367,6 +386,8 @@ export function BoardTopbar({
   displayName,
   avatarUrl,
   canUnitRead,
+  canCustomerRead,
+  canShiftRead,
   canPriorityRead,
   canTemplateRead,
   modalOpen,
@@ -377,6 +398,8 @@ export function BoardTopbar({
   onTechnicians,
   onUsersMaster,
   onUnitsMaster,
+  onCustomersMaster,
+  onShiftsMaster,
   onPrioritiesMaster,
   onTemplatesMaster,
   onAttendance,
@@ -690,6 +713,36 @@ export function BoardTopbar({
       >
         <ManageItemIcon name='units' />
         {t('nav.unitsMaster')}
+      </button>
+      <button
+        type='button'
+        role='menuitem'
+        className={manageItemClass('customers')}
+        disabled={busy || !canCustomerRead}
+        title={t('nav.customersMaster')}
+        aria-current={activeNav === 'customers' ? 'page' : undefined}
+        onClick={() => {
+          closeMenu(true);
+          onCustomersMaster();
+        }}
+      >
+        <ManageItemIcon name='customers' />
+        {t('nav.customersMaster')}
+      </button>
+      <button
+        type='button'
+        role='menuitem'
+        className={manageItemClass('shifts')}
+        disabled={busy || !canShiftRead}
+        title={t('nav.shiftsMaster')}
+        aria-current={activeNav === 'shifts' ? 'page' : undefined}
+        onClick={() => {
+          closeMenu(true);
+          onShiftsMaster();
+        }}
+      >
+        <ManageItemIcon name='shifts' />
+        {t('nav.shiftsMaster')}
       </button>
       <button
         type='button'

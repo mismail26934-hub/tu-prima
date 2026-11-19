@@ -301,6 +301,7 @@ function rememberForeman(map: Map<string, AppUserPublic>, row?: Partial<AppUserP
     photo_name: String(row?.photo_name || prev?.photo_name || ""),
     photo_url: row?.photo_url || prev?.photo_url,
     level: "foreman",
+    shift_id: String(row?.shift_id || prev?.shift_id || ""),
     active: "1",
     created_at: String(row?.created_at || prev?.created_at || ""),
   });
@@ -671,6 +672,13 @@ function emptyJob(partial: Partial<Job> & Pick<Job, "id" | "title">): JobWithDet
     priority: normalizeJobPriority(partial.priority),
     unit: partial.unit || "",
     unit_id: partial.unit_id || "",
+    customer: partial.customer || "",
+    customer_id: partial.customer_id || "",
+    smu: Number(partial.smu || 0),
+    arrived_at: partial.arrived_at || "",
+    promise_at: partial.promise_at || "",
+    est_revision_at: partial.est_revision_at || "",
+    release_at: partial.release_at || "",
     description: partial.description || "",
     status: partial.status || "queued",
     technician_id: partial.technician_id || "",
@@ -1176,6 +1184,8 @@ function createJobOptimistic(
   }
   const estimated =
     Number(template?.std_minutes || body.estimated_minutes || 60) || 60;
+  const customerId = String(body.customer_id || "");
+  const customerLabel = String(body.customer || body.customer_label || "");
   const job = enrich({
     ...emptyJob({
       id,
@@ -1183,6 +1193,17 @@ function createJobOptimistic(
       priority: normalizeJobPriority(body.priority),
       unit: unit ? unitLabel(unit) : "",
       unit_id: unit?.id || String(body.unit_id || ""),
+      customer: customerLabel,
+      customer_id: customerId,
+      smu: (() => {
+        const n = Number(body.smu);
+        if (!Number.isFinite(n) || n <= 0) return 0;
+        return Math.round(n * 100) / 100;
+      })(),
+      arrived_at: String(body.arrived_at || ""),
+      promise_at: String(body.promise_at || ""),
+      est_revision_at: String(body.est_revision_at || ""),
+      release_at: String(body.release_at || ""),
       description: String(body.description || ""),
       template_id: templateId,
       estimated_minutes: estimated,
@@ -1394,6 +1415,38 @@ export function applyOptimisticMutation(
               job.estimated_minutes,
             unit_id: unit?.id || job.unit_id,
             unit: unit ? unitLabel(unit) : job.unit,
+            customer_id:
+              body.customer_id != null
+                ? String(body.customer_id)
+                : job.customer_id || "",
+            customer:
+              body.customer != null || body.customer_label != null
+                ? String(body.customer || body.customer_label || "")
+                : job.customer || "",
+            smu:
+              body.smu != null
+                ? (() => {
+                    const n = Number(body.smu);
+                    if (!Number.isFinite(n) || n <= 0) return 0;
+                    return Math.round(n * 100) / 100;
+                  })()
+                : Number(job.smu || 0),
+            arrived_at:
+              body.arrived_at != null
+                ? String(body.arrived_at)
+                : job.arrived_at || "",
+            promise_at:
+              body.promise_at != null
+                ? String(body.promise_at)
+                : job.promise_at || "",
+            est_revision_at:
+              body.est_revision_at != null
+                ? String(body.est_revision_at)
+                : job.est_revision_at || "",
+            release_at:
+              body.release_at != null
+                ? String(body.release_at)
+                : job.release_at || "",
             ...applyJobPhotoFromBody(job, body),
           };
           if (Array.isArray(body.steps) && ["queued", "assigned"].includes(job.status)) {

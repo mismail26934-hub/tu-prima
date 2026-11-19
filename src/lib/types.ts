@@ -59,6 +59,20 @@ export interface Unit {
   active: string; // "1" | "0"
 }
 
+export interface Customer {
+  id: string;
+  code: string;
+  name: string;
+  active: string; // "1" | "0"
+}
+
+export interface Shift {
+  id: string;
+  code: string;
+  name: string;
+  active: string; // "1" | "0"
+}
+
 export type JobTemplateCategory = "engine" | "non_engine" | "goh";
 
 /** Master catalog entry (MySQL job_templates / job_template_steps). */
@@ -133,6 +147,15 @@ export interface Job {
   priority?: string;
   unit: string;
   unit_id: string;
+  /** Denormalized customer label (code — name). */
+  customer?: string;
+  customer_id?: string;
+  /** Service meter unit reading. */
+  smu?: number;
+  arrived_at?: string;
+  promise_at?: string;
+  est_revision_at?: string;
+  release_at?: string;
   description: string;
   status: JobStatus;
   /** Lead / primary technician (first assignee). Kept for Excel compatibility. */
@@ -348,6 +371,7 @@ export interface AppUser {
   phone: string;
   photo_name: string;
   level: UserLevel;
+  shift_id: string;
   active: string; // "1" | "0"
   created_at: string;
 }

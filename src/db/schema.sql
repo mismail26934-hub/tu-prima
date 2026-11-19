@@ -14,9 +14,11 @@ CREATE TABLE IF NOT EXISTS users (
   phone         VARCHAR(64)  NOT NULL DEFAULT '',
   photo_name    VARCHAR(255) NOT NULL DEFAULT '',
   level         VARCHAR(32)  NOT NULL DEFAULT 'teknisi',
+  shift_id      VARCHAR(64)  NOT NULL DEFAULT '',
   active        TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    VARCHAR(64)  NOT NULL DEFAULT '',
-  UNIQUE KEY uk_users_username (username)
+  UNIQUE KEY uk_users_username (username),
+  KEY idx_users_shift_id (shift_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS technicians (
@@ -43,6 +45,24 @@ CREATE TABLE IF NOT EXISTS units (
   active        TINYINT(1)   NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS customers (
+  id     VARCHAR(64)  NOT NULL PRIMARY KEY,
+  code   VARCHAR(64)  NOT NULL,
+  name   VARCHAR(255) NOT NULL DEFAULT '',
+  active TINYINT(1)   NOT NULL DEFAULT 1,
+  UNIQUE KEY uk_customers_code (code),
+  KEY idx_customers_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS shifts (
+  id     VARCHAR(64)  NOT NULL PRIMARY KEY,
+  code   VARCHAR(64)  NOT NULL,
+  name   VARCHAR(255) NOT NULL DEFAULT '',
+  active TINYINT(1)   NOT NULL DEFAULT 1,
+  UNIQUE KEY uk_shifts_code (code),
+  KEY idx_shifts_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS job_priorities (
   id         VARCHAR(64)  NOT NULL PRIMARY KEY,
   code       VARCHAR(16)  NOT NULL,
@@ -60,6 +80,13 @@ CREATE TABLE IF NOT EXISTS jobs (
   priority             VARCHAR(16)  NOT NULL DEFAULT '',
   unit_label           VARCHAR(255) NOT NULL DEFAULT '',
   unit_id              VARCHAR(64)  NOT NULL DEFAULT '',
+  customer_label       VARCHAR(255) NOT NULL DEFAULT '',
+  customer_id          VARCHAR(64)  NOT NULL DEFAULT '',
+  smu                  DECIMAL(12,2) NOT NULL DEFAULT 0,
+  arrived_at           VARCHAR(64)  NOT NULL DEFAULT '',
+  promise_at           VARCHAR(64)  NOT NULL DEFAULT '',
+  est_revision_at      VARCHAR(64)  NOT NULL DEFAULT '',
+  release_at           VARCHAR(64)  NOT NULL DEFAULT '',
   description          TEXT,
   status               VARCHAR(32)  NOT NULL DEFAULT 'queued',
   technician_id        VARCHAR(64)  NOT NULL DEFAULT '',

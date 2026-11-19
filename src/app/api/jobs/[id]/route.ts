@@ -42,11 +42,30 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    if (!body.customer_id) {
+      return NextResponse.json(
+        { error: "customer wajib dipilih" },
+        { status: 400 }
+      );
+    }
+    if (!body.arrived_at) {
+      return NextResponse.json(
+        { error: "Arrived Date & Time wajib diisi" },
+        { status: 400 }
+      );
+    }
     const actor = await getCurrentActor();
     const job = await updateJob(id, {
       title: String(body.title),
       priority: body.priority != null ? String(body.priority) : "",
       unit_id: String(body.unit_id),
+      customer_id: String(body.customer_id),
+      smu: body.smu != null ? Number(body.smu) : 0,
+      arrived_at: String(body.arrived_at),
+      promise_at: body.promise_at != null ? String(body.promise_at) : "",
+      est_revision_at:
+        body.est_revision_at != null ? String(body.est_revision_at) : "",
+      release_at: body.release_at != null ? String(body.release_at) : "",
       description: body.description ? String(body.description) : "",
       estimated_minutes: body.estimated_minutes
         ? Number(body.estimated_minutes)

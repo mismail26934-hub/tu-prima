@@ -25,6 +25,7 @@ import type {
   PartLoanStatus,
 } from "./types";
 import { USER_LEVELS, normalizeJobPriority } from "./types";
+import { assertCustomerForWrite, customerLabel } from "./customers";
 import { assertJobPriorityForWrite } from "./job-priorities";
 import {
   calcElapsedSec,
@@ -425,6 +426,13 @@ function mapJob(r: Row): Job {
     priority: normalizeJobPriority(r.priority),
     unit: String(r.unit || ""),
     unit_id: String(r.unit_id || ""),
+    customer: String(r.customer || ""),
+    customer_id: String(r.customer_id || ""),
+    smu: Number(r.smu || 0),
+    arrived_at: String(r.arrived_at || ""),
+    promise_at: String(r.promise_at || ""),
+    est_revision_at: String(r.est_revision_at || ""),
+    release_at: String(r.release_at || ""),
     description: String(r.description || ""),
     status: String(r.status || "queued") as JobStatus,
     technician_id: String(r.technician_id || ""),
@@ -697,6 +705,7 @@ function mapUser(r: Row): AppUser {
     level: USER_LEVELS.includes(rawLevel as UserLevel)
       ? (rawLevel as UserLevel)
       : fallbackLevel,
+    shift_id: String(r.shift_id || "").trim(),
     active: String(r.active || "1") === "0" ? "0" : "1",
     created_at: String(r.created_at || ""),
   };
@@ -781,6 +790,13 @@ function unitLabel(u: Unit): string {
   return u.name ? `${u.code} — ${u.name}` : u.code;
 }
 
+/** SMU meter reading — non-negative decimal, 2 places. */
+function parseSmu(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
 const TECH_HEADERS = [
   "id",
   "name",
@@ -801,6 +817,13 @@ const JOB_HEADERS = [
   "priority",
   "unit",
   "unit_id",
+  "customer",
+  "customer_id",
+  "smu",
+  "arrived_at",
+  "promise_at",
+  "est_revision_at",
+  "release_at",
   "description",
   "status",
   "technician_id",
@@ -913,6 +936,7 @@ const USER_HEADERS = [
   "phone",
   "photo_name",
   "level",
+  "shift_id",
   "active",
   "created_at",
 ];
@@ -1158,6 +1182,7 @@ async function ensureTechnicianLoginUser(
     phone: tech.phone || "",
     photo_name: "",
     level: "teknisi",
+    shift_id: "",
     active: "1",
     created_at: nowIso(),
   };
@@ -1768,6 +1793,12 @@ export async function createJob(input: {
   title: string;
   priority?: string;
   unit_id: string;
+  customer_id: string;
+  smu?: number;
+  arrived_at: string;
+  promise_at?: string;
+  est_revision_at?: string;
+  release_at?: string;
   description?: string;
   estimated_minutes?: number;
   steps?: JobStepCreateInput[];
@@ -1810,6 +1841,9 @@ export async function createJob(input: {
 
     const unit = units.find((u) => u.id === input.unit_id && u.active === "1");
     if (!unit) throw new Error("Unit tidak ditemukan / nonaktif");
+    const customer = await assertCustomerForWrite(input.customer_id);
+    const arrivedAt = String(input.arrived_at || "").trim();
+    if (!arrivedAt) throw new Error("Arrived Date & Time wajib diisi");
 
     const templateId = input.template_id ? String(input.template_id).trim() : "";
     const template = templateId ? await getJobTemplate(templateId) : null;
@@ -1848,6 +1882,13 @@ export async function createJob(input: {
       priority: await assertJobPriorityForWrite(input.priority),
       unit: unitLabel(unit),
       unit_id: unit.id,
+      customer: customerLabel(customer),
+      customer_id: customer.id,
+      smu: parseSmu(input.smu),
+      arrived_at: arrivedAt,
+      promise_at: String(input.promise_at || "").trim(),
+      est_revision_at: String(input.est_revision_at || "").trim(),
+      release_at: String(input.release_at || "").trim(),
       description: input.description || "",
       status: "queued",
       technician_id: "",
@@ -1942,6 +1983,12 @@ export async function updateJob(
     title: string;
     priority?: string;
     unit_id: string;
+    customer_id: string;
+    smu?: number;
+    arrived_at: string;
+    promise_at?: string;
+    est_revision_at?: string;
+    release_at?: string;
     description?: string;
     estimated_minutes?: number;
     steps?: string[];
@@ -1984,17 +2031,30 @@ export async function updateJob(
 
     const title = input.title.trim();
     if (!title || !input.unit_id) throw new Error("title dan unit wajib diisi");
+    const arrivedAt = String(input.arrived_at || "").trim();
+    if (!arrivedAt) throw new Error("Arrived Date & Time wajib diisi");
 
     const unit = units.find((u) => u.id === input.unit_id);
     if (!unit) throw new Error("Unit tidak ditemukan");
     if (unit.active !== "1" && unit.id !== job.unit_id) {
       throw new Error("Unit nonaktif");
     }
+    const customer = await assertCustomerForWrite(
+      input.customer_id,
+      job.customer_id
+    );
 
     job.title = title;
     job.priority = await assertJobPriorityForWrite(input.priority, job.priority);
     job.unit_id = unit.id;
     job.unit = unitLabel(unit);
+    job.customer_id = customer.id;
+    job.customer = customerLabel(customer);
+    job.smu = parseSmu(input.smu);
+    job.arrived_at = arrivedAt;
+    job.promise_at = String(input.promise_at || "").trim();
+    job.est_revision_at = String(input.est_revision_at || "").trim();
+    job.release_at = String(input.release_at || "").trim();
     job.description = input.description?.trim() || "";
     job.estimated_minutes = input.estimated_minutes || job.estimated_minutes || 60;
     await applyIncomingJobPhoto(job, input);
@@ -3078,10 +3138,13 @@ export async function createTechnician(input: {
   phone?: string;
   status?: Exclude<TechnicianStatus, "busy">;
   superior_user_id?: string;
+  /** Link an existing Master User (level teknisi) instead of creating a login. */
+  user_id?: string;
 }): Promise<Technician> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const users = readUsers(wb);
     const requestedId = String(input.id || "").trim();
     if (requestedId) {
       const existing = techs.find((t) => t.id === requestedId);
@@ -3113,9 +3176,31 @@ export async function createTechnician(input: {
       superior_user_name: superior.superior_user_name,
       user_id: "",
     };
+
+    const linkUserId = String(input.user_id || "").trim();
+    if (linkUserId) {
+      const user = users.find((u) => u.id === linkUserId);
+      if (!user) throw new Error("User tidak ditemukan");
+      if (user.level !== "teknisi") {
+        throw new Error("User harus level teknisi");
+      }
+      if (user.active !== "1") throw new Error("User nonaktif");
+      const other = techs.find((t) => t.user_id === user.id);
+      if (other) {
+        throw new Error(
+          `User "${user.username}" sudah tertaut ke teknisi ${other.name}`
+        );
+      }
+      tech.user_id = user.id;
+      user.name = tech.name;
+      user.email = tech.email || user.email;
+      user.phone = tech.phone || user.phone;
+      user.active = "1";
+    } else {
+      await ensureTechnicianLoginUser(techs, users, tech, { throwOnSkip: true });
+    }
+
     techs.push(tech);
-    const users = readUsers(wb);
-    await ensureTechnicianLoginUser(techs, users, tech, { throwOnSkip: true });
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
     writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
@@ -5664,6 +5749,50 @@ export async function listForemanUsers(): Promise<AppUserPublic[]> {
   });
 }
 
+export type TechnicianUserCandidateRow = AppUserPublic & {
+  /** Technician master id if this login is already linked. */
+  technician_id?: string;
+  already_linked: boolean;
+};
+
+/** Active teknisi login accounts (optionally including ones already linked). */
+export async function listTechnicianCandidateUsers(opts?: {
+  includeLinked?: boolean;
+}): Promise<TechnicianUserCandidateRow[]> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const techIdByUser = new Map<string, string>();
+    for (const t of techs) {
+      const uid = String(t.user_id || "").trim();
+      if (uid && !techIdByUser.has(uid)) techIdByUser.set(uid, t.id);
+    }
+    const includeLinked = opts?.includeLinked !== false;
+    return readUsers(wb)
+      .filter((u) => u.level === "teknisi" && u.active === "1")
+      .map((u) => {
+        const publicUser = toPublicUser(u);
+        const technician_id = techIdByUser.get(u.id) || "";
+        const already_linked = Boolean(technician_id);
+        return {
+          ...publicUser,
+          technician_id: technician_id || undefined,
+          already_linked,
+        };
+      })
+      .filter((u) => includeLinked || !u.already_linked)
+      .sort((a, b) => {
+        // Available (not linked) first, then by name.
+        if (a.already_linked !== b.already_linked) {
+          return a.already_linked ? 1 : -1;
+        }
+        const an = (a.name || a.username).toLowerCase();
+        const bn = (b.name || b.username).toLowerCase();
+        return an.localeCompare(bn) || a.username.localeCompare(b.username);
+      });
+  });
+}
+
 export async function listHandoverRecipientUsers(): Promise<AppUserPublic[]> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
@@ -5830,6 +5959,7 @@ export async function createUser(input: {
   email?: string;
   phone?: string;
   level?: UserLevel;
+  shift_id?: string;
   active?: string;
 }): Promise<AppUserPublic> {
   return withDbLock(async () => {
@@ -5840,6 +5970,7 @@ export async function createUser(input: {
     const name = (input.name || "").trim() || username;
     const email = (input.email || "").trim();
     const phone = (input.phone || "").trim();
+    const shift_id = String(input.shift_id || "").trim();
     if (!username || !password) {
       throw new Error("username dan password wajib diisi");
     }
@@ -5857,6 +5988,7 @@ export async function createUser(input: {
       level: input.level && USER_LEVELS.includes(input.level)
         ? input.level
         : "teknisi",
+      shift_id,
       active: input.active === "0" ? "0" : "1",
       created_at: nowIso(),
     };
@@ -5876,6 +6008,7 @@ export async function updateUser(
     email?: string;
     phone?: string;
     level?: UserLevel;
+    shift_id?: string;
     active?: string;
   }
 ): Promise<AppUserPublic> {
@@ -5910,6 +6043,9 @@ export async function updateUser(
     }
     if (input.phone != null) {
       user.phone = input.phone.trim();
+    }
+    if (input.shift_id != null) {
+      user.shift_id = String(input.shift_id).trim();
     }
     if (input.level && USER_LEVELS.includes(input.level)) {
       if (

@@ -49,6 +49,16 @@ export const queryKeys = {
     list: (includeInactive = false) =>
       ["job-priorities", { includeInactive }] as const,
   },
+  customers: {
+    all: ["customers"] as const,
+    list: (includeInactive = false) =>
+      ["customers", { includeInactive }] as const,
+  },
+  shifts: {
+    all: ["shifts"] as const,
+    list: (includeInactive = false) =>
+      ["shifts", { includeInactive }] as const,
+  },
   templates: {
     all: ["job-templates"] as const,
     catalog: ["job-templates", "catalog"] as const,
@@ -61,6 +71,7 @@ export const queryKeys = {
   users: ["users"] as const,
   alerts: ["alerts"] as const,
   foremen: ["users", "foremen"] as const,
+  technicianCandidates: ["users", "technician-candidates"] as const,
   backups: {
     all: ["job-backups"] as const,
     list: (includeUndone: boolean) =>

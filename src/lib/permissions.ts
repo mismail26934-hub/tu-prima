@@ -7,6 +7,8 @@ export type AccessResource =
   | "user"
   | "technician"
   | "unit"
+  | "customer"
+  | "shift"
   | "attendance"
   | "template"
   | "priority";
@@ -25,6 +27,8 @@ export const ACCESS_MATRIX: Record<
     user: READ,
     technician: READ,
     unit: NONE,
+    customer: NONE,
+    shift: NONE,
     attendance: READ,
     template: NONE,
     priority: NONE,
@@ -34,6 +38,8 @@ export const ACCESS_MATRIX: Record<
     user: CRUD,
     technician: CRUD,
     unit: CRUD,
+    customer: CRUD,
+    shift: CRUD,
     attendance: CRUD,
     template: CRUD,
     priority: CRUD,
@@ -43,6 +49,8 @@ export const ACCESS_MATRIX: Record<
     user: READ,
     technician: READ,
     unit: CRUD,
+    customer: CRUD,
+    shift: CRUD,
     attendance: READ,
     template: CRUD,
     priority: CRUD,
@@ -52,6 +60,8 @@ export const ACCESS_MATRIX: Record<
     user: READ,
     technician: READ,
     unit: NONE,
+    customer: NONE,
+    shift: NONE,
     attendance: READ,
     template: READ,
     priority: NONE,
@@ -61,6 +71,8 @@ export const ACCESS_MATRIX: Record<
     user: READ,
     technician: CRUD,
     unit: CRUD,
+    customer: CRUD,
+    shift: CRUD,
     attendance: CRUD,
     template: CRUD,
     priority: CRUD,
@@ -70,6 +82,8 @@ export const ACCESS_MATRIX: Record<
     user: READ,
     technician: READ,
     unit: READ,
+    customer: READ,
+    shift: READ,
     attendance: CRUD,
     template: READ,
     priority: READ,
@@ -79,6 +93,8 @@ export const ACCESS_MATRIX: Record<
     user: READ,
     technician: READ,
     unit: READ,
+    customer: READ,
+    shift: READ,
     attendance: READ,
     template: READ,
     priority: READ,

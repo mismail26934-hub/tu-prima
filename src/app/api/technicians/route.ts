@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       status: body.status === "offline" ? "offline" : "available",
       superior_user_id:
         body.superior_user_id != null ? String(body.superior_user_id) : "",
+      user_id: body.user_id != null ? String(body.user_id) : undefined,
     });
     return NextResponse.json(tech);
   } catch (e) {

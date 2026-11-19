@@ -51,6 +51,9 @@ export interface PaginatedResult<T> {
 
 export interface TechnicianListItem extends Technician {
   current_job_title?: string;
+  /** From linked login user (`users.shift_id` → `shifts.name`). */
+  shift_id?: string;
+  shift_name?: string;
 }
 
 function str(v: unknown): string {
@@ -120,6 +123,13 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
     priority: normalizeJobPriority(r.priority),
     unit: str(r.unit_label),
     unit_id: str(r.unit_id),
+    customer: str(r.customer_label),
+    customer_id: str(r.customer_id),
+    smu: num(r.smu),
+    arrived_at: str(r.arrived_at),
+    promise_at: str(r.promise_at),
+    est_revision_at: str(r.est_revision_at),
+    release_at: str(r.release_at),
     description: str(r.description),
     status: str(r.status || "queued") as JobStatus,
     technician_id: str(r.technician_id),
@@ -673,25 +683,28 @@ export async function listTechniciansPaginated(input: {
   }
   if (q) {
     parts.push(
-      "(LOWER(t.name) LIKE ? OR LOWER(t.sn) LIKE ? OR LOWER(t.badge_id) LIKE ? OR LOWER(t.email) LIKE ? OR LOWER(t.phone) LIKE ? OR LOWER(t.superior_user_name) LIKE ?)"
+      "(LOWER(t.name) LIKE ? OR LOWER(t.sn) LIKE ? OR LOWER(t.badge_id) LIKE ? OR LOWER(t.email) LIKE ? OR LOWER(t.phone) LIKE ? OR LOWER(t.superior_user_name) LIKE ? OR LOWER(COALESCE(s.name, '')) LIKE ?)"
     );
     const like = `%${q}%`;
-    params.push(like, like, like, like, like, like);
+    params.push(like, like, like, like, like, like, like);
   }
 
+  const joins = `LEFT JOIN users u ON u.id = t.user_id
+     LEFT JOIN shifts s ON s.id = u.shift_id`;
   const where = parts.length ? `WHERE ${parts.join(" AND ")}` : "";
   const p = getPool();
 
   const [countRows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT COUNT(*) AS cnt FROM technicians t ${where}`,
+    `SELECT COUNT(*) AS cnt FROM technicians t ${joins} ${where}`,
     params
   );
   const total = num(countRows[0]?.cnt);
 
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, t.superior_user_id, t.superior_user_name, t.user_id, j.title AS current_job_title
+    `SELECT t.id, t.name, t.sn, t.badge_id, t.email, t.status, t.current_job_id, t.phone, t.superior_user_id, t.superior_user_name, t.user_id, j.title AS current_job_title, u.shift_id AS shift_id, s.name AS shift_name
      FROM technicians t
      LEFT JOIN jobs j ON j.id = t.current_job_id AND j.job_scope = 'active'
+     ${joins}
      ${where}
      ORDER BY t.name
      LIMIT ? OFFSET ?`,
@@ -701,6 +714,8 @@ export async function listTechniciansPaginated(input: {
   const items: TechnicianListItem[] = rows.map((r) => ({
     ...mapTechnicianRow(r),
     current_job_title: str(r.current_job_title) || undefined,
+    shift_id: str(r.shift_id) || undefined,
+    shift_name: str(r.shift_name) || undefined,
   }));
   const totalPages = Math.max(1, Math.ceil(total / limit));
 

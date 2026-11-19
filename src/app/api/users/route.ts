@@ -56,6 +56,7 @@ export async function POST(req: Request) {
       level: USER_LEVELS.includes(body.level as UserLevel)
         ? (body.level as UserLevel)
         : "teknisi",
+      shift_id: body.shift_id != null ? String(body.shift_id) : undefined,
       active: body.active === "0" ? "0" : "1",
     });
     return NextResponse.json(user);

@@ -41,6 +41,7 @@ export async function PATCH(
       level: USER_LEVELS.includes(body.level as UserLevel)
         ? (body.level as UserLevel)
         : undefined,
+      shift_id: body.shift_id != null ? String(body.shift_id) : undefined,
       active:
         body.active === "0" || body.active === "1" ? body.active : undefined,
     });

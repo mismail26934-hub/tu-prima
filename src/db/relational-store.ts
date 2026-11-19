@@ -79,6 +79,13 @@ function jobRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
     priority: str(r.priority),
     unit: str(r.unit_label),
     unit_id: str(r.unit_id),
+    customer: str(r.customer_label),
+    customer_id: str(r.customer_id),
+    smu: num(r.smu),
+    arrived_at: str(r.arrived_at),
+    promise_at: str(r.promise_at),
+    est_revision_at: str(r.est_revision_at),
+    release_at: str(r.release_at),
     description: str(r.description),
     status: str(r.status),
     technician_id: str(r.technician_id),
@@ -128,6 +135,13 @@ function jobRowToDb(row: DbRow, scope: JobScope): Record<string, unknown> {
     priority: str(row.priority),
     unit_label: str(row.unit),
     unit_id: str(row.unit_id),
+    customer_label: str(row.customer),
+    customer_id: str(row.customer_id),
+    smu: num(row.smu),
+    arrived_at: str(row.arrived_at),
+    promise_at: str(row.promise_at),
+    est_revision_at: str(row.est_revision_at),
+    release_at: str(row.release_at),
     description: str(row.description),
     status: str(row.status),
     technician_id: str(row.technician_id),
@@ -282,6 +296,13 @@ function jobHeaders(scope: JobScope): string[] {
     "priority",
     "unit",
     "unit_id",
+    "customer",
+    "customer_id",
+    "smu",
+    "arrived_at",
+    "promise_at",
+    "est_revision_at",
+    "release_at",
     "description",
     "status",
     "technician_id",
@@ -526,7 +547,9 @@ async function saveScopedJobs(
     const d = jobRowToDb(row, scope);
     await conn.query(
       `INSERT INTO jobs (
-        id, job_scope, title, priority, unit_label, unit_id, description, status,
+        id, job_scope, title, priority, unit_label, unit_id,
+        customer_label, customer_id, smu, arrived_at, promise_at, est_revision_at, release_at,
+        description, status,
         technician_id, template_id, created_at, started_at, completed_at,
         paused_at, total_paused_sec, estimated_minutes,
         archived_at, archived_by_user_id, archived_by_user_name, archived_by_user_level,
@@ -534,7 +557,7 @@ async function saveScopedJobs(
         assigned_by_user_id, assigned_by_user_name, assigned_by_user_level,
         delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id,
         photo_name, photos
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         d.id,
         d.job_scope,
@@ -542,6 +565,13 @@ async function saveScopedJobs(
         d.priority,
         d.unit_label,
         d.unit_id,
+        d.customer_label,
+        d.customer_id,
+        d.smu,
+        d.arrived_at,
+        d.promise_at,
+        d.est_revision_at,
+        d.release_at,
         d.description,
         d.status,
         d.technician_id,
@@ -784,7 +814,7 @@ export async function loadRelationalWorkbook(
     const [users] = await p.query<mysql.RowDataPacket[]>(
       `SELECT * FROM users ORDER BY username`
     );
-    setSheet(wb, "Users", ["id", "username", "password", "name", "email", "phone", "photo_name", "level", "active", "created_at"], users.map((r) => ({
+    setSheet(wb, "Users", ["id", "username", "password", "name", "email", "phone", "photo_name", "level", "shift_id", "active", "created_at"], users.map((r) => ({
       id: str(r.id),
       username: str(r.username),
       password: str(r.password_hash),
@@ -793,6 +823,7 @@ export async function loadRelationalWorkbook(
       phone: str(r.phone),
       photo_name: str(r.photo_name),
       level: str(r.level),
+      shift_id: str(r.shift_id),
       active: flag01(r.active) ? "1" : "0",
       created_at: str(r.created_at),
     })));
@@ -937,7 +968,7 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
         await conn.query(`DELETE FROM users`);
         for (const row of wb.getWorksheet("Users")?.rows ?? []) {
           await conn.query(
-            `INSERT INTO users (id, username, password_hash, name, email, phone, photo_name, level, active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO users (id, username, password_hash, name, email, phone, photo_name, level, shift_id, active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             [
               str(row.id),
               str(row.username),
@@ -947,6 +978,7 @@ export async function saveRelationalWorkbook(wb: MysqlWorkbook): Promise<void> {
               str(row.phone),
               str(row.photo_name),
               str(row.level),
+              str(row.shift_id),
               flag01(row.active),
               str(row.created_at),
             ]
@@ -1020,9 +1052,11 @@ export async function ensureRelationalSchema() {
       phone VARCHAR(64) NOT NULL DEFAULT '',
       photo_name VARCHAR(255) NOT NULL DEFAULT '',
       level VARCHAR(32) NOT NULL DEFAULT 'teknisi',
+      shift_id VARCHAR(64) NOT NULL DEFAULT '',
       active TINYINT(1) NOT NULL DEFAULT 1,
       created_at VARCHAR(64) NOT NULL DEFAULT '',
-      UNIQUE KEY uk_users_username (username)
+      UNIQUE KEY uk_users_username (username),
+      KEY idx_users_shift_id (shift_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS technicians (
       id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -1044,6 +1078,22 @@ export async function ensureRelationalSchema() {
       serial_number VARCHAR(128) NOT NULL DEFAULT '',
       active TINYINT(1) NOT NULL DEFAULT 1
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS customers (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      code VARCHAR(64) NOT NULL,
+      name VARCHAR(255) NOT NULL DEFAULT '',
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      UNIQUE KEY uk_customers_code (code),
+      KEY idx_customers_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS shifts (
+      id VARCHAR(64) NOT NULL PRIMARY KEY,
+      code VARCHAR(64) NOT NULL,
+      name VARCHAR(255) NOT NULL DEFAULT '',
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      UNIQUE KEY uk_shifts_code (code),
+      KEY idx_shifts_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_priorities (
       id VARCHAR(64) NOT NULL PRIMARY KEY,
       code VARCHAR(16) NOT NULL,
@@ -1060,6 +1110,13 @@ export async function ensureRelationalSchema() {
       priority VARCHAR(16) NOT NULL DEFAULT '',
       unit_label VARCHAR(255) NOT NULL DEFAULT '',
       unit_id VARCHAR(64) NOT NULL DEFAULT '',
+      customer_label VARCHAR(255) NOT NULL DEFAULT '',
+      customer_id VARCHAR(64) NOT NULL DEFAULT '',
+      smu DECIMAL(12,2) NOT NULL DEFAULT 0,
+      arrived_at VARCHAR(64) NOT NULL DEFAULT '',
+      promise_at VARCHAR(64) NOT NULL DEFAULT '',
+      est_revision_at VARCHAR(64) NOT NULL DEFAULT '',
+      release_at VARCHAR(64) NOT NULL DEFAULT '',
       description TEXT,
       status VARCHAR(32) NOT NULL DEFAULT 'queued',
       technician_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -1269,6 +1326,9 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_name VARCHAR(255) NOT NULL DEFAULT ''`
   );
   await p.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS shift_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
     `ALTER TABLE job_steps ADD COLUMN IF NOT EXISTS technician_ids TEXT`
   );
   await p.query(
@@ -1322,6 +1382,30 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS photos TEXT`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS customer_label VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS customer_id VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS smu DECIMAL(12,2) NOT NULL DEFAULT 0`
+  );
+  await p.query(
+    `ALTER TABLE jobs MODIFY COLUMN smu DECIMAL(12,2) NOT NULL DEFAULT 0`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS arrived_at VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS promise_at VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS est_revision_at VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS release_at VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await ensureListIndexes(p);
   const { ensureJobPrioritiesSeeded } = await import("@/lib/job-priorities");

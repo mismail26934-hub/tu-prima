@@ -6,10 +6,12 @@ import { isBrowserOnline } from "@/lib/offline/network";
 import { readBoardSnapshot, writeBoardSnapshot } from "@/lib/offline/board-snapshot";
 import type {
   AppUserPublic,
+  Customer,
   JobChangeBackup,
   JobPriorityRecord,
   JobTemplate,
   JobTemplateSummary,
+  Shift,
 } from "@/lib/types";
 
 export function useJobPriorities(includeInactive: boolean, enabled = true) {
@@ -18,6 +20,38 @@ export function useJobPriorities(includeInactive: boolean, enabled = true) {
     queryFn: () =>
       api<{ priorities: JobPriorityRecord[] }>(
         `/api/job-priorities${includeInactive ? "?include_inactive=1" : ""}`
+      ),
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: () => !shouldHoldServerRefresh(),
+    refetchOnReconnect: () => !shouldHoldServerRefresh(),
+    refetchOnMount: () => !shouldHoldServerRefresh(),
+    retry: false,
+  });
+}
+
+export function useCustomers(includeInactive: boolean, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.customers.list(includeInactive),
+    queryFn: () =>
+      api<{ customers: Customer[] }>(
+        `/api/customers${includeInactive ? "?include_inactive=1" : ""}`
+      ),
+    enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: () => !shouldHoldServerRefresh(),
+    refetchOnReconnect: () => !shouldHoldServerRefresh(),
+    refetchOnMount: () => !shouldHoldServerRefresh(),
+    retry: false,
+  });
+}
+
+export function useShifts(includeInactive: boolean, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.shifts.list(includeInactive),
+    queryFn: () =>
+      api<{ shifts: Shift[] }>(
+        `/api/shifts${includeInactive ? "?include_inactive=1" : ""}`
       ),
     enabled,
     staleTime: 30_000,
@@ -105,6 +139,31 @@ export function useForemen(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.foremen,
     queryFn: () => api<AppUserPublic[]>("/api/users/foremen"),
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+export type TechnicianUserCandidate = AppUserPublic & {
+  shift_name?: string;
+  technician_id?: string;
+  already_linked: boolean;
+};
+
+export type TechnicianUserCandidatesResponse = {
+  users: TechnicianUserCandidate[];
+  available_count: number;
+  linked_count: number;
+  total: number;
+};
+
+export function useTechnicianUserCandidates(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.technicianCandidates,
+    queryFn: () =>
+      api<TechnicianUserCandidatesResponse>(
+        "/api/users/technicians?include_linked=1"
+      ),
     enabled,
     staleTime: 15_000,
   });

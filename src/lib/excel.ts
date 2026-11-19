@@ -433,6 +433,9 @@ function mapJob(r: Row): Job {
     promise_at: String(r.promise_at || ""),
     est_revision_at: String(r.est_revision_at || ""),
     release_at: String(r.release_at || ""),
+    progress_text: String(r.progress_text || ""),
+    handover_text: String(r.handover_text || ""),
+    plan_technician_ids: parsePlanTechnicianIds(r.plan_technician_ids),
     description: String(r.description || ""),
     status: String(r.status || "queued") as JobStatus,
     technician_id: String(r.technician_id || ""),
@@ -729,13 +732,42 @@ function techToRow(t: Technician): Row {
 
 function jobToRow(j: Job): Row {
   const photos = parseJobPhotos(j.photos, j.photo_name);
+  const { plan_technician_ids: _planTechIds, ...rest } = j;
   return {
-    ...j,
+    ...rest,
     total_paused_sec: j.total_paused_sec,
     estimated_minutes: j.estimated_minutes,
+    progress_text: String(j.progress_text || ""),
+    handover_text: String(j.handover_text || ""),
+    plan_technician_ids: serializePlanTechnicianIds(j.plan_technician_ids),
     photo_name: photos[0]?.name || "",
     photos: serializeJobPhotos(photos),
   };
+}
+
+export function parsePlanTechnicianIds(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v || "").trim()).filter(Boolean);
+  }
+  const s = String(raw || "").trim();
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((v) => String(v || "").trim()).filter(Boolean);
+    }
+  } catch {
+    /* fall through */
+  }
+  return s
+    .split(/[,;\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+export function serializePlanTechnicianIds(ids: unknown): string {
+  const list = parsePlanTechnicianIds(ids);
+  return list.length ? JSON.stringify(list) : "";
 }
 
 function stepToRow(s: JobStep): Row {
@@ -824,6 +856,9 @@ const JOB_HEADERS = [
   "promise_at",
   "est_revision_at",
   "release_at",
+  "progress_text",
+  "handover_text",
+  "plan_technician_ids",
   "description",
   "status",
   "technician_id",
@@ -1889,6 +1924,9 @@ export async function createJob(input: {
       promise_at: String(input.promise_at || "").trim(),
       est_revision_at: String(input.est_revision_at || "").trim(),
       release_at: String(input.release_at || "").trim(),
+      progress_text: "",
+      handover_text: "",
+      plan_technician_ids: [],
       description: input.description || "",
       status: "queued",
       technician_id: "",
@@ -2134,6 +2172,62 @@ export async function updateJob(
     });
     await saveWorkbook(wb);
     return enrichJob(job, techs, steps, events, assignees);
+  });
+}
+
+/** Patch Hand Over Form fields only (progress / handover text + plan MP). */
+export async function updateJobHandoverReport(
+  jobId: string,
+  input: {
+    progress_text?: string;
+    handover_text?: string;
+    plan_technician_ids?: string[];
+    actor?: AuditActor | null;
+  }
+): Promise<JobWithDetails> {
+  return withDbLock(async () => {
+    const wb = await loadWorkbook();
+    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
+    const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
+    const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
+    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const assignees = loadAssignees(wb, jobs);
+    const handovers = loadHandovers(wb);
+    const partLoans = loadPartLoans(wb);
+
+    const job = jobs.find((j) => j.id === jobId);
+    if (!job) throw new Error("Job not found");
+
+    const assigneeCount = assigneesForJob(assignees, jobId).length;
+    assertJobManagePermission(job, input.actor, assigneeCount);
+
+    if (input.progress_text != null) {
+      const text = String(input.progress_text).trim();
+      if (!text) throw new Error("Progress wajib diisi");
+      job.progress_text = String(input.progress_text);
+    }
+    if (input.handover_text != null) {
+      const text = String(input.handover_text).trim();
+      if (!text) throw new Error("Hand Over wajib diisi");
+      job.handover_text = String(input.handover_text);
+    }
+    if (input.plan_technician_ids != null) {
+      const wanted = parsePlanTechnicianIds(input.plan_technician_ids);
+      const valid = new Set(techs.map((t) => t.id));
+      job.plan_technician_ids = wanted.filter((id) => valid.has(id));
+    }
+
+    writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
+    await saveWorkbook(wb);
+    return enrichJob(
+      job,
+      techs,
+      steps,
+      events,
+      assignees,
+      handovers,
+      partLoans
+    );
   });
 }
 

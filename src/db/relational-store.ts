@@ -86,6 +86,9 @@ function jobRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
     promise_at: str(r.promise_at),
     est_revision_at: str(r.est_revision_at),
     release_at: str(r.release_at),
+    progress_text: str(r.progress_text),
+    handover_text: str(r.handover_text),
+    plan_technician_ids: str(r.plan_technician_ids),
     description: str(r.description),
     status: str(r.status),
     technician_id: str(r.technician_id),
@@ -142,6 +145,9 @@ function jobRowToDb(row: DbRow, scope: JobScope): Record<string, unknown> {
     promise_at: str(row.promise_at),
     est_revision_at: str(row.est_revision_at),
     release_at: str(row.release_at),
+    progress_text: str(row.progress_text),
+    handover_text: str(row.handover_text),
+    plan_technician_ids: str(row.plan_technician_ids),
     description: str(row.description),
     status: str(row.status),
     technician_id: str(row.technician_id),
@@ -303,6 +309,9 @@ function jobHeaders(scope: JobScope): string[] {
     "promise_at",
     "est_revision_at",
     "release_at",
+    "progress_text",
+    "handover_text",
+    "plan_technician_ids",
     "description",
     "status",
     "technician_id",
@@ -549,6 +558,7 @@ async function saveScopedJobs(
       `INSERT INTO jobs (
         id, job_scope, title, priority, unit_label, unit_id,
         customer_label, customer_id, smu, arrived_at, promise_at, est_revision_at, release_at,
+        progress_text, handover_text, plan_technician_ids,
         description, status,
         technician_id, template_id, created_at, started_at, completed_at,
         paused_at, total_paused_sec, estimated_minutes,
@@ -557,7 +567,7 @@ async function saveScopedJobs(
         assigned_by_user_id, assigned_by_user_name, assigned_by_user_level,
         delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id,
         photo_name, photos
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         d.id,
         d.job_scope,
@@ -572,6 +582,9 @@ async function saveScopedJobs(
         d.promise_at,
         d.est_revision_at,
         d.release_at,
+        d.progress_text,
+        d.handover_text,
+        d.plan_technician_ids,
         d.description,
         d.status,
         d.technician_id,
@@ -1117,6 +1130,9 @@ export async function ensureRelationalSchema() {
       promise_at VARCHAR(64) NOT NULL DEFAULT '',
       est_revision_at VARCHAR(64) NOT NULL DEFAULT '',
       release_at VARCHAR(64) NOT NULL DEFAULT '',
+      progress_text TEXT,
+      handover_text TEXT,
+      plan_technician_ids TEXT,
       description TEXT,
       status VARCHAR(32) NOT NULL DEFAULT 'queued',
       technician_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -1406,6 +1422,15 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS release_at VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS progress_text TEXT`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS handover_text TEXT`
+  );
+  await p.query(
+    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS plan_technician_ids TEXT`
   );
   await ensureListIndexes(p);
   const { ensureJobPrioritiesSeeded } = await import("@/lib/job-priorities");

@@ -314,6 +314,13 @@ type Modal =
   | { type: "backups" }
   | { type: "export-jobs" }
   | { type: "export-jobs-confirm" }
+  | { type: "handover-form-export" }
+  | {
+      type: "handover-pick-steps";
+      job: JobWithDetails;
+      field: "progress" | "handover";
+      selectedIds: string[];
+    }
   | {
       type: "process-alert";
       title: string;
@@ -365,6 +372,8 @@ function activeNavForModal(modal: Modal): string | null {
     case "export-jobs":
     case "export-jobs-confirm":
       return "export";
+    case "handover-form-export":
+      return "handoverForm";
     case "backups":
       return "backup";
     case "create":
@@ -1183,6 +1192,19 @@ export default function HomePage() {
     dateFrom: "",
     dateTo: "",
   });
+  const [handoverFormDate, setHandoverFormDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [handoverReportByJob, setHandoverReportByJob] = useState<
+    Record<
+      string,
+      {
+        progress_text: string;
+        handover_text: string;
+        plan_technician_ids: string[];
+      }
+    >
+  >({});
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
   const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
@@ -3566,6 +3588,197 @@ export default function HomePage() {
     }
   }
 
+  function openHandoverFormExport() {
+    if (!isLoggedIn) {
+      setError(t("nav.exportNeedLogin"));
+      return;
+    }
+    setHandoverFormDate(new Date().toISOString().slice(0, 10));
+    setModal({ type: "handover-form-export" });
+  }
+
+  function getHandoverReportDraft(job: JobWithDetails) {
+    const local = handoverReportByJob[job.id];
+    return {
+      progress_text: local?.progress_text ?? job.progress_text ?? "",
+      handover_text: local?.handover_text ?? job.handover_text ?? "",
+      plan_technician_ids:
+        local?.plan_technician_ids ?? job.plan_technician_ids ?? [],
+    };
+  }
+
+  function setHandoverReportDraft(
+    jobId: string,
+    job: JobWithDetails,
+    patch: Partial<{
+      progress_text: string;
+      handover_text: string;
+      plan_technician_ids: string[];
+    }>
+  ) {
+    const base = getHandoverReportDraft(job);
+    setHandoverReportByJob((prev) => ({
+      ...prev,
+      [jobId]: { ...base, ...patch },
+    }));
+  }
+
+  function handoverCandidateSteps(
+    job: JobWithDetails,
+    field: "progress" | "handover"
+  ) {
+    const statuses =
+      field === "progress"
+        ? new Set(["done", "in_progress"])
+        : new Set(["in_progress", "pending"]);
+    return (job.steps || [])
+      .filter((s) => statuses.has(s.status))
+      .sort((a, b) => a.order - b.order);
+  }
+
+  function stepNamesAlreadyInHandoverText(text: string) {
+    return new Set(
+      String(text || "")
+        .split(/\r?\n/)
+        .map((l) => l.trim().replace(/^[•\-]\s*/, ""))
+        .filter(Boolean)
+    );
+  }
+
+  function openHandoverPickStepsModal(
+    job: JobWithDetails,
+    field: "progress" | "handover"
+  ) {
+    const draft = getHandoverReportDraft(job);
+    const textKey = field === "progress" ? "progress_text" : "handover_text";
+    const already = stepNamesAlreadyInHandoverText(draft[textKey]);
+    const candidates = handoverCandidateSteps(job, field);
+    const selectedIds = candidates
+      .filter((s) => already.has(s.name.trim()))
+      .map((s) => s.id);
+    setModal({
+      type: "handover-pick-steps",
+      job,
+      field,
+      selectedIds,
+    });
+  }
+
+  function appendStepsToHandoverField(
+    job: JobWithDetails,
+    field: "progress_text" | "handover_text",
+    stepNames: string[]
+  ) {
+    const draft = getHandoverReportDraft(job);
+    let current = String(draft[field] || "");
+    const existing = stepNamesAlreadyInHandoverText(current);
+    const toAdd = stepNames
+      .map((n) => n.trim())
+      .filter((n) => n && !existing.has(n));
+    if (!toAdd.length) return;
+    const block = toAdd.map((n) => `• ${n}`).join("\n");
+    const next = current.trim() ? `${current.trim()}\n${block}` : block;
+    setHandoverReportDraft(job.id, job, { [field]: next });
+  }
+
+  async function saveHandoverReportFields(job: JobWithDetails) {
+    if (!canManageJob(job)) return;
+    const draft = getHandoverReportDraft(job);
+    if (!draft.progress_text.trim()) {
+      setError("Progress wajib diisi");
+      return;
+    }
+    if (!draft.handover_text.trim()) {
+      setError("Hand Over wajib diisi");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/jobs/${job.id}/handover-report`, {
+        method: "PATCH",
+        body: JSON.stringify(draft),
+      });
+      setHandoverReportByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      await invalidateDashboard();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Gagal simpan field Hand Over Form"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportHandoverForm(format: "pdf" | "xlsx") {
+    const title = t("handoverForm.title");
+    setModal({
+      type: "process-alert",
+      title,
+      message:
+        format === "pdf"
+          ? "Sedang mengekspor Hand Over Form ke PDF..."
+          : "Sedang mengekspor Hand Over Form ke Excel...",
+      phase: "loading",
+    });
+    setBusy(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        date: handoverFormDate,
+        format,
+      });
+      const res = await fetch(
+        `/api/reports/handover-form?${params.toString()}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || `Gagal export (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const matched = disposition.match(/filename="([^"]+)"/i);
+      const filename =
+        matched?.[1] ||
+        (format === "pdf"
+          ? `handover-form-${handoverFormDate}.pdf`
+          : `handover-form-${handoverFormDate}.xlsx`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setModal({
+        type: "process-alert",
+        title,
+        message: `Export berhasil.\nFile: ${filename}`,
+        phase: "success",
+      });
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "Gagal export Hand Over Form";
+      setError(message);
+      setModal({
+        type: "process-alert",
+        title,
+        message,
+        phase: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function printJobPdf(job: JobWithDetails) {
     setModal({
       type: "process-alert",
@@ -5686,6 +5899,155 @@ export default function HomePage() {
                 <span>{t("job.handoverWaHint")}</span>
               </p>
             )}
+            <div className="handover-report-fields">
+              <h5 className="handover-report-title">
+                {t("job.handoverFormFields")}
+              </h5>
+              <div className="handover-report-label">
+                <div className="handover-report-label-row">
+                  <span>
+                    {t("job.progressText")} <span aria-hidden="true">*</span>
+                  </span>
+                  {handoverOk ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => openHandoverPickStepsModal(job, "progress")}
+                    >
+                      {t("job.pickSteps")}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                  {t("job.progressTextHint")}
+                </p>
+                <textarea
+                  className="handover-input"
+                  rows={3}
+                  required
+                  value={getHandoverReportDraft(job).progress_text}
+                  disabled={busy || !handoverOk}
+                  placeholder={t("job.progressTextPlaceholder")}
+                  onChange={(e) =>
+                    setHandoverReportDraft(job.id, job, {
+                      progress_text: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="handover-report-label">
+                <div className="handover-report-label-row">
+                  <span>
+                    {t("job.handoverText")} <span aria-hidden="true">*</span>
+                  </span>
+                  {handoverOk ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => openHandoverPickStepsModal(job, "handover")}
+                    >
+                      {t("job.pickSteps")}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                  {t("job.handoverTextHint")}
+                </p>
+                <textarea
+                  className="handover-input"
+                  rows={3}
+                  required
+                  value={getHandoverReportDraft(job).handover_text}
+                  disabled={busy || !handoverOk}
+                  placeholder={t("job.handoverTextPlaceholder")}
+                  onChange={(e) =>
+                    setHandoverReportDraft(job.id, job, {
+                      handover_text: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="handover-report-label">
+                <span>{t("job.prevMp")}</span>
+                <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                  {(job.technicians?.length
+                    ? job.technicians.map((tech) => tech.name)
+                    : job.technician?.name
+                      ? [job.technician.name]
+                      : []
+                  ).join(", ") || "—"}
+                </p>
+              </div>
+              <div className="handover-report-label">
+                <span>{t("job.planMp")}</span>
+                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                  {t("job.planMpHint")}
+                </p>
+                <div className="check-list">
+                  {(data?.technicians || [])
+                    .filter((tech) => tech.status !== "offline")
+                    .map((tech) => {
+                      const checked =
+                        getHandoverReportDraft(job).plan_technician_ids.includes(
+                          tech.id
+                        );
+                      return (
+                        <label
+                          key={tech.id}
+                          className="check-row"
+                          style={{ display: "flex", gap: 8, alignItems: "center" }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={busy || !handoverOk}
+                            onChange={() => {
+                              const cur =
+                                getHandoverReportDraft(job).plan_technician_ids;
+                              const next = checked
+                                ? cur.filter((id) => id !== tech.id)
+                                : [...cur, tech.id];
+                              setHandoverReportDraft(job.id, job, {
+                                plan_technician_ids: next,
+                              });
+                            }}
+                          />
+                          <span>
+                            {tech.name}
+                            {tech.sn ? ` (${tech.sn})` : ""}
+                          </span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+              {handoverOk ? (
+                <div className="actions" style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={
+                      busy ||
+                      !getHandoverReportDraft(job).progress_text.trim() ||
+                      !getHandoverReportDraft(job).handover_text.trim()
+                    }
+                    onClick={() => void saveHandoverReportFields(job)}
+                  >
+                    {t("job.handoverFormSave")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    onClick={openHandoverFormExport}
+                  >
+                    {t("job.handoverFormExport")}
+                  </button>
+                </div>
+              ) : null}
+            </div>
             {handoverOk &&
               getHandoverMode(job.id) === "tambah" &&
               (getHandoverLocal(job).length > 0 ||
@@ -6427,6 +6789,7 @@ export default function HomePage() {
         onTemplatesMaster={openTemplatesMaster}
         onAttendance={() => setModal({ type: "attendance" })}
         onExportExcel={openExportJobsModal}
+        onHandoverForm={openHandoverFormExport}
         onJobBackups={() => void openJobBackupsModal()}
         onEditProfile={() => void openEditProfile()}
         onChangePassword={openChangePassword}
@@ -7002,6 +7365,178 @@ export default function HomePage() {
             )}
           </div>
         </>
+      )}
+
+      {modal?.type === "handover-form-export" && (
+        <div className="modal-backdrop manage-dialog" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{t("handoverForm.title")}</h3>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {t("handoverForm.hint")}
+            </p>
+            <div className="form">
+              <label>
+                {t("handoverForm.date")}
+                <input
+                  type="date"
+                  value={handoverFormDate}
+                  disabled={busy}
+                  onChange={(e) => setHandoverFormDate(e.target.value)}
+                  required
+                />
+              </label>
+              <div className="actions">
+                <button className="btn" type="button" onClick={closeModal}>
+                  Batal
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy || !handoverFormDate}
+                  onClick={() => void exportHandoverForm("xlsx")}
+                >
+                  {t("handoverForm.exportExcel")}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={busy || !handoverFormDate}
+                  onClick={() => void exportHandoverForm("pdf")}
+                >
+                  {t("handoverForm.exportPdf")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "handover-pick-steps" && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div
+            className="modal modal-wide modal-handover-pick-steps"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="handover-pick-steps-title"
+          >
+            <div className="modal-header">
+              <h3 id="handover-pick-steps-title">
+                {modal.field === "progress"
+                  ? t("job.pickStepsProgressTitle")
+                  : t("job.pickStepsHandoverTitle")}
+              </h3>
+            </div>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p className="step-hint" style={{ margin: "0 0 10px" }}>
+              {modal.field === "progress"
+                ? t("job.progressTextHint")
+                : t("job.handoverTextHint")}
+            </p>
+            <div className="handover-pick-steps-list check-list">
+              {(() => {
+                const candidates = handoverCandidateSteps(
+                  modal.job,
+                  modal.field
+                );
+                if (!candidates.length) {
+                  return (
+                    <span className="step-hint">
+                      {modal.field === "progress"
+                        ? t("job.progressStepsEmpty")
+                        : t("job.handoverStepsEmpty")}
+                    </span>
+                  );
+                }
+                return candidates.map((step) => {
+                  const checked = modal.selectedIds.includes(step.id);
+                  return (
+                    <label
+                      key={step.id}
+                      className={`handover-pick-step-item${
+                        checked ? " is-selected" : ""
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={busy}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          setModal((prev) => {
+                            if (prev?.type !== "handover-pick-steps") return prev;
+                            const ids = prev.selectedIds;
+                            return {
+                              ...prev,
+                              selectedIds: on
+                                ? ids.includes(step.id)
+                                  ? ids
+                                  : [...ids, step.id]
+                                : ids.filter((id) => id !== step.id),
+                            };
+                          });
+                        }}
+                      />
+                      <span className="handover-pick-step-body">
+                        <span className="handover-pick-step-name">
+                          {step.order}. {step.name}
+                        </span>
+                        <span
+                          className={`handover-pick-status status-${step.status}`}
+                        >
+                          <span className={`dot ${step.status}`} aria-hidden />
+                          {step.status === "in_progress"
+                            ? t("job.stepStatus.in_progress")
+                            : step.status === "done"
+                              ? t("job.stepStatus.done")
+                              : t("job.stepStatus.pending")}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                });
+              })()}
+            </div>
+            <p className="step-hint" style={{ margin: "8px 0 0" }}>
+              {t("job.pickStepsSelected").replace(
+                "{n}",
+                String(modal.selectedIds.length)
+              )}
+            </p>
+            <div className="actions">
+              <button className="btn" type="button" onClick={closeModal}>
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={busy || modal.selectedIds.length === 0}
+                onClick={() => {
+                  const candidates = handoverCandidateSteps(
+                    modal.job,
+                    modal.field
+                  );
+                  const selectedSet = new Set(modal.selectedIds);
+                  const names = candidates
+                    .filter((s) => selectedSet.has(s.id))
+                    .map((s) => s.name);
+                  appendStepsToHandoverField(
+                    modal.job,
+                    modal.field === "progress"
+                      ? "progress_text"
+                      : "handover_text",
+                    names
+                  );
+                  closeModal();
+                }}
+              >
+                {t("job.pickStepsApply")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modal?.type === "export-jobs" && (

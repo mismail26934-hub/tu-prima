@@ -679,6 +679,9 @@ function emptyJob(partial: Partial<Job> & Pick<Job, "id" | "title">): JobWithDet
     promise_at: partial.promise_at || "",
     est_revision_at: partial.est_revision_at || "",
     release_at: partial.release_at || "",
+    progress_text: partial.progress_text || "",
+    handover_text: partial.handover_text || "",
+    plan_technician_ids: partial.plan_technician_ids || [],
     description: partial.description || "",
     status: partial.status || "queued",
     technician_id: partial.technician_id || "",
@@ -1517,6 +1520,28 @@ export function applyOptimisticMutation(
       }));
       return { ok: true, queued: true };
     }
+  }
+
+  const handoverReport = path.match(/^\/api\/jobs\/([^/]+)\/handover-report$/);
+  if (handoverReport && verb === "PATCH") {
+    const jobId = handoverReport[1];
+    patchDashboard(qc, (data) =>
+      mapJob(data, jobId, (job) => ({
+        ...job,
+        progress_text:
+          body.progress_text != null
+            ? String(body.progress_text)
+            : job.progress_text || "",
+        handover_text:
+          body.handover_text != null
+            ? String(body.handover_text)
+            : job.handover_text || "",
+        plan_technician_ids: Array.isArray(body.plan_technician_ids)
+          ? body.plan_technician_ids.map(String).filter(Boolean)
+          : job.plan_technician_ids || [],
+      }))
+    );
+    return { id: jobId, queued: true };
   }
 
   const jobAction = path.match(/^\/api\/jobs\/([^/]+)\/action$/);

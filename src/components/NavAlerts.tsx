@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "@/i18n/useT";
 import { useNavAlerts } from "@/hooks/useNavAlerts";
 import {
@@ -19,6 +20,33 @@ type Props = {
   onOpenJob: (jobId: string, kind?: NavAlertItem["kind"]) => void;
   onBeforeOpen?: () => void;
 };
+
+type FlyoutPos = { top: number; left: number; width: number };
+
+function placeAlertsFlyout(trigger: DOMRect): FlyoutPos {
+  const margin = 16;
+  const gap = 10;
+  const width = Math.min(360, Math.max(280, window.innerWidth - margin * 2));
+  const estHeight = Math.min(560, window.innerHeight - margin * 2);
+  let left = trigger.right + gap;
+  if (left + width > window.innerWidth - margin) {
+    const flipLeft = trigger.left - gap - width;
+    left =
+      flipLeft >= margin
+        ? flipLeft
+        : Math.max(margin, window.innerWidth - margin - width);
+  }
+  let top = trigger.top;
+  if (top + estHeight > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - margin - estHeight);
+  }
+  top = Math.min(Math.max(margin, top), window.innerHeight - margin - 64);
+  return {
+    top: Math.round(top),
+    left: Math.round(left),
+    width: Math.round(width),
+  };
+}
 
 function AlertSection({
   title,
@@ -71,7 +99,11 @@ export function NavAlerts({
   const t = useT();
   const { data } = useNavAlerts(enabled);
   const [internalOpen, setInternalOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
+  const [useFlyout, setUseFlyout] = useState(false);
+  const [flyoutPos, setFlyoutPos] = useState<FlyoutPos | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const payload = data || EMPTY_NAV_ALERTS;
   const total = navAlertTotal(payload);
   const controlled = openProp !== undefined;
@@ -81,6 +113,10 @@ export function NavAlerts({
     if (!controlled) setInternalOpen(next);
     onOpenChange?.(next);
   }
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     function onPop(e: Event) {
@@ -100,6 +136,35 @@ export function NavAlerts({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, variant, controlled]);
 
+  useLayoutEffect(() => {
+    if (!open || variant === "menu") {
+      setFlyoutPos(null);
+      return;
+    }
+    const narrow =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 720px)").matches;
+    const inSidebar = Boolean(wrapRef.current?.closest(".app-sidebar"));
+    const flyout = !narrow && inSidebar;
+    setUseFlyout(flyout);
+    if (!flyout) {
+      setFlyoutPos(null);
+      return;
+    }
+    function update() {
+      const el = btnRef.current || wrapRef.current;
+      if (!el) return;
+      setFlyoutPos(placeAlertsFlyout(el.getBoundingClientRect()));
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, variant]);
+
   if (!enabled) return null;
 
   const pick = (item: NavAlertItem) => {
@@ -107,8 +172,8 @@ export function NavAlerts({
     onOpenJob(item.jobId, item.kind);
   };
 
-  const list = (
-    <div className="nav-alerts-list" role="menu">
+  const sections = (
+    <>
       <AlertSection
         title={t("nav.alertsHandover")}
         count={payload.openHandovers}
@@ -163,17 +228,48 @@ export function NavAlerts({
           onPick={pick}
         />
       ))}
-    </div>
+    </>
   );
 
   if (variant === "menu") {
     return (
       <div className="nav-alerts nav-alerts--menu">
         <p className="nav-menu-label">{t("nav.alerts")}</p>
-        {list}
+        <div className="nav-alerts-list" role="menu">
+          {sections}
+        </div>
       </div>
     );
   }
+
+  const inlineList =
+    open && !useFlyout ? (
+      <div className="nav-alerts-list" role="menu">
+        {sections}
+      </div>
+    ) : null;
+
+  const flyoutList =
+    open &&
+    useFlyout &&
+    portalReady &&
+    flyoutPos &&
+    typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="nav-alerts-list nav-alerts-list--flyout"
+            role="menu"
+            style={{
+              top: flyoutPos.top,
+              left: flyoutPos.left,
+              width: flyoutPos.width,
+            }}
+          >
+            {sections}
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <div
@@ -182,6 +278,7 @@ export function NavAlerts({
     >
       <NavHeaderPopBackdrop open={open} onClose={() => setOpen(false)} />
       <button
+        ref={btnRef}
         className="btn btn-icon nav-alerts-btn"
         type="button"
         aria-label={t("nav.alerts")}
@@ -221,7 +318,8 @@ export function NavAlerts({
           </span>
         ) : null}
       </button>
-      {open ? list : null}
+      {inlineList}
+      {flyoutList}
     </div>
   );
 }

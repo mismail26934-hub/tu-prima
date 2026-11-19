@@ -130,6 +130,21 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
     promise_at: str(r.promise_at),
     est_revision_at: str(r.est_revision_at),
     release_at: str(r.release_at),
+    progress_text: str(r.progress_text),
+    handover_text: str(r.handover_text),
+    plan_technician_ids: (() => {
+      const raw = str(r.plan_technician_ids);
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.map((v) => String(v || "").trim()).filter(Boolean);
+        }
+      } catch {
+        /* ignore */
+      }
+      return raw.split(/[,;\s]+/).map((v) => v.trim()).filter(Boolean);
+    })(),
     description: str(r.description),
     status: str(r.status || "queued") as JobStatus,
     technician_id: str(r.technician_id),

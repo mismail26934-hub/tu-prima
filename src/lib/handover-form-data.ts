@@ -1,0 +1,260 @@
+import type mysql from "mysql2/promise";
+import { getPool } from "@/db/mysql-workbook";
+import { listJobsForExport } from "@/lib/board-list";
+import type {
+  Attendance,
+  AttendanceStatus,
+  JobWithDetails,
+  Technician,
+} from "@/lib/types";
+
+export type HandoverFormCrewMember = {
+  name: string;
+  status: string;
+  note?: string;
+};
+
+export type HandoverFormUnitRow = {
+  job_id: string;
+  unit_no: string;
+  priority: string;
+  unit_in: string;
+  est_dt: string;
+  customer: string;
+  smu: string;
+  description: string;
+  progress: string[];
+  prev_mp: string[];
+  handover: string[];
+  plan_mp: string[];
+};
+
+export type HandoverFormPayload = {
+  date: string;
+  printed_at: string;
+  hadir: HandoverFormCrewMember[];
+  sakit: HandoverFormCrewMember[];
+  next_crew: HandoverFormCrewMember[];
+  units: HandoverFormUnitRow[];
+};
+
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** Display like 13-Oct-26 or 13-Oct-26 14:30 */
+export function formatHandoverDate(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    const day = pad2(d.getDate());
+    const mon = MONTHS[d.getMonth()];
+    const yy = String(d.getFullYear()).slice(-2);
+    const hasTime = /T\d{2}:\d{2}/.test(s) || /\d{2}:\d{2}/.test(s);
+    if (hasTime) {
+      return `${day}-${mon}-${yy} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+    return `${day}-${mon}-${yy}`;
+  }
+  // datetime-local YYYY-MM-DDTHH:mm
+  const m = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/
+  );
+  if (!m) return s;
+  const mon = MONTHS[Number(m[2]) - 1] || m[2];
+  const yy = m[1].slice(-2);
+  if (m[4] != null) return `${m[3]}-${mon}-${yy} ${m[4]}:${m[5]}`;
+  return `${m[3]}-${mon}-${yy}`;
+}
+
+export function resolveEstDt(job: Pick<JobWithDetails, "est_revision_at" | "promise_at">): string {
+  const rev = String(job.est_revision_at || "").trim();
+  if (rev) return formatHandoverDate(rev);
+  return formatHandoverDate(String(job.promise_at || ""));
+}
+
+export function unitNoFromJob(job: Pick<JobWithDetails, "unit">): string {
+  const label = String(job.unit || "").trim();
+  if (!label) return "—";
+  const parts = label.split(/\s*[—–-]\s*/);
+  return (parts[0] || label).trim() || "—";
+}
+
+function linesFromText(text: string): string[] {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*[-*•]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+export function progressCandidateSteps(job: JobWithDetails) {
+  return (job.steps || [])
+    .filter((s) => s.status === "done" || s.status === "in_progress")
+    .sort((a, b) => a.order - b.order);
+}
+
+export function handoverCandidateSteps(job: JobWithDetails) {
+  return (job.steps || [])
+    .filter((s) => s.status === "in_progress" || s.status === "pending")
+    .sort((a, b) => a.order - b.order);
+}
+
+export function progressLines(job: JobWithDetails): string[] {
+  return linesFromText(String(job.progress_text || ""));
+}
+
+export function handoverLines(job: JobWithDetails): string[] {
+  return linesFromText(String(job.handover_text || ""));
+}
+
+export function prevMpNames(job: JobWithDetails): string[] {
+  if (job.technicians?.length) {
+    return job.technicians.map((t) => t.name).filter(Boolean);
+  }
+  if (job.technician?.name) return [job.technician.name];
+  return [];
+}
+
+export function planMpNames(
+  job: JobWithDetails,
+  techById: Map<string, Technician>
+): string[] {
+  const ids = job.plan_technician_ids || [];
+  return ids
+    .map((id) => techById.get(id)?.name || "")
+    .filter(Boolean);
+}
+
+function mapAttendanceRow(r: mysql.RowDataPacket): Attendance {
+  return {
+    id: String(r.id || ""),
+    date: String(r.attendance_date || r.date || ""),
+    technician_id: String(r.technician_id || ""),
+    technician_name: String(r.technician_name || ""),
+    pernr: String(r.pernr || ""),
+    status: String(r.status || "hadir") as AttendanceStatus,
+    dws: String(r.dws || ""),
+    check_in: String(r.check_in || ""),
+    check_out: String(r.check_out || ""),
+    absence: String(r.absence || ""),
+    note: String(r.note || ""),
+  };
+}
+
+async function loadAttendanceForDate(date: string): Promise<Attendance[]> {
+  const p = getPool();
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT * FROM attendance WHERE attendance_date = ? ORDER BY technician_name ASC`,
+    [date]
+  );
+  return rows.map(mapAttendanceRow);
+}
+
+async function loadTechniciansById(
+  ids: string[]
+): Promise<Map<string, Technician>> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const map = new Map<string, Technician>();
+  if (!unique.length) return map;
+  const p = getPool();
+  const ph = unique.map(() => "?").join(",");
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT id, name, sn, badge_id, email, phone, status, current_job_id, superior_user_id, superior_user_name, user_id
+     FROM technicians WHERE id IN (${ph})`,
+    unique
+  );
+  for (const r of rows) {
+    map.set(String(r.id), {
+      id: String(r.id || ""),
+      name: String(r.name || ""),
+      sn: String(r.sn || ""),
+      badge_id: String(r.badge_id || ""),
+      email: String(r.email || ""),
+      phone: String(r.phone || ""),
+      status: (String(r.status || "available") as Technician["status"]),
+      current_job_id: String(r.current_job_id || ""),
+      superior_user_id: String(r.superior_user_id || ""),
+      superior_user_name: String(r.superior_user_name || ""),
+      user_id: String(r.user_id || ""),
+    });
+  }
+  return map;
+}
+
+function crewFromAttendance(
+  rows: Attendance[],
+  status: AttendanceStatus
+): HandoverFormCrewMember[] {
+  return rows
+    .filter((a) => a.status === status)
+    .map((a) => ({
+      name: a.technician_name || a.technician_id || "—",
+      status: a.status,
+      note: a.note || a.absence || "",
+    }));
+}
+
+function toUnitRow(
+  job: JobWithDetails,
+  techById: Map<string, Technician>
+): HandoverFormUnitRow {
+  const smu = Number(job.smu || 0);
+  return {
+    job_id: job.id,
+    unit_no: unitNoFromJob(job),
+    priority: String(job.priority || "").trim() || "—",
+    unit_in: formatHandoverDate(String(job.arrived_at || "")),
+    est_dt: resolveEstDt(job),
+    customer: String(job.customer || "").trim(),
+    smu: smu > 0 ? String(smu) : "",
+    description: String(job.description || job.title || "").trim(),
+    progress: progressLines(job),
+    prev_mp: prevMpNames(job),
+    handover: handoverLines(job),
+    plan_mp: planMpNames(job, techById),
+  };
+}
+
+/** Build Hand Over Form payload for a calendar date (YYYY-MM-DD). */
+export async function buildHandoverFormPayload(
+  date: string
+): Promise<HandoverFormPayload> {
+  const ymd = String(date || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+    throw new Error("Tanggal harus YYYY-MM-DD");
+  }
+
+  const jobs = await listJobsForExport([
+    "assigned",
+    "in_progress",
+    "paused",
+  ]);
+  const planIds = jobs.flatMap((j) => j.plan_technician_ids || []);
+  const techById = await loadTechniciansById(planIds);
+  const attendance = await loadAttendanceForDate(ymd);
+
+  return {
+    date: ymd,
+    printed_at: new Date().toISOString(),
+    hadir: crewFromAttendance(attendance, "hadir"),
+    sakit: crewFromAttendance(attendance, "sakit"),
+    next_crew: [],
+    units: jobs.map((j) => toUnitRow(j, techById)),
+  };
+}

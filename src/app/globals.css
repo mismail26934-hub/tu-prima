@@ -1248,6 +1248,19 @@ html[data-theme='light'] .remain-alert-field select {
   gap: 10px;
 }
 
+/* Escapes the narrow sidebar rail (overflow:hidden) via portal */
+.nav-alerts-list--flyout {
+  position: fixed;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  max-height: min(70vh, 560px);
+  margin: 0;
+  border-radius: 12px;
+  z-index: 10030;
+  box-sizing: border-box;
+}
+
 .nav-alerts-section h4 {
   display: flex;
   align-items: center;
@@ -3936,6 +3949,151 @@ html[data-theme='light'] .job-priority-pill--custom {
   flex-shrink: 0;
   margin-top: 1px;
   opacity: 0.8;
+}
+
+.handover-report-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-1) 88%, var(--steel));
+}
+
+.handover-report-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.handover-report-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.handover-report-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.handover-report-label .handover-input {
+  width: 100%;
+  font-weight: 500;
+}
+
+.modal.modal-handover-pick-steps {
+  display: flex;
+  flex-direction: column;
+  max-height: min(85vh, 720px);
+  overflow: hidden;
+}
+
+.modal.modal-handover-pick-steps .handover-pick-steps-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+}
+
+.handover-pick-step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--line-dashed);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.handover-pick-step-item:last-child {
+  border-bottom: none;
+}
+
+.handover-pick-step-item.is-selected {
+  background: color-mix(in srgb, var(--accent, var(--orange, #e87a2e)) 14%, transparent);
+}
+
+.handover-pick-step-item input {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.handover-pick-step-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.handover-pick-step-name {
+  flex: 1 1 12rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.handover-pick-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.handover-pick-status .dot {
+  width: 7px;
+  height: 7px;
+}
+
+.handover-pick-status.status-in_progress {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber) 16%, var(--bg-1));
+  color: color-mix(in srgb, var(--amber) 70%, var(--text));
+}
+
+.handover-pick-status.status-pending {
+  border-color: color-mix(in srgb, var(--steel) 40%, var(--line));
+  background: color-mix(in srgb, var(--steel) 12%, var(--bg-1));
+  color: var(--muted);
+}
+
+.handover-pick-status.status-done {
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line));
+  background: color-mix(in srgb, var(--green) 14%, var(--bg-1));
+  color: color-mix(in srgb, var(--green) 65%, var(--text));
+}
+
+.dot.pending {
+  background: var(--steel);
+}
+
+.modal.modal-handover-pick-steps .actions {
+  margin-top: 12px;
+  flex: 0 0 auto;
 }
 
 .job-deep-link-banner {

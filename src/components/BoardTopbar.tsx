@@ -45,6 +45,7 @@ type BoardTopbarProps = {
   onTemplatesMaster: () => void;
   onAttendance: () => void;
   onExportExcel: () => void;
+  onHandoverForm: () => void;
   onJobBackups: () => void;
   onEditProfile: () => void;
   onChangePassword: () => void;
@@ -223,6 +224,7 @@ function ManageItemIcon({
     | 'templates'
     | 'attendance'
     | 'export'
+    | 'handoverForm'
     | 'backup';
 }) {
   return (
@@ -296,6 +298,12 @@ function ManageItemIcon({
         <>
           <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
           <path d='M7 10l5 5 5-5M12 15V3' />
+        </>
+      )}
+      {name === 'handoverForm' && (
+        <>
+          <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
+          <path d='M14 2v6h6M8 13h8M8 17h6' />
         </>
       )}
       {name === 'backup' && (
@@ -404,6 +412,7 @@ export function BoardTopbar({
   onTemplatesMaster,
   onAttendance,
   onExportExcel,
+  onHandoverForm,
   onJobBackups,
   onEditProfile,
   onChangePassword,
@@ -803,6 +812,21 @@ export function BoardTopbar({
       >
         <ManageItemIcon name='export' />
         {t('nav.exportExcel')}
+      </button>
+      <button
+        type='button'
+        role='menuitem'
+        className={manageItemClass('handoverForm')}
+        disabled={busy || !isLoggedIn}
+        title={isLoggedIn ? t('nav.handoverFormTip') : t('nav.exportNeedLogin')}
+        aria-current={activeNav === 'handoverForm' ? 'page' : undefined}
+        onClick={() => {
+          closeMenu(true);
+          onHandoverForm();
+        }}
+      >
+        <ManageItemIcon name='handoverForm' />
+        {t('nav.handoverForm')}
       </button>
       {userLevel === 'superuser' && (
         <button

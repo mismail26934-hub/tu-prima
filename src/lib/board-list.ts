@@ -130,21 +130,6 @@ function mapJobRow(r: mysql.RowDataPacket): Job {
     promise_at: str(r.promise_at),
     est_revision_at: str(r.est_revision_at),
     release_at: str(r.release_at),
-    progress_text: str(r.progress_text),
-    handover_text: str(r.handover_text),
-    plan_technician_ids: (() => {
-      const raw = str(r.plan_technician_ids);
-      if (!raw) return [];
-      try {
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          return parsed.map((v) => String(v || "").trim()).filter(Boolean);
-        }
-      } catch {
-        /* ignore */
-      }
-      return raw.split(/[,;\s]+/).map((v) => v.trim()).filter(Boolean);
-    })(),
     description: str(r.description),
     status: str(r.status || "queued") as JobStatus,
     technician_id: str(r.technician_id),
@@ -225,17 +210,36 @@ function mapAssigneeRow(r: mysql.RowDataPacket): JobAssignee {
 }
 
 function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
+  let planIds: string[] = [];
+  const rawPlan = str(r.plan_technician_ids);
+  if (rawPlan) {
+    try {
+      const parsed = JSON.parse(rawPlan) as unknown;
+      if (Array.isArray(parsed)) {
+        planIds = parsed.map((v) => String(v || "").trim()).filter(Boolean);
+      }
+    } catch {
+      planIds = rawPlan
+        .split(/[,;\s]+/)
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+  }
   return {
     id: str(r.id),
     job_id: str(r.job_id),
     order: num(r.handover_order),
     title: str(r.title),
+    shift_date: str(r.shift_date).slice(0, 10),
     from_name: str(r.from_name),
     from_user_id: str(r.from_user_id),
     to_name: str(r.to_name),
     to_user_id: str(r.to_user_id),
     done: num(r.done) ? "1" : "0",
     note: str(r.note),
+    progress_text: str(r.progress_text),
+    handover_text: str(r.handover_text),
+    plan_technician_ids: planIds,
     user_id: str(r.user_id),
     user_name: str(r.user_name),
     updated_at: str(r.updated_at),

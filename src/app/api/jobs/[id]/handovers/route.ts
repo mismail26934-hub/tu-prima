@@ -17,15 +17,24 @@ export async function POST(
     const { id } = await ctx.params;
     const body = await req.json();
     const actor = await getCurrentActor();
+    const plan_technician_ids = Array.isArray(body.plan_technician_ids)
+      ? body.plan_technician_ids.map(String).filter(Boolean)
+      : undefined;
     const row = await createJobHandover({
       id: body.id ? String(body.id) : undefined,
       job_id: id,
-      title: String(body.title || ""),
+      title: body.title != null ? String(body.title) : "",
+      shift_date: body.shift_date != null ? String(body.shift_date) : undefined,
       from_name: body.from_name != null ? String(body.from_name) : "",
       from_user_id: body.from_user_id != null ? String(body.from_user_id) : "",
       to_name: body.to_name != null ? String(body.to_name) : "",
       to_user_id: body.to_user_id != null ? String(body.to_user_id) : "",
       note: body.note != null ? String(body.note) : "",
+      progress_text:
+        body.progress_text != null ? String(body.progress_text) : undefined,
+      handover_text:
+        body.handover_text != null ? String(body.handover_text) : undefined,
+      plan_technician_ids,
       done: Boolean(body.done),
       actor,
     });

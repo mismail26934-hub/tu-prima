@@ -315,6 +315,8 @@ type Modal =
   | { type: "export-jobs" }
   | { type: "export-jobs-confirm" }
   | { type: "handover-form-export" }
+  | { type: "handover-form"; job: JobWithDetails }
+  | { type: "handover-plan-mp"; job: JobWithDetails }
   | {
       type: "handover-pick-steps";
       job: JobWithDetails;
@@ -327,6 +329,20 @@ type Modal =
       message: string;
       phase: "loading" | "success" | "error";
     };
+
+type HandoverFormDraft = {
+  title: string;
+  shift_date: string;
+  from_name: string;
+  from_user_id: string;
+  to_name: string;
+  to_user_id: string;
+  note: string;
+  progress_text: string;
+  handover_text: string;
+  plan_technician_ids: string[];
+  done: boolean;
+};
 
 function activeNavForModal(modal: Modal): string | null {
   if (!modal) return null;
@@ -1195,16 +1211,17 @@ export default function HomePage() {
   const [handoverFormDate, setHandoverFormDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
-  const [handoverReportByJob, setHandoverReportByJob] = useState<
-    Record<
-      string,
-      {
-        progress_text: string;
-        handover_text: string;
-        plan_technician_ids: string[];
-      }
-    >
-  >({});
+  const [handoverFormEditor, setHandoverFormEditor] = useState<{
+    jobId: string;
+    mode: "create" | "edit";
+    handoverId?: string;
+    draft: HandoverFormDraft;
+  } | null>(null);
+  const [planMpDraft, setPlanMpDraft] = useState("");
+  const [planMpQuery, setPlanMpQuery] = useState("");
+  const [planMpPage, setPlanMpPage] = useState(1);
+  /** Staging selection while Plan M/P modal is open. */
+  const [planMpStagingIds, setPlanMpStagingIds] = useState<string[]>([]);
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
   const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
@@ -2896,37 +2913,27 @@ export default function HomePage() {
   const [handoverComposeByJob, setHandoverComposeByJob] = useState<
     Record<string, boolean>
   >({});
-  /** Local handover drafts per job — Save (mode ubah) writes to API. */
-  const [handoverLocalByJob, setHandoverLocalByJob] = useState<
-    Record<
-      string,
-      Array<{
-        key: string;
-        id?: string;
-        title: string;
-        to_name: string;
-        to_user_id: string;
-        from_name: string;
-        from_user_id: string;
-        note: string;
-        done: boolean;
-        order: number;
-      }>
-    >
-  >({});
-
   type HandoverLocalRow = {
     key: string;
     id?: string;
     title: string;
+    shift_date: string;
     to_name: string;
     to_user_id: string;
     from_name: string;
     from_user_id: string;
     note: string;
+    progress_text: string;
+    handover_text: string;
+    plan_technician_ids: string[];
     done: boolean;
     order: number;
   };
+
+  /** Local handover drafts per job (legacy ubah path / delete reorder). */
+  const [handoverLocalByJob, setHandoverLocalByJob] = useState<
+    Record<string, HandoverLocalRow[]>
+  >({});
 
   function getHandoverMode(jobId: string): "tambah" | "ubah" | "hapus" {
     return handoverModeByJob[jobId] || "tambah";
@@ -3350,6 +3357,11 @@ export default function HomePage() {
     const nextName = user ? userDisplayName(user) : "";
     const nextId = user ? user.id : "";
     if (target === "draft") {
+      if (handoverFormEditor?.jobId === job.id) {
+        patchHandoverFormDraft({ to_name: nextName, to_user_id: nextId });
+        reopenHandoverFormModal(job);
+        return;
+      }
       setHandoverDraftByJob((prev) => ({
         ...prev,
         [job.id]: {
@@ -3358,15 +3370,16 @@ export default function HomePage() {
           to_user_id: nextId,
         },
       }));
-    } else {
-      setHandoverLocal(job, (rows) =>
-        rows.map((r) =>
-          r.key === target.key
-            ? { ...r, to_name: nextName, to_user_id: nextId }
-            : r
-        )
-      );
+      closeModal();
+      return;
     }
+    setHandoverLocal(job, (rows) =>
+      rows.map((r) =>
+        r.key === target.key
+          ? { ...r, to_name: nextName, to_user_id: nextId }
+          : r
+      )
+    );
     closeModal();
   }
 
@@ -3597,32 +3610,6 @@ export default function HomePage() {
     setModal({ type: "handover-form-export" });
   }
 
-  function getHandoverReportDraft(job: JobWithDetails) {
-    const local = handoverReportByJob[job.id];
-    return {
-      progress_text: local?.progress_text ?? job.progress_text ?? "",
-      handover_text: local?.handover_text ?? job.handover_text ?? "",
-      plan_technician_ids:
-        local?.plan_technician_ids ?? job.plan_technician_ids ?? [],
-    };
-  }
-
-  function setHandoverReportDraft(
-    jobId: string,
-    job: JobWithDetails,
-    patch: Partial<{
-      progress_text: string;
-      handover_text: string;
-      plan_technician_ids: string[];
-    }>
-  ) {
-    const base = getHandoverReportDraft(job);
-    setHandoverReportByJob((prev) => ({
-      ...prev,
-      [jobId]: { ...base, ...patch },
-    }));
-  }
-
   function handoverCandidateSteps(
     job: JobWithDetails,
     field: "progress" | "handover"
@@ -3645,11 +3632,101 @@ export default function HomePage() {
     );
   }
 
+  function patchHandoverFormDraft(patch: Partial<HandoverFormDraft>) {
+    setHandoverFormEditor((prev) =>
+      prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev
+    );
+  }
+
+  function reopenHandoverFormModal(job: JobWithDetails) {
+    setModal({ type: "handover-form", job });
+  }
+
+  function resetPlanMpPicker() {
+    setPlanMpDraft("");
+    setPlanMpQuery("");
+    setPlanMpPage(1);
+  }
+
+  function openPlanMpPicker(job: JobWithDetails) {
+    resetPlanMpPicker();
+    setPlanMpStagingIds([
+      ...(handoverFormEditor?.draft.plan_technician_ids || []),
+    ]);
+    setModal({ type: "handover-plan-mp", job });
+  }
+
+  function applyPlanMpPicker(job: JobWithDetails) {
+    patchHandoverFormDraft({ plan_technician_ids: [...planMpStagingIds] });
+    setPlanMpStagingIds([]);
+    reopenHandoverFormModal(job);
+  }
+
+  function cancelPlanMpPicker(job: JobWithDetails) {
+    setPlanMpStagingIds([]);
+    reopenHandoverFormModal(job);
+  }
+
+  function openHandoverFormCreate(job: JobWithDetails) {
+    const from = currentHandoverFrom();
+    resetPlanMpPicker();
+    setHandoverFormEditor({
+      jobId: job.id,
+      mode: "create",
+      draft: {
+        title: "",
+        shift_date: new Date().toISOString().slice(0, 10),
+        from_name: from.from_name,
+        from_user_id: from.from_user_id,
+        to_name: "",
+        to_user_id: "",
+        note: "",
+        progress_text: "",
+        handover_text: "",
+        plan_technician_ids: [],
+        done: false,
+      },
+    });
+    setModal({ type: "handover-form", job });
+  }
+
+  function openHandoverFormEdit(job: JobWithDetails, row: HandoverLocalRow) {
+    const server = (job.handovers || []).find((h) => h.id === row.id);
+    resetPlanMpPicker();
+    setHandoverFormEditor({
+      jobId: job.id,
+      mode: "edit",
+      handoverId: row.id,
+      draft: {
+        title: row.title || "",
+        shift_date:
+          server?.shift_date ||
+          new Date().toISOString().slice(0, 10),
+        from_name: row.from_name || "",
+        from_user_id: row.from_user_id || "",
+        to_name: row.to_name || "",
+        to_user_id: row.to_user_id || "",
+        note: row.note || "",
+        progress_text: server?.progress_text || "",
+        handover_text: server?.handover_text || "",
+        plan_technician_ids: server?.plan_technician_ids || [],
+        done: row.done,
+      },
+    });
+    setModal({ type: "handover-form", job });
+  }
+
+  function closeHandoverFormEditor() {
+    setHandoverFormEditor(null);
+    closeModal();
+  }
+
   function openHandoverPickStepsModal(
     job: JobWithDetails,
     field: "progress" | "handover"
   ) {
-    const draft = getHandoverReportDraft(job);
+    const draft = handoverFormEditor?.draft;
+    if (!draft) return;
     const textKey = field === "progress" ? "progress_text" : "handover_text";
     const already = stepNamesAlreadyInHandoverText(draft[textKey]);
     const candidates = handoverCandidateSteps(job, field);
@@ -3664,26 +3741,32 @@ export default function HomePage() {
     });
   }
 
-  function appendStepsToHandoverField(
-    job: JobWithDetails,
+  function appendStepsToHandoverFormField(
     field: "progress_text" | "handover_text",
     stepNames: string[]
   ) {
-    const draft = getHandoverReportDraft(job);
-    let current = String(draft[field] || "");
-    const existing = stepNamesAlreadyInHandoverText(current);
-    const toAdd = stepNames
-      .map((n) => n.trim())
-      .filter((n) => n && !existing.has(n));
-    if (!toAdd.length) return;
-    const block = toAdd.map((n) => `• ${n}`).join("\n");
-    const next = current.trim() ? `${current.trim()}\n${block}` : block;
-    setHandoverReportDraft(job.id, job, { [field]: next });
+    setHandoverFormEditor((prev) => {
+      if (!prev) return prev;
+      const current = String(prev.draft[field] || "");
+      const existing = stepNamesAlreadyInHandoverText(current);
+      const toAdd = stepNames
+        .map((n) => n.trim())
+        .filter((n) => n && !existing.has(n));
+      if (!toAdd.length) return prev;
+      const block = toAdd.map((n) => `• ${n}`).join("\n");
+      const next = current.trim() ? `${current.trim()}\n${block}` : block;
+      return { ...prev, draft: { ...prev.draft, [field]: next } };
+    });
   }
 
-  async function saveHandoverReportFields(job: JobWithDetails) {
-    if (!canManageJob(job)) return;
-    const draft = getHandoverReportDraft(job);
+  async function saveHandoverFormEditor(job: JobWithDetails) {
+    const editor = handoverFormEditor;
+    if (!editor || editor.jobId !== job.id) return;
+    const draft = editor.draft;
+    if (!draft.shift_date.trim()) {
+      setError("Tanggal shift wajib diisi");
+      return;
+    }
     if (!draft.progress_text.trim()) {
       setError("Progress wajib diisi");
       return;
@@ -3693,24 +3776,55 @@ export default function HomePage() {
       return;
     }
     setBusy(true);
+    setNotePanelBusy({
+      jobId: job.id,
+      panel: "handover",
+      action: editor.mode === "create" ? "add" : "save",
+    });
     setError("");
     try {
-      await api(`/api/jobs/${job.id}/handover-report`, {
-        method: "PATCH",
-        body: JSON.stringify(draft),
-      });
-      setHandoverReportByJob((prev) => {
+      const body = {
+        title: draft.title.trim(),
+        shift_date: draft.shift_date.trim(),
+        from_name: draft.from_name.trim(),
+        from_user_id: draft.from_user_id.trim(),
+        to_name: draft.to_name.trim(),
+        to_user_id: draft.to_user_id.trim(),
+        note: draft.note.trim(),
+        progress_text: draft.progress_text,
+        handover_text: draft.handover_text,
+        plan_technician_ids: draft.plan_technician_ids,
+        done: draft.done,
+      };
+      if (editor.mode === "create") {
+        await api(`/api/jobs/${job.id}/handovers`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } else if (editor.handoverId) {
+        await api(`/api/jobs/${job.id}/handovers/${editor.handoverId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      }
+      setHandoverFormEditor(null);
+      setHandoverComposeByJob((prev) => {
         const next = { ...prev };
         delete next[job.id];
         return next;
       });
+      setHandoverLocalByJob((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      closeModal();
       await invalidateDashboard();
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Gagal simpan field Hand Over Form"
-      );
+      setError(e instanceof Error ? e.message : "Gagal simpan handover");
     } finally {
       setBusy(false);
+      setNotePanelBusy(null);
     }
   }
 
@@ -3991,6 +4105,11 @@ export default function HomePage() {
         modal?.type === "assign" ||
         modal?.type === "confirm-assign")
   );
+  const planMpPoolQuery = useAssignTechnicianPool(
+    planMpQuery,
+    isLoggedIn &&
+      (modal?.type === "handover-plan-mp" || handoverFormEditor != null)
+  );
   const availableTechs = useMemo(
     () => assignPoolQuery.data?.items || [],
     [assignPoolQuery.data]
@@ -4064,6 +4183,92 @@ export default function HomePage() {
     (assignPickerPageSafe - 1) * TECH_PAGE_SIZE,
     assignPickerPageSafe * TECH_PAGE_SIZE
   );
+
+  const planMpSelectedIds =
+    modal?.type === "handover-plan-mp"
+      ? planMpStagingIds
+      : handoverFormEditor?.draft.plan_technician_ids || [];
+
+  const planMpSelectableTechs = useMemo(() => {
+    type PlanMpTech = { id: string; name: string; sn: string };
+    const map = new Map<string, PlanMpTech>();
+    for (const t of planMpPoolQuery.data?.items || []) {
+      map.set(t.id, { id: t.id, name: t.name, sn: String(t.sn || "") });
+    }
+    for (const t of data?.technicians || []) {
+      if (!map.has(t.id) && planMpSelectedIds.includes(t.id)) {
+        map.set(t.id, { id: t.id, name: t.name, sn: String(t.sn || "") });
+      }
+    }
+    for (const id of planMpSelectedIds) {
+      if (!map.has(id)) map.set(id, { id, name: id, sn: "" });
+    }
+    const q = planMpQuery.trim().toLowerCase();
+    const checkedOrder = new Map(planMpSelectedIds.map((id, i) => [id, i]));
+    return [...map.values()]
+      .filter(
+        (t) =>
+          planMpSelectedIds.includes(t.id) ||
+          (planMpPoolQuery.data?.items || []).some((x) => x.id === t.id)
+      )
+      .filter(
+        (t) =>
+          !q ||
+          t.name.toLowerCase().includes(q) ||
+          t.sn.toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const ca = checkedOrder.has(a.id);
+        const cb = checkedOrder.has(b.id);
+        if (ca !== cb) return ca ? -1 : 1;
+        if (ca && cb) {
+          return (checkedOrder.get(a.id) ?? 0) - (checkedOrder.get(b.id) ?? 0);
+        }
+        return a.name.localeCompare(b.name, "id");
+      });
+  }, [
+    planMpPoolQuery.data,
+    planMpSelectedIds,
+    planMpQuery,
+    data?.technicians,
+  ]);
+
+  useEffect(() => {
+    setPlanMpPage(1);
+  }, [planMpQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(planMpSelectableTechs.length / TECH_PAGE_SIZE)
+    );
+    setPlanMpPage((p) => (p > totalPages ? totalPages : p));
+  }, [planMpSelectableTechs.length, TECH_PAGE_SIZE]);
+
+  const planMpTotalPages = Math.max(
+    1,
+    Math.ceil(planMpSelectableTechs.length / TECH_PAGE_SIZE)
+  );
+  const planMpPageSafe = Math.min(planMpPage, planMpTotalPages);
+  const pagedPlanMpTechs = planMpSelectableTechs.slice(
+    (planMpPageSafe - 1) * TECH_PAGE_SIZE,
+    planMpPageSafe * TECH_PAGE_SIZE
+  );
+
+  const planMpDraftSummary = useMemo(() => {
+    const ids = handoverFormEditor?.draft.plan_technician_ids || [];
+    if (!ids.length) return "";
+    const byId = new Map<string, string>();
+    for (const t of data?.technicians || []) byId.set(t.id, t.name);
+    for (const t of planMpPoolQuery.data?.items || []) {
+      if (!byId.has(t.id)) byId.set(t.id, t.name);
+    }
+    return ids.map((id) => byId.get(id) || id).join(", ");
+  }, [
+    handoverFormEditor?.draft.plan_technician_ids,
+    data?.technicians,
+    planMpPoolQuery.data,
+  ]);
 
   const attendanceTechListQuery = useTechniciansList({
     status: "all",
@@ -4704,11 +4909,15 @@ export default function HomePage() {
       key: h.id,
       id: h.id,
       title: h.title,
+      shift_date: h.shift_date || "",
       from_name: h.from_name || h.user_name || "",
       from_user_id: h.from_user_id || h.user_id || "",
       to_name: h.to_name || "",
       to_user_id: h.to_user_id || "",
       note: h.note,
+      progress_text: h.progress_text || "",
+      handover_text: h.handover_text || "",
+      plan_technician_ids: h.plan_technician_ids || [],
       done: h.done === "1",
       order: h.order,
     }));
@@ -5821,62 +6030,44 @@ export default function HomePage() {
                   ({getHandoverLocal(job).length})
                 </span>
               </h4>
-              {handoverOk &&
-              getHandoverLocal(job).length === 0 &&
-              !handoverComposeByJob[job.id] ? (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy}
-                  onClick={() => {
-                    setHandoverMode(job.id, "tambah");
-                    setHandoverComposeByJob((prev) => ({
-                      ...prev,
-                      [job.id]: true,
-                    }));
-                    setHandoverDraftByJob((prev) => ({
-                      ...prev,
-                      [job.id]: {
-                        ...emptyHandoverDraft(),
-                        title: prev[job.id]?.title || "",
-                        note: prev[job.id]?.note || "",
-                        to_name: prev[job.id]?.to_name || "",
-                        to_user_id: prev[job.id]?.to_user_id || "",
-                        from_name:
-                          prev[job.id]?.from_name ||
-                          emptyHandoverDraft().from_name,
-                        from_user_id:
-                          prev[job.id]?.from_user_id ||
-                          emptyHandoverDraft().from_user_id,
-                      },
-                    }));
-                  }}
-                >
-                  + Tambah
-                </button>
-              ) : handoverOk ? (
-                <label className="handover-mode">
-                  <span>Aksi</span>
-                  <select
-                    className="handover-select"
-                    value={
-                      getHandoverMode(job.id) === "hapus" && !notesDeleteOk
-                        ? "ubah"
-                        : getHandoverMode(job.id)
-                    }
+              {handoverOk ? (
+                <div className="handover-head-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
                     disabled={busy}
-                    onChange={(e) =>
-                      setHandoverMode(
-                        job.id,
-                        e.target.value as "tambah" | "ubah" | "hapus"
-                      )
-                    }
+                    onClick={() => openHandoverFormCreate(job)}
                   >
-                    <option value="tambah">Tambah</option>
-                    <option value="ubah">Ubah</option>
-                    {notesDeleteOk ? <option value="hapus">Hapus</option> : null}
-                  </select>
-                </label>
+                    + Tambah
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    onClick={openHandoverFormExport}
+                  >
+                    {t("job.handoverFormExport")}
+                  </button>
+                  {notesDeleteOk ? (
+                    <label className="handover-mode">
+                      <span>Aksi</span>
+                      <select
+                        className="handover-select"
+                        value={getHandoverMode(job.id) === "hapus" ? "hapus" : "ubah"}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setHandoverMode(
+                            job.id,
+                            e.target.value === "hapus" ? "hapus" : "ubah"
+                          )
+                        }
+                      >
+                        <option value="ubah">Ubah</option>
+                        <option value="hapus">Hapus</option>
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
               ) : (
                 <span className="step-hint">Hanya lihat</span>
               )}
@@ -5899,255 +6090,11 @@ export default function HomePage() {
                 <span>{t("job.handoverWaHint")}</span>
               </p>
             )}
-            <div className="handover-report-fields">
-              <h5 className="handover-report-title">
-                {t("job.handoverFormFields")}
-              </h5>
-              <div className="handover-report-label">
-                <div className="handover-report-label-row">
-                  <span>
-                    {t("job.progressText")} <span aria-hidden="true">*</span>
-                  </span>
-                  {handoverOk ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={busy}
-                      onClick={() => openHandoverPickStepsModal(job, "progress")}
-                    >
-                      {t("job.pickSteps")}
-                    </button>
-                  ) : null}
-                </div>
-                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
-                  {t("job.progressTextHint")}
-                </p>
-                <textarea
-                  className="handover-input"
-                  rows={3}
-                  required
-                  value={getHandoverReportDraft(job).progress_text}
-                  disabled={busy || !handoverOk}
-                  placeholder={t("job.progressTextPlaceholder")}
-                  onChange={(e) =>
-                    setHandoverReportDraft(job.id, job, {
-                      progress_text: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="handover-report-label">
-                <div className="handover-report-label-row">
-                  <span>
-                    {t("job.handoverText")} <span aria-hidden="true">*</span>
-                  </span>
-                  {handoverOk ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={busy}
-                      onClick={() => openHandoverPickStepsModal(job, "handover")}
-                    >
-                      {t("job.pickSteps")}
-                    </button>
-                  ) : null}
-                </div>
-                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
-                  {t("job.handoverTextHint")}
-                </p>
-                <textarea
-                  className="handover-input"
-                  rows={3}
-                  required
-                  value={getHandoverReportDraft(job).handover_text}
-                  disabled={busy || !handoverOk}
-                  placeholder={t("job.handoverTextPlaceholder")}
-                  onChange={(e) =>
-                    setHandoverReportDraft(job.id, job, {
-                      handover_text: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="handover-report-label">
-                <span>{t("job.prevMp")}</span>
-                <p className="step-hint" style={{ margin: "4px 0 0" }}>
-                  {(job.technicians?.length
-                    ? job.technicians.map((tech) => tech.name)
-                    : job.technician?.name
-                      ? [job.technician.name]
-                      : []
-                  ).join(", ") || "—"}
-                </p>
-              </div>
-              <div className="handover-report-label">
-                <span>{t("job.planMp")}</span>
-                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
-                  {t("job.planMpHint")}
-                </p>
-                <div className="check-list">
-                  {(data?.technicians || [])
-                    .filter((tech) => tech.status !== "offline")
-                    .map((tech) => {
-                      const checked =
-                        getHandoverReportDraft(job).plan_technician_ids.includes(
-                          tech.id
-                        );
-                      return (
-                        <label
-                          key={tech.id}
-                          className="check-row"
-                          style={{ display: "flex", gap: 8, alignItems: "center" }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={busy || !handoverOk}
-                            onChange={() => {
-                              const cur =
-                                getHandoverReportDraft(job).plan_technician_ids;
-                              const next = checked
-                                ? cur.filter((id) => id !== tech.id)
-                                : [...cur, tech.id];
-                              setHandoverReportDraft(job.id, job, {
-                                plan_technician_ids: next,
-                              });
-                            }}
-                          />
-                          <span>
-                            {tech.name}
-                            {tech.sn ? ` (${tech.sn})` : ""}
-                          </span>
-                        </label>
-                      );
-                    })}
-                </div>
-              </div>
-              {handoverOk ? (
-                <div className="actions" style={{ marginTop: 8 }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={
-                      busy ||
-                      !getHandoverReportDraft(job).progress_text.trim() ||
-                      !getHandoverReportDraft(job).handover_text.trim()
-                    }
-                    onClick={() => void saveHandoverReportFields(job)}
-                  >
-                    {t("job.handoverFormSave")}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={openHandoverFormExport}
-                  >
-                    {t("job.handoverFormExport")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            {handoverOk &&
-              getHandoverMode(job.id) === "tambah" &&
-              (getHandoverLocal(job).length > 0 ||
-                handoverComposeByJob[job.id]) && (
-              <div className="handover-add has-to-name">
-                <input
-                  className="handover-input"
-                  placeholder="Job Handover"
-                  value={getHandoverDraft(job).title}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setHandoverDraftByJob((prev) => ({
-                      ...prev,
-                      [job.id]: {
-                        ...getHandoverDraft(job),
-                        title: e.target.value,
-                      },
-                    }))
-                  }
-                />
-                {renderHandoverFromField(getHandoverDraft(job).from_name)}
-                {renderHandoverToTrigger(
-                  job,
-                  getHandoverDraft(job).to_name,
-                  "draft",
-                  getHandoverDraft(job).to_user_id
-                )}
-                <input
-                  className="handover-input"
-                  placeholder="Note"
-                  value={getHandoverDraft(job).note}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setHandoverDraftByJob((prev) => ({
-                      ...prev,
-                      [job.id]: {
-                        ...getHandoverDraft(job),
-                        note: e.target.value,
-                      },
-                    }))
-                  }
-                />
-                <div className="handover-add-actions">
-                  {getHandoverLocal(job).length === 0 && (
-                    <button
-                      type="button"
-                      className="btn"
-                      disabled={busy}
-                      onClick={() => {
-                        setHandoverComposeByJob((prev) => {
-                          const next = { ...prev };
-                          delete next[job.id];
-                          return next;
-                        });
-                        setHandoverDraftByJob((prev) => {
-                          const next = { ...prev };
-                          delete next[job.id];
-                          return next;
-                        });
-                      }}
-                    >
-                      Batal
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy || !getHandoverDraft(job).title.trim()}
-                    onClick={() => addHandover(job)}
-                  >
-                    <BusyLabel
-                      busy={isNotePanelBusy(job.id, "handover", "add")}
-                      idle="+ Tambah"
-                      pending="Menambah..."
-                    />
-                  </button>
-                </div>
-              </div>
-            )}
-            {handoverOk &&
-              getHandoverLocal(job).length > 0 &&
-              getHandoverMode(job.id) === "ubah" && (
-              <div className="handover-actions">
-                <span className="step-hint">
-                  Edit baris di tabel, lalu Save
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy || !isHandoverDirty(job)}
-                  onClick={() => saveHandovers(job)}
-                >
-                  <BusyLabel
-                    busy={isNotePanelBusy(job.id, "handover", "save")}
-                    idle="Save"
-                    pending="Menyimpan..."
-                  />
-                </button>
-              </div>
-            )}
+            {getHandoverLocal(job).length === 0 ? (
+              <p className="step-hint" style={{ margin: "8px 0 0" }}>
+                {t("job.handoverEmptyHint")}
+              </p>
+            ) : null}
             {notesDeleteOk &&
               getHandoverLocal(job).length > 0 &&
               getHandoverMode(job.id) === "hapus" && (
@@ -6157,17 +6104,28 @@ export default function HomePage() {
                 </span>
               </div>
             )}
+            {handoverOk &&
+              getHandoverLocal(job).length > 0 &&
+              getHandoverMode(job.id) !== "hapus" && (
+              <div className="handover-actions">
+                <span className="step-hint">{t("job.handoverEditHint")}</span>
+              </div>
+            )}
             {getHandoverLocal(job).length > 0 && (
             <div className="handover-table-wrap">
               <table className="handover-table">
                 <thead>
                   <tr>
                     <th className="col-no">NO</th>
-                    <th>Job Handover</th>
+                    <th>{t("job.shiftDate")}</th>
                     <th>{t("job.handoverFrom")}</th>
                     <th>{t("job.handoverTo")}</th>
+                    <th>{t("job.progressText")}</th>
+                    <th>{t("job.handoverText")}</th>
                     <th className="col-done">Done</th>
-                    <th>Note</th>
+                    {handoverOk && getHandoverMode(job.id) !== "hapus" ? (
+                      <th className="col-act" />
+                    ) : null}
                     {notesDeleteOk &&
                       getHandoverMode(job.id) === "hapus" && (
                         <th className="col-act" />
@@ -6176,8 +6134,6 @@ export default function HomePage() {
                 </thead>
                 <tbody>
                   {getHandoverLocal(job).map((h) => {
-                    const canEdit =
-                      handoverOk && getHandoverMode(job.id) === "ubah";
                     return (
                       <tr
                         key={h.key}
@@ -6186,92 +6142,52 @@ export default function HomePage() {
                         <td className="col-no" data-label="NO">
                           {h.order}
                         </td>
-                        <td data-label="Job Handover">
-                          {canEdit ? (
-                            <input
-                              className="handover-input"
-                              value={h.title}
-                              disabled={busy}
-                              onChange={(e) =>
-                                setHandoverLocal(job, (rows) =>
-                                  rows.map((r) =>
-                                    r.key === h.key
-                                      ? { ...r, title: e.target.value }
-                                      : r
-                                  )
-                                )
-                              }
-                            />
-                          ) : (
-                            h.title
-                          )}
+                        <td data-label={t("job.shiftDate")}>
+                          {h.shift_date || "—"}
                         </td>
                         <td data-label={t("job.handoverFrom")}>
-                          {canEdit
-                            ? renderHandoverFromField(h.from_name)
-                            : h.from_name || "—"}
+                          {h.from_name || "—"}
                         </td>
                         <td data-label={t("job.handoverTo")}>
-                          {canEdit ? (
-                            renderHandoverToTrigger(
-                              job,
-                              h.to_name,
-                              { key: h.key },
-                              h.to_user_id
-                            )
-                          ) : (
-                            h.to_name || "—"
-                          )}
+                          {h.to_name || "—"}
+                        </td>
+                        <td data-label={t("job.progressText")}>
+                          <textarea
+                            className="handover-input handover-cell-textarea"
+                            rows={3}
+                            readOnly
+                            tabIndex={-1}
+                            value={h.progress_text || ""}
+                            placeholder="—"
+                            aria-label={t("job.progressText")}
+                          />
+                        </td>
+                        <td data-label={t("job.handoverText")}>
+                          <textarea
+                            className="handover-input handover-cell-textarea"
+                            rows={3}
+                            readOnly
+                            tabIndex={-1}
+                            value={h.handover_text || ""}
+                            placeholder="—"
+                            aria-label={t("job.handoverText")}
+                          />
                         </td>
                         <td className="col-done" data-label="Done">
-                          {canEdit ? (
-                            <select
-                              className="handover-select"
-                              value={h.done ? "1" : "0"}
+                          {h.done ? "Yes" : "No"}
+                        </td>
+                        {handoverOk && getHandoverMode(job.id) !== "hapus" ? (
+                          <td className="col-act" data-label="Aksi">
+                            <button
+                              type="button"
+                              className="btn btn-sm"
                               disabled={busy}
-                              onChange={(e) =>
-                                setHandoverLocal(job, (rows) =>
-                                  rows.map((r) =>
-                                    r.key === h.key
-                                      ? {
-                                          ...r,
-                                          done: e.target.value === "1",
-                                        }
-                                      : r
-                                  )
-                                )
-                              }
+                              onClick={() => openHandoverFormEdit(job, h)}
                             >
-                              <option value="0">No</option>
-                              <option value="1">Yes</option>
-                            </select>
-                          ) : h.done ? (
-                            "Yes"
-                          ) : (
-                            "No"
-                          )}
-                        </td>
-                        <td data-label="Note">
-                          {canEdit ? (
-                            <input
-                              className="handover-input"
-                              placeholder="Note"
-                              value={h.note}
-                              disabled={busy}
-                              onChange={(e) =>
-                                setHandoverLocal(job, (rows) =>
-                                  rows.map((r) =>
-                                    r.key === h.key
-                                      ? { ...r, note: e.target.value }
-                                      : r
-                                  )
-                                )
-                              }
-                            />
-                          ) : (
-                            h.note || "—"
-                          )}
-                        </td>
+                              Ubah
+                            </button>
+                          </td>
+                        ) : null}
                         {notesDeleteOk &&
                           getHandoverMode(job.id) === "hapus" && (
                             <td className="col-act" data-label="Aksi">
@@ -6287,7 +6203,7 @@ export default function HomePage() {
                                     handoverKey: h.key,
                                     handoverId: h.id,
                                     order: h.order,
-                                    title: h.title,
+                                    title: h.title || h.shift_date || `#${h.order}`,
                                   })
                                 }
                               >
@@ -7411,8 +7327,390 @@ export default function HomePage() {
         </div>
       )}
 
+      {modal?.type === "handover-form" && handoverFormEditor && (
+        <div
+          className="modal-backdrop"
+          onClick={closeHandoverFormEditor}
+        >
+          <div
+            className="modal modal-wide modal-handover-form"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="handover-form-title"
+          >
+            {busy && <BusyOverlay label="Menyimpan..." />}
+            <div className="modal-header">
+              <h3 id="handover-form-title">
+                {handoverFormEditor.mode === "create"
+                  ? t("job.handoverFormCreateTitle")
+                  : t("job.handoverFormEditTitle")}
+              </h3>
+            </div>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <div className="form handover-form-grid">
+              <label>
+                {t("job.shiftDate")} <span aria-hidden="true">*</span>
+                <input
+                  type="date"
+                  value={handoverFormEditor.draft.shift_date}
+                  disabled={busy}
+                  required
+                  onChange={(e) =>
+                    patchHandoverFormDraft({ shift_date: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                {t("job.handoverTitle")}
+                <input
+                  type="text"
+                  value={handoverFormEditor.draft.title}
+                  disabled={busy}
+                  placeholder={t("job.handoverTitlePlaceholder")}
+                  onChange={(e) =>
+                    patchHandoverFormDraft({ title: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                {t("job.handoverFrom")}
+                {renderHandoverFromField(handoverFormEditor.draft.from_name)}
+              </label>
+              <label>
+                {t("job.handoverTo")}
+                {renderHandoverToTrigger(
+                  modal.job,
+                  handoverFormEditor.draft.to_name,
+                  "draft",
+                  handoverFormEditor.draft.to_user_id
+                )}
+              </label>
+              <div className="handover-report-label">
+                <div className="handover-report-label-row">
+                  <span>
+                    {t("job.progressText")} <span aria-hidden="true">*</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() =>
+                      openHandoverPickStepsModal(modal.job, "progress")
+                    }
+                  >
+                    {t("job.pickSteps")}
+                  </button>
+                </div>
+                <textarea
+                  className="handover-input"
+                  rows={3}
+                  required
+                  value={handoverFormEditor.draft.progress_text}
+                  disabled={busy}
+                  placeholder={t("job.progressTextPlaceholder")}
+                  onChange={(e) =>
+                    patchHandoverFormDraft({ progress_text: e.target.value })
+                  }
+                />
+              </div>
+              <div className="handover-report-label">
+                <div className="handover-report-label-row">
+                  <span>
+                    {t("job.handoverText")} <span aria-hidden="true">*</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() =>
+                      openHandoverPickStepsModal(modal.job, "handover")
+                    }
+                  >
+                    {t("job.pickSteps")}
+                  </button>
+                </div>
+                <textarea
+                  className="handover-input"
+                  rows={3}
+                  required
+                  value={handoverFormEditor.draft.handover_text}
+                  disabled={busy}
+                  placeholder={t("job.handoverTextPlaceholder")}
+                  onChange={(e) =>
+                    patchHandoverFormDraft({ handover_text: e.target.value })
+                  }
+                />
+              </div>
+              <div className="handover-report-label">
+                <span>{t("job.prevMp")}</span>
+                <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                  {(modal.job.technicians?.length
+                    ? modal.job.technicians.map((tech) => tech.name)
+                    : modal.job.technician?.name
+                      ? [modal.job.technician.name]
+                      : []
+                  ).join(", ") || "—"}
+                </p>
+              </div>
+              <div className="handover-report-label">
+                <div className="handover-report-label-row">
+                  <span>{t("job.planMp")}</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() => openPlanMpPicker(modal.job)}
+                  >
+                    {t("job.planMpPick")}
+                  </button>
+                </div>
+                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                  {t("job.planMpHint")}
+                </p>
+                <p className="handover-plan-mp-summary">
+                  {planMpDraftSummary || t("job.planMpNone")}
+                </p>
+                <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                  {t("job.planMpSelected").replace(
+                    "{n}",
+                    String(
+                      handoverFormEditor.draft.plan_technician_ids.length
+                    )
+                  )}
+                </p>
+              </div>
+              <label>
+                Note
+                <input
+                  type="text"
+                  value={handoverFormEditor.draft.note}
+                  disabled={busy}
+                  placeholder="Note"
+                  onChange={(e) =>
+                    patchHandoverFormDraft({ note: e.target.value })
+                  }
+                />
+              </label>
+              <label className="check-row" style={{ alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={handoverFormEditor.draft.done}
+                  disabled={busy}
+                  onChange={(e) =>
+                    patchHandoverFormDraft({ done: e.target.checked })
+                  }
+                />
+                <span>Done</span>
+              </label>
+              <p className="step-hint" style={{ margin: 0 }}>
+                {t("job.handoverWaHint")}
+              </p>
+              <div className="actions">
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={closeHandoverFormEditor}
+                >
+                  Batal
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={
+                    busy ||
+                    !handoverFormEditor.draft.shift_date.trim() ||
+                    !handoverFormEditor.draft.progress_text.trim() ||
+                    !handoverFormEditor.draft.handover_text.trim()
+                  }
+                  onClick={() => void saveHandoverFormEditor(modal.job)}
+                >
+                  <BusyLabel
+                    busy={busy}
+                    idle={
+                      handoverFormEditor.mode === "create"
+                        ? t("job.handoverFormSaveCreate")
+                        : t("job.handoverFormSaveEdit")
+                    }
+                    pending="Menyimpan..."
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "handover-plan-mp" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => cancelPlanMpPicker(modal.job)}
+        >
+          <div
+            className="modal modal-wide modal-handover-plan-mp"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="handover-plan-mp-title"
+          >
+            <div className="modal-header">
+              <h3 id="handover-plan-mp-title">{t("job.planMpTitle")}</h3>
+            </div>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p className="step-hint" style={{ margin: "0 0 10px" }}>
+              {t("job.planMpHint")}
+            </p>
+            <div className="form">
+              <label>
+                Cari teknisi
+                <div
+                  className="panel-search-row"
+                  style={{ justifyContent: "stretch", marginTop: 4 }}
+                >
+                  <div className="search-pair">
+                    <input
+                      className="panel-search"
+                      style={{ maxWidth: "none" }}
+                      type="search"
+                      value={planMpDraft}
+                      disabled={busy}
+                      placeholder={t("job.planMpSearch")}
+                      autoFocus
+                      onChange={(e) => setPlanMpDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setPlanMpQuery(planMpDraft.trim());
+                          setPlanMpPage(1);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label="Cari"
+                      disabled={busy}
+                      onClick={() => {
+                        setPlanMpQuery(planMpDraft.trim());
+                        setPlanMpPage(1);
+                      }}
+                    >
+                      <SearchIcon />
+                      <span className="btn-label">Cari</span>
+                    </button>
+                  </div>
+                  {planMpQuery ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setPlanMpDraft("");
+                        setPlanMpQuery("");
+                        setPlanMpPage(1);
+                      }}
+                    >
+                      Reset
+                    </button>
+                  ) : null}
+                </div>
+              </label>
+              <div className="check-list check-list-paged handover-plan-mp-list">
+                {planMpPoolQuery.isLoading &&
+                  planMpSelectableTechs.length === 0 && (
+                    <span className="step-hint">Memuat...</span>
+                  )}
+                {!planMpPoolQuery.isLoading &&
+                  planMpSelectableTechs.length === 0 && (
+                    <span className="step-hint">
+                      {planMpQuery
+                        ? t("job.planMpNoMatch")
+                        : t("job.planMpEmpty")}
+                    </span>
+                  )}
+                {pagedPlanMpTechs.map((tech) => {
+                  const checked = planMpStagingIds.includes(tech.id);
+                  return (
+                    <label key={tech.id} className="check-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={busy}
+                        onChange={() => {
+                          setPlanMpStagingIds((prev) =>
+                            checked
+                              ? prev.filter((id) => id !== tech.id)
+                              : [...prev, tech.id]
+                          );
+                        }}
+                      />
+                      <span>
+                        {tech.name}
+                        {tech.sn ? (
+                          <span style={{ color: "var(--muted)" }}>
+                            {" "}
+                            — {tech.sn}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {planMpSelectableTechs.length > TECH_PAGE_SIZE ? (
+                <Pager
+                  page={planMpPageSafe}
+                  totalPages={planMpTotalPages}
+                  onChange={setPlanMpPage}
+                />
+              ) : null}
+              <p className="step-hint" style={{ margin: "6px 0 0" }}>
+                {t("job.planMpSelected").replace(
+                  "{n}",
+                  String(planMpStagingIds.length)
+                )}
+              </p>
+              <div className="actions">
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => cancelPlanMpPicker(modal.job)}
+                >
+                  Batal
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy || planMpStagingIds.length === 0}
+                  onClick={() => setPlanMpStagingIds([])}
+                >
+                  {t("job.planMpClear")}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => applyPlanMpPicker(modal.job)}
+                >
+                  {t("job.planMpApply")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "handover-pick-steps" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div
+          className="modal-backdrop"
+          onClick={() => reopenHandoverFormModal(modal.job)}
+        >
           <div
             className="modal modal-wide modal-handover-pick-steps"
             onClick={(e) => e.stopPropagation()}
@@ -7506,7 +7804,11 @@ export default function HomePage() {
               )}
             </p>
             <div className="actions">
-              <button className="btn" type="button" onClick={closeModal}>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => reopenHandoverFormModal(modal.job)}
+              >
                 Batal
               </button>
               <button
@@ -7522,14 +7824,13 @@ export default function HomePage() {
                   const names = candidates
                     .filter((s) => selectedSet.has(s.id))
                     .map((s) => s.name);
-                  appendStepsToHandoverField(
-                    modal.job,
+                  appendStepsToHandoverFormField(
                     modal.field === "progress"
                       ? "progress_text"
                       : "handover_text",
                     names
                   );
-                  closeModal();
+                  reopenHandoverFormModal(modal.job);
                 }}
               >
                 {t("job.pickStepsApply")}
@@ -9368,7 +9669,16 @@ export default function HomePage() {
       )}
 
       {modal?.type === "handover-to" && (
-        <div className="modal-backdrop" onClick={closeModal}>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (handoverFormEditor?.jobId === modal.job.id) {
+              reopenHandoverFormModal(modal.job);
+            } else {
+              closeModal();
+            }
+          }}
+        >
           <div className="modal modal-handover-to" onClick={(e) => e.stopPropagation()}>
             <h3>{t("job.handoverTo")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -9440,7 +9750,16 @@ export default function HomePage() {
               />
             )}
             <div className="actions">
-              <button className="btn" onClick={closeModal}>
+              <button
+                className="btn"
+                onClick={() => {
+                  if (handoverFormEditor?.jobId === modal.job.id) {
+                    reopenHandoverFormModal(modal.job);
+                  } else {
+                    closeModal();
+                  }
+                }}
+              >
                 {t("job.cancelAction")}
               </button>
               {modal.current ? (

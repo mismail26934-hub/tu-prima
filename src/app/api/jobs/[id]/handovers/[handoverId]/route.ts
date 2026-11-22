@@ -18,14 +18,23 @@ export async function PATCH(
     const { handoverId } = await ctx.params;
     const body = await req.json();
     const actor = await getCurrentActor();
+    const plan_technician_ids = Array.isArray(body.plan_technician_ids)
+      ? body.plan_technician_ids.map(String).filter(Boolean)
+      : undefined;
     const row = await updateJobHandover(handoverId, {
       title: body.title != null ? String(body.title) : undefined,
+      shift_date: body.shift_date != null ? String(body.shift_date) : undefined,
       from_name: body.from_name != null ? String(body.from_name) : undefined,
       from_user_id:
         body.from_user_id != null ? String(body.from_user_id) : undefined,
       to_name: body.to_name != null ? String(body.to_name) : undefined,
       to_user_id: body.to_user_id != null ? String(body.to_user_id) : undefined,
       note: body.note != null ? String(body.note) : undefined,
+      progress_text:
+        body.progress_text != null ? String(body.progress_text) : undefined,
+      handover_text:
+        body.handover_text != null ? String(body.handover_text) : undefined,
+      plan_technician_ids,
       done: typeof body.done === "boolean" ? body.done : undefined,
       actor,
     });

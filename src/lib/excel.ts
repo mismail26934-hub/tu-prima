@@ -433,9 +433,6 @@ function mapJob(r: Row): Job {
     promise_at: String(r.promise_at || ""),
     est_revision_at: String(r.est_revision_at || ""),
     release_at: String(r.release_at || ""),
-    progress_text: String(r.progress_text || ""),
-    handover_text: String(r.handover_text || ""),
-    plan_technician_ids: parsePlanTechnicianIds(r.plan_technician_ids),
     description: String(r.description || ""),
     status: String(r.status || "queued") as JobStatus,
     technician_id: String(r.technician_id || ""),
@@ -634,12 +631,16 @@ function mapHandover(r: Row): JobHandover {
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
+    shift_date: String(r.shift_date || "").slice(0, 10),
     from_name: String(r.from_name || ""),
     from_user_id: String(r.from_user_id || ""),
     to_name: String(r.to_name || ""),
     to_user_id: String(r.to_user_id || ""),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
+    progress_text: String(r.progress_text || ""),
+    handover_text: String(r.handover_text || ""),
+    plan_technician_ids: parsePlanTechnicianIds(r.plan_technician_ids),
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),
@@ -732,14 +733,10 @@ function techToRow(t: Technician): Row {
 
 function jobToRow(j: Job): Row {
   const photos = parseJobPhotos(j.photos, j.photo_name);
-  const { plan_technician_ids: _planTechIds, ...rest } = j;
   return {
-    ...rest,
+    ...j,
     total_paused_sec: j.total_paused_sec,
     estimated_minutes: j.estimated_minutes,
-    progress_text: String(j.progress_text || ""),
-    handover_text: String(j.handover_text || ""),
-    plan_technician_ids: serializePlanTechnicianIds(j.plan_technician_ids),
     photo_name: photos[0]?.name || "",
     photos: serializeJobPhotos(photos),
   };
@@ -791,7 +788,14 @@ function stepToRow(s: JobStep): Row {
 }
 
 function handoverToRow(h: JobHandover): Row {
-  return { ...h, order: h.order };
+  return {
+    ...h,
+    order: h.order,
+    shift_date: String(h.shift_date || "").slice(0, 10),
+    progress_text: String(h.progress_text || ""),
+    handover_text: String(h.handover_text || ""),
+    plan_technician_ids: serializePlanTechnicianIds(h.plan_technician_ids),
+  };
 }
 
 function partLoanToRow(p: JobPartLoan): Row {
@@ -856,9 +860,6 @@ const JOB_HEADERS = [
   "promise_at",
   "est_revision_at",
   "release_at",
-  "progress_text",
-  "handover_text",
-  "plan_technician_ids",
   "description",
   "status",
   "technician_id",
@@ -907,12 +908,16 @@ const HANDOVER_HEADERS = [
   "job_id",
   "order",
   "title",
+  "shift_date",
   "from_name",
   "from_user_id",
   "to_name",
   "to_user_id",
   "done",
   "note",
+  "progress_text",
+  "handover_text",
+  "plan_technician_ids",
   "user_id",
   "user_name",
   "updated_at",
@@ -1924,9 +1929,6 @@ export async function createJob(input: {
       promise_at: String(input.promise_at || "").trim(),
       est_revision_at: String(input.est_revision_at || "").trim(),
       release_at: String(input.release_at || "").trim(),
-      progress_text: "",
-      handover_text: "",
-      plan_technician_ids: [],
       description: input.description || "",
       status: "queued",
       technician_id: "",
@@ -2175,62 +2177,6 @@ export async function updateJob(
   });
 }
 
-/** Patch Hand Over Form fields only (progress / handover text + plan MP). */
-export async function updateJobHandoverReport(
-  jobId: string,
-  input: {
-    progress_text?: string;
-    handover_text?: string;
-    plan_technician_ids?: string[];
-    actor?: AuditActor | null;
-  }
-): Promise<JobWithDetails> {
-  return withDbLock(async () => {
-    const wb = await loadWorkbook();
-    const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
-    const steps = readRows(getSheet(wb, SHEETS.steps)).map(mapStep);
-    const events = readRows(getSheet(wb, SHEETS.events)).map(mapEvent);
-    const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
-    const assignees = loadAssignees(wb, jobs);
-    const handovers = loadHandovers(wb);
-    const partLoans = loadPartLoans(wb);
-
-    const job = jobs.find((j) => j.id === jobId);
-    if (!job) throw new Error("Job not found");
-
-    const assigneeCount = assigneesForJob(assignees, jobId).length;
-    assertJobManagePermission(job, input.actor, assigneeCount);
-
-    if (input.progress_text != null) {
-      const text = String(input.progress_text).trim();
-      if (!text) throw new Error("Progress wajib diisi");
-      job.progress_text = String(input.progress_text);
-    }
-    if (input.handover_text != null) {
-      const text = String(input.handover_text).trim();
-      if (!text) throw new Error("Hand Over wajib diisi");
-      job.handover_text = String(input.handover_text);
-    }
-    if (input.plan_technician_ids != null) {
-      const wanted = parsePlanTechnicianIds(input.plan_technician_ids);
-      const valid = new Set(techs.map((t) => t.id));
-      job.plan_technician_ids = wanted.filter((id) => valid.has(id));
-    }
-
-    writeSheet(wb, SHEETS.jobs, JOB_HEADERS, jobs.map(jobToRow));
-    await saveWorkbook(wb);
-    return enrichJob(
-      job,
-      techs,
-      steps,
-      events,
-      assignees,
-      handovers,
-      partLoans
-    );
-  });
-}
-
 export async function deleteJob(
   jobId: string,
   actor?: AuditActor | null
@@ -2329,15 +2275,29 @@ export async function deleteJob(
   });
 }
 
+function normalizeShiftDate(raw: unknown): string {
+  const s = String(raw || "").trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return "";
+}
+
+function defaultHandoverTitle(shiftDate: string): string {
+  return shiftDate ? `Hand Over ${shiftDate}` : "Hand Over";
+}
+
 export async function createJobHandover(input: {
   id?: string;
   job_id: string;
-  title: string;
+  title?: string;
+  shift_date?: string;
   from_name?: string;
   from_user_id?: string;
   to_name?: string;
   to_user_id?: string;
   note?: string;
+  progress_text?: string;
+  handover_text?: string;
+  plan_technician_ids?: string[];
   done?: boolean;
   actor?: AuditActor | null;
 }): Promise<JobHandover> {
@@ -2354,8 +2314,19 @@ export async function createJobHandover(input: {
     const assignees = loadAssignees(wb, jobs);
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     assertJobNotesWritePermission(job, input.actor, assignees, techs);
-    const title = input.title.trim();
-    if (!title) throw new Error("Judul handover wajib diisi");
+    const shift_date =
+      normalizeShiftDate(input.shift_date) ||
+      new Date().toISOString().slice(0, 10);
+    const progress_text = String(input.progress_text || "").trim();
+    const handover_text = String(input.handover_text || "").trim();
+    if (!progress_text) throw new Error("Progress wajib diisi");
+    if (!handover_text) throw new Error("Hand Over wajib diisi");
+    const title =
+      String(input.title || "").trim() || defaultHandoverTitle(shift_date);
+    const validTech = new Set(techs.map((t) => t.id));
+    const plan_technician_ids = parsePlanTechnicianIds(
+      input.plan_technician_ids
+    ).filter((id) => validTech.has(id));
 
     const handovers = loadHandovers(wb);
     const audits = loadAuditLog(wb);
@@ -2391,12 +2362,16 @@ export async function createJobHandover(input: {
       job_id: input.job_id,
       order,
       title,
+      shift_date,
       from_name: sender.name,
       from_user_id: sender.user_id,
       to_name: recipient.name,
       to_user_id: recipient.user_id,
       done: input.done ? "1" : "0",
       note: (input.note || "").trim(),
+      progress_text,
+      handover_text,
+      plan_technician_ids,
       user_id: input.actor?.user_id || "",
       user_name: input.actor?.user_name || "",
       updated_at: at,
@@ -2450,11 +2425,15 @@ export async function updateJobHandover(
   handoverId: string,
   input: {
     title?: string;
+    shift_date?: string;
     from_name?: string;
     from_user_id?: string;
     to_name?: string;
     to_user_id?: string;
     note?: string;
+    progress_text?: string;
+    handover_text?: string;
+    plan_technician_ids?: string[];
     done?: boolean;
     actor?: AuditActor | null;
   }
@@ -2477,12 +2456,36 @@ export async function updateJobHandover(
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
     assertJobNotesWritePermission(job, input.actor, assignees, techs);
 
-    const beforeRow = { ...row };
+    const beforeRow = {
+      ...row,
+      plan_technician_ids: [...(row.plan_technician_ids || [])],
+    };
 
+    if (input.shift_date !== undefined) {
+      const shift_date = normalizeShiftDate(input.shift_date);
+      if (!shift_date) throw new Error("Tanggal shift wajib diisi");
+      row.shift_date = shift_date;
+    }
     if (input.title !== undefined) {
-      const title = input.title.trim();
-      if (!title) throw new Error("Judul handover wajib diisi");
+      const title =
+        input.title.trim() || defaultHandoverTitle(row.shift_date);
       row.title = title;
+    }
+    if (input.progress_text !== undefined) {
+      const text = String(input.progress_text).trim();
+      if (!text) throw new Error("Progress wajib diisi");
+      row.progress_text = String(input.progress_text);
+    }
+    if (input.handover_text !== undefined) {
+      const text = String(input.handover_text).trim();
+      if (!text) throw new Error("Hand Over wajib diisi");
+      row.handover_text = String(input.handover_text);
+    }
+    if (input.plan_technician_ids !== undefined) {
+      const validTech = new Set(techs.map((t) => t.id));
+      row.plan_technician_ids = parsePlanTechnicianIds(
+        input.plan_technician_ids
+      ).filter((id) => validTech.has(id));
     }
     const users = readUsers(wb);
     if (input.from_user_id !== undefined || input.from_name !== undefined) {

@@ -115,14 +115,6 @@ export function handoverCandidateSteps(job: JobWithDetails) {
     .sort((a, b) => a.order - b.order);
 }
 
-export function progressLines(job: JobWithDetails): string[] {
-  return linesFromText(String(job.progress_text || ""));
-}
-
-export function handoverLines(job: JobWithDetails): string[] {
-  return linesFromText(String(job.handover_text || ""));
-}
-
 export function prevMpNames(job: JobWithDetails): string[] {
   if (job.technicians?.length) {
     return job.technicians.map((t) => t.name).filter(Boolean);
@@ -131,14 +123,28 @@ export function prevMpNames(job: JobWithDetails): string[] {
   return [];
 }
 
-export function planMpNames(
+/** Prefer handover row matching shift_date; else latest handover. */
+export function pickHandoverForShiftDate(
   job: JobWithDetails,
-  techById: Map<string, Technician>
-): string[] {
-  const ids = job.plan_technician_ids || [];
-  return ids
-    .map((id) => techById.get(id)?.name || "")
-    .filter(Boolean);
+  shiftDate: string
+) {
+  const ymd = String(shiftDate || "").slice(0, 10);
+  const list = [...(job.handovers || [])].sort((a, b) => b.order - a.order);
+  const onDate = list.filter((h) => String(h.shift_date || "").slice(0, 10) === ymd);
+  return onDate[0] || list[0] || null;
+}
+
+function formLinesFromHandover(
+  job: JobWithDetails,
+  shiftDate: string
+): { progress: string[]; handover: string[]; planIds: string[] } {
+  const h = pickHandoverForShiftDate(job, shiftDate);
+  if (!h) return { progress: [], handover: [], planIds: [] };
+  return {
+    progress: linesFromText(String(h.progress_text || "")),
+    handover: linesFromText(String(h.handover_text || "")),
+    planIds: h.plan_technician_ids || [],
+  };
 }
 
 function mapAttendanceRow(r: mysql.RowDataPacket): Attendance {
@@ -212,9 +218,14 @@ function crewFromAttendance(
 
 function toUnitRow(
   job: JobWithDetails,
-  techById: Map<string, Technician>
+  techById: Map<string, Technician>,
+  shiftDate: string
 ): HandoverFormUnitRow {
   const smu = Number(job.smu || 0);
+  const form = formLinesFromHandover(job, shiftDate);
+  const plan_mp = form.planIds
+    .map((id) => techById.get(id)?.name || "")
+    .filter(Boolean);
   return {
     job_id: job.id,
     unit_no: unitNoFromJob(job),
@@ -224,10 +235,10 @@ function toUnitRow(
     customer: String(job.customer || "").trim(),
     smu: smu > 0 ? String(smu) : "",
     description: String(job.description || job.title || "").trim(),
-    progress: progressLines(job),
+    progress: form.progress,
     prev_mp: prevMpNames(job),
-    handover: handoverLines(job),
-    plan_mp: planMpNames(job, techById),
+    handover: form.handover,
+    plan_mp,
   };
 }
 
@@ -245,16 +256,30 @@ export async function buildHandoverFormPayload(
     "in_progress",
     "paused",
   ]);
-  const planIds = jobs.flatMap((j) => j.plan_technician_ids || []);
+  const planIds = jobs.flatMap((j) => {
+    const form = formLinesFromHandover(j, ymd);
+    return form.planIds;
+  });
   const techById = await loadTechniciansById(planIds);
   const attendance = await loadAttendanceForDate(ymd);
+  const nextCrewNames = new Set<string>();
+  for (const j of jobs) {
+    const form = formLinesFromHandover(j, ymd);
+    for (const id of form.planIds) {
+      const name = techById.get(id)?.name;
+      if (name) nextCrewNames.add(name);
+    }
+  }
 
   return {
     date: ymd,
     printed_at: new Date().toISOString(),
     hadir: crewFromAttendance(attendance, "hadir"),
     sakit: crewFromAttendance(attendance, "sakit"),
-    next_crew: [],
-    units: jobs.map((j) => toUnitRow(j, techById)),
+    next_crew: Array.from(nextCrewNames).map((name) => ({
+      name,
+      status: "plan",
+    })),
+    units: jobs.map((j) => toUnitRow(j, techById, ymd)),
   };
 }

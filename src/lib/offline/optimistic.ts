@@ -679,9 +679,6 @@ function emptyJob(partial: Partial<Job> & Pick<Job, "id" | "title">): JobWithDet
     promise_at: partial.promise_at || "",
     est_revision_at: partial.est_revision_at || "",
     release_at: partial.release_at || "",
-    progress_text: partial.progress_text || "",
-    handover_text: partial.handover_text || "",
-    plan_technician_ids: partial.plan_technician_ids || [],
     description: partial.description || "",
     status: partial.status || "queued",
     technician_id: partial.technician_id || "",
@@ -1522,28 +1519,6 @@ export function applyOptimisticMutation(
     }
   }
 
-  const handoverReport = path.match(/^\/api\/jobs\/([^/]+)\/handover-report$/);
-  if (handoverReport && verb === "PATCH") {
-    const jobId = handoverReport[1];
-    patchDashboard(qc, (data) =>
-      mapJob(data, jobId, (job) => ({
-        ...job,
-        progress_text:
-          body.progress_text != null
-            ? String(body.progress_text)
-            : job.progress_text || "",
-        handover_text:
-          body.handover_text != null
-            ? String(body.handover_text)
-            : job.handover_text || "",
-        plan_technician_ids: Array.isArray(body.plan_technician_ids)
-          ? body.plan_technician_ids.map(String).filter(Boolean)
-          : job.plan_technician_ids || [],
-      }))
-    );
-    return { id: jobId, queued: true };
-  }
-
   const jobAction = path.match(/^\/api\/jobs\/([^/]+)\/action$/);
   if (verb === "POST" && jobAction) {
     applyJobActionToCaches(qc, jobAction[1], body);
@@ -1558,12 +1533,18 @@ export function applyOptimisticMutation(
       job_id: jobId,
       order: 0,
       title: String(body.title || ""),
+      shift_date: String(body.shift_date || "").slice(0, 10),
       from_name: String(body.from_name || ""),
       from_user_id: String(body.from_user_id || ""),
       to_name: String(body.to_name || ""),
       to_user_id: String(body.to_user_id || ""),
       done: body.done ? "1" : "0",
       note: String(body.note || ""),
+      progress_text: String(body.progress_text || ""),
+      handover_text: String(body.handover_text || ""),
+      plan_technician_ids: Array.isArray(body.plan_technician_ids)
+        ? body.plan_technician_ids.map(String).filter(Boolean)
+        : [],
       user_id: "",
       user_name: "",
       updated_at: nowIso(),
@@ -1596,6 +1577,10 @@ export function applyOptimisticMutation(
               ? {
                   ...h,
                   title: body.title != null ? String(body.title) : h.title,
+                  shift_date:
+                    body.shift_date != null
+                      ? String(body.shift_date).slice(0, 10)
+                      : h.shift_date || "",
                   from_name:
                     body.from_name != null ? String(body.from_name) : h.from_name,
                   from_user_id:
@@ -1608,6 +1593,17 @@ export function applyOptimisticMutation(
                       ? String(body.to_user_id)
                       : h.to_user_id,
                   note: body.note != null ? String(body.note) : h.note,
+                  progress_text:
+                    body.progress_text != null
+                      ? String(body.progress_text)
+                      : h.progress_text || "",
+                  handover_text:
+                    body.handover_text != null
+                      ? String(body.handover_text)
+                      : h.handover_text || "",
+                  plan_technician_ids: Array.isArray(body.plan_technician_ids)
+                    ? body.plan_technician_ids.map(String).filter(Boolean)
+                    : h.plan_technician_ids || [],
                   done:
                     typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                   updated_at: nowIso(),
@@ -1623,6 +1619,10 @@ export function applyOptimisticMutation(
             ? {
                 ...h,
                 title: body.title != null ? String(body.title) : h.title,
+                shift_date:
+                  body.shift_date != null
+                    ? String(body.shift_date).slice(0, 10)
+                    : h.shift_date || "",
                 from_name:
                   body.from_name != null ? String(body.from_name) : h.from_name,
                 from_user_id:
@@ -1635,6 +1635,17 @@ export function applyOptimisticMutation(
                     ? String(body.to_user_id)
                     : h.to_user_id,
                 note: body.note != null ? String(body.note) : h.note,
+                progress_text:
+                  body.progress_text != null
+                    ? String(body.progress_text)
+                    : h.progress_text || "",
+                handover_text:
+                  body.handover_text != null
+                    ? String(body.handover_text)
+                    : h.handover_text || "",
+                plan_technician_ids: Array.isArray(body.plan_technician_ids)
+                  ? body.plan_technician_ids.map(String).filter(Boolean)
+                  : h.plan_technician_ids || [],
                 done:
                   typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                 updated_at: nowIso(),

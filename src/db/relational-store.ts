@@ -86,9 +86,6 @@ function jobRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
     promise_at: str(r.promise_at),
     est_revision_at: str(r.est_revision_at),
     release_at: str(r.release_at),
-    progress_text: str(r.progress_text),
-    handover_text: str(r.handover_text),
-    plan_technician_ids: str(r.plan_technician_ids),
     description: str(r.description),
     status: str(r.status),
     technician_id: str(r.technician_id),
@@ -145,9 +142,6 @@ function jobRowToDb(row: DbRow, scope: JobScope): Record<string, unknown> {
     promise_at: str(row.promise_at),
     est_revision_at: str(row.est_revision_at),
     release_at: str(row.release_at),
-    progress_text: str(row.progress_text),
-    handover_text: str(row.handover_text),
-    plan_technician_ids: str(row.plan_technician_ids),
     description: str(row.description),
     status: str(row.status),
     technician_id: str(row.technician_id),
@@ -309,9 +303,6 @@ function jobHeaders(scope: JobScope): string[] {
     "promise_at",
     "est_revision_at",
     "release_at",
-    "progress_text",
-    "handover_text",
-    "plan_technician_ids",
     "description",
     "status",
     "technician_id",
@@ -391,12 +382,16 @@ function handoverHeaders(scope: JobScope): string[] {
     "job_id",
     "order",
     "title",
+    "shift_date",
     "from_name",
     "from_user_id",
     "to_name",
     "to_user_id",
     "done",
     "note",
+    "progress_text",
+    "handover_text",
+    "plan_technician_ids",
     "user_id",
     "user_name",
     "updated_at",
@@ -498,12 +493,16 @@ function handoverRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       job_id: str(r.job_id),
       order: num(r.handover_order),
       title: str(r.title),
+      shift_date: str(r.shift_date),
       from_name: str(r.from_name),
       from_user_id: str(r.from_user_id),
       to_name: str(r.to_name),
       to_user_id: str(r.to_user_id),
       done: flag01(r.done) ? "1" : "0",
       note: str(r.note),
+      progress_text: str(r.progress_text),
+      handover_text: str(r.handover_text),
+      plan_technician_ids: str(r.plan_technician_ids),
       user_id: str(r.user_id),
       user_name: str(r.user_name),
       updated_at: str(r.updated_at),
@@ -558,7 +557,6 @@ async function saveScopedJobs(
       `INSERT INTO jobs (
         id, job_scope, title, priority, unit_label, unit_id,
         customer_label, customer_id, smu, arrived_at, promise_at, est_revision_at, release_at,
-        progress_text, handover_text, plan_technician_ids,
         description, status,
         technician_id, template_id, created_at, started_at, completed_at,
         paused_at, total_paused_sec, estimated_minutes,
@@ -567,7 +565,7 @@ async function saveScopedJobs(
         assigned_by_user_id, assigned_by_user_name, assigned_by_user_level,
         delegated_to_user_id, delegated_to_user_name, delegated_at, delegated_by_user_id,
         photo_name, photos
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         d.id,
         d.job_scope,
@@ -582,9 +580,6 @@ async function saveScopedJobs(
         d.promise_at,
         d.est_revision_at,
         d.release_at,
-        d.progress_text,
-        d.handover_text,
-        d.plan_technician_ids,
         d.description,
         d.status,
         d.technician_id,
@@ -684,19 +679,27 @@ async function saveScopedJobs(
   const insertHandovers = wb.getWorksheet(SCOPE_HANDOVER_SHEET[scope])?.rows ?? [];
   for (const row of insertHandovers) {
     await conn.query(
-      `INSERT INTO job_handovers (id, job_id, handover_order, title, from_name, from_user_id, to_name, to_user_id, done, note, user_id, user_name, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO job_handovers (
+         id, job_id, handover_order, title, shift_date,
+         from_name, from_user_id, to_name, to_user_id, done, note,
+         progress_text, handover_text, plan_technician_ids,
+         user_id, user_name, updated_at
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
         num(row.order),
         str(row.title),
+        str(row.shift_date),
         str(row.from_name),
         str(row.from_user_id),
         str(row.to_name),
         str(row.to_user_id),
         flag01(row.done),
         str(row.note),
+        str(row.progress_text),
+        str(row.handover_text),
+        str(row.plan_technician_ids),
         str(row.user_id),
         str(row.user_name),
         str(row.updated_at),
@@ -1130,9 +1133,6 @@ export async function ensureRelationalSchema() {
       promise_at VARCHAR(64) NOT NULL DEFAULT '',
       est_revision_at VARCHAR(64) NOT NULL DEFAULT '',
       release_at VARCHAR(64) NOT NULL DEFAULT '',
-      progress_text TEXT,
-      handover_text TEXT,
-      plan_technician_ids TEXT,
       description TEXT,
       status VARCHAR(32) NOT NULL DEFAULT 'queued',
       technician_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -1211,16 +1211,21 @@ export async function ensureRelationalSchema() {
       job_id VARCHAR(64) NOT NULL,
       handover_order INT NOT NULL DEFAULT 0,
       title VARCHAR(255) NOT NULL DEFAULT '',
+      shift_date VARCHAR(16) NOT NULL DEFAULT '',
       from_name VARCHAR(255) NOT NULL DEFAULT '',
       from_user_id VARCHAR(64) NOT NULL DEFAULT '',
       to_name VARCHAR(255) NOT NULL DEFAULT '',
       to_user_id VARCHAR(64) NOT NULL DEFAULT '',
       done TINYINT(1) NOT NULL DEFAULT 0,
       note TEXT,
+      progress_text TEXT,
+      handover_text TEXT,
+      plan_technician_ids TEXT,
       user_id VARCHAR(64) NOT NULL DEFAULT '',
       user_name VARCHAR(255) NOT NULL DEFAULT '',
       updated_at VARCHAR(64) NOT NULL DEFAULT '',
-      KEY idx_job_handovers_job (job_id)
+      KEY idx_job_handovers_job (job_id),
+      KEY idx_job_handovers_shift (shift_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS job_part_loans (
       id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -1391,6 +1396,56 @@ export async function ensureRelationalSchema() {
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS from_user_id VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS shift_date VARCHAR(16) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS progress_text TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS handover_text TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS plan_technician_ids TEXT`
+  );
+  try {
+    await p.query(
+      `CREATE INDEX idx_job_handovers_shift ON job_handovers (shift_date)`
+    );
+  } catch {
+    /* index may already exist */
+  }
+  // One-time: lift legacy job-level Hand Over Form fields into a handover row
+  // (no-op once jobs.progress_text / handover_text columns are dropped).
+  try {
+    await p.query(
+      `INSERT INTO job_handovers (
+         id, job_id, handover_order, title, shift_date,
+         from_name, from_user_id, to_name, to_user_id, done, note,
+         progress_text, handover_text, plan_technician_ids,
+         user_id, user_name, updated_at
+       )
+       SELECT
+         CONCAT('Hmig-', j.id),
+         j.id,
+         COALESCE((SELECT MAX(h.handover_order) FROM job_handovers h WHERE h.job_id = j.id), 0) + 1,
+         CONCAT('Hand Over ', DATE_FORMAT(CURDATE(), '%Y-%m-%d')),
+         DATE_FORMAT(CURDATE(), '%Y-%m-%d'),
+         '', '', '', '', 0, '',
+         j.progress_text, j.handover_text, j.plan_technician_ids,
+         '', '', DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%dT%H:%i:%s.000Z')
+       FROM jobs j
+       WHERE TRIM(IFNULL(j.progress_text, '')) <> ''
+         AND TRIM(IFNULL(j.handover_text, '')) <> ''
+         AND NOT EXISTS (
+           SELECT 1 FROM job_handovers h
+           WHERE h.job_id = j.id
+             AND TRIM(IFNULL(h.progress_text, '')) <> ''
+         )`
+    );
+  } catch {
+    /* legacy columns may already be dropped */
+  }
+  await p.query(
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority VARCHAR(16) NOT NULL DEFAULT ''`
   );
   await p.query(
@@ -1423,15 +1478,14 @@ export async function ensureRelationalSchema() {
   await p.query(
     `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS release_at VARCHAR(64) NOT NULL DEFAULT ''`
   );
-  await p.query(
-    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS progress_text TEXT`
-  );
-  await p.query(
-    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS handover_text TEXT`
-  );
-  await p.query(
-    `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS plan_technician_ids TEXT`
-  );
+  // Drop legacy job-level Hand Over Form fields (now on job_handovers).
+  for (const col of ["progress_text", "handover_text", "plan_technician_ids"] as const) {
+    try {
+      await p.query(`ALTER TABLE jobs DROP COLUMN ${col}`);
+    } catch {
+      /* column may already be gone */
+    }
+  }
   await ensureListIndexes(p);
   const { ensureJobPrioritiesSeeded } = await import("@/lib/job-priorities");
   await ensureJobPrioritiesSeeded();

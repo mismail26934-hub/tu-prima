@@ -87,9 +87,6 @@ CREATE TABLE IF NOT EXISTS jobs (
   promise_at           VARCHAR(64)  NOT NULL DEFAULT '',
   est_revision_at      VARCHAR(64)  NOT NULL DEFAULT '',
   release_at           VARCHAR(64)  NOT NULL DEFAULT '',
-  progress_text        TEXT,
-  handover_text        TEXT,
-  plan_technician_ids  TEXT,
   description          TEXT,
   status               VARCHAR(32)  NOT NULL DEFAULT 'queued',
   technician_id        VARCHAR(64)  NOT NULL DEFAULT '',
@@ -174,20 +171,25 @@ CREATE TABLE IF NOT EXISTS job_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS job_handovers (
-  id             VARCHAR(64)  NOT NULL PRIMARY KEY,
-  job_id         VARCHAR(64)  NOT NULL,
-  handover_order INT          NOT NULL DEFAULT 0,
-  title          VARCHAR(255) NOT NULL DEFAULT '',
-  from_name      VARCHAR(255) NOT NULL DEFAULT '',
-  from_user_id   VARCHAR(64)  NOT NULL DEFAULT '',
-  to_name        VARCHAR(255) NOT NULL DEFAULT '',
-  to_user_id     VARCHAR(64)  NOT NULL DEFAULT '',
-  done           TINYINT(1)   NOT NULL DEFAULT 0,
-  note           TEXT,
-  user_id        VARCHAR(64)  NOT NULL DEFAULT '',
-  user_name      VARCHAR(255) NOT NULL DEFAULT '',
-  updated_at     VARCHAR(64)  NOT NULL DEFAULT '',
-  KEY idx_job_handovers_job (job_id)
+  id                   VARCHAR(64)  NOT NULL PRIMARY KEY,
+  job_id               VARCHAR(64)  NOT NULL,
+  handover_order       INT          NOT NULL DEFAULT 0,
+  title                VARCHAR(255) NOT NULL DEFAULT '',
+  shift_date           VARCHAR(16)  NOT NULL DEFAULT '',
+  from_name            VARCHAR(255) NOT NULL DEFAULT '',
+  from_user_id         VARCHAR(64)  NOT NULL DEFAULT '',
+  to_name              VARCHAR(255) NOT NULL DEFAULT '',
+  to_user_id           VARCHAR(64)  NOT NULL DEFAULT '',
+  done                 TINYINT(1)   NOT NULL DEFAULT 0,
+  note                 TEXT,
+  progress_text        TEXT,
+  handover_text        TEXT,
+  plan_technician_ids  TEXT,
+  user_id              VARCHAR(64)  NOT NULL DEFAULT '',
+  user_name            VARCHAR(255) NOT NULL DEFAULT '',
+  updated_at           VARCHAR(64)  NOT NULL DEFAULT '',
+  KEY idx_job_handovers_job (job_id),
+  KEY idx_job_handovers_shift (shift_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS job_part_loans (

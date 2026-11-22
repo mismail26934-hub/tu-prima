@@ -2712,14 +2712,19 @@ html[data-theme='light'] .remain-alert-field select {
   box-shadow: none;
 }
 
-.search-pair .btn {
+.search-pair > .btn {
   flex: 0 0 auto;
-  height: var(--ds-btn-sm-height);
+  align-self: stretch;
+  height: auto;
   min-height: var(--ds-btn-sm-height);
-  max-height: var(--ds-btn-sm-height);
+  max-height: none;
   margin: 0;
+  padding-left: 12px;
+  padding-right: 12px;
+  /* Kill .btn transparent border — it showed as a white halo on the pair bg */
+  border: 0;
   border-radius: 0;
-  border-left: 1px solid
+  box-shadow: inset 1px 0 0
     color-mix(in srgb, var(--ds-cloudy-120) 22%, transparent);
 }
 
@@ -2972,15 +2977,17 @@ html[data-theme='light'] .search-pair:focus-within {
     flex-shrink: 0;
   }
 
-  .panel-search-row .search-pair .btn {
+  .panel-search-row .search-pair > .btn {
     width: var(--ctrl-size-ui);
     min-width: var(--ctrl-size-ui);
     max-width: var(--ctrl-size-ui);
     padding: 0;
     gap: 0;
+    border: 0;
+    box-shadow: none;
   }
 
-  .panel-search-row .search-pair .btn-label {
+  .panel-search-row .search-pair > .btn .btn-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -3014,7 +3021,8 @@ html[data-theme='light'] .search-pair:focus-within {
 
   .search-pair > .btn,
   .backup-search-pair > .btn,
-  .panel-search-row .search-pair > .btn {
+  .panel-search-row .search-pair > .btn,
+  .backup-screen .backup-search-pair > .btn {
     align-self: stretch !important;
     width: 44px !important;
     min-width: 44px !important;
@@ -3986,6 +3994,90 @@ html[data-theme='light'] .job-priority-pill--custom {
 .handover-report-label .handover-input {
   width: 100%;
   font-weight: 500;
+}
+
+.handover-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Readonly Progress/Hand Over cells — match table body (Dari) type scale */
+.handover-table .handover-input.handover-cell-textarea {
+  display: block;
+  width: 100%;
+  min-width: 12rem;
+  max-width: 18rem;
+  height: auto;
+  min-height: 4.5rem;
+  resize: vertical;
+  cursor: default;
+  opacity: 1;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg-2) 70%, transparent);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: inherit;
+  line-height: 1.35;
+  letter-spacing: inherit;
+}
+
+.handover-table .handover-input.handover-cell-textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.modal.modal-handover-form {
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 860px);
+  overflow: hidden;
+}
+
+.modal.modal-handover-form .form.handover-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.handover-plan-mp-summary {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+  font-weight: 500;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.modal.modal-handover-plan-mp {
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 760px);
+  overflow: hidden;
+}
+
+.modal.modal-handover-plan-mp .form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal.modal-handover-plan-mp .handover-plan-mp-list {
+  flex: 1 1 auto;
+  min-height: 160px;
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+  margin: 0;
 }
 
 .modal.modal-handover-pick-steps {
@@ -5954,14 +6046,18 @@ html[data-theme='light'] .searchable-select-option:hover {
   box-shadow: none;
 }
 
-.backup-search-pair .btn {
+.backup-search-pair > .btn {
   flex: 0 0 auto;
-  height: var(--ds-btn-sm-height);
+  align-self: stretch;
+  height: auto;
   min-height: var(--ds-btn-sm-height);
-  max-height: var(--ds-btn-sm-height);
+  max-height: none;
   margin: 0;
+  padding-left: 12px;
+  padding-right: 12px;
+  border: 0;
   border-radius: 0;
-  border-left: 1px solid
+  box-shadow: inset 1px 0 0
     color-mix(in srgb, var(--ds-cloudy-120) 22%, transparent);
 }
 
@@ -6111,8 +6207,7 @@ html[data-theme='light'] .searchable-select-option:hover {
     display: none;
   }
 
-  .backup-screen .panel-actions > .btn,
-  .backup-screen .backup-search-pair .btn {
+  .backup-screen .panel-actions > .btn {
     width: 40px;
     height: 40px;
     min-width: 40px;
@@ -6120,6 +6215,22 @@ html[data-theme='light'] .searchable-select-option:hover {
     padding: 0;
     justify-content: center;
     flex: 0 0 auto;
+  }
+
+  .backup-screen .backup-search-pair > .btn {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    align-self: stretch;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 40px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .backup-search-pair {
@@ -6137,9 +6248,21 @@ html[data-theme='light'] .searchable-select-option:hover {
     padding: 8px 10px;
   }
 
-  .backup-screen .backup-search-pair .btn {
-    border-radius: 0 8px 8px 0;
+  .backup-screen .backup-search-pair > .btn {
+    border-radius: 0;
   }
+}
+
+/* Ensure Cari button fills the pair in modals/forms (no white halo) */
+.modal .search-pair > .btn,
+.form .search-pair > .btn,
+.handover-report-label .search-pair > .btn {
+  border: 0;
+  border-radius: 0;
+  align-self: stretch;
+  height: auto;
+  max-height: none;
+  margin: 0;
 }
 
 .modal.modal-template-form {
@@ -7863,7 +7986,7 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
     padding: 0 16px;
   }
 
-  .panel-search-row .search-pair .btn {
+  .panel-search-row .search-pair > .btn {
     align-self: stretch;
     width: 44px;
     min-width: 44px;
@@ -7872,14 +7995,13 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
     min-height: 0;
     max-height: none;
     border: 0;
-    border-left: 0;
     border-radius: 0;
     padding: 0;
     gap: 0;
     box-shadow: none;
   }
 
-  .panel-search-row .search-pair .btn .btn-label {
+  .panel-search-row .search-pair > .btn .btn-label {
     position: absolute;
     width: 1px;
     height: 1px;

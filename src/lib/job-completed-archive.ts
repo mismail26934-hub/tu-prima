@@ -288,17 +288,33 @@ function mapAssigneeRow(r: Row): JobAssignee {
 }
 
 function mapHandoverRow(r: Row): JobHandover {
+  let planIds: string[] = [];
+  const rawPlan = String(r.plan_technician_ids || "").trim();
+  if (rawPlan) {
+    try {
+      const parsed = JSON.parse(rawPlan) as unknown;
+      if (Array.isArray(parsed)) {
+        planIds = parsed.map((v) => String(v || "").trim()).filter(Boolean);
+      }
+    } catch {
+      planIds = rawPlan.split(/[,;\s]+/).map((v) => v.trim()).filter(Boolean);
+    }
+  }
   return {
     id: String(r.id || ""),
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
+    shift_date: String(r.shift_date || "").slice(0, 10),
     from_name: String(r.from_name || ""),
     from_user_id: String(r.from_user_id || ""),
     to_name: String(r.to_name || ""),
     to_user_id: String(r.to_user_id || ""),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
+    progress_text: String(r.progress_text || ""),
+    handover_text: String(r.handover_text || ""),
+    plan_technician_ids: planIds,
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),

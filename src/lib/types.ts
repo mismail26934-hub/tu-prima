@@ -156,15 +156,6 @@ export interface Job {
   promise_at?: string;
   est_revision_at?: string;
   release_at?: string;
-  /**
-   * Hand Over Form free text (required for report).
-   * Optional step-picker UI can insert step names into these fields.
-   * Progress picker: done + in_progress. Hand Over picker: in_progress + pending.
-   */
-  progress_text?: string;
-  handover_text?: string;
-  /** Planned manpower technician ids for next shift (JSON array in DB). */
-  plan_technician_ids?: string[];
   description: string;
   status: JobStatus;
   /** Lead / primary technician (first assignee). Kept for Excel compatibility. */
@@ -290,6 +281,8 @@ export interface JobHandover {
   job_id: string;
   order: number;
   title: string;
+  /** Calendar date of the shift this handover belongs to (YYYY-MM-DD). */
+  shift_date: string;
   /** Foreman the handover is from. */
   from_name: string;
   from_user_id: string;
@@ -300,6 +293,12 @@ export interface JobHandover {
   /** "1" = Yes/done, "0" = No */
   done: string;
   note: string;
+  /** Hand Over Form: progress lines (done / in_progress steps + free text). */
+  progress_text: string;
+  /** Hand Over Form: hand over lines (in_progress / pending steps + free text). */
+  handover_text: string;
+  /** Planned manpower technician ids for next shift. */
+  plan_technician_ids: string[];
   user_id: string;
   user_name: string;
   updated_at: string;

@@ -77,7 +77,10 @@
   --line: var(--ds-border);
   --line-dashed: var(--ds-border);
   --text: var(--ds-ink);
-  --muted: var(--ds-text-neutral);
+  --muted: var(--ds-ink);
+  /* Light theme: all body/UI copy uses ink (#2c313a), not gray-neutral */
+  --ds-text-neutral: var(--ds-ink);
+  --ds-text-subtle: var(--ds-ink);
   --amber: var(--ds-yellow-80);
   --amber-dim: var(--ds-yellow-70);
   --amber-bright: var(--ds-yellow-60);
@@ -175,7 +178,7 @@ html[data-theme='light'] .brand-lockup:focus .brand {
 
 html[data-theme='light'] .brand-tagline {
   color: var(--ds-ink);
-  opacity: 0.72;
+  opacity: 1;
 }
 
 html[data-theme='light'] .muted,
@@ -191,7 +194,7 @@ html[data-theme='light'] .pager-meta,
 html[data-theme='light'] .panel-vis-label,
 html[data-theme='light'] .stat .label,
 html[data-theme='light'] .tech .meta {
-  color: var(--ds-text-neutral);
+  color: var(--ds-ink);
   font-weight: 400;
 }
 
@@ -215,7 +218,7 @@ html[data-theme='light'] .form label,
 html[data-theme='light'] .form .field,
 html[data-theme='light'] .form .field-label,
 html[data-theme='light'] .panel-vis-label {
-  color: var(--ds-text-neutral);
+  color: var(--ds-ink);
   font-weight: var(--ds-label-weight);
 }
 
@@ -3749,6 +3752,35 @@ html[data-theme='light'] .job-priority-pill--custom {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.job-detail-meta {
+  display: grid;
+  gap: 2px 0;
+  margin: 6px 0 0;
+  min-width: 0;
+}
+
+.job-detail-meta-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.job-detail-meta dt,
+.job-detail-meta dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.job-detail-meta dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .job-description {
@@ -7750,6 +7782,15 @@ html[data-theme='light'].active-job-slider-mode .active-job-slider-screen {
 .active-job-slider-screen .job-unit {
   font-size: clamp(0.95rem, 1.8vw, 1.2rem);
   margin-top: 6px;
+}
+
+.active-job-slider-screen .job-detail-meta {
+  margin-top: 8px;
+}
+
+.active-job-slider-screen .job-detail-meta dt,
+.active-job-slider-screen .job-detail-meta dd {
+  font-size: clamp(0.9rem, 1.6vw, 1.1rem);
 }
 
 .active-job-slider-screen .job-tech-row {

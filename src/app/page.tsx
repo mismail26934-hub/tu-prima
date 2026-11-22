@@ -60,6 +60,7 @@ import {
   stepTechnicianNames,
 } from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
+import { formatHandoverDate } from "@/lib/handover-form-format";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
@@ -5443,6 +5444,46 @@ export default function HomePage() {
             <div className="job-unit">
               {job.unit}
             </div>
+            {(() => {
+              const customer = String(job.customer || "").trim();
+              const smuNum = Number(job.smu || 0);
+              const smu = smuNum > 0 ? String(smuNum) : "";
+              const arrived = formatHandoverDate(String(job.arrived_at || ""));
+              const promise = formatHandoverDate(String(job.promise_at || ""));
+              const estRev = formatHandoverDate(
+                String(job.est_revision_at || "")
+              );
+              const release = formatHandoverDate(String(job.release_at || ""));
+              const rows: Array<{ label: string; value: string }> = [
+                ...(customer
+                  ? [{ label: t("job.customer"), value: customer }]
+                  : []),
+                ...(smu ? [{ label: t("job.smu"), value: smu }] : []),
+                ...(arrived
+                  ? [{ label: t("job.arrivedAt"), value: arrived }]
+                  : []),
+                ...(promise
+                  ? [{ label: t("job.promiseAt"), value: promise }]
+                  : []),
+                ...(estRev
+                  ? [{ label: t("job.estRevision"), value: estRev }]
+                  : []),
+                ...(release
+                  ? [{ label: t("job.releaseAt"), value: release }]
+                  : []),
+              ];
+              if (!rows.length) return null;
+              return (
+                <dl className="job-detail-meta">
+                  {rows.map((row) => (
+                    <div key={row.label} className="job-detail-meta-row">
+                      <dt>{row.label}</dt>
+                      <dd>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              );
+            })()}
             {(job.photos || []).length > 0 ? (
               <div className="job-photo-strip">
                 {job.photos!.map((photo) => (

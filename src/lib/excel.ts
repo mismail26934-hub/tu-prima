@@ -23,10 +23,12 @@ import type {
   JobHandover,
   JobPartLoan,
   PartLoanStatus,
+  Shift,
 } from "./types";
 import { USER_LEVELS, normalizeJobPriority } from "./types";
 import { assertCustomerForWrite, customerLabel } from "./customers";
 import { assertJobPriorityForWrite } from "./job-priorities";
+import { listShifts, shiftLabel } from "./shifts";
 import {
   calcElapsedSec,
   calcProgressPct,
@@ -3325,6 +3327,10 @@ export type TechnicianImportPreviewRow = {
   email: string;
   phone: string;
   status: "" | "available" | "offline";
+  /** Shift label from Excel (name or code). */
+  shift_name: string;
+  /** Resolved Master Shift id when shift_name is valid. */
+  shift_id: string;
   ok: boolean;
   action: "create" | "update" | "skip";
   error?: string;
@@ -3337,6 +3343,8 @@ export type TechnicianImportCommitRow = {
   email: string;
   phone: string;
   status?: "" | "available" | "offline";
+  shift_id?: string;
+  shift_name?: string;
   action: "create" | "update";
 };
 
@@ -3348,6 +3356,7 @@ function parseTechnicianImportSheet(ws: ExcelJS.Worksheet): {
   cEmail: number;
   cPhone: number;
   cStatus: number;
+  cShift: number;
 } {
   const found = findSheetHeader(ws, TECH_SN_HEADERS, TECH_NAME_HEADERS);
   if (!found) {
@@ -3369,12 +3378,44 @@ function parseTechnicianImportSheet(ws: ExcelJS.Worksheet): {
   const cEmail = col(...TECH_EMAIL_HEADERS);
   const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
   const cStatus = col("status");
+  const cShift = col("shift", "shift name", "nama shift", "kode shift");
   if (!cName || !cSn || !cBadge || !cEmail) {
     throw new Error(
       'Kolom wajib tidak ditemukan. Butuh Nama, SN/Pernr, Badge ID (No. ID Badge), dan Email.'
     );
   }
-  return { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus };
+  return { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus, cShift };
+}
+
+function resolveShiftFromCatalog(
+  raw: string,
+  shifts: Shift[]
+): { id: string; name: string } | null | "invalid" {
+  const label = String(raw || "").trim();
+  if (!label) return null;
+  const key = label.toLowerCase();
+  const match = shifts.find((s) => {
+    const name = String(s.name || "").trim().toLowerCase();
+    const code = String(s.code || "").trim().toLowerCase();
+    return name === key || code === key || shiftLabel(s).toLowerCase() === key;
+  });
+  if (!match) return "invalid";
+  return { id: match.id, name: shiftLabel(match) || match.name };
+}
+
+function applyTechnicianShiftToUsers(
+  techs: Technician[],
+  users: AppUser[],
+  shiftBySn: Map<string, string>
+) {
+  for (const tech of techs) {
+    const shiftId = shiftBySn.get(tech.sn.trim().toLowerCase());
+    if (shiftId == null) continue;
+    if (!tech.user_id) continue;
+    const user = users.find((u) => u.id === tech.user_id);
+    if (!user) continue;
+    user.shift_id = shiftId;
+  }
 }
 
 /** Parse Excel and validate rows without writing to DB. */
@@ -3395,10 +3436,11 @@ export async function previewTechniciansFromBuffer(
     const ws = src.worksheets[0];
     if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
 
-    const { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus } =
+    const { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus, cShift } =
       parseTechnicianImportSheet(ws);
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const shifts = await listShifts({ includeInactive: true });
     const seenSn = new Set<string>();
     const seenBadge = new Set<string>();
     const seenEmail = new Set<string>();
@@ -3414,10 +3456,14 @@ export async function previewTechniciansFromBuffer(
       const statusRaw = cStatus
         ? cellStr(row.getCell(cStatus).value).trim()
         : "";
+      const shiftRaw = cShift
+        ? cellStr(row.getCell(cShift).value).trim()
+        : "";
       if (!name && !sn && !badge_id && !emailRaw) return;
 
       const statusNorm = normalizeTechStatus(statusRaw);
       const status: "" | "available" | "offline" = statusNorm || "";
+      const shiftResolved = resolveShiftFromCatalog(shiftRaw, shifts);
       const base: TechnicianImportPreviewRow = {
         row: rowNumber,
         name,
@@ -3426,9 +3472,23 @@ export async function previewTechniciansFromBuffer(
         email: emailRaw,
         phone,
         status,
+        shift_name: shiftRaw,
+        shift_id:
+          shiftResolved && shiftResolved !== "invalid" ? shiftResolved.id : "",
         ok: false,
         action: "skip",
       };
+      if (shiftResolved === "invalid") {
+        rows.push({
+          ...base,
+          error: `Shift tidak ditemukan di Master Shift (${shiftRaw})`,
+        });
+        return;
+      }
+      if (shiftResolved) {
+        base.shift_name = shiftResolved.name;
+        base.shift_id = shiftResolved.id;
+      }
 
       if (!name || !sn || !badge_id || !emailRaw) {
         rows.push({
@@ -3545,9 +3605,11 @@ export async function commitTechniciansImport(
     }
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const shifts = await listShifts({ includeInactive: true });
     const skipped: string[] = [];
     let imported = 0;
     let updated = 0;
+    const shiftBySn = new Map<string, string>();
 
     for (const row of rows) {
       const name = String(row.name || "").trim();
@@ -3557,6 +3619,26 @@ export async function commitTechniciansImport(
       const phone = String(row.phone || "").trim();
       const status = normalizeTechStatus(String(row.status || ""));
       const action = row.action === "update" ? "update" : "create";
+      const shiftRaw = String(row.shift_name || "").trim();
+      const shiftFromId = String(row.shift_id || "").trim();
+      let shiftId = "";
+      if (shiftFromId) {
+        const known = shifts.find((s) => s.id === shiftFromId);
+        if (!known) {
+          skipped.push(`${sn || name || "?"}: shift_id tidak valid`);
+          continue;
+        }
+        shiftId = known.id;
+      } else if (shiftRaw) {
+        const resolved = resolveShiftFromCatalog(shiftRaw, shifts);
+        if (resolved === "invalid" || !resolved) {
+          skipped.push(
+            `${sn || name || "?"}: Shift tidak ditemukan (${shiftRaw})`
+          );
+          continue;
+        }
+        shiftId = resolved.id;
+      }
       if (!name || !sn || !badge_id || !emailRaw) {
         skipped.push(`${sn || name || "?"}: field wajib kosong`);
         continue;
@@ -3590,6 +3672,7 @@ export async function commitTechniciansImport(
             existing.status = status;
             existing.current_job_id = "";
           }
+          if (shiftId) shiftBySn.set(existing.sn.trim().toLowerCase(), shiftId);
           updated += 1;
         } catch (e) {
           skipped.push(
@@ -3620,6 +3703,7 @@ export async function commitTechniciansImport(
           superior_user_id: "",
           superior_user_name: "",
         });
+        if (shiftId) shiftBySn.set(fields.sn.trim().toLowerCase(), shiftId);
         imported += 1;
       } catch (e) {
         skipped.push(
@@ -3639,6 +3723,7 @@ export async function commitTechniciansImport(
     for (const t of techs) {
       await ensureTechnicianLoginUser(techs, users, t, { reactivate: true });
     }
+    applyTechnicianShiftToUsers(techs, users, shiftBySn);
     writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
     writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
     await saveWorkbook(wb);
@@ -3673,16 +3758,18 @@ export async function importTechniciansFromBuffer(
     const ws = src.worksheets[0];
     if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
 
-    const { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus } =
+    const { headerRow, cName, cSn, cBadge, cEmail, cPhone, cStatus, cShift } =
       parseTechnicianImportSheet(ws);
 
     const wb = await loadWorkbook();
     const techs = readRows(getSheet(wb, SHEETS.technicians)).map(mapTechnician);
+    const shifts = await listShifts({ includeInactive: true });
     const skipped: string[] = [];
     const unmatched: string[] = [];
     let imported = 0;
     let updated = 0;
     let changed = false;
+    const shiftBySn = new Map<string, string>();
 
     ws.eachRow((row, rowNumber) => {
       if (rowNumber <= headerRow) return;
@@ -3693,6 +3780,9 @@ export async function importTechniciansFromBuffer(
       const phone = cPhone ? cellStr(row.getCell(cPhone).value).trim() : "";
       const statusRaw = cStatus
         ? cellStr(row.getCell(cStatus).value).trim()
+        : "";
+      const shiftRaw = cShift
+        ? cellStr(row.getCell(cShift).value).trim()
         : "";
       if (!name && !sn) return;
       if (!name || !sn || !badge_id || !emailRaw) {
@@ -3708,6 +3798,13 @@ export async function importTechniciansFromBuffer(
       const email = normalizeTechEmail(emailRaw);
 
       const status = normalizeTechStatus(statusRaw);
+      const shiftResolved = resolveShiftFromCatalog(shiftRaw, shifts);
+      if (shiftResolved === "invalid") {
+        skipped.push(
+          `Baris ${rowNumber}: Shift tidak ditemukan di Master Shift (${shiftRaw})`
+        );
+        return;
+      }
       const existing = techs.find(
         (t) => t.sn.trim().toLowerCase() === sn.toLowerCase()
       );
@@ -3733,6 +3830,9 @@ export async function importTechniciansFromBuffer(
         if (status && existing.status !== "busy") {
           existing.status = status;
           existing.current_job_id = "";
+        }
+        if (shiftResolved) {
+          shiftBySn.set(existing.sn.trim().toLowerCase(), shiftResolved.id);
         }
         updated += 1;
         changed = true;
@@ -3773,6 +3873,9 @@ export async function importTechniciansFromBuffer(
         superior_user_id: "",
         superior_user_name: "",
       });
+      if (shiftResolved) {
+        shiftBySn.set(sn.trim().toLowerCase(), shiftResolved.id);
+      }
       imported += 1;
       changed = true;
     });
@@ -3785,6 +3888,7 @@ export async function importTechniciansFromBuffer(
       for (const t of techs) {
         await ensureTechnicianLoginUser(techs, users, t, { reactivate: true });
       }
+      applyTechnicianShiftToUsers(techs, users, shiftBySn);
       writeSheet(wb, SHEETS.technicians, TECH_HEADERS, techs.map(techToRow));
       writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
       await saveWorkbook(wb);

@@ -1,4 +1,4 @@
-const CACHE = "tu-prima-shell-v16";
+const CACHE = "tu-prima-shell-v19";
 const SHELL = ["/", "/sign-in", "/auth-gagal", "/manifest.webmanifest"];
 /** Shell/nav: fall back to cache quickly. API: allow slow MySQL (was 400ms → false Offline). */
 const SHELL_FETCH_MS = 3000;

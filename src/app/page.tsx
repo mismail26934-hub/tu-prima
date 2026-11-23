@@ -60,12 +60,7 @@ import {
   stepTechnicianNames,
 } from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
-import {
-  formatHandoverDate,
-  planMpLabel,
-  prevMpLabel,
-  unitNoFromJob,
-} from "@/lib/handover-form-format";
+import { formatHandoverDate } from "@/lib/handover-form-format";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
@@ -86,6 +81,8 @@ import {
 } from "@/components/ActionIcons";
 import { BoardTopbar } from "@/components/BoardTopbar";
 import { JobBackupPage } from "@/components/JobBackupPage";
+import { MasterHandoverColumnSettings } from "@/components/MasterHandoverColumnSettings";
+import { MasterHandoverTable } from "@/components/MasterHandoverTable";
 import { SearchIcon } from "@/components/SearchIcon";
 import { RemainAlertWatcher } from "@/components/RemainAlertWatcher";
 import { TechnicianCard } from "@/components/TechnicianCard";
@@ -290,6 +287,8 @@ type Modal =
         email: string;
         phone: string;
         status: "" | "available" | "offline";
+        shift_name: string;
+        shift_id: string;
         ok: boolean;
         action: "create" | "update" | "skip";
         error?: string;
@@ -1062,6 +1061,7 @@ export default function HomePage() {
   const canUserCreate = canAccess(userLevel, "user", "create");
   const canUserUpdate = canAccess(userLevel, "user", "update");
   const canUserDelete = canAccess(userLevel, "user", "delete");
+  const canTechRead = canAccess(userLevel, "technician", "read");
   const canTechCreate = canAccess(userLevel, "technician", "create");
   const canTechUpdate = canAccess(userLevel, "technician", "update");
   const canSetTechPresence = canSetTechnicianPresence(userLevel);
@@ -2210,6 +2210,42 @@ export default function HomePage() {
     }
   }
 
+  async function downloadTechniciansDataExcel() {
+    setBusy(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (masterTechQuery.trim()) params.set("q", masterTechQuery.trim());
+      const qs = params.toString();
+      const res = await fetch(
+        `/api/technicians/download${qs ? `?${qs}` : ""}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || `Gagal unduh Excel (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const matched = disposition.match(/filename="([^"]+)"/i);
+      const filename = matched?.[1] || "teknisi.xlsx";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal unduh Excel teknisi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function downloadTemplatesDataExcel(opts?: {
     id?: string;
     category?: "" | JobTemplateCategory;
@@ -2427,6 +2463,8 @@ export default function HomePage() {
           email: string;
           phone: string;
           status: "" | "available" | "offline";
+          shift_name: string;
+          shift_id: string;
           ok: boolean;
           action: "create" | "update" | "skip";
           error?: string;
@@ -2440,7 +2478,11 @@ export default function HomePage() {
       }
       setModal({
         type: "tech-import-preview",
-        rows: result.rows,
+        rows: result.rows.map((r) => ({
+          ...r,
+          shift_name: r.shift_name || "",
+          shift_id: r.shift_id || "",
+        })),
         okCount: result.okCount,
         errorCount: result.errorCount,
         selected,
@@ -2463,6 +2505,8 @@ export default function HomePage() {
         email: r.email,
         phone: r.phone,
         status: r.status,
+        shift_id: r.shift_id || "",
+        shift_name: r.shift_name || "",
         action: r.action === "update" ? ("update" as const) : ("create" as const),
       }));
     if (!rows.length) {
@@ -7410,7 +7454,7 @@ export default function HomePage() {
               <p className="master-lead">{t("master.handoverHint")}</p>
               {error && <div className="error">{error}</div>}
               <div
-                className="panel-search-row"
+                className="panel-search-row master-handover-toolbar"
                 style={{ justifyContent: "stretch", flexWrap: "wrap" }}
               >
                 <div className="search-pair">
@@ -7442,191 +7486,27 @@ export default function HomePage() {
                     <SearchIcon />
                   </button>
                 </div>
+                <MasterHandoverColumnSettings />
               </div>
             </div>
-            <div className="master-body">
+            <div className="master-body master-body--handover-table">
               {handoversMasterJobs.length === 0 ? (
                 <span style={{ color: "var(--muted)" }}>
                   {t("master.handoverEmpty")}
                 </span>
               ) : (
-                <div className="backup-table-wrap master-handover-table-wrap">
-                  <table className="backup-table master-handover-table">
-                    <thead>
-                      <tr>
-                        <th className="col-no">NO</th>
-                        <th>{t("master.handoverUnitNo")}</th>
-                        <th>{t("master.handoverUnitIn")}</th>
-                        <th>{t("job.customer")}</th>
-                        <th>{t("job.description")}</th>
-                        <th>{t("job.shiftDate")}</th>
-                        <th>{t("job.handoverFrom")}</th>
-                        <th>{t("job.handoverTo")}</th>
-                        <th>{t("job.progressText")}</th>
-                        <th>{t("job.handoverText")}</th>
-                        <th>{t("job.prevMp")}</th>
-                        <th>{t("job.planMp")}</th>
-                        <th className="col-done">Done</th>
-                        <th className="col-act">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        let rowNo = 0;
-                        const boardTechs = data?.technicians || [];
-                        return handoversMasterJobs.flatMap((job) => {
-                          const writeOk = canNotesWriteForJob(job);
-                          const unitNo = unitNoFromJob(job);
-                          const unitIn =
-                            formatHandoverDate(String(job.arrived_at || "")) ||
-                            "—";
-                          const customer = String(job.customer || "").trim() || "—";
-                          const jobLabel = [
-                            job.title,
-                            job.priority,
-                            job.status,
-                          ]
-                            .map((p) => String(p || "").trim())
-                            .filter(Boolean)
-                            .join(" · ");
-                          const prevMp =
-                            prevMpLabel(job) || "—";
-                          const handovers = [...(job.handovers || [])].sort(
-                            (a, b) => a.order - b.order
-                          );
-                          const addBtn = (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              disabled={busy || !writeOk}
-                              title={
-                                writeOk
-                                  ? t("job.handoverFormCreateTitle")
-                                  : t("master.handoverNeedStart")
-                              }
-                              aria-label="+ Tambah"
-                              onClick={() =>
-                                openHandoverFormCreate(job, {
-                                  fromMaster: true,
-                                })
-                              }
-                            >
-                              <span aria-hidden="true">+</span>
-                              <span className="btn-label">Tambah</span>
-                            </button>
-                          );
-                          if (!handovers.length) {
-                            rowNo += 1;
-                            return [
-                              <tr key={`${job.id}-empty`}>
-                                <td className="col-no">{rowNo}</td>
-                                <td>
-                                  <strong>{unitNo}</strong>
-                                </td>
-                                <td>{unitIn}</td>
-                                <td>{customer}</td>
-                                <td>
-                                  <span className="master-handover-job-label">
-                                    {jobLabel}
-                                  </span>
-                                </td>
-                                <td colSpan={8} className="master-handover-empty">
-                                  {t("master.handoverNoRows")}
-                                </td>
-                                <td className="col-act">
-                                  <div className="master-handover-actions">
-                                    {addBtn}
-                                  </div>
-                                </td>
-                              </tr>,
-                            ];
-                          }
-                          return handovers.map((h, idx) => {
-                            rowNo += 1;
-                            const localRow: HandoverLocalRow = {
-                              key: h.id,
-                              id: h.id,
-                              order: h.order,
-                              title: h.title || "",
-                              shift_date: h.shift_date || "",
-                              from_name: h.from_name || "",
-                              from_user_id: h.from_user_id || "",
-                              to_name: h.to_name || "",
-                              to_user_id: h.to_user_id || "",
-                              note: h.note || "",
-                              progress_text: h.progress_text || "",
-                              handover_text: h.handover_text || "",
-                              plan_technician_ids:
-                                h.plan_technician_ids || [],
-                              done: h.done === "1",
-                            };
-                            const planMp =
-                              planMpLabel(h.plan_technician_ids, [
-                                ...(job.technician_index || []),
-                                ...(job.technicians || []),
-                                ...boardTechs,
-                                job.technician || null,
-                              ]) || "—";
-                            return (
-                              <tr
-                                key={h.id}
-                                className={h.done === "1" ? "is-done" : undefined}
-                              >
-                                <td className="col-no">{rowNo}</td>
-                                <td>
-                                  <strong>{unitNo}</strong>
-                                </td>
-                                <td>{unitIn}</td>
-                                <td>{customer}</td>
-                                <td>
-                                  <span className="master-handover-job-label">
-                                    {jobLabel}
-                                  </span>
-                                </td>
-                                <td>{h.shift_date || "—"}</td>
-                                <td>{h.from_name || "—"}</td>
-                                <td>{h.to_name || "—"}</td>
-                                <td className="master-handover-multiline">
-                                  {h.progress_text || "—"}
-                                </td>
-                                <td className="master-handover-multiline">
-                                  {h.handover_text || "—"}
-                                </td>
-                                <td className="master-handover-mp">
-                                  {prevMp}
-                                </td>
-                                <td className="master-handover-mp">
-                                  {planMp}
-                                </td>
-                                <td className="col-done">
-                                  {h.done === "1" ? "Yes" : "No"}
-                                </td>
-                                <td className="col-act">
-                                  <div className="master-handover-actions">
-                                    {idx === 0 ? addBtn : null}
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-edit"
-                                      disabled={busy || !writeOk}
-                                      onClick={() =>
-                                        openHandoverFormEdit(job, localRow, {
-                                          fromMaster: true,
-                                        })
-                                      }
-                                    >
-                                      <EditIcon />
-                                      <span className="btn-label">Ubah</span>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          });
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
+                <MasterHandoverTable
+                  jobs={handoversMasterJobs}
+                  boardTechnicians={data?.technicians || []}
+                  busy={busy}
+                  canNotesWriteForJob={canNotesWriteForJob}
+                  onAdd={(job) =>
+                    openHandoverFormCreate(job, { fromMaster: true })
+                  }
+                  onEdit={(job, row) =>
+                    openHandoverFormEdit(job, row, { fromMaster: true })
+                  }
+                />
               )}
             </div>
             <div className="master-foot actions">
@@ -12100,32 +11980,55 @@ export default function HomePage() {
                   {techImportMsg}
                 </p>
               )}
-              {canTechCreate && (
+              {(canTechRead || canTechCreate) && (
                 <details className="master-tools">
-                  <summary>Upload / template Excel</summary>
+                  <summary>Upload / unduh Excel</summary>
                   <div className="master-tools-body form">
-                    <div className="actions" style={{ marginTop: 10 }}>
-                      <a
-                        className="btn"
-                        href="/api/technicians/template"
-                        download="template-upload-teknisi.xlsx"
-                      >
-                        Unduh template Excel
-                      </a>
+                    <div
+                      className="actions"
+                      style={{ marginTop: 10, flexWrap: "wrap" }}
+                    >
+                      {canTechRead && (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={busy || masterTechTotal === 0}
+                          title={
+                            masterTechQuery.trim()
+                              ? "Export hasil pencarian ke Excel"
+                              : "Export semua data teknisi ke Excel"
+                          }
+                          onClick={() => void downloadTechniciansDataExcel()}
+                        >
+                          <ExportIcon />
+                          <span className="btn-label">Unduh Excel (data)</span>
+                        </button>
+                      )}
+                      {canTechCreate && (
+                        <a
+                          className="btn"
+                          href="/api/technicians/template"
+                          download="template-upload-teknisi.xlsx"
+                        >
+                          Unduh template Excel
+                        </a>
+                      )}
                     </div>
-                    <label>
-                      Mass upload Excel (.xlsx)
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        disabled={busy}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (file) importTechniciansFile(file);
-                        }}
-                      />
-                    </label>
+                    {canTechCreate && (
+                      <label>
+                        Mass upload Excel (.xlsx)
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          disabled={busy}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) importTechniciansFile(file);
+                          }}
+                        />
+                      </label>
+                    )}
                   </div>
                 </details>
               )}
@@ -12332,13 +12235,14 @@ export default function HomePage() {
                     <th>Badge</th>
                     <th>Email</th>
                     <th>Telepon</th>
+                    <th>Shift</th>
                     <th>Keterangan</th>
                   </tr>
                 </thead>
                 <tbody>
                   {modal.rows.length === 0 && (
                     <tr>
-                      <td colSpan={10} style={{ color: "var(--muted)" }}>
+                      <td colSpan={11} style={{ color: "var(--muted)" }}>
                         Tidak ada baris data di file.
                       </td>
                     </tr>
@@ -12387,6 +12291,7 @@ export default function HomePage() {
                       <td>{r.badge_id || "—"}</td>
                       <td>{r.email || "—"}</td>
                       <td>{r.phone || "—"}</td>
+                      <td>{r.shift_name || "—"}</td>
                       <td className="import-preview-note">
                         {r.error || (r.ok ? "Siap diimpor" : "")}
                       </td>
@@ -12688,10 +12593,6 @@ export default function HomePage() {
             {(busy || usersLoading) && <BusyOverlay />}
             <div className="master-head">
               <h3 id="master-users-title">Master User</h3>
-              <p className="master-lead">
-                Kelola akun login (tersimpan di tabel <code>users</code>{" "}
-                database).
-              </p>
               {error && <div className="error">{error}</div>}
               <div
                 className="panel-search-row"

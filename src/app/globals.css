@@ -4672,13 +4672,184 @@ html[data-theme='light'] .job-priority-pill--custom {
   text-align: right;
 }
 
-/* Master Handover: same grid as BACKUP DATA (.backup-table) on all sizes */
-.master-handover-table-wrap {
-  margin-top: 4px;
+.master-handover-toolbar {
+  align-items: center;
+  gap: 8px;
 }
 
-.master-handover-table {
-  min-width: 1120px;
+.master-col-settings {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.master-col-settings-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-1);
+  box-shadow: 0 10px 28px color-mix(in srgb, #000 18%, transparent);
+}
+
+.master-col-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.master-col-settings-hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.master-col-settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.master-col-settings-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+
+.master-col-settings-list li.is-hidden-col {
+  opacity: 0.55;
+}
+
+.master-col-settings-move {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.master-col-settings-move .btn {
+  min-width: 28px;
+  padding-inline: 6px;
+}
+
+.master-col-settings-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.master-col-settings-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.master-handover-table th.is-frozen-col,
+.master-handover-table td.is-frozen-col {
+  background: var(--bg-1);
+}
+
+/* Avoid double border / gap between adjacent frozen columns */
+.master-handover-table th.is-frozen-col + th.is-frozen-col,
+.master-handover-table td.is-frozen-col + td.is-frozen-col {
+  border-left-color: transparent;
+}
+
+.master-handover-table th.is-frozen-col.is-frozen-edge,
+.master-handover-table td.is-frozen-col.is-frozen-edge {
+  box-shadow: 1px 0 0 var(--line);
+}
+
+.master-handover-table thead th.is-frozen-col {
+  z-index: 3;
+  background: color-mix(in srgb, var(--bg-1) 88%, var(--bg-2));
+}
+
+.master-handover-table thead th.is-frozen-col.is-frozen-edge {
+  z-index: 4;
+}
+
+html[data-theme='light'] .master-handover-table th.is-frozen-col,
+html[data-theme='light'] .master-handover-table td.is-frozen-col {
+  background: var(--ds-white);
+}
+
+html[data-theme='light'] .master-handover-table thead th.is-frozen-col {
+  background: color-mix(in srgb, var(--ds-bg-hover) 70%, var(--ds-white));
+}
+
+/* Master Handover: constrained wrap scrolls X+Y; DragScroll enables mouse-drag pan.
+   min-width/min-height 0 so flex item shrinks and overflows instead of clipping. */
+.master-body.master-body--handover-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.master-body.master-body--handover-table .master-handover-table-wrap {
+  flex: 1 1 auto;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  margin-top: 4px;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  cursor: grab;
+}
+
+.master-body.master-body--handover-table .master-handover-table th,
+.master-body.master-body--handover-table .master-handover-table td {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.master-body.master-body--handover-table .master-handover-table .btn,
+.master-body.master-body--handover-table .master-handover-table button {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.master-body.master-body--handover-table .master-handover-table-wrap.is-drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.master-body.master-body--handover-table .master-handover-table-wrap.is-drag-scrolling * {
+  user-select: none !important;
+  cursor: grabbing !important;
+}
+
+.backup-table.master-handover-table {
+  min-width: 1400px;
+  width: max-content !important;
+  max-width: none !important;
 }
 
 .master-handover-table td.master-handover-mp {
@@ -4753,15 +4924,14 @@ html[data-theme='light'] .job-priority-pill--custom {
 
 /* Keep backup-style table (not card stack) on phone / tablet */
 @media (max-width: 1239px) {
-  .master-handover-table-wrap.backup-table-wrap {
+  .master-body.master-body--handover-table .master-handover-table-wrap.backup-table-wrap {
     display: block;
+    flex: 1 1 auto;
     width: 100%;
-    max-width: 100%;
     min-width: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    touch-action: pan-x pan-y;
+    min-height: 0;
+    max-width: 100%;
+    overflow: auto !important;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--bg-2);
@@ -4769,8 +4939,9 @@ html[data-theme='light'] .job-priority-pill--custom {
 
   .master-handover-table.backup-table {
     display: table;
-    width: 100%;
-    min-width: 1040px;
+    width: max-content;
+    max-width: none;
+    min-width: 1400px;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.85rem;
@@ -4866,17 +5037,14 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 @media (max-width: 599px) {
-  .master-handover-table-wrap.backup-table-wrap {
-    /* Keep horizontal scroll; isolate painting so cells don't bleed */
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
+  .master-body.master-body--handover-table .master-handover-table-wrap.backup-table-wrap {
+    overflow: auto !important;
     isolation: isolate;
   }
 
   .master-handover-table.backup-table {
-    min-width: 1100px;
+    min-width: 1400px;
+    width: max-content;
     font-size: 0.82rem;
   }
 
@@ -7715,6 +7883,17 @@ html.modal-open .topbar-glass {
     max-height: 100vh;
     max-height: 100dvh;
     border-radius: 0;
+    /* Keep clip on the shell; horizontal scroll lives on .master-body */
+    overflow: hidden;
+  }
+
+  .modal.master-screen .master-body.master-body--handover-table {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .modal.master-screen .master-body.master-body--handover-table .master-handover-table-wrap {
+    overflow: auto !important;
   }
 
   .import-preview-table {

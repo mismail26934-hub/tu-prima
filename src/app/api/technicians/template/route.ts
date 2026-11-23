@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { requirePermission } from "@/lib/access";
+import { listShifts, shiftLabel } from "@/lib/shifts";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,12 @@ export async function GET() {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "TU-PRIMA";
 
+  const shifts = await listShifts({ includeInactive: false });
+  const shiftNames = shifts
+    .map((s) => shiftLabel(s) || s.name || s.code)
+    .map((n) => String(n || "").trim())
+    .filter(Boolean);
+
   const sheet = workbook.addWorksheet("Teknisi");
   sheet.columns = [
     { header: "Nama", key: "name", width: 28 },
@@ -17,9 +24,13 @@ export async function GET() {
     { header: "Email", key: "email", width: 28 },
     { header: "Telepon", key: "phone", width: 20 },
     { header: "Status", key: "status", width: 16 },
+    { header: "Shift", key: "shift", width: 20 },
   ];
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:F1";
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: 7 },
+  };
   sheet.getRow(1).font = { bold: true, color: { argb: "FF111827" } };
   sheet.getRow(1).fill = {
     type: "pattern",
@@ -40,6 +51,22 @@ export async function GET() {
       errorTitle: "Status tidak valid",
       error: "Pilih available atau offline.",
     };
+    if (shiftNames.length) {
+      const escaped = shiftNames
+        .map((n) => n.replace(/"/g, '""'))
+        .join(",");
+      // Excel list validation formula max ~255 chars; skip dropdown if too long
+      if (escaped.length <= 240) {
+        sheet.getCell(`G${row}`).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [`"${escaped}"`],
+          showErrorMessage: true,
+          errorTitle: "Shift tidak valid",
+          error: "Pilih shift dari Master Shift.",
+        };
+      }
+    }
   }
 
   const guide = workbook.addWorksheet("Petunjuk");
@@ -68,6 +95,14 @@ export async function GET() {
     {
       column: "Status",
       rule: "Opsional: available atau offline. Jika kosong, teknisi baru menjadi available.",
+    },
+    {
+      column: "Shift",
+      rule: shiftNames.length
+        ? `Opsional. Nama atau kode shift harus sama dengan Master Shift (contoh: ${shiftNames
+            .slice(0, 5)
+            .join(", ")}). Disimpan ke akun login teknisi.`
+        : "Opsional. Isi nama/kode shift dari Master Shift. Disimpan ke akun login teknisi. (Belum ada shift aktif di Master Shift.)",
     },
   ]);
   guide.getRow(1).font = { bold: true };

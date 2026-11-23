@@ -60,7 +60,10 @@ import {
   stepTechnicianNames,
 } from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
-import { formatHandoverDate } from "@/lib/handover-form-format";
+import {
+  formatHandoverDate,
+  unitNoFromJob,
+} from "@/lib/handover-form-format";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
@@ -73,7 +76,12 @@ import {
   type TechStatusFilter,
 } from "@/store/dashboardFiltersStore";
 import { useT } from "@/i18n/useT";
-import { EditIcon, TrashIcon } from "@/components/ActionIcons";
+import {
+  CloseIcon,
+  EditIcon,
+  ExportIcon,
+  TrashIcon,
+} from "@/components/ActionIcons";
 import { BoardTopbar } from "@/components/BoardTopbar";
 import { JobBackupPage } from "@/components/JobBackupPage";
 import { SearchIcon } from "@/components/SearchIcon";
@@ -315,6 +323,7 @@ type Modal =
   | { type: "backups" }
   | { type: "export-jobs" }
   | { type: "export-jobs-confirm" }
+  | { type: "handovers" }
   | { type: "handover-form-export" }
   | { type: "handover-form"; job: JobWithDetails }
   | { type: "handover-plan-mp"; job: JobWithDetails }
@@ -389,7 +398,12 @@ function activeNavForModal(modal: Modal): string | null {
     case "export-jobs":
     case "export-jobs-confirm":
       return "export";
+    case "handovers":
     case "handover-form-export":
+    case "handover-form":
+    case "handover-plan-mp":
+    case "handover-pick-steps":
+    case "handover-to":
       return "handoverForm";
     case "backups":
       return "backup";
@@ -1212,6 +1226,9 @@ export default function HomePage() {
   const [handoverFormDate, setHandoverFormDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  const [handoversMasterQ, setHandoversMasterQ] = useState("");
+  const [handoversMasterQDraft, setHandoversMasterQDraft] = useState("");
+  const [handoverFormFromMaster, setHandoverFormFromMaster] = useState(false);
   const [handoverFormEditor, setHandoverFormEditor] = useState<{
     jobId: string;
     mode: "create" | "edit";
@@ -1265,6 +1282,14 @@ export default function HomePage() {
     modal?.type === "shifts" ||
     modal?.type === "shift-form" ||
     modal?.type === "delete-shift";
+  const handoversMasterOpen =
+    modal?.type === "handovers" ||
+    (handoverFormFromMaster &&
+      (modal?.type === "handover-form" ||
+        modal?.type === "handover-form-export" ||
+        modal?.type === "handover-plan-mp" ||
+        modal?.type === "handover-pick-steps" ||
+        modal?.type === "handover-to"));
   const prioritiesModalOpen =
     modal?.type === "priorities" ||
     modal?.type === "priority-form" ||
@@ -3602,13 +3627,39 @@ export default function HomePage() {
     }
   }
 
-  function openHandoverFormExport() {
+  function openHandoversMaster() {
     if (!isLoggedIn) {
       setError(t("nav.exportNeedLogin"));
       return;
     }
-    setHandoverFormDate(new Date().toISOString().slice(0, 10));
+    setHandoverFormFromMaster(false);
+    setHandoversMasterQDraft(handoversMasterQ);
+    if (!handoverFormDate) {
+      setHandoverFormDate(new Date().toISOString().slice(0, 10));
+    }
+    setModal({ type: "handovers" });
+  }
+
+  function openHandoverFormExport(opts?: { fromMaster?: boolean }) {
+    if (!isLoggedIn) {
+      setError(t("nav.exportNeedLogin"));
+      return;
+    }
+    setHandoverFormFromMaster(Boolean(opts?.fromMaster));
+    if (!handoverFormDate) {
+      setHandoverFormDate(new Date().toISOString().slice(0, 10));
+    }
     setModal({ type: "handover-form-export" });
+  }
+
+  function returnFromHandoverForm() {
+    setHandoverFormEditor(null);
+    if (handoverFormFromMaster) {
+      setHandoverFormFromMaster(false);
+      setModal({ type: "handovers" });
+      return;
+    }
+    closeModal();
   }
 
   function handoverCandidateSteps(
@@ -3668,15 +3719,22 @@ export default function HomePage() {
     reopenHandoverFormModal(job);
   }
 
-  function openHandoverFormCreate(job: JobWithDetails) {
+  function openHandoverFormCreate(
+    job: JobWithDetails,
+    opts?: { fromMaster?: boolean; shiftDate?: string }
+  ) {
     const from = currentHandoverFrom();
     resetPlanMpPicker();
+    setHandoverFormFromMaster(Boolean(opts?.fromMaster));
     setHandoverFormEditor({
       jobId: job.id,
       mode: "create",
       draft: {
         title: "",
-        shift_date: new Date().toISOString().slice(0, 10),
+        shift_date:
+          opts?.shiftDate ||
+          handoverFormDate ||
+          new Date().toISOString().slice(0, 10),
         from_name: from.from_name,
         from_user_id: from.from_user_id,
         to_name: "",
@@ -3691,9 +3749,14 @@ export default function HomePage() {
     setModal({ type: "handover-form", job });
   }
 
-  function openHandoverFormEdit(job: JobWithDetails, row: HandoverLocalRow) {
+  function openHandoverFormEdit(
+    job: JobWithDetails,
+    row: HandoverLocalRow,
+    opts?: { fromMaster?: boolean }
+  ) {
     const server = (job.handovers || []).find((h) => h.id === row.id);
     resetPlanMpPicker();
+    setHandoverFormFromMaster(Boolean(opts?.fromMaster));
     setHandoverFormEditor({
       jobId: job.id,
       mode: "edit",
@@ -3702,6 +3765,7 @@ export default function HomePage() {
         title: row.title || "",
         shift_date:
           server?.shift_date ||
+          handoverFormDate ||
           new Date().toISOString().slice(0, 10),
         from_name: row.from_name || "",
         from_user_id: row.from_user_id || "",
@@ -3718,8 +3782,7 @@ export default function HomePage() {
   }
 
   function closeHandoverFormEditor() {
-    setHandoverFormEditor(null);
-    closeModal();
+    returnFromHandoverForm();
   }
 
   function openHandoverPickStepsModal(
@@ -3808,7 +3871,6 @@ export default function HomePage() {
           body: JSON.stringify(body),
         });
       }
-      setHandoverFormEditor(null);
       setHandoverComposeByJob((prev) => {
         const next = { ...prev };
         delete next[job.id];
@@ -3819,7 +3881,7 @@ export default function HomePage() {
         delete next[job.id];
         return next;
       });
-      closeModal();
+      returnFromHandoverForm();
       await invalidateDashboard();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal simpan handover");
@@ -4672,6 +4734,15 @@ export default function HomePage() {
     enabled: showCancelledJobs,
     cursor: cancelledJobCursors[cancelledJobPage - 1] ?? null,
   });
+  const handoversMasterQuery = useJobsList({
+    section: "active",
+    page: 1,
+    limit: 100,
+    q: handoversMasterQ,
+    ownership: "all",
+    enabled: isLoggedIn && (modal?.type === "handovers" || handoversMasterOpen),
+  });
+  const handoversMasterJobs = handoversMasterQuery.data?.items || [];
   const sliderJobsQuery = useActiveJobsSlider({
     q: jobQuery,
     ownership: jobOwnershipFilter,
@@ -6085,7 +6156,7 @@ export default function HomePage() {
                     type="button"
                     className="btn"
                     disabled={busy}
-                    onClick={openHandoverFormExport}
+                    onClick={() => openHandoverFormExport()}
                   >
                     {t("job.handoverFormExport")}
                   </button>
@@ -6746,7 +6817,7 @@ export default function HomePage() {
         onTemplatesMaster={openTemplatesMaster}
         onAttendance={() => setModal({ type: "attendance" })}
         onExportExcel={openExportJobsModal}
-        onHandoverForm={openHandoverFormExport}
+        onHandoverForm={openHandoversMaster}
         onJobBackups={() => void openJobBackupsModal()}
         onEditProfile={() => void openEditProfile()}
         onChangePassword={openChangePassword}
@@ -7322,8 +7393,250 @@ export default function HomePage() {
         </>
       )}
 
+      {modal?.type === "handovers" && (
+        <div className="modal-backdrop master-backdrop" onClick={closeModal}>
+          <div
+            className="modal master-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="master-handovers-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(busy || handoversMasterQuery.isLoading) && <BusyOverlay />}
+            <div className="master-head">
+              <h3 id="master-handovers-title">{t("master.handoverTitle")}</h3>
+              <p className="master-lead">{t("master.handoverHint")}</p>
+              {error && <div className="error">{error}</div>}
+              <div
+                className="panel-search-row"
+                style={{ justifyContent: "stretch", flexWrap: "wrap" }}
+              >
+                <div className="search-pair">
+                  <input
+                    className="panel-search"
+                    style={{ maxWidth: "none", flex: 1 }}
+                    type="search"
+                    value={handoversMasterQDraft}
+                    disabled={busy}
+                    placeholder={t("master.handoverSearch")}
+                    aria-label={t("master.handoverSearch")}
+                    onChange={(e) => setHandoversMasterQDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        setHandoversMasterQ(handoversMasterQDraft.trim());
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    aria-label={t("master.handoverSearch")}
+                    onClick={() =>
+                      setHandoversMasterQ(handoversMasterQDraft.trim())
+                    }
+                  >
+                    <SearchIcon />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="master-body">
+              {handoversMasterJobs.length === 0 ? (
+                <span style={{ color: "var(--muted)" }}>
+                  {t("master.handoverEmpty")}
+                </span>
+              ) : (
+                <div className="backup-table-wrap master-handover-table-wrap">
+                  <table className="backup-table master-handover-table">
+                    <thead>
+                      <tr>
+                        <th className="col-no">NO</th>
+                        <th>{t("master.handoverUnitNo")}</th>
+                        <th>{t("master.handoverUnitIn")}</th>
+                        <th>{t("job.customer")}</th>
+                        <th>{t("job.description")}</th>
+                        <th>{t("job.shiftDate")}</th>
+                        <th>{t("job.handoverFrom")}</th>
+                        <th>{t("job.handoverTo")}</th>
+                        <th>{t("job.progressText")}</th>
+                        <th>{t("job.handoverText")}</th>
+                        <th className="col-done">Done</th>
+                        <th className="col-act">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        let rowNo = 0;
+                        return handoversMasterJobs.flatMap((job) => {
+                          const writeOk = canNotesWriteForJob(job);
+                          const unitNo = unitNoFromJob(job);
+                          const unitIn =
+                            formatHandoverDate(String(job.arrived_at || "")) ||
+                            "—";
+                          const customer = String(job.customer || "").trim() || "—";
+                          const jobLabel = [
+                            job.title,
+                            job.priority,
+                            job.status,
+                          ]
+                            .map((p) => String(p || "").trim())
+                            .filter(Boolean)
+                            .join(" · ");
+                          const handovers = [...(job.handovers || [])].sort(
+                            (a, b) => a.order - b.order
+                          );
+                          const addBtn = (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              disabled={busy || !writeOk}
+                              title={
+                                writeOk
+                                  ? t("job.handoverFormCreateTitle")
+                                  : t("master.handoverNeedStart")
+                              }
+                              aria-label="+ Tambah"
+                              onClick={() =>
+                                openHandoverFormCreate(job, {
+                                  fromMaster: true,
+                                })
+                              }
+                            >
+                              <span aria-hidden="true">+</span>
+                              <span className="btn-label">Tambah</span>
+                            </button>
+                          );
+                          if (!handovers.length) {
+                            rowNo += 1;
+                            return [
+                              <tr key={`${job.id}-empty`}>
+                                <td className="col-no">{rowNo}</td>
+                                <td>
+                                  <strong>{unitNo}</strong>
+                                </td>
+                                <td>{unitIn}</td>
+                                <td>{customer}</td>
+                                <td>
+                                  <span className="master-handover-job-label">
+                                    {jobLabel}
+                                  </span>
+                                </td>
+                                <td colSpan={6} className="master-handover-empty">
+                                  {t("master.handoverNoRows")}
+                                </td>
+                                <td className="col-act">
+                                  <div className="master-handover-actions">
+                                    {addBtn}
+                                  </div>
+                                </td>
+                              </tr>,
+                            ];
+                          }
+                          return handovers.map((h, idx) => {
+                            rowNo += 1;
+                            const localRow: HandoverLocalRow = {
+                              key: h.id,
+                              id: h.id,
+                              order: h.order,
+                              title: h.title || "",
+                              shift_date: h.shift_date || "",
+                              from_name: h.from_name || "",
+                              from_user_id: h.from_user_id || "",
+                              to_name: h.to_name || "",
+                              to_user_id: h.to_user_id || "",
+                              note: h.note || "",
+                              progress_text: h.progress_text || "",
+                              handover_text: h.handover_text || "",
+                              plan_technician_ids:
+                                h.plan_technician_ids || [],
+                              done: h.done === "1",
+                            };
+                            return (
+                              <tr
+                                key={h.id}
+                                className={h.done === "1" ? "is-done" : undefined}
+                              >
+                                <td className="col-no">{rowNo}</td>
+                                <td>
+                                  <strong>{unitNo}</strong>
+                                </td>
+                                <td>{unitIn}</td>
+                                <td>{customer}</td>
+                                <td>
+                                  <span className="master-handover-job-label">
+                                    {jobLabel}
+                                  </span>
+                                </td>
+                                <td>{h.shift_date || "—"}</td>
+                                <td>{h.from_name || "—"}</td>
+                                <td>{h.to_name || "—"}</td>
+                                <td className="master-handover-multiline">
+                                  {h.progress_text || "—"}
+                                </td>
+                                <td className="master-handover-multiline">
+                                  {h.handover_text || "—"}
+                                </td>
+                                <td className="col-done">
+                                  {h.done === "1" ? "Yes" : "No"}
+                                </td>
+                                <td className="col-act">
+                                  <div className="master-handover-actions">
+                                    {idx === 0 ? addBtn : null}
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-edit"
+                                      disabled={busy || !writeOk}
+                                      onClick={() =>
+                                        openHandoverFormEdit(job, localRow, {
+                                          fromMaster: true,
+                                        })
+                                      }
+                                    >
+                                      <EditIcon />
+                                      <span className="btn-label">Ubah</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="master-foot actions">
+              <button className="btn" type="button" onClick={closeModal}>
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={busy || !handoverFormDate}
+                onClick={() => openHandoverFormExport({ fromMaster: true })}
+              >
+                <ExportIcon />
+                <span className="btn-label">{t("master.handoverExport")}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal?.type === "handover-form-export" && (
-        <div className="modal-backdrop manage-dialog" onClick={closeModal}>
+        <div
+          className="modal-backdrop manage-dialog"
+          onClick={() =>
+            handoverFormFromMaster
+              ? setModal({ type: "handovers" })
+              : closeModal()
+          }
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t("handoverForm.title")}</h3>
             <p style={{ color: "var(--muted)", marginTop: 0 }}>
@@ -7341,7 +7654,15 @@ export default function HomePage() {
                 />
               </label>
               <div className="actions">
-                <button className="btn" type="button" onClick={closeModal}>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() =>
+                    handoverFormFromMaster
+                      ? setModal({ type: "handovers" })
+                      : closeModal()
+                  }
+                >
                   Batal
                 </button>
                 <button
@@ -8478,19 +8799,22 @@ export default function HomePage() {
               </label>
               <label>
                 {t("job.priority")}
-                <select
+                <SearchableSelect
                   value={form.priority || ""}
-                  onChange={(e) => setForm({ priority: e.target.value })}
-                >
-                  <option value="">{t("job.priorityNone")}</option>
-                  {prioritySelectOptions(form.priority).map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.name && p.name !== p.code
+                  size="lg"
+                  placeholder={t("job.priorityNone")}
+                  emptyMessage="Tidak ada prioritas yang cocok"
+                  aria-label={t("job.priority")}
+                  options={prioritySelectOptions(form.priority).map((p) => ({
+                    value: p.code,
+                    label:
+                      p.name && p.name !== p.code
                         ? `${p.code} — ${p.name}`
-                        : p.code}
-                    </option>
-                  ))}
-                </select>
+                        : p.code,
+                    searchText: `${p.code} ${p.name || ""}`,
+                  }))}
+                  onChange={(next) => setForm({ priority: next })}
+                />
               </label>
               <label>
                 Unit *
@@ -10114,7 +10438,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -10466,7 +10791,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -10667,7 +10993,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -10851,7 +11178,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -11070,6 +11398,7 @@ export default function HomePage() {
                 style={{ justifyContent: "stretch", flexWrap: "wrap" }}
               >
                 <select
+                  className="master-filter-select"
                   value={templateCategoryFilter}
                   onChange={(e) =>
                     setTemplateCategoryFilter(
@@ -11077,7 +11406,6 @@ export default function HomePage() {
                     )
                   }
                   aria-label="Filter jenis komponen"
-                  style={{ minWidth: 180 }}
                 >
                   <option value="">Semua jenis</option>
                   <option value="engine">Component Engine</option>
@@ -11167,15 +11495,16 @@ export default function HomePage() {
                     >
                       <button
                         type="button"
-                        className="btn"
-                        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        className="btn btn-sm"
                         disabled={busy}
                         title="Unduh Excel data template ini"
+                        aria-label="Excel"
                         onClick={() =>
                           void downloadTemplatesDataExcel({ id: tpl.id })
                         }
                       >
-                        Excel
+                        <ExportIcon />
+                        <span className="btn-label">Excel</span>
                       </button>
                       <button
                         className="btn btn-sm btn-edit"
@@ -11219,7 +11548,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -11900,7 +12230,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -12464,7 +12795,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"
@@ -12764,9 +13096,9 @@ export default function HomePage() {
                 style={{ justifyContent: "stretch", flexWrap: "wrap" }}
               >
                 <select
+                  className="master-filter-select"
                   value={attendanceDateFilter}
                   onChange={(e) => setAttendanceDateFilter(e.target.value)}
-                  style={{ maxWidth: 160 }}
                   aria-label="Filter tanggal"
                 >
                   <option value="">Semua tanggal</option>
@@ -12887,7 +13219,8 @@ export default function HomePage() {
             </div>
             <div className="master-foot actions">
               <button className="btn" onClick={closeModal}>
-                Tutup
+                <CloseIcon />
+                <span className="btn-label">Tutup</span>
               </button>
               <button
                 className="btn btn-primary"

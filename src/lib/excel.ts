@@ -2306,9 +2306,9 @@ export async function createJobHandover(input: {
     const jobs = readRows(getSheet(wb, SHEETS.jobs)).map(mapJob);
     const job = jobs.find((j) => j.id === input.job_id);
     if (!job) throw new Error("Job not found");
-    if (!["in_progress", "paused", "done"].includes(job.status)) {
+    if (!["assigned", "in_progress", "paused", "done"].includes(job.status)) {
       throw new Error(
-        "Handover hanya untuk job in_progress / paused / done"
+        "Handover hanya untuk job assigned / in_progress / paused / done"
       );
     }
     const assignees = loadAssignees(wb, jobs);
@@ -2447,9 +2447,9 @@ export async function updateJobHandover(
     if (!row) throw new Error("Handover tidak ditemukan");
     const job = jobs.find((j) => j.id === row.job_id);
     if (!job) throw new Error("Job not found");
-    if (!["in_progress", "paused", "done"].includes(job.status)) {
+    if (!["assigned", "in_progress", "paused", "done"].includes(job.status)) {
       throw new Error(
-        "Handover hanya bisa diubah pada job in_progress / paused / done"
+        "Handover hanya bisa diubah pada job assigned / in_progress / paused / done"
       );
     }
     const assignees = loadAssignees(wb, jobs);
@@ -2580,10 +2580,10 @@ export async function deleteJobHandover(
     const job = jobs.find((j) => j.id === row.job_id);
     if (
       job &&
-      !["in_progress", "paused", "done"].includes(job.status)
+      !["assigned", "in_progress", "paused", "done"].includes(job.status)
     ) {
       throw new Error(
-        "Handover hanya bisa dihapus pada job in_progress / paused / done"
+        "Handover hanya bisa dihapus pada job assigned / in_progress / paused / done"
       );
     }
     const assignees = job ? loadAssignees(wb, jobs) : [];

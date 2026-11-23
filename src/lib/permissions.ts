@@ -140,7 +140,12 @@ export function canManageHandover(level: AccessLevel | undefined): boolean {
   return level === "foreman";
 }
 
-const JOB_NOTES_STATUSES = new Set(["in_progress", "paused", "done"]);
+const JOB_NOTES_STATUSES = new Set([
+  "assigned",
+  "in_progress",
+  "paused",
+  "done",
+]);
 
 /** Foreman who controls the job, or a technician assigned to it, may add/edit notes. */
 export function canWriteJobNotes(

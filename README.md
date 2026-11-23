@@ -366,6 +366,17 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** 
 
 API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[handoverId]`
 
+### Master Handover (Kelola)
+
+UI: **Kelola → Master Handover**. Satu layar untuk **banyak job aktif** (belum completed):
+
+- Cari unit/judul
+- Tiap baris: **Unit No** (dari job), **Unit in** (`arrived_at`), customer, status
+- Tabel semua catatan handover job → **+ Tambah / Ubah** membuka form yang sama dengan Catatan handover di kartu job (tersimpan ke `job_handovers`)
+- **Export Form** → PDF/Excel multi-unit
+
+Alur: Master Handover → isi Progress/Hand Over per unit → muncul di **Catatan handover** job terkait → export agregat.
+
 ### Laporan Hand Over Form
 
 Laporan harian crew + unit aktif (PDF/Excel):
@@ -980,6 +991,7 @@ Warna UI (background, text, button) mengikuti **Design System TU Color Guideline
 - **Master Customer** + **Master Shift**; User `shift_id`; Teknisi `user_id` + buat dari kandidat Master User; shift tampil di board teknisi
 - **Job**: Customer, SMU, Arrived / Promise / Est Revision / Release, Foto job (maks. 6) di form + kartu
 - **Hand Over Form** digabung ke `job_handovers` (per `shift_date`, from/to, progress/handover/plan MP) + laporan PDF/Excel `/api/reports/handover-form`
+- **Master Handover** (Kelola): multi-unit job aktif → Tambah/Ubah mengisi Catatan handover per job; Unit No dari job, Unit in dari Arrived; export form dari master
 - **Job Report PDF**: meta Customer/SMU/tanggal (label kiri, `:` sejajar); footer `TU-PRIMA · Job Report` + Dibuat/Start satu baris + Selesai; Pending → Teknisi blank; Note/Bukti kosong → blank; halaman **Foto job** di atas Lampiran bukti step
 - Tombol **Cari** ikon-only; alert navbar flyout via portal (tidak terpotong sidebar)
 - **Tema Light / Dark**: CSS button / text / background diselaraskan dengan Design System TU (`tu-rental`); token di `src/styles/ds-tokens.css`

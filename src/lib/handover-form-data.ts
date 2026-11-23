@@ -1,7 +1,10 @@
 import type mysql from "mysql2/promise";
 import { getPool } from "@/db/mysql-workbook";
 import { listJobsForExport } from "@/lib/board-list";
-import { formatHandoverDate } from "@/lib/handover-form-format";
+import {
+  formatHandoverDate,
+  unitNoFromJob,
+} from "@/lib/handover-form-format";
 import type {
   Attendance,
   AttendanceStatus,
@@ -9,7 +12,7 @@ import type {
   Technician,
 } from "@/lib/types";
 
-export { formatHandoverDate } from "@/lib/handover-form-format";
+export { formatHandoverDate, unitNoFromJob } from "@/lib/handover-form-format";
 
 export type HandoverFormCrewMember = {
   name: string;
@@ -45,13 +48,6 @@ export function resolveEstDt(job: Pick<JobWithDetails, "est_revision_at" | "prom
   const rev = String(job.est_revision_at || "").trim();
   if (rev) return formatHandoverDate(rev);
   return formatHandoverDate(String(job.promise_at || ""));
-}
-
-export function unitNoFromJob(job: Pick<JobWithDetails, "unit">): string {
-  const label = String(job.unit || "").trim();
-  if (!label) return "—";
-  const parts = label.split(/\s*[—–-]\s*/);
-  return (parts[0] || label).trim() || "—";
 }
 
 function linesFromText(text: string): string[] {

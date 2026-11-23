@@ -1,3 +1,5 @@
+/** Browser-safe helpers for Hand Over Form display (no Node/mysql). */
+
 const MONTHS = [
   "Jan",
   "Feb",
@@ -12,6 +14,14 @@ const MONTHS = [
   "Nov",
   "Dec",
 ] as const;
+
+/** Unit number for Hand Over Form rows (code before em/en dash). */
+export function unitNoFromJob(job: { unit?: string }): string {
+  const label = String(job.unit || "").trim();
+  if (!label) return "—";
+  const parts = label.split(/\s*[—–-]\s*/);
+  return (parts[0] || label).trim() || "—";
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");

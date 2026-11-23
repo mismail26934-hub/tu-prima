@@ -22,11 +22,12 @@ type Props = {
 };
 
 type FlyoutPos = { top: number; left: number; width: number };
+type SectionTone = "handover" | "open" | "priority";
 
 function placeAlertsFlyout(trigger: DOMRect): FlyoutPos {
   const margin = 16;
   const gap = 10;
-  const width = Math.min(360, Math.max(280, window.innerWidth - margin * 2));
+  const width = Math.min(400, Math.max(300, window.innerWidth - margin * 2));
   const estHeight = Math.min(560, window.innerHeight - margin * 2);
   let left = trigger.right + gap;
   if (left + width > window.innerWidth - margin) {
@@ -53,34 +54,89 @@ function AlertSection({
   count,
   items,
   empty,
+  tone,
+  openLabel,
   onPick,
 }: {
   title: string;
   count: number;
   items: NavAlertItem[];
   empty: string;
+  tone: SectionTone;
+  openLabel: string;
   onPick: (item: NavAlertItem) => void;
 }) {
+  const hasItems = items.length > 0;
   return (
-    <section className="nav-alerts-section">
-      <h4>
-        {title}
-        <span>{count}</span>
-      </h4>
-      {items.length ? (
-        items.map((item) => (
-          <button
-            key={`${item.kind}-${item.jobId}-${item.subtitle}`}
-            type="button"
-            className="nav-alerts-item"
-            onClick={() => onPick(item)}
-          >
-            <strong>
-              {item.unit ? `${item.unit} — ${item.title}` : item.title}
-            </strong>
-            {item.subtitle ? <span>{item.subtitle}</span> : null}
-          </button>
-        ))
+    <section
+      className={`nav-alerts-section nav-alerts-section--${tone}${
+        hasItems ? "" : " is-empty"
+      }`}
+    >
+      <header className="nav-alerts-section-head">
+        <h4>{title}</h4>
+        <span
+          className={`nav-alerts-count${count > 0 ? " is-active" : ""}`}
+          aria-label={`${count}`}
+        >
+          {count}
+        </span>
+      </header>
+      {hasItems ? (
+        <ul className="nav-alerts-items">
+          {items.map((item) => {
+            const primary = item.unit
+              ? `${item.unit} — ${item.title}`
+              : item.title;
+            const chips = [
+              item.status && item.status !== item.subtitle
+                ? item.status
+                : null,
+              item.priority &&
+              item.kind !== "priority" &&
+              item.priority !== item.subtitle
+                ? item.priority
+                : null,
+            ].filter(Boolean) as string[];
+            return (
+              <li key={`${item.kind}-${item.jobId}-${item.subtitle}-${item.meta || ""}`}>
+                <button
+                  type="button"
+                  className="nav-alerts-item"
+                  onClick={() => onPick(item)}
+                  title={openLabel}
+                >
+                  <span className="nav-alerts-item-main">
+                    {item.unit ? (
+                      <span className="nav-alerts-unit">{item.unit}</span>
+                    ) : null}
+                    <strong className="nav-alerts-item-title">
+                      {item.unit ? item.title : primary}
+                    </strong>
+                  </span>
+                  {item.subtitle ? (
+                    <span className="nav-alerts-item-sub">{item.subtitle}</span>
+                  ) : null}
+                  {item.meta ? (
+                    <span className="nav-alerts-item-meta">{item.meta}</span>
+                  ) : null}
+                  {chips.length ? (
+                    <span className="nav-alerts-item-chips">
+                      {chips.map((chip) => (
+                        <span key={chip} className="nav-alerts-chip">
+                          {chip}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                  <span className="nav-alerts-item-go" aria-hidden="true">
+                    →
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       ) : (
         <p className="nav-alerts-empty">{empty}</p>
       )}
@@ -172,13 +228,41 @@ export function NavAlerts({
     onOpenJob(item.jobId, item.kind);
   };
 
+  const openLabel = t("nav.alertsOpenJob");
+
+  const summary = (
+    <header className="nav-alerts-summary">
+      <div className="nav-alerts-summary-text">
+        <p className="nav-alerts-summary-title">{t("nav.alerts")}</p>
+        <p className="nav-alerts-summary-hint">{t("nav.alertsSummary")}</p>
+      </div>
+      <div className="nav-alerts-summary-stats" aria-label={t("nav.alertsTotal", { count: total })}>
+        <span className={`nav-alerts-stat${payload.openHandovers ? " is-warn" : ""}`}>
+          <em>{payload.openHandovers}</em>
+          <small>HO</small>
+        </span>
+        <span className={`nav-alerts-stat${payload.openJobs ? " is-info" : ""}`}>
+          <em>{payload.openJobs}</em>
+          <small>Job</small>
+        </span>
+        <span className={`nav-alerts-stat${total ? " is-total" : ""}`}>
+          <em>{total}</em>
+          <small>All</small>
+        </span>
+      </div>
+    </header>
+  );
+
   const sections = (
     <>
+      {summary}
       <AlertSection
         title={t("nav.alertsHandover")}
         count={payload.openHandovers}
         items={payload.items.handover}
         empty={t("nav.alertsHandoverEmpty")}
+        tone="handover"
+        openLabel={openLabel}
         onPick={pick}
       />
       <AlertSection
@@ -186,6 +270,8 @@ export function NavAlerts({
         count={payload.openJobs}
         items={payload.items.openJob}
         empty={t("nav.alertsOpenJobsEmpty")}
+        tone="open"
+        openLabel={openLabel}
         onPick={pick}
       />
       {(payload.priorityGroups?.length
@@ -225,6 +311,8 @@ export function NavAlerts({
           empty={t("nav.alertsPriorityEmpty", {
             name: group.name || group.code,
           })}
+          tone="priority"
+          openLabel={openLabel}
           onPick={pick}
         />
       ))}

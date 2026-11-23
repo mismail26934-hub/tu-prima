@@ -13,6 +13,12 @@ export type NavAlertItem = {
   title: string;
   unit: string;
   subtitle: string;
+  /** Job status label (e.g. In progress) */
+  status?: string;
+  /** Priority code (e.g. WARRANTY, P1) */
+  priority?: string;
+  /** Extra context line (customer, shift date, etc.) */
+  meta?: string;
 };
 
 export type NavAlertPriorityGroup = {

@@ -825,19 +825,35 @@ async function viewerAlertJobScope(): Promise<{
   sql: string;
   params: unknown[];
   aliasSql: (alias: string) => { sql: string; params: unknown[] };
+  /** Open handovers visible to viewer (owned jobs + directed to them). */
+  handoverWhere: (jobAlias: string) => { sql: string; params: unknown[] };
 }> {
   const { auth } = await import("@/auth");
   const session = await auth();
   const level = session?.user?.level;
-  const userId = String(session?.user?.id || "");
+  const userId = String(session?.user?.id || "").trim();
+  const userName = String(session?.user?.name || "").trim();
+  const userLogin = String(session?.user?.email || "").trim(); // username stored as email
+  const nameNeedles = Array.from(
+    new Set(
+      [userName, userLogin]
+        .map((s) => s.toLowerCase())
+        .filter(Boolean)
+    )
+  );
+
+  const emptyHandover = () => ({ sql: "1=0", params: [] as unknown[] });
+
   if (level !== "teknisi" && level !== "foreman") {
     return {
       allowed: false,
       sql: "",
       params: [],
       aliasSql: () => ({ sql: "", params: [] }),
+      handoverWhere: emptyHandover,
     };
   }
+
   if (level === "teknisi") {
     const techId = await technicianIdByUserId(userId);
     const scoped = technicianAssigneeWhere(techId || "", "jobs");
@@ -846,8 +862,31 @@ async function viewerAlertJobScope(): Promise<{
       sql: scoped.sql,
       params: scoped.params,
       aliasSql: (alias: string) => technicianAssigneeWhere(techId || "", alias),
+      // Teknisi: handovers on jobs they are assigned to, or directed to them
+      handoverWhere: (jobAlias: string) => {
+        const jobScoped = technicianAssigneeWhere(techId || "", jobAlias);
+        const directed: string[] = [];
+        const params: unknown[] = [...jobScoped.params];
+        if (userId) {
+          directed.push("h.to_user_id = ?");
+          params.push(userId);
+        }
+        for (const needle of nameNeedles) {
+          directed.push("LOWER(TRIM(h.to_name)) = ?");
+          params.push(needle);
+        }
+        if (!directed.length) {
+          return { sql: jobScoped.sql, params: jobScoped.params };
+        }
+        return {
+          sql: `((${jobScoped.sql}) OR ${directed.join(" OR ")})`,
+          params,
+        };
+      },
     };
   }
+
+  // Foreman: jobs they control, plus handovers directed to them (even on others' jobs)
   return {
     allowed: true,
     sql: "(jobs.assigned_by_user_id = ? OR jobs.delegated_to_user_id = ?)",
@@ -856,6 +895,26 @@ async function viewerAlertJobScope(): Promise<{
       sql: `(${alias}.assigned_by_user_id = ? OR ${alias}.delegated_to_user_id = ?)`,
       params: [userId, userId],
     }),
+    handoverWhere: (jobAlias: string) => {
+      const owned = `(${jobAlias}.assigned_by_user_id = ? OR ${jobAlias}.delegated_to_user_id = ?)`;
+      const params: unknown[] = [userId, userId];
+      const directed: string[] = [];
+      if (userId) {
+        directed.push("h.to_user_id = ?");
+        params.push(userId);
+      }
+      for (const needle of nameNeedles) {
+        directed.push("LOWER(TRIM(h.to_name)) = ?");
+        params.push(needle);
+      }
+      if (!directed.length) {
+        return { sql: owned, params: [userId, userId] };
+      }
+      return {
+        sql: `(${owned} OR ${directed.join(" OR ")})`,
+        params,
+      };
+    },
   };
 }
 
@@ -879,12 +938,18 @@ function mapAlertJob(
   kind: NavAlertItem["kind"],
   subtitle: string
 ): NavAlertItem {
+  const customer = str(row.customer);
+  const status = alertStatusLabel(str(row.status));
+  const priority = str(row.priority).toUpperCase();
   return {
     kind,
     jobId: str(row.id || row.job_id),
     title: str(row.title || row.job_title),
     unit: str(row.unit_label || row.unit),
     subtitle,
+    status: status !== "—" ? status : undefined,
+    priority: priority || undefined,
+    meta: customer || undefined,
   };
 }
 
@@ -896,8 +961,9 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
   const openPh = OPEN_JOB_STATUSES.map(() => "?").join(",");
   const urgentPh = URGENT_JOB_STATUSES.map(() => "?").join(",");
   const jScope = scope.aliasSql("j");
+  const hScope = scope.handoverWhere("j");
   const jobsScopeSql = scope.sql ? ` AND ${scope.sql}` : "";
-  const jScopeSql = jScope.sql ? ` AND ${jScope.sql}` : "";
+  const handoverScopeSql = hScope.sql ? ` AND ${hScope.sql}` : "";
 
   const [
     [handoverCountRows],
@@ -910,17 +976,19 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
       `SELECT COUNT(*) AS cnt
        FROM job_handovers h
        INNER JOIN jobs j ON j.id = h.job_id
-       WHERE h.done = 0 AND j.job_scope = 'active'${jScopeSql}`,
-      jScope.params
+       WHERE h.done = 0 AND j.job_scope = 'active'${handoverScopeSql}`,
+      hScope.params
     ),
     p.query<mysql.RowDataPacket[]>(
-      `SELECT h.id, h.job_id, h.title, h.to_name, j.title AS job_title, j.unit_label
+      `SELECT h.id, h.job_id, h.title, h.from_name, h.to_name, h.shift_date,
+              j.title AS job_title, j.unit_label, j.customer_label AS customer,
+              j.status, j.priority
        FROM job_handovers h
        INNER JOIN jobs j ON j.id = h.job_id
-       WHERE h.done = 0 AND j.job_scope = 'active'${jScopeSql}
+       WHERE h.done = 0 AND j.job_scope = 'active'${handoverScopeSql}
        ORDER BY h.updated_at DESC, h.handover_order DESC
        LIMIT ?`,
-      [...jScope.params, ALERT_LIST_LIMIT]
+      [...hScope.params, ALERT_LIST_LIMIT]
     ),
     p.query<mysql.RowDataPacket[]>(
       `SELECT COUNT(*) AS cnt
@@ -929,7 +997,7 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
       [...OPEN_JOB_STATUSES, ...scope.params]
     ),
     p.query<mysql.RowDataPacket[]>(
-      `SELECT id, title, unit_label, status
+      `SELECT id, title, unit_label, status, priority, customer_label AS customer
        FROM jobs
        WHERE job_scope = 'active' AND status IN (${openPh})${jobsScopeSql}
        ORDER BY created_at DESC, id DESC
@@ -964,7 +1032,7 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
           [...URGENT_JOB_STATUSES, ...codes, ...scope.params]
         ),
         p.query<mysql.RowDataPacket[]>(
-          `SELECT id, title, unit_label, status, priority
+          `SELECT id, title, unit_label, status, priority, customer_label AS customer
            FROM jobs
            WHERE job_scope = 'active'
              AND status IN (${urgentPh})
@@ -989,7 +1057,9 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
     priorityRows
       .filter((row) => str(row.priority).toUpperCase() === pri)
       .slice(0, ALERT_LIST_LIMIT)
-      .map((row) => mapAlertJob(row, kind, pri));
+      .map((row) =>
+        mapAlertJob(row, kind, alertStatusLabel(str(row.status)))
+      );
 
   const priorityGroups = catalog.map((row) => ({
     code: row.code,
@@ -1007,21 +1077,31 @@ export async function fetchNavAlerts(): Promise<NavAlertsPayload> {
     p3Jobs: priorityCount.P3 || 0,
     priorityGroups,
     items: {
-      handover: handoverRows.map((row) => ({
-        kind: "handover" as const,
-        jobId: str(row.job_id),
-        title: str(row.job_title),
-        unit: str(row.unit_label),
-        subtitle: [
-          str(row.title),
-          str(row.to_name) ? `→ ${str(row.to_name)}` : "",
-        ]
+      handover: handoverRows.map((row) => {
+        const fromName = str(row.from_name);
+        const toName = str(row.to_name);
+        const note = str(row.title);
+        const route = [fromName, toName].filter(Boolean).join(" → ");
+        const subtitle = [note, route && !note.includes("→") ? route : null]
           .filter(Boolean)
-          .join(" "),
-      })),
-      openJob: openRows.map((row) =>
-        mapAlertJob(row, "open_job", alertStatusLabel(str(row.status)))
-      ),
+          .join(note && route ? " · " : "")
+          || (toName ? `→ ${toName}` : "Open handover");
+        const customer = str(row.customer);
+        const shift = str(row.shift_date);
+        return {
+          kind: "handover" as const,
+          jobId: str(row.job_id),
+          title: str(row.job_title),
+          unit: str(row.unit_label),
+          subtitle,
+          status: alertStatusLabel(str(row.status)),
+          priority: str(row.priority).toUpperCase() || undefined,
+          meta: [customer, shift ? `Shift ${shift}` : ""]
+            .filter(Boolean)
+            .join(" · ") || undefined,
+        };
+      }),
+      openJob: openRows.map((row) => mapAlertJob(row, "open_job", "")),
       urgent: pickPriority("URGENT", "urgent"),
       p1: pickPriority("P1", "p1"),
       p2: pickPriority("P2", "p2"),

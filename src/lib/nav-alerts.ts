@@ -66,8 +66,6 @@ export const EMPTY_NAV_ALERTS: NavAlertsPayload = {
 
 export function navAlertTotal(data: NavAlertsPayload | undefined): number {
   if (!data) return 0;
-  const priorityCount = data.priorityGroups?.length
-    ? data.priorityGroups.reduce((sum, group) => sum + group.count, 0)
-    : data.urgentJobs + data.p1Jobs + data.p2Jobs + data.p3Jobs;
-  return data.openHandovers + data.openJobs + priorityCount;
+  // Priorities are nested under open jobs — don't double-count.
+  return data.openHandovers + data.openJobs;
 }

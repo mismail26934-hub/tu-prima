@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/i18n/useT";
 import { useNavAlerts } from "@/hooks/useNavAlerts";
@@ -8,6 +8,7 @@ import {
   EMPTY_NAV_ALERTS,
   navAlertTotal,
   type NavAlertItem,
+  type NavAlertPriorityGroup,
 } from "@/lib/nav-alerts";
 import { NavHeaderPopBackdrop } from "@/components/NavHeaderPopBackdrop";
 import { DsBadge } from "@/components/DsBadge";
@@ -49,6 +50,62 @@ function placeAlertsFlyout(trigger: DOMRect): FlyoutPos {
   };
 }
 
+function AlertItemButton({
+  item,
+  openLabel,
+  onPick,
+}: {
+  item: NavAlertItem;
+  openLabel: string;
+  onPick: (item: NavAlertItem) => void;
+}) {
+  const primary = item.unit ? `${item.unit} — ${item.title}` : item.title;
+  const chips = [
+    item.status && item.status !== item.subtitle ? item.status : null,
+    item.priority &&
+    item.kind !== "priority" &&
+    item.priority !== item.subtitle
+      ? item.priority
+      : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <button
+      type="button"
+      className="nav-alerts-item"
+      onClick={() => onPick(item)}
+      title={openLabel}
+    >
+      <span className="nav-alerts-item-main">
+        {item.unit ? (
+          <span className="nav-alerts-unit">{item.unit}</span>
+        ) : null}
+        <strong className="nav-alerts-item-title">
+          {item.unit ? item.title : primary}
+        </strong>
+      </span>
+      {item.subtitle ? (
+        <span className="nav-alerts-item-sub">{item.subtitle}</span>
+      ) : null}
+      {item.meta ? (
+        <span className="nav-alerts-item-meta">{item.meta}</span>
+      ) : null}
+      {chips.length ? (
+        <span className="nav-alerts-item-chips">
+          {chips.map((chip) => (
+            <span key={chip} className="nav-alerts-chip">
+              {chip}
+            </span>
+          ))}
+        </span>
+      ) : null}
+      <span className="nav-alerts-item-go" aria-hidden="true">
+        →
+      </span>
+    </button>
+  );
+}
+
 function AlertSection({
   title,
   count,
@@ -84,59 +141,147 @@ function AlertSection({
       </header>
       {hasItems ? (
         <ul className="nav-alerts-items">
-          {items.map((item) => {
-            const primary = item.unit
-              ? `${item.unit} — ${item.title}`
-              : item.title;
-            const chips = [
-              item.status && item.status !== item.subtitle
-                ? item.status
-                : null,
-              item.priority &&
-              item.kind !== "priority" &&
-              item.priority !== item.subtitle
-                ? item.priority
-                : null,
-            ].filter(Boolean) as string[];
+          {items.map((item) => (
+            <li
+              key={`${item.kind}-${item.jobId}-${item.subtitle}-${item.meta || ""}`}
+            >
+              <AlertItemButton
+                item={item}
+                openLabel={openLabel}
+                onPick={onPick}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="nav-alerts-empty">{empty}</p>
+      )}
+    </section>
+  );
+}
+
+function OpenJobsSection({
+  title,
+  count,
+  empty,
+  hint,
+  priorityGroups,
+  openLabel,
+  expandLabel,
+  collapseLabel,
+  priorityTitle,
+  priorityEmpty,
+  onPick,
+}: {
+  title: string;
+  count: number;
+  empty: string;
+  hint: string;
+  priorityGroups: NavAlertPriorityGroup[];
+  openLabel: string;
+  expandLabel: (name: string) => string;
+  collapseLabel: (name: string) => string;
+  priorityTitle: (name: string) => string;
+  priorityEmpty: (name: string) => string;
+  onPick: (item: NavAlertItem) => void;
+}) {
+  const firstActive = priorityGroups.find((g) => g.count > 0)?.code || "";
+  const [expanded, setExpanded] = useState<string>(firstActive);
+
+  useEffect(() => {
+    if (!expanded && firstActive) setExpanded(firstActive);
+  }, [expanded, firstActive]);
+
+  const hasGroups = priorityGroups.length > 0;
+  const hasAny = count > 0 || priorityGroups.some((g) => g.count > 0);
+
+  return (
+    <section
+      className={`nav-alerts-section nav-alerts-section--open${
+        hasAny ? "" : " is-empty"
+      }`}
+    >
+      <header className="nav-alerts-section-head">
+        <h4>{title}</h4>
+        <span
+          className={`nav-alerts-count${count > 0 ? " is-active" : ""}`}
+          aria-label={`${count}`}
+        >
+          {count}
+        </span>
+      </header>
+
+      {!hasAny ? (
+        <p className="nav-alerts-empty">{empty}</p>
+      ) : hasGroups ? (
+        <div className="nav-alerts-priority-subs">
+          <p className="nav-alerts-priority-hint">{hint}</p>
+          {priorityGroups.map((group) => {
+            const name = group.name || group.code;
+            const isOpen = expanded === group.code;
+            const panelId = `nav-alerts-pri-${group.code}`;
             return (
-              <li key={`${item.kind}-${item.jobId}-${item.subtitle}-${item.meta || ""}`}>
+              <div
+                key={group.code}
+                className={`nav-alerts-priority-sub${
+                  group.count > 0 ? " has-items" : " is-empty"
+                }${isOpen ? " is-open" : ""}`}
+              >
                 <button
                   type="button"
-                  className="nav-alerts-item"
-                  onClick={() => onPick(item)}
-                  title={openLabel}
+                  className="nav-alerts-priority-toggle"
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  title={
+                    isOpen ? collapseLabel(name) : expandLabel(name)
+                  }
+                  onClick={() =>
+                    setExpanded((cur) =>
+                      cur === group.code ? "" : group.code
+                    )
+                  }
                 >
-                  <span className="nav-alerts-item-main">
-                    {item.unit ? (
-                      <span className="nav-alerts-unit">{item.unit}</span>
-                    ) : null}
-                    <strong className="nav-alerts-item-title">
-                      {item.unit ? item.title : primary}
-                    </strong>
-                  </span>
-                  {item.subtitle ? (
-                    <span className="nav-alerts-item-sub">{item.subtitle}</span>
-                  ) : null}
-                  {item.meta ? (
-                    <span className="nav-alerts-item-meta">{item.meta}</span>
-                  ) : null}
-                  {chips.length ? (
-                    <span className="nav-alerts-item-chips">
-                      {chips.map((chip) => (
-                        <span key={chip} className="nav-alerts-chip">
-                          {chip}
-                        </span>
-                      ))}
+                  <span className="nav-alerts-priority-toggle-label">
+                    <span className="nav-alerts-priority-chevron" aria-hidden="true">
+                      {isOpen ? "▾" : "▸"}
                     </span>
-                  ) : null}
-                  <span className="nav-alerts-item-go" aria-hidden="true">
-                    →
+                    {priorityTitle(name)}
+                  </span>
+                  <span
+                    className={`nav-alerts-count${
+                      group.count > 0 ? " is-active" : ""
+                    }`}
+                  >
+                    {group.count}
                   </span>
                 </button>
-              </li>
+                {isOpen ? (
+                  <div id={panelId} className="nav-alerts-priority-panel">
+                    {group.items.length ? (
+                      <ul className="nav-alerts-items">
+                        {group.items.map((item) => (
+                          <li
+                            key={`${item.kind}-${item.jobId}-${item.subtitle}-${item.meta || ""}`}
+                          >
+                            <AlertItemButton
+                              item={item}
+                              openLabel={openLabel}
+                              onPick={onPick}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="nav-alerts-empty">
+                        {priorityEmpty(name)}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
-        </ul>
+        </div>
       ) : (
         <p className="nav-alerts-empty">{empty}</p>
       )}
@@ -221,6 +366,36 @@ export function NavAlerts({
     };
   }, [open, variant]);
 
+  const priorityGroups = useMemo<NavAlertPriorityGroup[]>(() => {
+    if (payload.priorityGroups?.length) return payload.priorityGroups;
+    return [
+      {
+        code: "URGENT",
+        name: "URGENT",
+        count: payload.urgentJobs,
+        items: payload.items.urgent,
+      },
+      {
+        code: "P1",
+        name: "P1",
+        count: payload.p1Jobs,
+        items: payload.items.p1,
+      },
+      {
+        code: "P2",
+        name: "P2",
+        count: payload.p2Jobs,
+        items: payload.items.p2,
+      },
+      {
+        code: "P3",
+        name: "P3",
+        count: payload.p3Jobs,
+        items: payload.items.p3,
+      },
+    ];
+  }, [payload]);
+
   if (!enabled) return null;
 
   const pick = (item: NavAlertItem) => {
@@ -236,12 +411,21 @@ export function NavAlerts({
         <p className="nav-alerts-summary-title">{t("nav.alerts")}</p>
         <p className="nav-alerts-summary-hint">{t("nav.alertsSummary")}</p>
       </div>
-      <div className="nav-alerts-summary-stats" aria-label={t("nav.alertsTotal", { count: total })}>
-        <span className={`nav-alerts-stat${payload.openHandovers ? " is-warn" : ""}`}>
+      <div
+        className="nav-alerts-summary-stats"
+        aria-label={t("nav.alertsTotal", { count: total })}
+      >
+        <span
+          className={`nav-alerts-stat${
+            payload.openHandovers ? " is-warn" : ""
+          }`}
+        >
           <em>{payload.openHandovers}</em>
           <small>HO</small>
         </span>
-        <span className={`nav-alerts-stat${payload.openJobs ? " is-info" : ""}`}>
+        <span
+          className={`nav-alerts-stat${payload.openJobs ? " is-info" : ""}`}
+        >
           <em>{payload.openJobs}</em>
           <small>Job</small>
         </span>
@@ -265,57 +449,19 @@ export function NavAlerts({
         openLabel={openLabel}
         onPick={pick}
       />
-      <AlertSection
+      <OpenJobsSection
         title={t("nav.alertsOpenJobs")}
         count={payload.openJobs}
-        items={payload.items.openJob}
         empty={t("nav.alertsOpenJobsEmpty")}
-        tone="open"
+        hint={t("nav.alertsOpenJobsByPriority")}
+        priorityGroups={priorityGroups}
         openLabel={openLabel}
+        expandLabel={(name) => t("nav.alertsPriorityExpand", { name })}
+        collapseLabel={(name) => t("nav.alertsPriorityCollapse", { name })}
+        priorityTitle={(name) => t("nav.alertsPriority", { name })}
+        priorityEmpty={(name) => t("nav.alertsPriorityEmpty", { name })}
         onPick={pick}
       />
-      {(payload.priorityGroups?.length
-        ? payload.priorityGroups
-        : [
-            {
-              code: "URGENT",
-              name: "URGENT",
-              count: payload.urgentJobs,
-              items: payload.items.urgent,
-            },
-            {
-              code: "P1",
-              name: "P1",
-              count: payload.p1Jobs,
-              items: payload.items.p1,
-            },
-            {
-              code: "P2",
-              name: "P2",
-              count: payload.p2Jobs,
-              items: payload.items.p2,
-            },
-            {
-              code: "P3",
-              name: "P3",
-              count: payload.p3Jobs,
-              items: payload.items.p3,
-            },
-          ]
-      ).map((group) => (
-        <AlertSection
-          key={group.code}
-          title={t("nav.alertsPriority", { name: group.name || group.code })}
-          count={group.count}
-          items={group.items}
-          empty={t("nav.alertsPriorityEmpty", {
-            name: group.name || group.code,
-          })}
-          tone="priority"
-          openLabel={openLabel}
-          onPick={pick}
-        />
-      ))}
     </>
   );
 

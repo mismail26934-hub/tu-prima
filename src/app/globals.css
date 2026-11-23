@@ -1367,6 +1367,104 @@ html[data-theme='light'] .remain-alert-field select {
   opacity: 0.78;
 }
 
+.nav-alerts-priority-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.nav-alerts-priority-hint {
+  margin: 0 2px 2px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.nav-alerts-priority-sub {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-1) 70%, transparent);
+  overflow: hidden;
+}
+
+.nav-alerts-priority-sub.has-items {
+  border-left: 3px solid color-mix(in srgb, var(--amber) 75%, #888);
+}
+
+.nav-alerts-priority-sub.is-empty {
+  opacity: 0.72;
+}
+
+.nav-alerts-priority-sub.is-open {
+  background: var(--bg-1);
+}
+
+.nav-alerts-priority-toggle {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nav-alerts-priority-toggle:hover,
+.nav-alerts-priority-toggle:focus-visible {
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+  outline: none;
+}
+
+.nav-alerts-priority-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nav-alerts-priority-chevron {
+  display: inline-flex;
+  width: 0.9rem;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.nav-alerts-priority-sub.is-open .nav-alerts-priority-chevron {
+  color: var(--amber);
+}
+
+.nav-alerts-priority-panel {
+  padding: 0 6px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+html[data-theme='light'] .nav-alerts-priority-sub {
+  background: color-mix(in srgb, var(--ds-bg-hover) 40%, var(--ds-white));
+  border-color: var(--ds-border-default);
+}
+
+html[data-theme='light'] .nav-alerts-priority-sub.is-open {
+  background: var(--ds-white);
+}
+
+html[data-theme='light'] .nav-alerts-priority-toggle:hover,
+html[data-theme='light'] .nav-alerts-priority-toggle:focus-visible {
+  background: var(--ds-bg-hover);
+}
+
 .nav-alerts-section-head {
   display: flex;
   align-items: center;

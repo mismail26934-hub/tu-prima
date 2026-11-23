@@ -4678,7 +4678,19 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .master-handover-table {
-  min-width: 960px;
+  min-width: 1120px;
+}
+
+.master-handover-table td.master-handover-mp {
+  white-space: pre-line !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow: hidden;
+  min-width: 132px;
+  max-width: 180px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  vertical-align: top;
 }
 
 .master-handover-table .col-no,
@@ -4758,7 +4770,7 @@ html[data-theme='light'] .job-priority-pill--custom {
   .master-handover-table.backup-table {
     display: table;
     width: 100%;
-    min-width: 880px;
+    min-width: 1040px;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.85rem;
@@ -4810,6 +4822,19 @@ html[data-theme='light'] .job-priority-pill--custom {
   .master-handover-table.backup-table td.master-handover-multiline,
   .master-handover-table.backup-table td.master-handover-empty {
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: hidden;
+    max-width: 220px;
+  }
+
+  .master-handover-table.backup-table td.master-handover-mp {
+    white-space: pre-line !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: hidden;
+    min-width: 132px;
+    max-width: 168px;
   }
 
   .master-handover-table.backup-table .col-no,
@@ -4818,10 +4843,21 @@ html[data-theme='light'] .job-priority-pill--custom {
     text-align: left;
   }
 
+  .master-handover-table.backup-table .col-done {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .master-handover-table.backup-table .col-act {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
   .master-handover-actions {
-    flex-direction: row;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     justify-content: flex-start;
+    gap: 4px;
   }
 
   .master-handover-table.backup-table .col-act .btn {
@@ -4830,8 +4866,17 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 @media (max-width: 599px) {
+  .master-handover-table-wrap.backup-table-wrap {
+    /* Keep horizontal scroll; isolate painting so cells don't bleed */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    isolation: isolate;
+  }
+
   .master-handover-table.backup-table {
-    min-width: 820px;
+    min-width: 1100px;
     font-size: 0.82rem;
   }
 
@@ -4842,6 +4887,29 @@ html[data-theme='light'] .job-priority-pill--custom {
 
   .master-handover-table.backup-table th {
     font-size: 0.7rem;
+  }
+
+  .master-handover-table.backup-table td.master-handover-mp {
+    white-space: pre-line !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: hidden;
+    min-width: 128px;
+    max-width: 152px;
+  }
+
+  .master-handover-table.backup-table td.master-handover-multiline {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: hidden;
+    max-width: 180px;
+    min-width: 120px;
+  }
+
+  .master-handover-table.backup-table .col-done,
+  .master-handover-table.backup-table .col-act {
+    overflow: hidden;
   }
 
   .master-handover-multiline {

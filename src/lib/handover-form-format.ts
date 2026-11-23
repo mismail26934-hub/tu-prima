@@ -1,5 +1,40 @@
 /** Browser-safe helpers for Hand Over Form display (no Node/mysql). */
 
+type TechNameSource = {
+  id: string;
+  name: string;
+};
+
+/** Current assigned manpower names (Prev M/P). */
+export function prevMpLabel(job: {
+  technicians?: { name?: string }[];
+  technician?: { name?: string } | null;
+}): string {
+  const fromList = (job.technicians || [])
+    .map((t) => String(t.name || "").trim())
+    .filter(Boolean);
+  if (fromList.length) return fromList.join("\n");
+  const single = String(job.technician?.name || "").trim();
+  return single || "";
+}
+
+/** Resolve Plan M/P technician ids to a display label (names when known). */
+export function planMpLabel(
+  ids: string[] | undefined,
+  sources: Array<TechNameSource | undefined | null>
+): string {
+  const list = (ids || []).map(String).filter(Boolean);
+  if (!list.length) return "";
+  const byId = new Map<string, string>();
+  for (const src of sources) {
+    if (!src?.id) continue;
+    const name = String(src.name || "").trim();
+    if (name && !byId.has(src.id)) byId.set(src.id, name);
+  }
+  // One name per line keeps the Master Handover column readable
+  return list.map((id) => byId.get(id) || id).join("\n");
+}
+
 const MONTHS = [
   "Jan",
   "Feb",

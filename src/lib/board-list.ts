@@ -209,22 +209,27 @@ function mapAssigneeRow(r: mysql.RowDataPacket): JobAssignee {
   };
 }
 
-function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
-  let planIds: string[] = [];
-  const rawPlan = str(r.plan_technician_ids);
-  if (rawPlan) {
-    try {
-      const parsed = JSON.parse(rawPlan) as unknown;
-      if (Array.isArray(parsed)) {
-        planIds = parsed.map((v) => String(v || "").trim()).filter(Boolean);
-      }
-    } catch {
-      planIds = rawPlan
-        .split(/[,;\s]+/)
-        .map((v) => v.trim())
-        .filter(Boolean);
-    }
+function parsePlanTechnicianIdsLocal(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v || "").trim()).filter(Boolean);
   }
+  const rawPlan = str(raw);
+  if (!rawPlan) return [];
+  try {
+    const parsed = JSON.parse(rawPlan) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((v) => String(v || "").trim()).filter(Boolean);
+    }
+  } catch {
+    /* fall through */
+  }
+  return rawPlan
+    .split(/[,;\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
   return {
     id: str(r.id),
     job_id: str(r.job_id),
@@ -239,7 +244,7 @@ function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
     note: str(r.note),
     progress_text: str(r.progress_text),
     handover_text: str(r.handover_text),
-    plan_technician_ids: planIds,
+    plan_technician_ids: parsePlanTechnicianIdsLocal(r.plan_technician_ids),
     user_id: str(r.user_id),
     user_name: str(r.user_name),
     updated_at: str(r.updated_at),
@@ -440,6 +445,12 @@ async function enrichJobsBatch(
       techIdSet.add(id);
     }
   }
+  // Plan M/P on handovers — needed to resolve names in Master Handover / forms
+  for (const row of handovers) {
+    for (const id of parsePlanTechnicianIdsLocal(row.plan_technician_ids)) {
+      techIdSet.add(id);
+    }
+  }
   const techs = await loadTechniciansByIds([...techIdSet]);
   const techById = new Map(techs.map((t) => [t.id, t]));
 
@@ -507,12 +518,18 @@ async function enrichJobsBatch(
       null;
     const jobSteps = (stepsByJob.get(job.id) || []).slice().sort((a, b) => a.order - b.order);
     const current_steps = jobSteps.filter((s) => s.status === "in_progress");
+    const jobHandovers = handoversByJob.get(job.id) || [];
     const indexIds = new Set<string>();
     for (const t of technicians) indexIds.add(t.id);
     if (job.technician_id) indexIds.add(job.technician_id);
     for (const s of jobSteps) {
       for (const id of parseStepTechnicianIds(s.technician_ids)) {
         indexIds.add(id);
+      }
+    }
+    for (const h of jobHandovers) {
+      for (const id of h.plan_technician_ids || []) {
+        if (id) indexIds.add(id);
       }
     }
     const technician_index = [...indexIds]
@@ -525,7 +542,7 @@ async function enrichJobsBatch(
       technician_index,
       steps: jobSteps,
       events: eventsByJob.get(job.id) || [],
-      handovers: handoversByJob.get(job.id) || [],
+      handovers: jobHandovers,
       part_loans: partLoansByJob.get(job.id) || [],
       elapsed_sec: calcElapsedSec(job),
       progress_pct: calcProgressPct(jobSteps),

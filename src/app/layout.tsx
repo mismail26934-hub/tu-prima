@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { Roboto } from 'next/font/google';
+import localFont from 'next/font/local';
 import { Providers } from './providers';
 import './globals.css';
 
-/* Design System TU Typography (Figma 1:5287) — Roboto */
-const roboto = Roboto({
-  subsets: ['latin'],
-  /* Roboto static faces: 400 Regular, 500 Medium (~Semibold), 700 Bold */
-  weight: ['400', '500', '700'],
+/* Design System TU Typography (Figma 1:5287) — Roboto (self-hosted) */
+const roboto = localFont({
+  src: [
+    { path: '../fonts/Roboto-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../fonts/Roboto-Medium.woff2', weight: '500', style: 'normal' },
+    { path: '../fonts/Roboto-Bold.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-body',
   display: 'swap',
 });

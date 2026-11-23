@@ -62,6 +62,8 @@ import {
 import { downloadJobPdf } from "@/lib/job-pdf";
 import {
   formatHandoverDate,
+  planMpLabel,
+  prevMpLabel,
   unitNoFromJob,
 } from "@/lib/handover-form-format";
 import { useAssignStore } from "@/store/assignStore";
@@ -7462,6 +7464,8 @@ export default function HomePage() {
                         <th>{t("job.handoverTo")}</th>
                         <th>{t("job.progressText")}</th>
                         <th>{t("job.handoverText")}</th>
+                        <th>{t("job.prevMp")}</th>
+                        <th>{t("job.planMp")}</th>
                         <th className="col-done">Done</th>
                         <th className="col-act">Aksi</th>
                       </tr>
@@ -7469,6 +7473,7 @@ export default function HomePage() {
                     <tbody>
                       {(() => {
                         let rowNo = 0;
+                        const boardTechs = data?.technicians || [];
                         return handoversMasterJobs.flatMap((job) => {
                           const writeOk = canNotesWriteForJob(job);
                           const unitNo = unitNoFromJob(job);
@@ -7484,6 +7489,8 @@ export default function HomePage() {
                             .map((p) => String(p || "").trim())
                             .filter(Boolean)
                             .join(" · ");
+                          const prevMp =
+                            prevMpLabel(job) || "—";
                           const handovers = [...(job.handovers || [])].sort(
                             (a, b) => a.order - b.order
                           );
@@ -7523,7 +7530,7 @@ export default function HomePage() {
                                     {jobLabel}
                                   </span>
                                 </td>
-                                <td colSpan={6} className="master-handover-empty">
+                                <td colSpan={8} className="master-handover-empty">
                                   {t("master.handoverNoRows")}
                                 </td>
                                 <td className="col-act">
@@ -7553,6 +7560,13 @@ export default function HomePage() {
                                 h.plan_technician_ids || [],
                               done: h.done === "1",
                             };
+                            const planMp =
+                              planMpLabel(h.plan_technician_ids, [
+                                ...(job.technician_index || []),
+                                ...(job.technicians || []),
+                                ...boardTechs,
+                                job.technician || null,
+                              ]) || "—";
                             return (
                               <tr
                                 key={h.id}
@@ -7577,6 +7591,12 @@ export default function HomePage() {
                                 </td>
                                 <td className="master-handover-multiline">
                                   {h.handover_text || "—"}
+                                </td>
+                                <td className="master-handover-mp">
+                                  {prevMp}
+                                </td>
+                                <td className="master-handover-mp">
+                                  {planMp}
                                 </td>
                                 <td className="col-done">
                                   {h.done === "1" ? "Yes" : "No"}

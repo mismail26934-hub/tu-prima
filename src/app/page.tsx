@@ -81,6 +81,8 @@ import {
 } from "@/components/ActionIcons";
 import { BoardTopbar } from "@/components/BoardTopbar";
 import { JobBackupPage } from "@/components/JobBackupPage";
+import { JobHandoverColumnSettings } from "@/components/JobHandoverColumnSettings";
+import { JobHandoverNotesTable } from "@/components/JobHandoverNotesTable";
 import { MasterHandoverColumnSettings } from "@/components/MasterHandoverColumnSettings";
 import { MasterHandoverTable } from "@/components/MasterHandoverTable";
 import { SearchIcon } from "@/components/SearchIcon";
@@ -316,6 +318,27 @@ type Modal =
       mode: "create" | "edit";
       user?: AppUserPublic;
     }
+  | {
+      type: "user-import-preview";
+      rows: Array<{
+        row: number;
+        username: string;
+        password: string;
+        name: string;
+        email: string;
+        phone: string;
+        level: string;
+        shift_name: string;
+        shift_id: string;
+        active: "" | "1" | "0";
+        ok: boolean;
+        action: "create" | "update" | "skip";
+        error?: string;
+      }>;
+      okCount: number;
+      errorCount: number;
+      selected: Record<number, boolean>;
+    }
   | { type: "delete-user"; user: AppUserPublic }
   | { type: "change-password" }
   | { type: "edit-profile" }
@@ -368,6 +391,7 @@ function activeNavForModal(modal: Modal): string | null {
       return "techs";
     case "users":
     case "user-form":
+    case "user-import-preview":
     case "delete-user":
       return "users";
     case "units":
@@ -1058,6 +1082,7 @@ export default function HomePage() {
   const canJobAssign = canAssignJob(userLevel);
   const canJobProgress = canManageJobProgress(userLevel);
   const canJobReopen = canReopenJob(userLevel);
+  const canUserRead = canAccess(userLevel, "user", "read");
   const canUserCreate = canAccess(userLevel, "user", "create");
   const canUserUpdate = canAccess(userLevel, "user", "update");
   const canUserDelete = canAccess(userLevel, "user", "delete");
@@ -1304,6 +1329,7 @@ export default function HomePage() {
   const usersModalOpen =
     modal?.type === "users" ||
     modal?.type === "user-form" ||
+    modal?.type === "user-import-preview" ||
     modal?.type === "delete-user";
   const formMode = useJobFormStore((s) => s.form.mode);
   const formCategory = useJobFormStore((s) => s.form.category);
@@ -1476,6 +1502,7 @@ export default function HomePage() {
   const [masterTechDraft, setMasterTechDraft] = useState("");
   const [masterTechQuery, setMasterTechQuery] = useState("");
   const [techImportMsg, setTechImportMsg] = useState("");
+  const [userImportMsg, setUserImportMsg] = useState("");
   const [userForm, setUserForm] = useState({
     username: "",
     password: "",
@@ -2241,6 +2268,136 @@ export default function HomePage() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal unduh Excel teknisi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadUsersDataExcel() {
+    setBusy(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (masterUserQuery.trim()) params.set("q", masterUserQuery.trim());
+      const qs = params.toString();
+      const res = await fetch(`/api/users/download${qs ? `?${qs}` : ""}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error || `Gagal unduh Excel (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const matched = disposition.match(/filename="([^"]+)"/i);
+      const filename = matched?.[1] || "users.xlsx";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal unduh Excel user");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importUsersFile(file: File) {
+    setBusy(true);
+    setError("");
+    setUserImportMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const result = await api<{
+        rows: Array<{
+          row: number;
+          username: string;
+          password: string;
+          name: string;
+          email: string;
+          phone: string;
+          level: string;
+          shift_name: string;
+          shift_id: string;
+          active: "" | "1" | "0";
+          ok: boolean;
+          action: "create" | "update" | "skip";
+          error?: string;
+        }>;
+        okCount: number;
+        errorCount: number;
+      }>("/api/users/import", { method: "POST", body: fd });
+      const selected: Record<number, boolean> = {};
+      for (const row of result.rows) {
+        if (row.ok) selected[row.row] = true;
+      }
+      setModal({
+        type: "user-import-preview",
+        rows: result.rows.map((r) => ({
+          ...r,
+          shift_name: r.shift_name || "",
+          shift_id: r.shift_id || "",
+        })),
+        okCount: result.okCount,
+        errorCount: result.errorCount,
+        selected,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import user gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function commitUserImportPreview() {
+    if (modal?.type !== "user-import-preview") return;
+    const rows = modal.rows
+      .filter((r) => r.ok && modal.selected[r.row])
+      .map((r) => ({
+        username: r.username,
+        password: r.password || "",
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        level: r.level,
+        shift_id: r.shift_id || "",
+        shift_name: r.shift_name || "",
+        active: r.active,
+        action: r.action === "update" ? ("update" as const) : ("create" as const),
+      }));
+    if (!rows.length) {
+      setError("Pilih minimal satu baris OK untuk diimpor");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{
+        imported: number;
+        updated: number;
+        skipped: string[];
+      }>("/api/users/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      setUserImportMsg(
+        `Import OK: ${result.imported} baru, ${result.updated} diupdate` +
+          (result.skipped?.length
+            ? ` · dilewati ${result.skipped.length}`
+            : "")
+      );
+      await invalidateUsers();
+      setModal({ type: "users" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import user gagal");
     } finally {
       setBusy(false);
     }
@@ -6188,47 +6345,54 @@ export default function HomePage() {
                   ({getHandoverLocal(job).length})
                 </span>
               </h4>
-              {handoverOk ? (
-                <div className="handover-head-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy}
-                    onClick={() => openHandoverFormCreate(job)}
-                  >
-                    + Tambah
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => openHandoverFormExport()}
-                  >
-                    {t("job.handoverFormExport")}
-                  </button>
-                  {notesDeleteOk ? (
-                    <label className="handover-mode">
-                      <span>Aksi</span>
-                      <select
-                        className="handover-select"
-                        value={getHandoverMode(job.id) === "hapus" ? "hapus" : "ubah"}
-                        disabled={busy}
-                        onChange={(e) =>
-                          setHandoverMode(
-                            job.id,
-                            e.target.value === "hapus" ? "hapus" : "ubah"
-                          )
-                        }
-                      >
-                        <option value="ubah">Ubah</option>
-                        <option value="hapus">Hapus</option>
-                      </select>
-                    </label>
-                  ) : null}
-                </div>
-              ) : (
-                <span className="step-hint">Hanya lihat</span>
-              )}
+              <div className="handover-head-actions">
+                {getHandoverLocal(job).length > 0 ? (
+                  <JobHandoverColumnSettings />
+                ) : null}
+                {handoverOk ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy}
+                      onClick={() => openHandoverFormCreate(job)}
+                    >
+                      + Tambah
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => openHandoverFormExport()}
+                    >
+                      {t("job.handoverFormExport")}
+                    </button>
+                    {notesDeleteOk ? (
+                      <label className="handover-mode">
+                        <span>Aksi</span>
+                        <select
+                          className="handover-select"
+                          value={
+                            getHandoverMode(job.id) === "hapus" ? "hapus" : "ubah"
+                          }
+                          disabled={busy}
+                          onChange={(e) =>
+                            setHandoverMode(
+                              job.id,
+                              e.target.value === "hapus" ? "hapus" : "ubah"
+                            )
+                          }
+                        >
+                          <option value="ubah">Ubah</option>
+                          <option value="hapus">Hapus</option>
+                        </select>
+                      </label>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="step-hint">Hanya lihat</span>
+                )}
+              </div>
             </div>
             {handoverOk && (
               <p className="handover-wa-hint">
@@ -6270,112 +6434,30 @@ export default function HomePage() {
               </div>
             )}
             {getHandoverLocal(job).length > 0 && (
-            <div className="handover-table-wrap">
-              <table className="handover-table">
-                <thead>
-                  <tr>
-                    <th className="col-no">NO</th>
-                    <th>{t("job.shiftDate")}</th>
-                    <th>{t("job.handoverFrom")}</th>
-                    <th>{t("job.handoverTo")}</th>
-                    <th>{t("job.progressText")}</th>
-                    <th>{t("job.handoverText")}</th>
-                    <th className="col-done">Done</th>
-                    {handoverOk && getHandoverMode(job.id) !== "hapus" ? (
-                      <th className="col-act" />
-                    ) : null}
-                    {notesDeleteOk &&
-                      getHandoverMode(job.id) === "hapus" && (
-                        <th className="col-act" />
-                      )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {getHandoverLocal(job).map((h) => {
-                    return (
-                      <tr
-                        key={h.key}
-                        className={h.done ? "is-done" : ""}
-                      >
-                        <td className="col-no" data-label="NO">
-                          {h.order}
-                        </td>
-                        <td data-label={t("job.shiftDate")}>
-                          {h.shift_date || "—"}
-                        </td>
-                        <td data-label={t("job.handoverFrom")}>
-                          {h.from_name || "—"}
-                        </td>
-                        <td data-label={t("job.handoverTo")}>
-                          {h.to_name || "—"}
-                        </td>
-                        <td data-label={t("job.progressText")}>
-                          <textarea
-                            className="handover-input handover-cell-textarea"
-                            rows={3}
-                            readOnly
-                            tabIndex={-1}
-                            value={h.progress_text || ""}
-                            placeholder="—"
-                            aria-label={t("job.progressText")}
-                          />
-                        </td>
-                        <td data-label={t("job.handoverText")}>
-                          <textarea
-                            className="handover-input handover-cell-textarea"
-                            rows={3}
-                            readOnly
-                            tabIndex={-1}
-                            value={h.handover_text || ""}
-                            placeholder="—"
-                            aria-label={t("job.handoverText")}
-                          />
-                        </td>
-                        <td className="col-done" data-label="Done">
-                          {h.done ? "Yes" : "No"}
-                        </td>
-                        {handoverOk && getHandoverMode(job.id) !== "hapus" ? (
-                          <td className="col-act" data-label="Aksi">
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              disabled={busy}
-                              onClick={() => openHandoverFormEdit(job, h)}
-                            >
-                              Ubah
-                            </button>
-                          </td>
-                        ) : null}
-                        {notesDeleteOk &&
-                          getHandoverMode(job.id) === "hapus" && (
-                            <td className="col-act" data-label="Aksi">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-danger"
-                                disabled={busy}
-                                aria-label="Hapus"
-                                onClick={() =>
-                                  setModal({
-                                    type: "handover-delete",
-                                    job,
-                                    handoverKey: h.key,
-                                    handoverId: h.id,
-                                    order: h.order,
-                                    title: h.title || h.shift_date || `#${h.order}`,
-                                  })
-                                }
-                              >
-                                <TrashIcon />
-                                <span className="btn-label">Hapus</span>
-                              </button>
-                            </td>
-                          )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+              <JobHandoverNotesTable
+                job={job}
+                rows={getHandoverLocal(job)}
+                boardTechnicians={data?.technicians || []}
+                busy={busy}
+                actionMode={
+                  notesDeleteOk && getHandoverMode(job.id) === "hapus"
+                    ? "delete"
+                    : handoverOk && getHandoverMode(job.id) !== "hapus"
+                      ? "edit"
+                      : "none"
+                }
+                onEdit={(h) => openHandoverFormEdit(job, h)}
+                onDelete={(h) =>
+                  setModal({
+                    type: "handover-delete",
+                    job,
+                    handoverKey: h.key,
+                    handoverId: h.id,
+                    order: h.order,
+                    title: h.title || h.shift_date || `#${h.order}`,
+                  })
+                }
+              />
             )}
           </div>
         )}
@@ -7043,7 +7125,11 @@ export default function HomePage() {
                       className="panel-search"
                       type="search"
                       value={techDraft}
-                      onChange={(e) => setTechDraft(e.target.value)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTechDraft(v);
+                        if (!v.trim()) clearTechSearch();
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -7283,7 +7369,11 @@ export default function HomePage() {
                         className="panel-search"
                         type="search"
                         value={jobDraft}
-                        onChange={(e) => setJobDraft(e.target.value)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setJobDraft(v);
+                          if (!v.trim()) clearJobSearch();
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
@@ -7466,7 +7556,11 @@ export default function HomePage() {
                     disabled={busy}
                     placeholder={t("master.handoverSearch")}
                     aria-label={t("master.handoverSearch")}
-                    onChange={(e) => setHandoversMasterQDraft(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHandoversMasterQDraft(v);
+                      if (!v.trim()) setHandoversMasterQ("");
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -7841,7 +7935,14 @@ export default function HomePage() {
                       disabled={busy}
                       placeholder={t("job.planMpSearch")}
                       autoFocus
-                      onChange={(e) => setPlanMpDraft(e.target.value)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPlanMpDraft(v);
+                        if (!v.trim()) {
+                          setPlanMpQuery("");
+                          setPlanMpPage(1);
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -8980,7 +9081,11 @@ export default function HomePage() {
                       style={{ maxWidth: "none" }}
                       type="search"
                       value={assignDraft}
-                      onChange={(e) => setAssignDraft(e.target.value)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setAssignDraft(v);
+                        if (!v.trim()) clearAssignSearch();
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -10242,7 +10347,11 @@ export default function HomePage() {
                     style={{ maxWidth: "none" }}
                     type="search"
                     value={unitDraft}
-                    onChange={(e) => setUnitDraft(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setUnitDraft(v);
+                      if (!v.trim()) clearUnitSearch();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -11320,7 +11429,11 @@ export default function HomePage() {
                     style={{ maxWidth: "none", flex: 1 }}
                     type="search"
                     value={templateDraft}
-                    onChange={(e) => setTemplateDraft(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setTemplateDraft(v);
+                      if (!v.trim()) clearTemplateSearch();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -12042,7 +12155,11 @@ export default function HomePage() {
                     style={{ maxWidth: "none" }}
                     type="search"
                     value={masterTechDraft}
-                    onChange={(e) => setMasterTechDraft(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setMasterTechDraft(v);
+                      if (!v.trim()) clearMasterTechSearch();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -12594,6 +12711,63 @@ export default function HomePage() {
             <div className="master-head">
               <h3 id="master-users-title">Master User</h3>
               {error && <div className="error">{error}</div>}
+              {userImportMsg && (
+                <p style={{ color: "var(--green)", marginTop: 0 }}>
+                  {userImportMsg}
+                </p>
+              )}
+              {(canUserRead || canUserCreate) && (
+                <details className="master-tools">
+                  <summary>Upload / unduh Excel</summary>
+                  <div className="master-tools-body form">
+                    <div
+                      className="actions"
+                      style={{ marginTop: 10, flexWrap: "wrap" }}
+                    >
+                      {canUserRead && (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={busy || appUsers.length === 0}
+                          title={
+                            masterUserQuery.trim()
+                              ? "Export hasil pencarian ke Excel"
+                              : "Export semua data user ke Excel"
+                          }
+                          onClick={() => void downloadUsersDataExcel()}
+                        >
+                          <ExportIcon />
+                          <span className="btn-label">Unduh Excel (data)</span>
+                        </button>
+                      )}
+                      {canUserCreate && (
+                        <a
+                          className="btn"
+                          href="/api/users/template"
+                          download="template-upload-user.xlsx"
+                        >
+                          Unduh template Excel
+                        </a>
+                      )}
+                    </div>
+                    {canUserCreate && (
+                      <label>
+                        Mass upload Excel (.xlsx)
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          disabled={busy}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) importUsersFile(file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </details>
+              )}
               <div
                 className="panel-search-row"
                 style={{ justifyContent: "stretch" }}
@@ -12604,7 +12778,11 @@ export default function HomePage() {
                     style={{ maxWidth: "none" }}
                     type="search"
                     value={masterUserDraft}
-                    onChange={(e) => setMasterUserDraft(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setMasterUserDraft(v);
+                      if (!v.trim()) clearMasterUserSearch();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -12725,6 +12903,175 @@ export default function HomePage() {
                 onClick={openUserCreate}
               >
                 + User baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "user-import-preview" && (
+        <div className="modal-backdrop import-preview-backdrop">
+          <div
+            className="modal import-preview-screen"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-import-preview-title"
+          >
+            {busy && <BusyOverlay label="Mengimpor..." />}
+            <div className="import-preview-head">
+              <h3 id="user-import-preview-title">Review import user</h3>
+              <p className="import-preview-lead">
+                Centang baris OK yang ingin dimasukkan. Password kosong pada
+                update = password lama tetap dipakai.
+              </p>
+              {error && <div className="error">{error}</div>}
+              <div className="import-preview-summary">
+                <span className="import-preview-ok">OK: {modal.okCount}</span>
+                <span className="import-preview-err">
+                  Error: {modal.errorCount}
+                </span>
+                <span>
+                  Dipilih:{" "}
+                  {
+                    modal.rows.filter((r) => r.ok && modal.selected[r.row])
+                      .length
+                  }
+                </span>
+              </div>
+              <div className="import-preview-toolbar">
+                <label className="import-preview-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      modal.okCount > 0 &&
+                      modal.rows
+                        .filter((r) => r.ok)
+                        .every((r) => modal.selected[r.row])
+                    }
+                    disabled={modal.okCount === 0 || busy}
+                    onChange={(e) => {
+                      const next: Record<number, boolean> = {
+                        ...modal.selected,
+                      };
+                      for (const r of modal.rows) {
+                        if (r.ok) next[r.row] = e.target.checked;
+                      }
+                      setModal({ ...modal, selected: next });
+                    }}
+                  />
+                  Pilih semua OK
+                </label>
+              </div>
+            </div>
+            <div className="import-preview-table-wrap">
+              <table className="import-preview-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 36 }}></th>
+                    <th>Baris</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                    <th>Username</th>
+                    <th>Nama</th>
+                    <th>Level</th>
+                    <th>Shift</th>
+                    <th>Aktif</th>
+                    <th>Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modal.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={10} style={{ color: "var(--muted)" }}>
+                        Tidak ada baris data di file.
+                      </td>
+                    </tr>
+                  )}
+                  {modal.rows.map((r) => (
+                    <tr
+                      key={r.row}
+                      className={r.ok ? "import-row-ok" : "import-row-err"}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          disabled={!r.ok || busy}
+                          checked={Boolean(r.ok && modal.selected[r.row])}
+                          onChange={(e) => {
+                            setModal({
+                              ...modal,
+                              selected: {
+                                ...modal.selected,
+                                [r.row]: e.target.checked,
+                              },
+                            });
+                          }}
+                          aria-label={`Pilih baris ${r.row}`}
+                        />
+                      </td>
+                      <td>{r.row}</td>
+                      <td>
+                        <span
+                          className={
+                            r.ok ? "badge badge-ok" : "badge badge-err"
+                          }
+                        >
+                          {r.ok ? "OK" : "Error"}
+                        </span>
+                      </td>
+                      <td>
+                        {r.ok
+                          ? r.action === "update"
+                            ? "Update"
+                            : "Baru"
+                          : "—"}
+                      </td>
+                      <td>{r.username || "—"}</td>
+                      <td>{r.name || "—"}</td>
+                      <td>{r.level || "—"}</td>
+                      <td>{r.shift_name || "—"}</td>
+                      <td>
+                        {r.active === "0"
+                          ? "nonaktif"
+                          : r.active === "1"
+                            ? "aktif"
+                            : "—"}
+                      </td>
+                      <td className="import-preview-note">
+                        {r.error ||
+                          (r.ok
+                            ? r.action === "create"
+                              ? "Siap dibuat"
+                              : r.password
+                                ? "Update (+password baru)"
+                                : "Update (password tetap)"
+                            : "")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="import-preview-foot actions">
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  setError("");
+                  setModal({ type: "users" });
+                }}
+              >
+                Batal
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={
+                  busy ||
+                  !modal.rows.some((r) => r.ok && modal.selected[r.row])
+                }
+                onClick={() => void commitUserImportPreview()}
+              >
+                Impor terpilih
               </button>
             </div>
           </div>
@@ -13035,7 +13382,11 @@ export default function HomePage() {
                     style={{ maxWidth: "none", flex: 1 }}
                     type="search"
                     value={attendanceDraft}
-                    onChange={(e) => setAttendanceDraft(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setAttendanceDraft(v);
+                      if (!v.trim()) clearAttendanceSearch();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();

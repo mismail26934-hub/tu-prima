@@ -4764,37 +4764,198 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .master-handover-table th.is-frozen-col,
-.master-handover-table td.is-frozen-col {
+.master-handover-table td.is-frozen-col,
+.backup-data-table th.is-frozen-col,
+.backup-data-table td.is-frozen-col,
+.job-handover-notes-table th.is-frozen-col,
+.job-handover-notes-table td.is-frozen-col {
   background: var(--bg-1);
 }
 
 /* Avoid double border / gap between adjacent frozen columns */
 .master-handover-table th.is-frozen-col + th.is-frozen-col,
-.master-handover-table td.is-frozen-col + td.is-frozen-col {
+.master-handover-table td.is-frozen-col + td.is-frozen-col,
+.backup-data-table th.is-frozen-col + th.is-frozen-col,
+.backup-data-table td.is-frozen-col + td.is-frozen-col,
+.job-handover-notes-table th.is-frozen-col + th.is-frozen-col,
+.job-handover-notes-table td.is-frozen-col + td.is-frozen-col {
   border-left-color: transparent;
 }
 
 .master-handover-table th.is-frozen-col.is-frozen-edge,
-.master-handover-table td.is-frozen-col.is-frozen-edge {
+.master-handover-table td.is-frozen-col.is-frozen-edge,
+.backup-data-table th.is-frozen-col.is-frozen-edge,
+.backup-data-table td.is-frozen-col.is-frozen-edge,
+.job-handover-notes-table th.is-frozen-col.is-frozen-edge,
+.job-handover-notes-table td.is-frozen-col.is-frozen-edge {
   box-shadow: 1px 0 0 var(--line);
 }
 
-.master-handover-table thead th.is-frozen-col {
+.master-handover-table thead th.is-frozen-col,
+.backup-data-table thead th.is-frozen-col,
+.job-handover-notes-table thead th.is-frozen-col {
   z-index: 3;
   background: color-mix(in srgb, var(--bg-1) 88%, var(--bg-2));
 }
 
-.master-handover-table thead th.is-frozen-col.is-frozen-edge {
+.master-handover-table thead th.is-frozen-col.is-frozen-edge,
+.backup-data-table thead th.is-frozen-col.is-frozen-edge,
+.job-handover-notes-table thead th.is-frozen-col.is-frozen-edge {
   z-index: 4;
 }
 
 html[data-theme='light'] .master-handover-table th.is-frozen-col,
-html[data-theme='light'] .master-handover-table td.is-frozen-col {
+html[data-theme='light'] .master-handover-table td.is-frozen-col,
+html[data-theme='light'] .backup-data-table th.is-frozen-col,
+html[data-theme='light'] .backup-data-table td.is-frozen-col,
+html[data-theme='light'] .job-handover-notes-table th.is-frozen-col,
+html[data-theme='light'] .job-handover-notes-table td.is-frozen-col {
   background: var(--ds-white);
 }
 
-html[data-theme='light'] .master-handover-table thead th.is-frozen-col {
+html[data-theme='light'] .master-handover-table thead th.is-frozen-col,
+html[data-theme='light'] .backup-data-table thead th.is-frozen-col,
+html[data-theme='light'] .job-handover-notes-table thead th.is-frozen-col {
   background: color-mix(in srgb, var(--ds-bg-hover) 70%, var(--ds-white));
+}
+
+/* Catatan handover: keep real table + horizontal scroll (not card stack). */
+.job-handover-notes-wrap.handover-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  cursor: grab;
+}
+
+.job-handover-notes-wrap.is-drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.job-handover-notes-wrap.is-drag-scrolling * {
+  cursor: grabbing;
+}
+
+.job-handover-notes-table.handover-table {
+  display: table;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.job-handover-notes-table.handover-table thead {
+  display: table-header-group;
+}
+
+.job-handover-notes-table.handover-table tbody {
+  display: table-row-group;
+}
+
+.job-handover-notes-table.handover-table tr {
+  display: table-row;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.job-handover-notes-table.handover-table th,
+.job-handover-notes-table.handover-table td {
+  display: table-cell;
+  width: auto;
+  min-width: 5.5rem;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  white-space: nowrap;
+  grid-template-columns: none;
+}
+
+.job-handover-notes-table.handover-table td::before {
+  content: none;
+}
+
+.job-handover-notes-table.handover-table .col-no {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.job-handover-notes-table.handover-table .col-done {
+  width: 64px;
+  min-width: 64px;
+}
+
+.job-handover-notes-table.handover-table .col-act {
+  width: 1%;
+  min-width: 5.5rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.job-handover-notes-table.handover-table .col-act::before {
+  content: none;
+}
+
+.job-handover-notes-table .handover-input.handover-cell-textarea {
+  min-width: 14rem;
+  max-width: 18rem;
+  width: 14rem;
+  white-space: pre-wrap;
+}
+
+.job-handover-notes-table tr.is-done td.is-frozen-col {
+  background: color-mix(in srgb, var(--bg-1) 70%, var(--green, #2e7d32) 8%);
+}
+
+.job-handover-notes-table td.job-handover-mp {
+  white-space: pre-line;
+  vertical-align: top;
+  min-width: 8rem;
+  max-width: 12rem;
+}
+
+.job-handover-mp-text {
+  display: block;
+  white-space: pre-line;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .job-handover-notes-wrap.handover-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+}
+
+@container (max-width: 640px) {
+  .job-handover-notes-wrap.handover-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+}
+
+.backup-data-table-wrap.is-drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.backup-data-table-wrap.is-drag-scrolling * {
+  cursor: grabbing;
 }
 
 /* Master Handover: constrained wrap scrolls X+Y; DragScroll enables mouse-drag pan.

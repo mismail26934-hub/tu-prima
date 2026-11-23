@@ -6318,3 +6318,447 @@ export async function deleteUser(userId: string): Promise<{ ok: true }> {
     return { ok: true };
   });
 }
+
+const USER_IMPORT_USERNAME_HEADERS = [
+  "username",
+  "user name",
+  "user",
+  "login",
+  "userid",
+  "user id",
+] as const;
+const USER_IMPORT_NAME_HEADERS = [
+  "nama",
+  "name",
+  "nama lengkap",
+  "full name",
+] as const;
+
+export type UserImportPreviewRow = {
+  row: number;
+  username: string;
+  password: string;
+  name: string;
+  email: string;
+  phone: string;
+  level: string;
+  shift_name: string;
+  shift_id: string;
+  active: "" | "1" | "0";
+  ok: boolean;
+  action: "create" | "update" | "skip";
+  error?: string;
+};
+
+export type UserImportCommitRow = {
+  username: string;
+  password?: string;
+  name: string;
+  email: string;
+  phone: string;
+  level: UserLevel;
+  shift_id?: string;
+  shift_name?: string;
+  active?: "" | "1" | "0";
+  action: "create" | "update";
+};
+
+function parseUserImportSheet(ws: ExcelJS.Worksheet): {
+  headerRow: number;
+  cUsername: number;
+  cPassword: number;
+  cName: number;
+  cEmail: number;
+  cPhone: number;
+  cLevel: number;
+  cShift: number;
+  cActive: number;
+} {
+  const found = findSheetHeader(
+    ws,
+    USER_IMPORT_USERNAME_HEADERS,
+    USER_IMPORT_NAME_HEADERS
+  );
+  if (!found) {
+    throw new Error(
+      'Kolom wajib tidak ditemukan. Butuh "Username" (dan sebaiknya "Nama").'
+    );
+  }
+  const { headerRow, headerMap } = found;
+  const col = (...names: string[]) => headerCol(headerMap, ...names);
+  const cUsername = col(...USER_IMPORT_USERNAME_HEADERS);
+  const cPassword = col("password", "pass", "sandi", "kata sandi");
+  const cName = col(...USER_IMPORT_NAME_HEADERS);
+  const cEmail = col("email", "e-mail", "mail");
+  const cPhone = col("phone", "telepon", "telp", "hp", "no hp", "no. hp");
+  const cLevel = col("level", "role", "hak akses", "akses");
+  const cShift = col("shift", "shift name", "nama shift", "kode shift");
+  const cActive = col("active", "aktif", "status", "status aktif");
+  if (!cUsername) {
+    throw new Error('Kolom "Username" wajib ada.');
+  }
+  return {
+    headerRow,
+    cUsername,
+    cPassword,
+    cName,
+    cEmail,
+    cPhone,
+    cLevel,
+    cShift,
+    cActive,
+  };
+}
+
+function normalizeUserLevel(raw: string): UserLevel | null {
+  const s = raw.trim().toLowerCase();
+  if (!s) return null;
+  const aliases: Record<string, UserLevel> = {
+    superuser: "superuser",
+    "super user": "superuser",
+    su: "superuser",
+    inputer: "inputer",
+    teknisi: "teknisi",
+    technician: "teknisi",
+    tech: "teknisi",
+    foreman: "foreman",
+    hrd: "hrd",
+    hr: "hrd",
+    spv: "spv",
+    supervisor: "spv",
+  };
+  return aliases[s] || (USER_LEVELS.includes(s as UserLevel) ? (s as UserLevel) : null);
+}
+
+function normalizeUserActive(raw: string): "" | "1" | "0" | "invalid" {
+  const s = raw.trim().toLowerCase();
+  if (!s) return "";
+  if (["1", "aktif", "active", "yes", "y", "true", "ya"].includes(s)) return "1";
+  if (["0", "nonaktif", "inactive", "no", "n", "false", "tidak"].includes(s)) {
+    return "0";
+  }
+  return "invalid";
+}
+
+/** Parse Excel and validate user rows without writing to DB. */
+export async function previewUsersFromBuffer(
+  buffer: ArrayBuffer | Buffer
+): Promise<{
+  rows: UserImportPreviewRow[];
+  okCount: number;
+  errorCount: number;
+}> {
+  return withDbLock(async () => {
+    const src = new ExcelJS.Workbook();
+    const bytes =
+      buffer instanceof ArrayBuffer
+        ? Buffer.from(new Uint8Array(buffer))
+        : Buffer.from(buffer);
+    await src.xlsx.load(bytes as unknown as ExcelJS.Buffer);
+    const ws = src.worksheets[0];
+    if (!ws) throw new Error("File Excel kosong / tidak ada sheet");
+
+    const {
+      headerRow,
+      cUsername,
+      cPassword,
+      cName,
+      cEmail,
+      cPhone,
+      cLevel,
+      cShift,
+      cActive,
+    } = parseUserImportSheet(ws);
+    const wb = await loadWorkbook();
+    const users = readUsers(wb);
+    const shifts = await listShifts({ includeInactive: true });
+    const seenUsername = new Set<string>();
+    const rows: UserImportPreviewRow[] = [];
+
+    ws.eachRow((row, rowNumber) => {
+      if (rowNumber <= headerRow) return;
+      const username = cellStr(row.getCell(cUsername).value).trim();
+      const password = cPassword
+        ? cellStr(row.getCell(cPassword).value).trim()
+        : "";
+      const name = cName ? cellStr(row.getCell(cName).value).trim() : "";
+      const email = cEmail ? cellStr(row.getCell(cEmail).value).trim() : "";
+      const phone = cPhone ? cellStr(row.getCell(cPhone).value).trim() : "";
+      const levelRaw = cLevel ? cellStr(row.getCell(cLevel).value).trim() : "";
+      const shiftRaw = cShift ? cellStr(row.getCell(cShift).value).trim() : "";
+      const activeRaw = cActive
+        ? cellStr(row.getCell(cActive).value).trim()
+        : "";
+      if (!username && !name && !email && !phone && !levelRaw && !shiftRaw) {
+        return;
+      }
+
+      const levelNorm = normalizeUserLevel(levelRaw);
+      const activeNorm = normalizeUserActive(activeRaw);
+      const shiftResolved = resolveShiftFromCatalog(shiftRaw, shifts);
+      const base: UserImportPreviewRow = {
+        row: rowNumber,
+        username,
+        password,
+        name,
+        email,
+        phone,
+        level: levelNorm || levelRaw,
+        shift_name: shiftRaw,
+        shift_id:
+          shiftResolved && shiftResolved !== "invalid" ? shiftResolved.id : "",
+        active: activeNorm === "invalid" ? "" : activeNorm,
+        ok: false,
+        action: "skip",
+      };
+
+      if (!username) {
+        rows.push({ ...base, error: "username wajib diisi" });
+        return;
+      }
+      const userKey = username.toLowerCase();
+      if (seenUsername.has(userKey)) {
+        rows.push({
+          ...base,
+          error: `Username duplikat di file (${username})`,
+        });
+        return;
+      }
+      if (levelRaw && !levelNorm) {
+        rows.push({
+          ...base,
+          error: `Level tidak valid (${levelRaw}). Gunakan: ${USER_LEVELS.join(", ")}`,
+        });
+        return;
+      }
+      if (activeNorm === "invalid") {
+        rows.push({
+          ...base,
+          error: `Status aktif tidak valid (${activeRaw}). Gunakan aktif/nonaktif atau 1/0`,
+        });
+        return;
+      }
+      if (shiftResolved === "invalid") {
+        rows.push({
+          ...base,
+          error: `Shift tidak ditemukan di Master Shift (${shiftRaw})`,
+        });
+        return;
+      }
+      if (shiftResolved) {
+        base.shift_name = shiftResolved.name;
+        base.shift_id = shiftResolved.id;
+      }
+
+      const existing = users.find(
+        (u) => u.username.toLowerCase() === userKey
+      );
+      if (existing) {
+        seenUsername.add(userKey);
+        rows.push({
+          ...base,
+          level: levelNorm || existing.level,
+          name: name || existing.name,
+          email: email || existing.email,
+          phone: phone || existing.phone,
+          active: activeNorm || (existing.active === "0" ? "0" : "1"),
+          ok: true,
+          action: "update",
+        });
+        return;
+      }
+
+      if (!password) {
+        rows.push({
+          ...base,
+          error: "password wajib untuk user baru",
+        });
+        return;
+      }
+      if (!levelNorm) {
+        rows.push({
+          ...base,
+          error: `Level wajib untuk user baru (${USER_LEVELS.join(", ")})`,
+        });
+        return;
+      }
+
+      seenUsername.add(userKey);
+      rows.push({
+        ...base,
+        level: levelNorm,
+        name: name || username,
+        active: activeNorm || "1",
+        ok: true,
+        action: "create",
+      });
+    });
+
+    return {
+      rows,
+      okCount: rows.filter((r) => r.ok).length,
+      errorCount: rows.filter((r) => !r.ok).length,
+    };
+  });
+}
+
+/** Commit selected preview rows to DB. */
+export async function commitUsersImport(
+  rows: UserImportCommitRow[]
+): Promise<{ imported: number; updated: number; skipped: string[] }> {
+  return withDbLock(async () => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error("Tidak ada baris yang dipilih");
+    }
+    const wb = await loadWorkbook();
+    const users = readUsers(wb);
+    const shifts = await listShifts({ includeInactive: true });
+    const skipped: string[] = [];
+    let imported = 0;
+    let updated = 0;
+
+    for (const row of rows) {
+      const username = String(row.username || "").trim();
+      const password = String(row.password || "").trim();
+      const name = String(row.name || "").trim();
+      const email = String(row.email || "").trim();
+      const phone = String(row.phone || "").trim();
+      const levelRaw = String(row.level || "").trim();
+      const level = normalizeUserLevel(levelRaw);
+      const action = row.action === "update" ? "update" : "create";
+      const active =
+        row.active === "0" || row.active === "1" ? row.active : undefined;
+      const shiftRaw = String(row.shift_name || "").trim();
+      const shiftFromId = String(row.shift_id || "").trim();
+      let shiftId = "";
+      if (shiftFromId) {
+        const known = shifts.find((s) => s.id === shiftFromId);
+        if (!known) {
+          skipped.push(`${username || "?"}: shift_id tidak valid`);
+          continue;
+        }
+        shiftId = known.id;
+      } else if (shiftRaw) {
+        const resolved = resolveShiftFromCatalog(shiftRaw, shifts);
+        if (resolved === "invalid" || !resolved) {
+          skipped.push(
+            `${username || "?"}: Shift tidak ditemukan (${shiftRaw})`
+          );
+          continue;
+        }
+        shiftId = resolved.id;
+      }
+
+      if (!username) {
+        skipped.push("username kosong");
+        continue;
+      }
+      if (!level) {
+        skipped.push(`${username}: level tidak valid`);
+        continue;
+      }
+
+      const existing = users.find(
+        (u) => u.username.toLowerCase() === username.toLowerCase()
+      );
+
+      if (action === "update" || existing) {
+        if (!existing) {
+          skipped.push(`${username}: user tidak ditemukan untuk update`);
+          continue;
+        }
+        try {
+          if (
+            existing.level === "superuser" &&
+            level !== "superuser" &&
+            !users.some(
+              (u) =>
+                u.id !== existing.id &&
+                u.level === "superuser" &&
+                u.active === "1"
+            )
+          ) {
+            skipped.push(
+              `${username}: minimal satu superuser aktif harus tersisa`
+            );
+            continue;
+          }
+          if (
+            active === "0" &&
+            existing.active === "1" &&
+            !users.some(
+              (u) => u.id !== existing.id && u.active === "1"
+            )
+          ) {
+            skipped.push(`${username}: minimal satu user aktif harus tersisa`);
+            continue;
+          }
+          if (
+            active === "0" &&
+            existing.level === "superuser" &&
+            !users.some(
+              (u) =>
+                u.id !== existing.id &&
+                u.level === "superuser" &&
+                u.active === "1"
+            )
+          ) {
+            skipped.push(
+              `${username}: minimal satu superuser aktif harus tersisa`
+            );
+            continue;
+          }
+          existing.name = name || existing.name || existing.username;
+          existing.email = email || existing.email;
+          existing.phone = phone || existing.phone;
+          existing.level = level;
+          if (password) existing.password = await hashPassword(password);
+          if (shiftId) existing.shift_id = shiftId;
+          if (active) existing.active = active;
+          updated += 1;
+        } catch (e) {
+          skipped.push(
+            `${username}: ${e instanceof Error ? e.message : "validasi gagal"}`
+          );
+        }
+        continue;
+      }
+
+      if (!password) {
+        skipped.push(`${username}: password wajib untuk user baru`);
+        continue;
+      }
+      if (
+        users.some((u) => u.username.toLowerCase() === username.toLowerCase())
+      ) {
+        skipped.push(`${username}: username sudah dipakai`);
+        continue;
+      }
+      users.push({
+        id: `U-${uuidv4().slice(0, 8)}`,
+        username,
+        password: await hashPassword(password),
+        name: name || username,
+        email,
+        phone,
+        photo_name: "",
+        level,
+        shift_id: shiftId,
+        active: active === "0" ? "0" : "1",
+        created_at: nowIso(),
+      });
+      imported += 1;
+    }
+
+    if (imported === 0 && updated === 0) {
+      throw new Error(
+        skipped.length
+          ? `Tidak ada baris yang berhasil disimpan. ${skipped[0]}`
+          : "Tidak ada baris yang berhasil disimpan"
+      );
+    }
+    writeSheet(wb, SHEETS.users, USER_HEADERS, users.map(userToRow));
+    await saveWorkbook(wb);
+    return { imported, updated, skipped: skipped.slice(0, 50) };
+  });
+}

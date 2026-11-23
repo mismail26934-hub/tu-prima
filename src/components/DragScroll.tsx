@@ -11,13 +11,23 @@ import {
 type Props = {
   children: ReactNode;
   className?: string;
+  /**
+   * When true, mouse-drag on td/th also pans (except interactive controls).
+   * Default false keeps text selection; hold Alt to pan from a cell.
+   */
+  panOnCells?: boolean;
 } & Omit<HTMLAttributes<HTMLDivElement>, "children" | "className">;
 
 /**
  * Mouse click-drag pans overflow scroll. Touch keeps native pan scrolling.
  * (Browsers only select text on mouse-drag by default.)
  */
-export function DragScroll({ children, className, ...rest }: Props) {
+export function DragScroll({
+  children,
+  className,
+  panOnCells = false,
+  ...rest
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     pointerId: number;
@@ -29,7 +39,8 @@ export function DragScroll({ children, className, ...rest }: Props) {
   } | null>(null);
   const suppressClick = useRef(false);
 
-  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== "mouse" || e.button !== 0) return;
     const el = ref.current;
     if (!el) return;
@@ -39,7 +50,7 @@ export function DragScroll({ children, className, ...rest }: Props) {
     }
     // Let native text selection work on cells (I-beam / block text).
     // Hold Alt to pan-drag instead while starting on a cell.
-    if (target?.closest("td, th") && !e.altKey) {
+    if (!panOnCells && target?.closest("td, th") && !e.altKey) {
       return;
     }
     suppressClick.current = false;
@@ -53,7 +64,9 @@ export function DragScroll({ children, className, ...rest }: Props) {
     };
     el.setPointerCapture(e.pointerId);
     el.classList.add("is-drag-scrolling");
-  }, []);
+  },
+    [panOnCells]
+  );
 
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     const state = drag.current;

@@ -1,13 +1,29 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import {
+  Fragment,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { useJobBackups } from "@/hooks/useMasterQueries";
+import { BackupColumnSettings } from "@/components/BackupColumnSettings";
+import { DragScroll } from "@/components/DragScroll";
 import { SearchIcon } from "@/components/SearchIcon";
+import { useJobBackups } from "@/hooks/useMasterQueries";
 import { api } from "@/lib/api";
+import {
+  resolveBackupDisplayColumns,
+  stickyLeftFromWidths,
+  type BackupColumnId,
+} from "@/lib/backup-columns";
 import { queryKeys } from "@/lib/query-keys";
 import type { JobChangeBackup } from "@/lib/types";
+import { useBackupColumnsStore } from "@/store/backupColumnsStore";
 
 const MONTHS = [
   "Jan",
@@ -136,6 +152,68 @@ function readBundle(raw: string | undefined): {
   }
 }
 
+function stickyStyle(
+  id: BackupColumnId,
+  stickyLeft: Partial<Record<BackupColumnId, number>>,
+  frozenEdgeId: BackupColumnId | null
+): CSSProperties | undefined {
+  if (!(id in stickyLeft)) return undefined;
+  return {
+    position: "sticky",
+    left: stickyLeft[id],
+    zIndex: id === frozenEdgeId ? 3 : 2,
+  };
+}
+
+function frozenClassName(
+  id: BackupColumnId,
+  stickyLeft: Partial<Record<BackupColumnId, number>>,
+  frozenEdgeId: BackupColumnId | null
+): string {
+  if (!(id in stickyLeft)) return "";
+  return id === frozenEdgeId ? "is-frozen-col is-frozen-edge" : "is-frozen-col";
+}
+
+function renderBackupCell(
+  id: BackupColumnId,
+  item: JobChangeBackup,
+  open: boolean,
+  onToggle: () => void
+): ReactNode {
+  switch (id) {
+    case "waktu":
+      return formatWhen(item.at);
+    case "aksi":
+      return actionLabel(item.action);
+    case "jenis":
+      return entityLabel(item.entity);
+    case "data":
+      return dataLabel(item.summary);
+    case "pengguna":
+      return (
+        <div className="backup-user">
+          {item.user_name || "—"}
+          {item.user_level && item.user_level !== item.user_name ? (
+            <small>{item.user_level}</small>
+          ) : null}
+        </div>
+      );
+    case "isi":
+      return (
+        <button
+          className="btn btn-sm"
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          {open ? "Tutup" : "Lihat"}
+        </button>
+      );
+    default:
+      return null;
+  }
+}
+
 export function JobBackupPage({
   embedded = false,
   onBack,
@@ -157,6 +235,19 @@ export function JobBackupPage({
     | null
   >(null);
   const backupsQuery = useJobBackups(includeUndone, true);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const order = useBackupColumnsStore((s) => s.order);
+  const hidden = useBackupColumnsStore((s) => s.hidden);
+  const frozen = useBackupColumnsStore((s) => s.frozen);
+  const { columns, frozenIds } = useMemo(
+    () => resolveBackupDisplayColumns({ order, hidden, frozen }),
+    [order, hidden, frozen]
+  );
+  const frozenEdgeId = frozenIds.length ? frozenIds[frozenIds.length - 1]! : null;
+  const [stickyLeft, setStickyLeft] = useState(() =>
+    stickyLeftFromWidths(frozenIds, {})
+  );
+
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     const backups = backupsQuery.data || [];
@@ -179,6 +270,34 @@ export function JobBackupPage({
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
   const currentPage = Math.min(page, Math.max(totalPages, 1));
   const pageRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table || !frozenIds.length) {
+      setStickyLeft({});
+      return;
+    }
+
+    const measure = () => {
+      const widths: Partial<Record<BackupColumnId, number>> = {};
+      for (const id of frozenIds) {
+        const th = table.querySelector(
+          `thead th[data-col-id="${id}"]`
+        ) as HTMLTableCellElement | null;
+        if (th) widths[id] = th.getBoundingClientRect().width;
+      }
+      setStickyLeft(stickyLeftFromWidths(frozenIds, widths));
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(table);
+    for (const id of frozenIds) {
+      const th = table.querySelector(`thead th[data-col-id="${id}"]`);
+      if (th) ro.observe(th);
+    }
+    return () => ro.disconnect();
+  }, [frozenIds, columns, pageRows.length]);
 
   function showPage(next: number) {
     setPage(next);
@@ -258,24 +377,34 @@ export function JobBackupPage({
                 <SearchIcon />
               </button>
             </div>
+            <BackupColumnSettings />
           </div>
         </div>
-        <div className="backup-table-wrap">
-          <table className="backup-table">
+        <DragScroll className="backup-table-wrap backup-data-table-wrap">
+          <table ref={tableRef} className="backup-table backup-data-table">
             <thead>
               <tr>
-                <th>Waktu</th>
-                <th>Aksi</th>
-                <th>Jenis</th>
-                <th>Data</th>
-                <th>Pengguna</th>
-                <th>Isi</th>
+                {columns.map((col) => (
+                  <th
+                    key={col.id}
+                    data-col-id={col.id}
+                    className={[
+                      col.thClassName,
+                      frozenClassName(col.id, stickyLeft, frozenEdgeId),
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={stickyStyle(col.id, stickyLeft, frozenEdgeId)}
+                  >
+                    {col.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td className="backup-empty" colSpan={6}>
+                  <td className="backup-empty" colSpan={Math.max(columns.length, 1)}>
                     {backupsQuery.isSuccess
                       ? search
                         ? "Tidak ada data yang cocok."
@@ -290,34 +419,29 @@ export function JobBackupPage({
                   return (
                     <Fragment key={item.id}>
                       <tr className={open ? "is-selected" : undefined}>
-                        <td>{formatWhen(item.at)}</td>
-                        <td className={item.action === "delete" ? "is-over" : undefined}>
-                          {actionLabel(item.action)}
-                        </td>
-                        <td>{entityLabel(item.entity)}</td>
-                        <td>{dataLabel(item.summary)}</td>
-                        <td>
-                          <div className="backup-user">
-                            {item.user_name || "—"}
-                            {item.user_level && item.user_level !== item.user_name ? (
-                              <small>{item.user_level}</small>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="col-act">
-                          <button
-                            className="btn btn-sm"
-                            type="button"
-                            aria-expanded={open}
-                            onClick={() => setOpenId(open ? null : item.id)}
+                        {columns.map((col) => (
+                          <td
+                            key={col.id}
+                            className={[
+                              col.tdClassName,
+                              col.id === "aksi" && item.action === "delete"
+                                ? "is-over"
+                                : "",
+                              frozenClassName(col.id, stickyLeft, frozenEdgeId),
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            style={stickyStyle(col.id, stickyLeft, frozenEdgeId)}
                           >
-                            {open ? "Tutup" : "Lihat"}
-                          </button>
-                        </td>
+                            {renderBackupCell(col.id, item, open, () =>
+                              setOpenId(open ? null : item.id)
+                            )}
+                          </td>
+                        ))}
                       </tr>
                       {open ? (
                         <tr className="backup-detail">
-                          <td colSpan={6}>
+                          <td colSpan={Math.max(columns.length, 1)}>
                             {fields.length === 0 ? (
                               "Tidak ada isi data."
                             ) : (
@@ -352,7 +476,7 @@ export function JobBackupPage({
               )}
             </tbody>
           </table>
-        </div>
+        </DragScroll>
         <Pager page={currentPage} totalPages={totalPages} onChange={showPage} />
         <label className="backup-foot">
           <input

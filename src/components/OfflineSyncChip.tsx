@@ -102,7 +102,8 @@ export function OfflineSyncChip({
 }) {
   const t = useT();
   const isMobile = useMobileSheet();
-  const useSheet = isMobile || railCompact;
+  /** Phone: bottom sheet. Tablet/desktop: centered dialog (avoids full-bleed stretch). */
+  const panelMode = isMobile ? "sheet" : "dialog";
   const { online, pending, syncing, error, retry } = useOfflineStatus();
   const [open, setOpen] = useState(false);
   const [queued, setQueued] = useState<OutboxItem[]>([]);
@@ -126,24 +127,21 @@ export function OfflineSyncChip({
   const visible = !online || pending > 0 || Boolean(error) || syncing;
 
   useEffect(() => {
-    if (!open || useSheet) return;
-    const onDoc = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open, useSheet]);
-
-  useEffect(() => {
     if (!visible) setOpen(false);
   }, [visible]);
 
   useEffect(() => {
-    if (!open || !useSheet) return;
-    document.documentElement.classList.add('offline-sheet-open');
-    return () =>
-      document.documentElement.classList.remove('offline-sheet-open');
-  }, [open, useSheet]);
+    if (!open) return;
+    document.documentElement.classList.add("offline-sheet-open");
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.documentElement.classList.remove("offline-sheet-open");
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   if (!visible) return null;
 
@@ -220,51 +218,45 @@ export function OfflineSyncChip({
           </ul>
         </>
       ) : null}
-      <div
-        className={`offline-sync-pop-actions${
-          useSheet ? ' offline-sync-pop-actions--stack' : ''
-        }`}
-      >
+      <div className="offline-sync-pop-actions offline-sync-pop-actions--stack">
         {!online ? (
-          <p className='offline-sync-pop-status' role='status'>
+          <p className="offline-sync-pop-status" role="status">
             {pending > 0
-              ? t('offline.waitingConnectionPending', { count: pending })
-              : t('offline.waitingConnection')}
+              ? t("offline.waitingConnectionPending", { count: pending })
+              : t("offline.waitingConnection")}
           </p>
         ) : (
-          <>
+          <div className="offline-sync-pop-actions-row">
             <button
-              className='btn btn-primary offline-sync-btn'
-              type='button'
+              className="btn btn-primary offline-sync-btn"
+              type="button"
               disabled={!canSync}
               onClick={() => {
                 retry();
               }}
             >
-              {syncing ? t('offline.syncing') : t('offline.retry')}
+              {syncing ? t("offline.syncing") : t("offline.retry")}
             </button>
             <button
-              className='btn offline-sync-btn'
-              type='button'
+              className="btn offline-sync-btn"
+              type="button"
               disabled={refreshBusy}
               onClick={() => {
                 onRefresh?.();
                 setOpen(false);
               }}
             >
-              {t('nav.refresh')}
+              {t("nav.refresh")}
             </button>
-          </>
+          </div>
         )}
-        {useSheet ? (
-          <button
-            className='btn offline-sync-btn'
-            type='button'
-            onClick={() => setOpen(false)}
-          >
-            {t('offline.close')}
-          </button>
-        ) : null}
+        <button
+          className="btn offline-sync-btn offline-sync-btn--close"
+          type="button"
+          onClick={() => setOpen(false)}
+        >
+          {t("offline.close")}
+        </button>
       </div>
     </>
   );
@@ -293,20 +285,24 @@ export function OfflineSyncChip({
         )}
         <span className='offline-sync-label'>{chipLabel}</span>
       </button>
-      {open && !useSheet ? (
-        <div className='offline-sync-pop' role='dialog' aria-label={panelTitle}>
-          {panelBody}
-        </div>
-      ) : null}
-      {open && useSheet && typeof document !== 'undefined'
+      {open && typeof document !== "undefined"
         ? createPortal(
             <div
-              className='offline-sync-sheet-backdrop'
+              className={
+                panelMode === "sheet"
+                  ? "offline-sync-sheet-backdrop"
+                  : "offline-sync-dialog-backdrop"
+              }
               onClick={() => setOpen(false)}
             >
               <div
-                className='offline-sync-sheet'
-                role='dialog'
+                className={
+                  panelMode === "sheet"
+                    ? "offline-sync-sheet"
+                    : "offline-sync-dialog"
+                }
+                role="dialog"
+                aria-modal="true"
                 aria-label={panelTitle}
                 onClick={(e) => e.stopPropagation()}
               >

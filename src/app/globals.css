@@ -900,6 +900,7 @@ html[data-theme='light'].modal-open .topbar-glass {
 
 .nav-alerts-btn {
   position: relative;
+  overflow: visible;
 }
 
 .remain-alert-mute.is-muted {
@@ -1228,15 +1229,35 @@ html[data-theme='light'] .remain-alert-field select {
 
 .nav-alerts-badge {
   position: absolute;
-  top: -4px;
-  right: -6px;
+  top: 1px;
+  right: 1px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  max-width: calc(100% - 2px);
   pointer-events: none;
 }
 
-/* Keep count badge inside the button when sidebar overflow:hidden clips it */
+/* Sidebar rail clips overflow — keep badge fully inside the icon button */
+.topbar.app-sidebar .nav-alerts-badge {
+  top: 2px;
+  right: 2px;
+}
+
 .topbar.app-sidebar.is-open .nav-alerts-badge {
-  top: 0;
-  right: 0;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+}
+
+.nav-alerts-badge .ds-badge--count {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 16px;
 }
 
 .nav-alerts-list {
@@ -8261,7 +8282,8 @@ html.modal-open .topbar-glass {
 .offline-sync-pop-actions--stack {
   flex-direction: column;
   flex-wrap: nowrap;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 4px;
 }
 
 .offline-sync-pop-actions--stack .btn {
@@ -8269,71 +8291,142 @@ html.modal-open .topbar-glass {
   justify-content: center;
 }
 
+.offline-sync-pop-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.offline-sync-pop-actions-row .btn {
+  flex: 1 1 8rem;
+  min-width: 0;
+  justify-content: center;
+}
+
 .offline-sync-pop-hint,
 .offline-sync-pop-status {
   margin: 0;
-  padding: 8px 10px;
+  padding: 10px 12px;
   width: 100%;
   box-sizing: border-box;
-  font-family: var(--font-body), 'Segoe UI', sans-serif;
-  font-size: 0.8rem;
+  font-family: var(--font-body), 'Roboto', sans-serif;
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--muted);
   text-align: left;
-  line-height: 1.4;
+  line-height: 1.45;
   text-transform: none;
   letter-spacing: normal;
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-yellow-80) 12%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--ds-yellow-80) 45%, var(--line));
+  border-radius: 10px;
 }
 
-.offline-sync-sheet-backdrop {
+.offline-sync-sheet-backdrop,
+.offline-sync-dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 10050;
   background: var(--overlay);
   display: flex;
-  align-items: flex-end;
   animation: fade 0.2s ease both;
+}
+
+.offline-sync-sheet-backdrop {
+  align-items: flex-end;
+  justify-content: stretch;
+}
+
+.offline-sync-dialog-backdrop {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.offline-sync-sheet,
+.offline-sync-dialog {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  font-family: var(--font-body), 'Roboto', sans-serif;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
 }
 
 .offline-sync-sheet {
   width: 100%;
-  background: var(--bg-1);
-  border: 1px solid var(--line);
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
+  border-bottom: 0;
   padding-block: 18px calc(18px + env(safe-area-inset-bottom, 0px));
   padding-inline: max(var(--ds-margin), env(safe-area-inset-left, 0px))
     max(var(--ds-margin), env(safe-area-inset-right, 0px));
   box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.38);
   animation: offline-sheet-rise 0.28s ease both;
-  font-family: var(--font-body), 'Segoe UI', sans-serif;
-  text-transform: none;
-  letter-spacing: normal;
 }
 
-.offline-sync-sheet .offline-sync-pop-title {
+/* Tablet medium + desktop/large: compact centered status card */
+.offline-sync-dialog {
+  width: min(400px, calc(100vw - 48px));
+  max-height: min(80vh, 560px);
+  overflow: auto;
+  border-radius: 16px;
+  padding: 20px 22px 18px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  animation: offline-dialog-in 0.22s ease both;
+}
+
+.offline-sync-sheet .offline-sync-pop-title,
+.offline-sync-dialog .offline-sync-pop-title {
   margin: 0;
   font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
-.offline-sync-sheet .offline-sync-pop-body {
-  margin: 8px 0 0;
-  font-size: 0.92rem;
+.offline-sync-sheet .offline-sync-pop-body,
+.offline-sync-dialog .offline-sync-pop-body {
+  margin: 8px 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.offline-sync-dialog .offline-sync-panel-head {
+  margin-bottom: 2px;
+}
+
+.offline-sync-dialog .offline-sync-btn--close {
+  margin-top: 2px;
 }
 
 .offline-sync-sheet-close {
   flex-shrink: 0;
   width: 32px;
   height: 32px;
+  min-width: 32px;
   min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
   padding: 0;
   font-size: 1.2rem;
   line-height: 1;
   color: var(--muted);
   border-radius: 8px;
+}
+
+html[data-theme='light'] .offline-sync-dialog,
+html[data-theme='light'] .offline-sync-sheet {
+  background: var(--ds-white);
+  border-color: var(--ds-border-default);
+  box-shadow: 0 20px 40px rgba(31, 27, 34, 0.18);
+}
+
+html[data-theme='light'] .offline-sync-pop-status {
+  background: var(--ds-bg-subtle-warning);
+  border-color: var(--ds-border-warning);
+  color: var(--ds-orange-100);
 }
 
 @keyframes offline-sheet-rise {
@@ -8342,6 +8435,28 @@ html.modal-open .topbar-glass {
   }
   to {
     transform: translateY(0);
+  }
+}
+
+@keyframes offline-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .offline-sync-dialog {
+    width: min(420px, calc(100vw - 64px));
+    padding: 22px 24px 20px;
+  }
+
+  .offline-sync-dialog .offline-sync-pop-title {
+    font-size: 1.1rem;
   }
 }
 

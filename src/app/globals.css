@@ -4966,6 +4966,12 @@ html[data-theme='light'] .job-handover-notes-table thead th.is-frozen-col {
   min-width: 0;
   width: 100%;
   overflow: hidden;
+  gap: 10px;
+}
+
+.master-body.master-body--handover-table > .pager {
+  flex: 0 0 auto;
+  justify-content: center;
 }
 
 .master-body.master-body--handover-table .master-handover-table-wrap {

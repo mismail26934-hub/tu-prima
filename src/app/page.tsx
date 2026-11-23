@@ -1255,6 +1255,7 @@ export default function HomePage() {
   );
   const [handoversMasterQ, setHandoversMasterQ] = useState("");
   const [handoversMasterQDraft, setHandoversMasterQDraft] = useState("");
+  const [handoversMasterPage, setHandoversMasterPage] = useState(1);
   const [handoverFormFromMaster, setHandoverFormFromMaster] = useState(false);
   const [handoverFormEditor, setHandoverFormEditor] = useState<{
     jobId: string;
@@ -3837,6 +3838,7 @@ export default function HomePage() {
     }
     setHandoverFormFromMaster(false);
     setHandoversMasterQDraft(handoversMasterQ);
+    setHandoversMasterPage(1);
     if (!handoverFormDate) {
       setHandoverFormDate(new Date().toISOString().slice(0, 10));
     }
@@ -4939,13 +4941,28 @@ export default function HomePage() {
   });
   const handoversMasterQuery = useJobsList({
     section: "active",
-    page: 1,
-    limit: 100,
+    page: handoversMasterPage,
+    limit: MASTER_PAGE_SIZE,
     q: handoversMasterQ,
     ownership: "all",
     enabled: isLoggedIn && (modal?.type === "handovers" || handoversMasterOpen),
   });
   const handoversMasterJobs = handoversMasterQuery.data?.items || [];
+  const handoversMasterTotalPages = Math.max(
+    1,
+    handoversMasterQuery.data?.totalPages ?? 1
+  );
+  const handoversMasterPageSafe = Math.min(
+    handoversMasterPage,
+    handoversMasterTotalPages
+  );
+
+  useEffect(() => {
+    setHandoversMasterPage((p) =>
+      p > handoversMasterTotalPages ? handoversMasterTotalPages : p
+    );
+  }, [handoversMasterTotalPages]);
+
   const sliderJobsQuery = useActiveJobsSlider({
     q: jobQuery,
     ownership: jobOwnershipFilter,
@@ -7559,11 +7576,15 @@ export default function HomePage() {
                     onChange={(e) => {
                       const v = e.target.value;
                       setHandoversMasterQDraft(v);
-                      if (!v.trim()) setHandoversMasterQ("");
+                      if (!v.trim()) {
+                        setHandoversMasterQ("");
+                        setHandoversMasterPage(1);
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
+                        setHandoversMasterPage(1);
                         setHandoversMasterQ(handoversMasterQDraft.trim());
                       }
                     }}
@@ -7573,9 +7594,10 @@ export default function HomePage() {
                     className="btn"
                     disabled={busy}
                     aria-label={t("master.handoverSearch")}
-                    onClick={() =>
-                      setHandoversMasterQ(handoversMasterQDraft.trim())
-                    }
+                    onClick={() => {
+                      setHandoversMasterPage(1);
+                      setHandoversMasterQ(handoversMasterQDraft.trim());
+                    }}
                   >
                     <SearchIcon />
                   </button>
@@ -7602,6 +7624,13 @@ export default function HomePage() {
                   }
                 />
               )}
+              {handoversMasterTotalPages > 1 ? (
+                <Pager
+                  page={handoversMasterPageSafe}
+                  totalPages={handoversMasterTotalPages}
+                  onChange={setHandoversMasterPage}
+                />
+              ) : null}
             </div>
             <div className="master-foot actions">
               <button className="btn" type="button" onClick={closeModal}>

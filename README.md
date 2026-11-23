@@ -14,22 +14,24 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 4. [Mode step: Berurutan vs Parallel](#mode-step-berurutan-vs-parallel)
 5. [Timer & sisa estimasi](#timer--sisa-estimasi)
 6. [Prioritas job (master dinamis)](#prioritas-job-master-dinamis)
-7. [Archive job (complete / cancel / hapus)](#archive-job-complete--cancel--hapus)
-8. [Catatan handover](#catatan-handover-job-aktif)
-9. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
-10. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
-11. [Struktur data (MySQL)](#struktur-data-mysql)
-12. [Template JSON & file data](#template-json--file-data)
-13. [Autentikasi & hak akses](#autentikasi--hak-akses)
-14. [Struktur folder](#struktur-folder)
-15. [API ringkas](#api-ringkas)
-16. [Menjalankan project](#menjalankan-project)
-17. [Deploy production (Hostinger)](#deploy-production-hostinger)
-18. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
-19. [Realtime WebSocket](#realtime-websocket)
-20. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
-21. [Tema Light / Dark (Design System TU)](#tema-light--dark-design-system-tu)
-22. [Catatan operasional](#catatan-operasional)
+7. [Master Customer & Master Shift](#master-customer--master-shift)
+8. [Archive job (complete / cancel / hapus)](#archive-job-complete--cancel--hapus)
+9. [Catatan handover & Hand Over Form](#catatan-handover--hand-over-form)
+10. [Catatan peminjaman part](#catatan-peminjaman-part-job-aktif)
+11. [Job Report PDF](#job-report-pdf)
+12. [Audit trail (siapa melakukan apa)](#audit-trail-siapa-melakukan-apa)
+13. [Struktur data (MySQL)](#struktur-data-mysql)
+14. [Template JSON & file data](#template-json--file-data)
+15. [Autentikasi & hak akses](#autentikasi--hak-akses)
+16. [Struktur folder](#struktur-folder)
+17. [API ringkas](#api-ringkas)
+18. [Menjalankan project](#menjalankan-project)
+19. [Deploy production (Hostinger)](#deploy-production-hostinger)
+20. [Mode offline (CRUD tanpa server)](#mode-offline-crud-tanpa-server)
+21. [Realtime WebSocket](#realtime-websocket)
+22. [Kehadiran Meals Request → status teknisi](#kehadiran-meals-request--status-teknisi)
+23. [Tema Light / Dark (Design System TU)](#tema-light--dark-design-system-tu)
+24. [Catatan operasional](#catatan-operasional)
 
 ---
 
@@ -37,12 +39,15 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 
 ### Board & progress
 
-- Board teknisi: **available / busy / offline**
+- Board teknisi: **available / busy / offline** (+ nama **shift** bila teknisi terhubung ke Master User yang punya `shift_id`)
 - Board job aktif + antrian, progress %, status job
+- Kartu job menampilkan **Customer**, **SMU**, tanggal **Arrived / Promise / Est Revision / Release** (jika diisi)
 - Timer live per **job** dan per **step**
 - Kartu **sisa estimasi** (estimasi − waktu berjalan) dengan warna status
 - Toggle **Light / Dark** mode (tersimpan di browser) — warna button / text / background selaras dengan Design System TU (`tu-rental`)
 - Toggle bahasa **ID / EN** (tersimpan di browser)
+- Tombol **Cari** di master/list: **ikon saja** (tanpa label teks)
+- Alert navbar (lonceng): flyout portal agar tidak terpotong sidebar `overflow: hidden`
 - Panel teknisi / job bisa disembunyikan (preferensi lokal)
 - **Mode offline**: CRUD tetap jalan jika server/jaringan mati (salinan lokal + antrian sync)
 
@@ -50,6 +55,7 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 
 - **CRUD job**: buat, edit, hapus (backup ke `job_scope = deleted`), cancel (pindah ke `cancelled`)
 - Buat job dari **template time frame** (Component Engine / Non Engine) atau **custom**
+- Field job: **Customer** (master), **SMU**, **Arrived / Promise / Est Revision / Release** date-time, **Foto job** (maks. 6, kamera/galeri)
 - Assign **satu atau lebih teknisi** per job (lead = assignee pertama)
 - Start, pause, resume, complete step
 - **Complete job** → `job_scope = completed` (keluar dari board aktif). Ditolak jika ada catatan handover yang **DONE** masih **No**
@@ -61,19 +67,22 @@ Stack: **Next.js 16 · React 19 · NextAuth · TanStack Query · mysql2 · Excel
 - Mode pengerjaan step: **Berurutan** atau **Parallel** (checkbox + start massal)
 - Setiap step menampilkan **STP/Std Hours** (`std_minutes` dari template)
 - Estimasi di kartu: `Est. N mnt / H jam M mnt · Progress P%` (di bawah deskripsi job)
-- **Catatan handover** + loading tambah/ubah (foreman pengendali **atau** teknisi assigned) / hapus (foreman pengendali)
+- **Catatan handover / Hand Over Form** per shift (from/to, progress, plan MP) + loading tambah/ubah (foreman pengendali **atau** teknisi assigned) / hapus (foreman pengendali)
+- **Laporan Hand Over Form** (PDF/Excel) dari menu laporan — crew hadir/sakit + unit aktif
 - **Catatan peminjaman part** + loading tambah/ubah (foreman pengendali **atau** teknisi assigned) / hapus (foreman pengendali)
-- **Print PDF** per job (modal loading/success/error)
+- **Print PDF Job Report** per job (meta Customer/SMU/tanggal, foto job, lampiran bukti foto step, footer Dibuat/Start/Selesai)
 - **Export to excel** (menu Kelola): satu menu → popup pilih Job Aktif / Job Antrian + filter tanggal (create / start / end), kolom **stp_std_hours** + STP per step
 - **Backup / Undo** (menu Kelola, **superuser** saja): snapshot perubahan ke tabel `job_change_backups`. Panel **BACKUP DATA** mengikuti pola ARMOR: kolom Waktu, Aksi, Jenis, Data, Pengguna, Isi + cari data/pengguna
 
 ### Master data (via menu Kelola)
 
 - **Unit** — CRUD + import Excel + unduh template
+- **Customer** — CRUD kode/nama customer (dipakai di form job + kartu + PDF)
+- **Shift** — CRUD kode/nama shift; di-assign ke **Master User** (`users.shift_id`)
 - **Prioritas** — CRUD kode prioritas job (nama, urutan, aktif/nonaktif)
-- **Teknisi** — CRUD + import Excel + unduh template
+- **Teknisi** — CRUD + import Excel + unduh template; bisa **buat dari Master User** (level teknisi) via SearchableSelect — autofill nama/SN/kontak + tautan `user_id` (shift tampil dari user)
 - **Template** — CRUD time frame Engine / Non Engine + unduh template Excel + mass upload
-- **Users** — CRUD akun login (nama, **email**, **no. telp**, level, aktif)
+- **Users** — CRUD akun login (nama, **email**, **no. telp**, **shift**, level, aktif)
 - **Daftar hadir** — CRUD + import Excel absensi; **Sync Meals Request** (SharePoint Graph atau upload) untuk set **available / offline** pada board teknisi
 
 ### Akun
@@ -276,6 +285,40 @@ API: `GET/POST /api/job-priorities` · `PATCH/DELETE /api/job-priorities/[id]` �
 
 ---
 
+## Master Customer & Master Shift
+
+### Master Customer
+
+UI: **Kelola → Master Customer**. Menyimpan kode + nama customer aktif untuk dipilih di form Create/Edit job.
+
+- Job menyimpan **`customer_id`** + **`customer_label`** (teks tampilan di kartu / PDF)
+- Hak akses sama pola Unit/Prioritas: superuser / inputer / foreman CRUD · hrd / spv baca · teknisi / guest tidak
+
+API: `GET/POST /api/customers` · `PATCH/DELETE /api/customers/[id]`
+
+### Master Shift
+
+UI: **Kelola → Master Shift**. Kode + nama shift (tanpa field “Kode” terpisah di UI jika nama/code digabung sesuai form master).
+
+- **Master User** punya **`shift_id`** (SearchableSelect shift)
+- **Master Teknisi** menampilkan nama shift lewat tautan `technicians.user_id` → `users.shift_id` → `shifts`
+- Buat teknisi dari user level `teknisi`: `GET /api/users/technicians` (kandidat; yang sudah linked ditandai `already_linked` dan tidak bisa dipilih ulang)
+
+API: `GET/POST /api/shifts` · `PATCH/DELETE /api/shifts/[id]` · `GET /api/users/technicians`
+
+### Field tanggal & SMU di job
+
+| Field | Kolom DB | Keterangan |
+| ----- | -------- | ---------- |
+| SMU | `jobs.smu` | Angka (jam meter); tampil di kartu & PDF |
+| Arrived | `jobs.arrived_at` | ISO / string tanggal-waktu |
+| Promise | `jobs.promise_at` | |
+| Est Revision | `jobs.est_revision_at` | Dipakai juga sebagai Est DT di Hand Over Form jika diisi |
+| Release | `jobs.release_at` | |
+| Foto job | `jobs.photos` + `photo_name` | Maks. 6 foto; URL publik `/api/jobs/[id]/photo` |
+
+---
+
 ## Archive job (complete / cancel / hapus)
 
 Job aktif & antrian disimpan di MySQL dengan `job_scope = 'active'`. Complete / cancel / hapus memindahkan baris ke scope terpisah (bukan file Excel terpisah):
@@ -294,13 +337,21 @@ Modul: `src/lib/job-completed-archive.ts`, `job-cancelled-archive.ts`, `job-dele
 
 ---
 
-## Catatan handover (job aktif)
+## Catatan handover & Hand Over Form
 
-Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** (serah terima shift):
+### Catatan handover di kartu job
 
-| NO  | Job Handover      | Done   | Note     |
-| --- | ----------------- | ------ | -------- |
-| 1   | Cleaning camshaft | Yes/No | Opsional |
+Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** (serah terima shift). Form Hand Over digabung ke tabel yang sama (`job_handovers`) dengan entri **per tanggal shift**:
+
+| Field | Keterangan |
+| ----- | ---------- |
+| `shift_date` | Tanggal shift (YYYY-MM-DD) |
+| `from_name` / `to_name` | Serah terima antar orang (opsional `from_user_id` / `to_user_id`) |
+| `title` | Judul singkat handover |
+| `done` | Yes/No — wajib Yes sebelum Complete job |
+| `note` | Catatan bebas |
+| `progress_text` / `handover_text` | Teks Progress / Hand Over (bisa dari picker step) |
+| `plan_technician_ids` | Rencana MP (JSON id teknisi) |
 
 - Pilih aksi **Tambah / Ubah / Hapus** (select) agar UI lebih aman:
   - **Tambah** — field + tombol `+ Tambah` (langsung simpan)
@@ -314,6 +365,16 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan handover** 
 - Tersimpan di tabel **`job_handovers`**; aksi tercatat di **`audit_log`**
 
 API: `POST /api/jobs/[id]/handovers` · `PATCH|DELETE /api/jobs/[id]/handovers/[handoverId]`
+
+### Laporan Hand Over Form
+
+Laporan harian crew + unit aktif (PDF/Excel):
+
+- Ringkasan **Hadir / Sakit / Next crew** dari absensi
+- Baris unit: Unit No, Priority, Unit In, Est DT, Customer, SMU, Description, Progress, Prev MP, Handover, Plan MP
+- Modul: `src/lib/handover-form-data.ts`, `handover-form-pdf.ts`, `handover-form-excel.ts`
+
+API: `GET /api/reports/handover-form?date=YYYY-MM-DD&format=pdf|xlsx`
 
 ---
 
@@ -333,6 +394,35 @@ Untuk job `in_progress` / `paused` / `done`, tersedia blok **Catatan peminjaman 
 - Tersimpan di tabel **`job_part_loans`** + **`audit_log`**
 
 API: `POST /api/jobs/[id]/part-loans` · `PATCH|DELETE /api/jobs/[id]/part-loans/[loanId]`
+
+---
+
+## Job Report PDF
+
+Tombol **Print PDF** di modal job memanggil `downloadJobPdf` (`src/lib/job-pdf.ts`). Layout:
+
+### Halaman utama
+
+- Judul **TU-PRIMA — Job Report** + stempel cetak
+- Meta job (label **rata kiri**, tanda `:` sejajar di kolom tetap): Unit, Customer, SMU, Arrived / Promise / Est Revision / Release, Priority, Status, Teknisi, Estimasi, Elapsed, Sisa estimasi, Progress
+- Deskripsi (jika ada)
+- Tabel **Tahapan (Steps)**: NO, Step, STP/Std, Status, Durasi, Teknisi, Note, Bukti Foto
+  - Status step **Pending** → kolom **Teknisi** dikosongkan
+  - Note / Bukti Foto / Teknisi kosong → **blank** (bukan `—`)
+- Tabel catatan handover & peminjaman part
+
+### Lampiran foto
+
+1. **Foto job** (jika ada `jobs.photos`) — halaman terpisah di **atas** Lampiran bukti step; hanya gambar (tanpa caption nama file)
+2. **Lampiran — Bukti foto** — foto bukti per step (grid 2 kolom + detail step)
+
+PDF catatan step (jika ada file PDF di note) digabung di akhir via `pdf-lib`.
+
+### Footer setiap halaman
+
+- Kiri: `TU-PRIMA · Job Report`
+- Di bawahnya (font kecil): `Dibuat` + `Start` **satu baris**, lalu `Selesai`
+- Kanan: nomor halaman (kecuali saat merge PDF lampiran note)
 
 ---
 
@@ -401,17 +491,19 @@ Database: **`tu_prima`** (via `DATABASE_URL`). Schema lengkap: `src/db/schema.sq
 
 | Tabel                | Isi utama                                                                                                                                                        |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `technicians`        | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email                                                                                            |
+| `technicians`        | id, name, **sn** (SN), badge_id, status, current_job_id, phone, email, **user_id** (tautan Master User), superior_user_*                                          |
 | `units`              | id, code, name, serial_number, active                                                                                                                            |
+| `customers`          | id, **code** (unik), name, active — master customer job                                                                                                          |
+| `shifts`             | id, **code** (unik), name, active — master shift; di-assign ke user                                                                                              |
 | `job_priorities`     | id, **code** (unik), name, sort_order, active — master prioritas job (seed URGENT/P1/P2/P3)                                                                      |
-| `jobs`               | id, **job_scope**, title, **priority** (kode dari `job_priorities`, atau kosong), unit, status, technician_id, **template_id**, timestamps, pause, estimated_minutes |
+| `jobs`               | id, **job_scope**, title, **priority**, unit_*, **customer_***, **smu**, **arrived_at / promise_at / est_revision_at / release_at**, status, **photos**, timestamps, pause, estimated_minutes |
 | `job_assignees`      | job_id, technician_id, is_lead, assigned_at                                                                                                                      |
-| `job_steps`          | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours)                                                             |
+| `job_steps`          | job_id, name, order, status, started_at, completed_at, duration_sec, **std_minutes** (STP/Std Hours), photos/notes                                                |
 | `job_events`         | timeline + **user_id / user_name / user_level**                                                                                                                  |
-| `job_handovers`      | catatan serah terima job aktif (order, title, done, note, user)                                                                                                  |
+| `job_handovers`      | serah terima per **shift_date**: from/to, title, done, note, progress_text, handover_text, plan_technician_ids, user                                             |
 | `job_part_loans`     | catatan peminjaman part (order, part_name, status open/closed, note, user)                                                                                       |
 | `attendance`         | date, technician_id, pernr, status, dws, check_in/out, …                                                                                                         |
-| `users`              | username, password_hash, name, **email**, **phone**, level, active                                                                                               |
+| `users`              | username, password_hash, name, **email**, **phone**, **shift_id**, level, active                                                                                 |
 | `audit_log`          | jejak aksi user (tahan delete)                                                                                                                                   |
 | `job_change_backups` | snapshot before/after untuk undo                                                                                                                                 |
 
@@ -478,21 +570,21 @@ Level: `superuser`, `inputer`, `teknisi`, `foreman`, `hrd`, `spv` · belum login
 
 **CRUD** = Create/Read/Update/Delete · **R** = Read · **—** = tidak ada
 
-| Level     | Job  | User | Teknisi | Unit | Prioritas | Template | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
-| --------- | ---- | ---- | ------- | ---- | --------- | -------- | ------------ | ------ | -------------------------------- | -------------- | ------ |
-| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD      | CRUD     | CRUD         | Ya     | Ya                               | —              | Ya     |
-| inputer   | CRUD | R    | R       | CRUD | CRUD      | CRUD     | R            | —      | —                                | —              | —      |
-| teknisi   | R    | R    | R       | —    | —         | R        | R            | —      | —                                | Tambah/Ubah*   | —      |
-| foreman   | CRUD | R    | CRUD    | CRUD | CRUD      | CRUD     | CRUD         | Ya     | Ya                               | Ya             | —      |
-| spv       | R    | R    | R       | R    | R         | R        | R            | —      | —                                | —              | —      |
-| hrd       | R    | R    | R       | R    | R         | R        | CRUD         | —      | —                                | —              | —      |
-| guest     | R    | R    | R       | —    | —         | —        | R            | —      | —                                | —              | —      |
+| Level     | Job  | User | Teknisi | Unit | Customer | Shift | Prioritas | Template | Daftar Hadir | Assign | Start/Pause/Resume/Step/Complete | Handover write | Reopen |
+| --------- | ---- | ---- | ------- | ---- | -------- | ----- | --------- | -------- | ------------ | ------ | -------------------------------- | -------------- | ------ |
+| superuser | CRUD | CRUD | CRUD    | CRUD | CRUD     | CRUD  | CRUD      | CRUD     | CRUD         | Ya     | Ya                               | —              | Ya     |
+| inputer   | CRUD | R    | R       | CRUD | CRUD     | CRUD  | CRUD      | CRUD     | R            | —      | —                                | —              | —      |
+| teknisi   | R    | R    | R       | —    | —        | —     | —         | R        | R            | —      | —                                | Tambah/Ubah*   | —      |
+| foreman   | CRUD | R    | CRUD    | CRUD | CRUD     | CRUD  | CRUD      | CRUD     | CRUD         | Ya     | Ya                               | Ya             | —      |
+| spv       | R    | R    | R       | R    | R        | R     | R         | R        | R            | —      | —                                | —              | —      |
+| hrd       | R    | R    | R       | R    | R        | R     | R         | R        | CRUD         | —      | —                                | —              | —      |
+| guest     | R    | R    | R       | —    | —        | —     | —         | —        | R            | —      | —                                | —              | —      |
 
 Catatan:
 
 - Enforce di **UI** dan **API** (`401` / `403`).
-- `spv` view-only (semua resource baca); tidak bisa buat/ubah job, unit, prioritas, atau template.
-- `guest` & `teknisi` tidak mendapat data Unit / Master Prioritas di dashboard. Dropdown prioritas di form job tetap memakai `GET /api/job-priorities` (kode aktif) karena `job:read`.
+- `spv` view-only (semua resource baca); tidak bisa buat/ubah job, unit, customer, shift, prioritas, atau template.
+- `guest` & `teknisi` tidak mendapat data Unit / Customer / Shift / Master Prioritas di dashboard. Dropdown prioritas / customer di form job tetap memakai API baca terkait karena `job:read` / field form.
 - Minimal satu `superuser` aktif harus tersisa.
 - **Handover / peminjaman part Tambah & Ubah**: `foreman` pengendali job, atau `teknisi` yang di-assign ke job tersebut (`*`).
 - **Handover / peminjaman part Hapus**: hanya `foreman` pengendali job; level lain tetap bisa melihat tabel read-only.
@@ -575,14 +667,17 @@ data/
 | PATCH/DELETE | `/api/jobs/[id]`                                                  | Update / hapus job (`priority` opsional)                                                                           |
 | GET          | `/api/jobs/list?section=&page=&limit=&q=&ownership=&priority=`    | List paginated (filter `priority=<kode>` hanya active/queue)                                                       |
 | POST         | `/api/jobs/[id]/action`                                           | `assign`, `start`, `pause`, `resume`, `start_step`, `start_steps`, `complete_step`, `complete`, `cancel`, `reopen` |
-| POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover                                                                                            |
+| POST         | `/api/jobs/[id]/handovers`                                        | Tambah catatan handover / Hand Over Form (per `shift_date`)                                                        |
 | PATCH/DELETE | `/api/jobs/[id]/handovers/[handoverId]`                           | Update / hapus catatan handover                                                                                    |
 | POST         | `/api/jobs/[id]/part-loans`                                       | Tambah catatan peminjaman part                                                                                     |
 | PATCH/DELETE | `/api/jobs/[id]/part-loans/[loanId]`                              | Update / hapus catatan peminjaman part                                                                             |
+| GET          | `/api/jobs/[id]/photo`                                            | Ambil foto job (`?id=` photo id, `?size=thumb\|full`)                                                              |
 | GET          | `/api/reports/jobs?scope=active\|queue&dateField=&from=&to=`      | Export Excel (+ filter tanggal create/start/end, login)                                                            |
+| GET          | `/api/reports/handover-form?date=&format=pdf\|xlsx`               | Laporan Hand Over Form (crew + unit)                                                                               |
 | GET          | `/api/backups/jobs`                                               | List ChangeLog `job_change_backups` (**superuser**)                                                                |
 | POST         | `/api/backups/jobs`                                               | Undo satu entri (`{ id }`, **superuser**)                                                                          |
-| \*           | `/api/units`, `/api/job-priorities`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD master (+ import/template di subpath unit/teknisi/user/hadir)                          |
+| \*           | `/api/units`, `/api/customers`, `/api/shifts`, `/api/job-priorities`, `/api/technicians`, `/api/users`, `/api/attendance` | CRUD master (+ import/template di subpath unit/teknisi/user/hadir) |
+| GET          | `/api/users/technicians`                                          | Kandidat user level teknisi untuk tautan Master Teknisi (`already_linked`)                                         |
 | POST         | `/api/attendance/sync-sharepoint`                                 | Meals Request → presence: No. ID Badge = SN; ada → available, tidak ada → offline (upload file atau Graph)         |
 | POST         | `/api/technicians/sync-sharepoint`                                | _Deprecated_ — sama presence sync; UI di **Daftar Hadir**                                                          |
 | POST         | `/api/account/password`                                           | Ganti password sendiri                                                                                             |
@@ -882,11 +977,16 @@ Warna UI (background, text, button) mengikuti **Design System TU Color Guideline
 
 ### Ringkasan perubahan terkini
 
+- **Master Customer** + **Master Shift**; User `shift_id`; Teknisi `user_id` + buat dari kandidat Master User; shift tampil di board teknisi
+- **Job**: Customer, SMU, Arrived / Promise / Est Revision / Release, Foto job (maks. 6) di form + kartu
+- **Hand Over Form** digabung ke `job_handovers` (per `shift_date`, from/to, progress/handover/plan MP) + laporan PDF/Excel `/api/reports/handover-form`
+- **Job Report PDF**: meta Customer/SMU/tanggal (label kiri, `:` sejajar); footer `TU-PRIMA · Job Report` + Dibuat/Start satu baris + Selesai; Pending → Teknisi blank; Note/Bukti kosong → blank; halaman **Foto job** di atas Lampiran bukti step
+- Tombol **Cari** ikon-only; alert navbar flyout via portal (tidak terpotong sidebar)
 - **Tema Light / Dark**: CSS button / text / background diselaraskan dengan Design System TU (`tu-rental`); token di `src/styles/ds-tokens.css`
 - **Tampilan customer** (`/?job=…&view=customer`): hanya satu job, tanpa navbar / filter / panel teknisi / slider / STP; tautan WhatsApp memakai mode ini; boleh dibuka tanpa login
 - **Dashboard `/`**: user belum login dialihkan ke `/sign-in` (kecuali customer view di atas)
 - **Complete job** ditolak selama ada handover **DONE = No** (UI + server)
-- **Foto job selesai** tetap tampil: foto arsip dibaca dari nama file tersimpan, meski id step di-remint
+- **Foto bukti step** di arsip tetap tampil dari nama file tersimpan, meski id step di-remint
 - **Sync hapus** handover / part loan yang sudah hilang tidak lagi macet di antrean
 - **Offline**: assign menampilkan nama teknisi; Delegasi memakai cache foreman; chip sync merinci perubahan yang akan dikirim
 - **Web Speech** membacakan peringatan sisa estimasi (oranye/merah, turun persen, habis, lembur) untuk penugas atau penerima delegasi
@@ -895,7 +995,7 @@ Warna UI (background, text, button) mengikuti **Design System TU Color Guideline
 - **Catatan per step** (`job_steps.note`) + ikon/modal di kartu job
 - **Delegasi penuh**: hanya foreman terdelegasi + superuser yang mengendalikan job (assigner asli tidak bisa undelegate)
 - **MySQL/MariaDB** sebagai database runtime (migrasi dari Excel workbook)
-- **Users**: kolom `email` + `phone` di DB dan UI Master User
+- **Users**: kolom `email` + `phone` + `shift_id` di DB dan UI Master User
 - **Auth**: login `/sign-in`, session `/api/session`, error `/auth-gagal` (WAF-friendly)
 - **WebSocket hub**: singleton `globalThis` — broadcast realtime konsisten di dev & Hostinger
 - **TanStack Query**: cache dashboard + master data; poll 8s cadangan + ping WebSocket realtime; optimistic start/pause/resume

@@ -8,6 +8,7 @@ import {
 } from "@/lib/duration";
 import { jobStepStdMinutes, stepTechnicianNames } from "@/lib/step-technicians";
 import { stepHasPhoto, stepPhotoCount } from "@/lib/step-photo-url";
+import { attachJobPhotoUrl } from "@/lib/job-photo-url";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   attachStepNotes,
@@ -147,6 +148,10 @@ type EvidenceCard = {
   image: PdfImage | null;
   indexInStep: number;
   totalInStep: number;
+};
+
+type JobPhotoCard = {
+  image: PdfImage | null;
 };
 
 type EvidenceGroup = {
@@ -408,8 +413,20 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
         )})`
       : "";
 
+  const smuNum = Number(job.smu || 0);
+  const smuLabel =
+    Number.isFinite(smuNum) && smuNum > 0
+      ? String(Number(smuNum.toFixed(2)))
+      : "—";
+
   const meta: Array<[string, string]> = [
     ["Unit", job.unit || "—"],
+    ["Customer", job.customer || "—"],
+    ["SMU", smuLabel],
+    ["Arrived Date & Time", fmtDate(job.arrived_at || "")],
+    ["Promise Date & Time", fmtDate(job.promise_at || "")],
+    ["Est Revision", fmtDate(job.est_revision_at || "")],
+    ["Release Date & Time", fmtDate(job.release_at || "")],
     ["Priority", job.priority || "—"],
     ["Status", formatPdfStatus(job.status)],
     ["Teknisi", techNames],
@@ -417,17 +434,21 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     ["Elapsed", `${elapsed}${overtime}`],
     ["Sisa estimasi", formatDuration(remainSec)],
     ["Progress", `${job.progress_pct}%`],
-    ["Dibuat", fmtDate(job.created_at)],
-    ["Start", fmtDate(job.started_at)],
-    ["Selesai", fmtDate(job.completed_at)],
   ];
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
+  const metaLabelW = 48;
+  const colonX = margin + metaLabelW;
+  const valueX = colonX + 2.5;
   for (const [label, value] of meta) {
-    doc.text(`${label}:`, margin, y);
-    const lines = doc.splitTextToSize(String(value), pageW - margin * 2 - 32);
-    doc.text(lines, margin + 32, y);
+    doc.text(label, margin, y);
+    doc.text(":", colonX, y);
+    const lines = doc.splitTextToSize(
+      String(value),
+      pageW - margin - valueX
+    );
+    doc.text(lines, valueX, y);
     y += Math.max(5.5, lines.length * 5);
   }
 
@@ -440,9 +461,11 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     y += desc.length * 5 + 4;
   }
 
+  /** Room for footer brand + Dibuat/Start + Selesai lines. */
+  const footerReserve = 20;
   const ensureSpace = (need: number) => {
     const pageH = doc.internal.pageSize.getHeight();
-    if (y + need > pageH - margin) {
+    if (y + need > pageH - footerReserve) {
       doc.addPage();
       y = margin;
     }
@@ -484,7 +507,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   sectionTitle("Tahapan (Steps)");
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin, bottom: 14 },
+    margin: { left: margin, right: margin, bottom: footerReserve },
     head: [["NO", "Step", "STP / Std", "Status", "Durasi", "Teknisi", "Note", "Bukti\nFoto"]],
     body: (job.steps || []).map((s) => [
       String(s.order),
@@ -492,11 +515,13 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       formatStdMinutes(jobStepStdMinutes(s, job)),
       formatPdfStatus(s.status),
       formatDuration(calcStepElapsedSec(s)),
-      stepTechnicianNames(s, job) || "—",
-      formatStepNotesReport(hydrateStepNotes(s)).trim() || "—",
+      String(s.status || "").trim() === "pending"
+        ? ""
+        : stepTechnicianNames(s, job) || "",
+      formatStepNotesReport(hydrateStepNotes(s)).trim() || "",
       stepHasPhoto(s) || stepPhotoDisplayUrl(s) || getStepPhotoPreviews(s.id).length
         ? String(Math.max(1, stepPhotoCount(s) || getStepPhotoPreviews(s.id).length))
-        : "—",
+        : "",
     ]),
     ...tableTheme,
     columnStyles: {
@@ -516,7 +541,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   );
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin, bottom: 14 },
+    margin: { left: margin, right: margin, bottom: footerReserve },
     head: [["NO", "Job Handover", "Dari", "Ditujukan kepada", "Done", "Note"]],
     body:
       (job.handovers || []).length > 0
@@ -539,7 +564,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   );
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin, bottom: 14 },
+    margin: { left: margin, right: margin, bottom: footerReserve },
     head: [["NO", "Part yang dipinjam", "Status", "Note"]],
     body:
       (job.part_loans || []).length > 0
@@ -554,6 +579,15 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   });
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable
     .finalY + 6;
+
+  const jobPhotos = attachJobPhotoUrl(job).photos || [];
+  const jobPhotoCards: JobPhotoCard[] = [];
+  for (const photo of jobPhotos) {
+    const url = String(photo.url || photo.thumb_url || "").trim();
+    jobPhotoCards.push({
+      image: url ? await loadPdfImage(url) : null,
+    });
+  }
 
   const photoSteps = (job.steps || []).filter(
     (s) => stepHasPhoto(s) || getStepPhotoPreviews(s.id).length > 0
@@ -580,7 +614,10 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       status: formatPdfStatus(s.status),
       stp: formatStdMinutes(jobStepStdMinutes(s, job)),
       duration: formatDuration(calcStepElapsedSec(s)),
-      technicians: stepTechnicianNames(s, job) || "—",
+      technicians:
+        String(s.status || "").trim() === "pending"
+          ? ""
+          : stepTechnicianNames(s, job) || "",
       notes: formatStepNotesReport(hydrateStepNotes(s)).trim(),
       cards,
     });
@@ -590,9 +627,9 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     0
   );
 
-  if (evidenceGroups.length) {
+  if (jobPhotoCards.length || evidenceGroups.length) {
     const pageH = doc.internal.pageSize.getHeight();
-    const footerReserve = 12;
+    const photoFooterReserve = 20;
     const colGap = 6;
     const contentW = pageW - margin * 2;
     const cardW = (contentW - colGap) / 2;
@@ -602,7 +639,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     const rowGap = 5;
     const groupGap = 8;
 
-    const drawLampiranBanner = (continued: boolean) => {
+    const drawSectionBanner = (title: string, continued: boolean) => {
       y = margin;
       doc.setFillColor(...PDF_INK);
       doc.rect(margin, y, contentW, 11, "F");
@@ -610,95 +647,19 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.text(
-        continued
-          ? "Lampiran — Bukti foto (lanjutan)"
-          : "Lampiran — Bukti foto",
+        continued ? `${title} (lanjutan)` : title,
         margin + 3,
         y + 7.4
       );
       doc.setTextColor(0);
       y += 15;
-      if (!continued) {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(...PDF_INK);
-        const sub = [
-          job.unit,
-          job.title,
-          `${evidenceGroups.length} step  ·  ${evidencePhotoCount} foto`,
-        ]
-          .map((part) => String(part || "").trim())
-          .filter(Boolean)
-          .join("  ·  ");
-        const subLines = doc.splitTextToSize(sub, contentW);
-        doc.text(subLines, margin, y);
-        y += subLines.length * 4.5 + 5;
-      }
     };
 
-    const stepHeaderHeight = (name: string, continued: boolean) => {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      const label = continued ? `Step ${name}  (lanjutan)` : name;
-      const lines = doc.splitTextToSize(label, contentW - 32);
-      return Math.max(9, 5 + lines.length * 4.2);
-    };
-
-    const stepDetailBlock = (group: EvidenceGroup) => {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      const meta = [
-        `Status: ${group.status}    STP: ${group.stp}    Durasi: ${group.duration}`,
-        `Teknisi: ${group.technicians}`,
-      ].flatMap((line) => doc.splitTextToSize(line, contentW));
-      const notes = group.notes
-        ? doc.splitTextToSize(group.notes, contentW)
-        : [];
-      return { meta, notes };
-    };
-
-    const stepDetailHeight = (group: EvidenceGroup) => {
-      const { meta, notes } = stepDetailBlock(group);
-      const noteH = notes.length ? 2.5 + notes.length * 4.5 : 0;
-      return meta.length * 4.5 + noteH + 3;
-    };
-
-    const drawStepDetails = (group: EvidenceGroup) => {
-      const { meta, notes } = stepDetailBlock(group);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(...PDF_INK);
-      doc.text(meta, margin, y);
-      y += meta.length * 4.5;
-      if (notes.length) {
-        y += 2.5;
-        doc.text(notes, margin, y);
-        y += notes.length * 4.5;
-      }
-      y += 3;
-    };
-
-    const drawStepHeader = (group: EvidenceGroup, continued: boolean) => {
-      const title = continued
-        ? `Step ${group.stepOrder}. ${group.stepName}  (lanjutan)`
-        : `Step ${group.stepOrder}. ${group.stepName}`;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      const titleLines = doc.splitTextToSize(title, contentW - 32);
-      const h = Math.max(9, 5 + titleLines.length * 4.2);
-      doc.setFillColor(...PDF_INK);
-      doc.rect(margin, y, contentW, h, "F");
-      doc.setTextColor(...PDF_ORANGE);
-      doc.text(titleLines, margin + 3, y + 5.6);
-      doc.setFontSize(8);
-      const countLabel = `${group.cards.length} foto`;
-      doc.text(countLabel, margin + contentW - 3, y + 5.8, { align: "right" });
-      doc.setTextColor(0);
-      y += h + (continued ? 3.5 : 4.5);
-      if (!continued) drawStepDetails(group);
-    };
-
-    const drawCard = (card: EvidenceCard, col: number, rowY: number) => {
+    const drawCard = (
+      card: { image: PdfImage | null; caption?: string },
+      col: number,
+      rowY: number
+    ) => {
       const x = margin + col * (cardW + colGap);
       doc.setFillColor(246, 247, 250);
       doc.setDrawColor(...PDF_INK);
@@ -743,47 +704,190 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
         });
         doc.setTextColor(0);
       }
-      const caption =
-        card.totalInStep > 1
-          ? `Foto ${card.indexInStep} dari ${card.totalInStep}`
-          : "Foto 1";
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...PDF_INK);
-      doc.text(caption, x, rowY + frameH + 4.5);
-      doc.setTextColor(0);
-    };
-
-    doc.addPage();
-    drawLampiranBanner(false);
-
-    for (let g = 0; g < evidenceGroups.length; g++) {
-      const group = evidenceGroups[g];
-      const headH = stepHeaderHeight(
-        `Step ${group.stepOrder}. ${group.stepName}`,
-        false
-      );
-      const detailH = stepDetailHeight(group);
-      if (y + headH + detailH + cardH > pageH - footerReserve) {
-        doc.addPage();
-        drawLampiranBanner(true);
+      if (card.caption) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(...PDF_INK);
+        const captionLines = doc.splitTextToSize(card.caption, cardW);
+        doc.text(captionLines.slice(0, 2), x, rowY + frameH + 4.5);
+        doc.setTextColor(0);
       }
-      drawStepHeader(group, false);
+    };
+    const jobCardH = frameH;
 
-      for (let i = 0; i < group.cards.length; i += 2) {
-        if (y + cardH > pageH - footerReserve) {
+    if (jobPhotoCards.length) {
+      const drawJobPhotoBanner = (continued: boolean) => {
+        drawSectionBanner("Foto job", continued);
+        if (!continued) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(...PDF_INK);
+          const sub = [job.unit, job.title, `${jobPhotoCards.length} foto`]
+            .map((part) => String(part || "").trim())
+            .filter(Boolean)
+            .join("  ·  ");
+          const subLines = doc.splitTextToSize(sub, contentW);
+          doc.text(subLines, margin, y);
+          y += subLines.length * 4.5 + 5;
+        }
+      };
+
+      doc.addPage();
+      drawJobPhotoBanner(false);
+      for (let i = 0; i < jobPhotoCards.length; i += 2) {
+        if (y + jobCardH > pageH - photoFooterReserve) {
           doc.addPage();
-          drawLampiranBanner(true);
-          drawStepHeader(group, true);
+          drawJobPhotoBanner(true);
         }
         const rowY = y;
-        drawCard(group.cards[i], 0, rowY);
-        if (group.cards[i + 1]) drawCard(group.cards[i + 1], 1, rowY);
-        y = rowY + cardH + rowGap;
+        drawCard({ image: jobPhotoCards[i].image }, 0, rowY);
+        if (jobPhotoCards[i + 1]) {
+          drawCard({ image: jobPhotoCards[i + 1].image }, 1, rowY);
+        }
+        y = rowY + jobCardH + rowGap;
       }
+    }
 
-      if (g < evidenceGroups.length - 1) {
-        y += groupGap;
+    if (evidenceGroups.length) {
+      const drawLampiranBanner = (continued: boolean) => {
+        drawSectionBanner("Lampiran — Bukti foto", continued);
+        if (!continued) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(...PDF_INK);
+          const sub = [
+            job.unit,
+            job.title,
+            `${evidenceGroups.length} step  ·  ${evidencePhotoCount} foto`,
+          ]
+            .map((part) => String(part || "").trim())
+            .filter(Boolean)
+            .join("  ·  ");
+          const subLines = doc.splitTextToSize(sub, contentW);
+          doc.text(subLines, margin, y);
+          y += subLines.length * 4.5 + 5;
+        }
+      };
+
+      const stepHeaderHeight = (name: string, continued: boolean) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        const label = continued ? `Step ${name}  (lanjutan)` : name;
+        const lines = doc.splitTextToSize(label, contentW - 32);
+        return Math.max(9, 5 + lines.length * 4.2);
+      };
+
+      const stepDetailBlock = (group: EvidenceGroup) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        const meta = [
+          `Status: ${group.status}    STP: ${group.stp}    Durasi: ${group.duration}`,
+          `Teknisi: ${group.technicians}`,
+        ].flatMap((line) => doc.splitTextToSize(line, contentW));
+        const notes = group.notes
+          ? doc.splitTextToSize(group.notes, contentW)
+          : [];
+        return { meta, notes };
+      };
+
+      const stepDetailHeight = (group: EvidenceGroup) => {
+        const { meta, notes } = stepDetailBlock(group);
+        const noteH = notes.length ? 2.5 + notes.length * 4.5 : 0;
+        return meta.length * 4.5 + noteH + 3;
+      };
+
+      const drawStepDetails = (group: EvidenceGroup) => {
+        const { meta, notes } = stepDetailBlock(group);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...PDF_INK);
+        doc.text(meta, margin, y);
+        y += meta.length * 4.5;
+        if (notes.length) {
+          y += 2.5;
+          doc.text(notes, margin, y);
+          y += notes.length * 4.5;
+        }
+        y += 3;
+      };
+
+      const drawStepHeader = (group: EvidenceGroup, continued: boolean) => {
+        const title = continued
+          ? `Step ${group.stepOrder}. ${group.stepName}  (lanjutan)`
+          : `Step ${group.stepOrder}. ${group.stepName}`;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        const titleLines = doc.splitTextToSize(title, contentW - 32);
+        const h = Math.max(9, 5 + titleLines.length * 4.2);
+        doc.setFillColor(...PDF_INK);
+        doc.rect(margin, y, contentW, h, "F");
+        doc.setTextColor(...PDF_ORANGE);
+        doc.text(titleLines, margin + 3, y + 5.6);
+        doc.setFontSize(8);
+        const countLabel = `${group.cards.length} foto`;
+        doc.text(countLabel, margin + contentW - 3, y + 5.8, {
+          align: "right",
+        });
+        doc.setTextColor(0);
+        y += h + (continued ? 3.5 : 4.5);
+        if (!continued) drawStepDetails(group);
+      };
+
+      doc.addPage();
+      drawLampiranBanner(false);
+
+      for (let g = 0; g < evidenceGroups.length; g++) {
+        const group = evidenceGroups[g];
+        const headH = stepHeaderHeight(
+          `Step ${group.stepOrder}. ${group.stepName}`,
+          false
+        );
+        const detailH = stepDetailHeight(group);
+        if (y + headH + detailH + cardH > pageH - photoFooterReserve) {
+          doc.addPage();
+          drawLampiranBanner(true);
+        }
+        drawStepHeader(group, false);
+
+        for (let i = 0; i < group.cards.length; i += 2) {
+          if (y + cardH > pageH - photoFooterReserve) {
+            doc.addPage();
+            drawLampiranBanner(true);
+            drawStepHeader(group, true);
+          }
+          const rowY = y;
+          const left = group.cards[i];
+          drawCard(
+            {
+              image: left.image,
+              caption:
+                left.totalInStep > 1
+                  ? `Foto ${left.indexInStep} dari ${left.totalInStep}`
+                  : "Foto 1",
+            },
+            0,
+            rowY
+          );
+          if (group.cards[i + 1]) {
+            const right = group.cards[i + 1];
+            drawCard(
+              {
+                image: right.image,
+                caption:
+                  right.totalInStep > 1
+                    ? `Foto ${right.indexInStep} dari ${right.totalInStep}`
+                    : "Foto 1",
+              },
+              1,
+              rowY
+            );
+          }
+          y = rowY + cardH + rowGap;
+        }
+
+        if (g < evidenceGroups.length - 1) {
+          y += groupGap;
+        }
       }
     }
   }
@@ -810,7 +914,7 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
     y += 16;
     autoTable(doc, {
       startY: y,
-      margin: { left: margin, right: margin, bottom: 14 },
+      margin: { left: margin, right: margin, bottom: footerReserve },
       head: [["NO", "Step", "File", "Oleh", "Waktu"]],
       body: notePdfs.map((a, i) => [
         String(i + 1),
@@ -832,14 +936,24 @@ export async function downloadJobPdf(job: JobWithDetails): Promise<void> {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setTextColor(120);
-    doc.text("TU-PRIMA  ·  Job Report", margin, pageH - 6);
+    let fy = pageH - 14;
+    doc.text("TU-PRIMA · Job Report", margin, fy);
     if (stampPages) {
-      doc.text(`Halaman ${i} dari ${pageCount}`, pageW - margin, pageH - 6, {
+      doc.text(`Halaman ${i} dari ${pageCount}`, pageW - margin, fy, {
         align: "right",
       });
     }
+    fy += 3.4;
+    doc.setFontSize(6.5);
+    doc.text(
+      `Dibuat: ${fmtDate(job.created_at)}   Start: ${fmtDate(job.started_at)}`,
+      margin,
+      fy
+    );
+    fy += 3.2;
+    doc.text(`Selesai: ${fmtDate(job.completed_at)}`, margin, fy);
     doc.setTextColor(0);
   }
 

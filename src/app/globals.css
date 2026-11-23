@@ -1233,6 +1233,12 @@ html[data-theme='light'] .remain-alert-field select {
   pointer-events: none;
 }
 
+/* Keep count badge inside the button when sidebar overflow:hidden clips it */
+.topbar.app-sidebar.is-open .nav-alerts-badge {
+  top: 0;
+  right: 0;
+}
+
 .nav-alerts-list {
   position: absolute;
   top: calc(100% + 6px);
@@ -2718,12 +2724,16 @@ html[data-theme='light'] .remain-alert-field select {
 .search-pair > .btn {
   flex: 0 0 auto;
   align-self: stretch;
+  width: var(--ctrl-size-ui, var(--ds-btn-sm-height));
+  min-width: var(--ctrl-size-ui, var(--ds-btn-sm-height));
+  max-width: var(--ctrl-size-ui, var(--ds-btn-sm-height));
   height: auto;
   min-height: var(--ds-btn-sm-height);
   max-height: none;
   margin: 0;
-  padding-left: 12px;
-  padding-right: 12px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
   /* Kill .btn transparent border — it showed as a white halo on the pair bg */
   border: 0;
   border-radius: 0;
@@ -3762,10 +3772,10 @@ html[data-theme='light'] .job-priority-pill--custom {
 }
 
 .job-detail-meta-row {
-  display: grid;
-  grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr);
-  gap: 4px 10px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
+  gap: 0 4px;
   min-width: 0;
 }
 
@@ -3778,7 +3788,14 @@ html[data-theme='light'] .job-priority-pill--custom {
   line-height: 1.35;
 }
 
+.job-detail-meta dt {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .job-detail-meta dd {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -6081,12 +6098,16 @@ html[data-theme='light'] .searchable-select-option:hover {
 .backup-search-pair > .btn {
   flex: 0 0 auto;
   align-self: stretch;
+  width: var(--ctrl-size-ui, var(--ds-btn-sm-height));
+  min-width: var(--ctrl-size-ui, var(--ds-btn-sm-height));
+  max-width: var(--ctrl-size-ui, var(--ds-btn-sm-height));
   height: auto;
   min-height: var(--ds-btn-sm-height);
   max-height: none;
   margin: 0;
-  padding-left: 12px;
-  padding-right: 12px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
   border: 0;
   border-radius: 0;
   box-shadow: inset 1px 0 0

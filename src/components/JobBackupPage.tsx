@@ -256,7 +256,6 @@ export function JobBackupPage({
                 onClick={() => applySearch(searchDraft.trim())}
               >
                 <SearchIcon />
-                <span className="btn-label">Cari</span>
               </button>
             </div>
           </div>

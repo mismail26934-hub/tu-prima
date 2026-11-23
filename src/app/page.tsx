@@ -5477,7 +5477,7 @@ export default function HomePage() {
                 <dl className="job-detail-meta">
                   {rows.map((row) => (
                     <div key={row.label} className="job-detail-meta-row">
-                      <dt>{row.label}</dt>
+                      <dt>{row.label}:</dt>
                       <dd>{row.value}</dd>
                     </div>
                   ))}
@@ -6943,7 +6943,6 @@ export default function HomePage() {
                       onClick={applyTechSearch}
                     >
                       <SearchIcon />
-                      <span className="btn-label">Cari</span>
                     </button>
                   </div>
                   {techQuery && (
@@ -7184,7 +7183,6 @@ export default function HomePage() {
                         onClick={applyJobSearch}
                       >
                         <SearchIcon />
-                        <span className="btn-label">Cari</span>
                       </button>
                     </div>
                     {jobQuery && (
@@ -7642,7 +7640,6 @@ export default function HomePage() {
                       }}
                     >
                       <SearchIcon />
-                      <span className="btn-label">Cari</span>
                     </button>
                   </div>
                   {planMpQuery ? (
@@ -8776,7 +8773,6 @@ export default function HomePage() {
                       onClick={applyAssignSearch}
                     >
                       <SearchIcon />
-                      <span className="btn-label">Cari</span>
                     </button>
                   </div>
                   {assignQuery && (
@@ -10040,7 +10036,6 @@ export default function HomePage() {
                     onClick={applyUnitSearch}
                   >
                     <SearchIcon />
-                    <span className="btn-label">Cari</span>
                   </button>
                 </div>
                 {unitQuery && (
@@ -11115,7 +11110,6 @@ export default function HomePage() {
                     onClick={applyTemplateSearch}
                   >
                     <SearchIcon />
-                    <span className="btn-label">Cari</span>
                   </button>
                 </div>
                 {(templateQuery || templateCategoryFilter) && (
@@ -11813,7 +11807,6 @@ export default function HomePage() {
                     onClick={applyMasterTechSearch}
                   >
                     <SearchIcon />
-                    <span className="btn-label">Cari</span>
                   </button>
                 </div>
                 {masterTechQuery && (
@@ -12377,7 +12370,6 @@ export default function HomePage() {
                     onClick={applyMasterUserSearch}
                   >
                     <SearchIcon />
-                    <span className="btn-label">Cari</span>
                   </button>
                 </div>
                 {masterUserQuery && (
@@ -12807,7 +12799,6 @@ export default function HomePage() {
                     onClick={applyAttendanceSearch}
                   >
                     <SearchIcon />
-                    <span className="btn-label">Cari</span>
                   </button>
                 </div>
                 {(attendanceQuery || attendanceDateFilter) && (

@@ -5994,13 +5994,17 @@ export async function listTechnicianCandidateUsers(opts?: {
   });
 }
 
-export async function listHandoverRecipientUsers(): Promise<AppUserPublic[]> {
+export async function listHandoverRecipientUsers(opts?: {
+  /** When true, include inactive foreman/teknisi (for shift lookup on historical handovers). */
+  includeInactive?: boolean;
+}): Promise<AppUserPublic[]> {
   return withDbLock(async () => {
     const wb = await loadWorkbook();
+    const includeInactive = Boolean(opts?.includeInactive);
     return readUsers(wb)
       .filter(
         (u) =>
-          u.active === "1" &&
+          (includeInactive || u.active === "1") &&
           (u.level === "foreman" || u.level === "teknisi")
       )
       .map(toPublicUser)

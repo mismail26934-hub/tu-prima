@@ -1273,6 +1273,10 @@ export default function HomePage() {
   const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
     AppUserPublic[]
   >([]);
+  /** Foreman/teknisi (+ inactive) with shift_name for Master Handover Crew/Next Crew. */
+  const [handoverShiftLookup, setHandoverShiftLookup] = useState<
+    Array<AppUserPublic & { shift_name?: string }>
+  >([]);
   const [handoverToQuery, setHandoverToQuery] = useState("");
   const [handoverToPage, setHandoverToPage] = useState(1);
   const [handoverToLoading, setHandoverToLoading] = useState(false);
@@ -4458,21 +4462,43 @@ export default function HomePage() {
       : handoverFormEditor?.draft.plan_technician_ids || [];
 
   const planMpSelectableTechs = useMemo(() => {
-    type PlanMpTech = { id: string; name: string; sn: string };
+    type PlanMpTech = {
+      id: string;
+      name: string;
+      sn: string;
+      superior_user_id: string;
+    };
     const map = new Map<string, PlanMpTech>();
     for (const t of planMpPoolQuery.data?.items || []) {
-      map.set(t.id, { id: t.id, name: t.name, sn: String(t.sn || "") });
+      map.set(t.id, {
+        id: t.id,
+        name: t.name,
+        sn: String(t.sn || ""),
+        superior_user_id: String(t.superior_user_id || ""),
+      });
     }
     for (const t of data?.technicians || []) {
       if (!map.has(t.id) && planMpSelectedIds.includes(t.id)) {
-        map.set(t.id, { id: t.id, name: t.name, sn: String(t.sn || "") });
+        map.set(t.id, {
+          id: t.id,
+          name: t.name,
+          sn: String(t.sn || ""),
+          superior_user_id: String(t.superior_user_id || ""),
+        });
       }
     }
     for (const id of planMpSelectedIds) {
-      if (!map.has(id)) map.set(id, { id, name: id, sn: "" });
+      if (!map.has(id)) {
+        map.set(id, { id, name: id, sn: "", superior_user_id: "" });
+      }
     }
     const q = planMpQuery.trim().toLowerCase();
     const checkedOrder = new Map(planMpSelectedIds.map((id, i) => [id, i]));
+    const rank = (t: PlanMpTech) => {
+      if (checkedOrder.has(t.id)) return 0;
+      if (userId && t.superior_user_id === userId) return 1;
+      return 2;
+    };
     return [...map.values()]
       .filter(
         (t) =>
@@ -4486,10 +4512,10 @@ export default function HomePage() {
           t.sn.toLowerCase().includes(q)
       )
       .sort((a, b) => {
-        const ca = checkedOrder.has(a.id);
-        const cb = checkedOrder.has(b.id);
-        if (ca !== cb) return ca ? -1 : 1;
-        if (ca && cb) {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 0) {
           return (checkedOrder.get(a.id) ?? 0) - (checkedOrder.get(b.id) ?? 0);
         }
         return a.name.localeCompare(b.name, "id");
@@ -4499,6 +4525,7 @@ export default function HomePage() {
     planMpSelectedIds,
     planMpQuery,
     data?.technicians,
+    userId,
   ]);
 
   useEffect(() => {
@@ -4962,6 +4989,35 @@ export default function HomePage() {
       p > handoversMasterTotalPages ? handoversMasterTotalPages : p
     );
   }, [handoversMasterTotalPages]);
+
+  useEffect(() => {
+    if (!handoversMasterOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await api<Array<AppUserPublic & { shift_name?: string }>>(
+          "/api/users/handover-recipients?include_inactive=1"
+        );
+        if (!cancelled) setHandoverShiftLookup(list);
+      } catch {
+        if (!cancelled) setHandoverShiftLookup([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handoversMasterOpen]);
+
+  const handoverShiftLabelByUserId = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const u of handoverShiftLookup) {
+      const id = String(u.id || "").trim();
+      if (!id) continue;
+      const label = String(u.shift_name || "").trim();
+      if (label) out[id] = label;
+    }
+    return out;
+  }, [handoverShiftLookup]);
 
   const sliderJobsQuery = useActiveJobsSlider({
     q: jobQuery,
@@ -7614,6 +7670,7 @@ export default function HomePage() {
                 <MasterHandoverTable
                   jobs={handoversMasterJobs}
                   boardTechnicians={data?.technicians || []}
+                  shiftLabelByUserId={handoverShiftLabelByUserId}
                   busy={busy}
                   canNotesWriteForJob={canNotesWriteForJob}
                   onAdd={(job) =>

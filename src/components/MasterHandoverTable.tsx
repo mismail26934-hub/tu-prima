@@ -45,6 +45,8 @@ export type MasterHandoverLocalRow = {
 type Props = {
   jobs: JobWithDetails[];
   boardTechnicians: Technician[];
+  /** userId → Master Shift name (Crew = from, Next Crew = to). */
+  shiftLabelByUserId?: Record<string, string>;
   busy: boolean;
   canNotesWriteForJob: (job: JobWithDetails) => boolean;
   onAdd: (job: JobWithDetails) => void;
@@ -76,6 +78,7 @@ function frozenClassName(
 export function MasterHandoverTable({
   jobs,
   boardTechnicians,
+  shiftLabelByUserId = {},
   busy,
   canNotesWriteForJob,
   onAdd,
@@ -171,18 +174,21 @@ export function MasterHandoverTable({
               const addBtn = (
                 <button
                   type="button"
-                  className="btn btn-sm btn-primary"
+                  className="btn btn-sm btn-icon btn-primary"
                   disabled={busy || !writeOk}
                   title={
                     writeOk
                       ? t("job.handoverFormCreateTitle")
                       : t("master.handoverNeedStart")
                   }
-                  aria-label="+ Tambah"
+                  aria-label={
+                    writeOk
+                      ? t("job.handoverFormCreateTitle")
+                      : t("master.handoverNeedStart")
+                  }
                   onClick={() => onAdd(job)}
                 >
                   <span aria-hidden="true">+</span>
-                  <span className="btn-label">Tambah</span>
                 </button>
               );
 
@@ -298,6 +304,12 @@ export function MasterHandoverTable({
                     ...boardTechnicians,
                     job.technician || null,
                   ]) || "—";
+                const fromUserId = String(h.from_user_id || "").trim();
+                const toUserId = String(h.to_user_id || "").trim();
+                const crewShift =
+                  (fromUserId && shiftLabelByUserId[fromUserId]) || "—";
+                const nextShift =
+                  (toUserId && shiftLabelByUserId[toUserId]) || "—";
 
                 const handoverCell = (id: MasterHandoverColumnId) => {
                   switch (id) {
@@ -307,6 +319,10 @@ export function MasterHandoverTable({
                       return h.from_name || "—";
                     case "to":
                       return h.to_name || "—";
+                    case "crew":
+                      return crewShift;
+                    case "nextCrew":
+                      return nextShift;
                     case "progress":
                       return h.progress_text || "—";
                     case "handover":
@@ -376,12 +392,13 @@ export function MasterHandoverTable({
                             {idx === 0 ? addBtn : null}
                             <button
                               type="button"
-                              className="btn btn-sm btn-edit"
+                              className="btn btn-sm btn-icon btn-edit"
                               disabled={busy || !writeOk}
+                              title={t("job.edit")}
+                              aria-label={t("job.edit")}
                               onClick={() => onEdit(job, localRow)}
                             >
                               <EditIcon />
-                              <span className="btn-label">Ubah</span>
                             </button>
                           </div>
                         </td>

@@ -9,7 +9,7 @@ import {
   type MasterHandoverColumnPrefs,
 } from "@/lib/master-handover-columns";
 
-const STORAGE_KEY = "tus-master-handover-columns-v1";
+const STORAGE_KEY = "tus-master-handover-columns-v3";
 
 type State = MasterHandoverColumnPrefs & {
   setHidden: (id: MasterHandoverColumnId, hidden: boolean) => void;

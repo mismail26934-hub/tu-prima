@@ -1,4 +1,5 @@
 export const MASTER_HANDOVER_COLUMN_IDS = [
+  "actions",
   "no",
   "unitNo",
   "unitIn",
@@ -7,12 +8,13 @@ export const MASTER_HANDOVER_COLUMN_IDS = [
   "shiftDate",
   "from",
   "to",
+  "crew",
+  "nextCrew",
   "progress",
   "handover",
   "prevMp",
   "planMp",
   "done",
-  "actions",
 ] as const;
 
 export type MasterHandoverColumnId =
@@ -49,6 +51,18 @@ export const MASTER_HANDOVER_COLUMN_DEFS: Record<
   shiftDate: { id: "shiftDate", width: 110, kind: "handover" },
   from: { id: "from", width: 110, kind: "handover" },
   to: { id: "to", width: 120, kind: "handover" },
+  crew: {
+    id: "crew",
+    width: 140,
+    kind: "handover",
+    tdClassName: "master-handover-mp",
+  },
+  nextCrew: {
+    id: "nextCrew",
+    width: 140,
+    kind: "handover",
+    tdClassName: "master-handover-mp",
+  },
   progress: {
     id: "progress",
     width: 220,
@@ -82,7 +96,7 @@ export const MASTER_HANDOVER_COLUMN_DEFS: Record<
   },
   actions: {
     id: "actions",
-    width: 120,
+    width: 88,
     required: true,
     kind: "actions",
     thClassName: "col-act",
@@ -99,7 +113,7 @@ export type MasterHandoverColumnPrefs = {
 export const DEFAULT_MASTER_HANDOVER_COLUMN_PREFS: MasterHandoverColumnPrefs = {
   order: [...MASTER_HANDOVER_COLUMN_IDS],
   hidden: [],
-  frozen: ["no", "unitNo"],
+  frozen: ["actions", "no", "unitNo"],
 };
 
 export function normalizeMasterHandoverColumnPrefs(

@@ -274,8 +274,8 @@ function drawHadirHeader(
 
 /**
  * Hadir panel (reference image 2):
- *  Header: B | date | Night
- *  Body: dual #|Name|Hadir (1–10 | 11–n), no per-column header row
+ *  ≤10 rows: header B|date|Night + single #|Name|Hadir list
+ *  >10 rows: header only above left (1–10); right (11–n) no header
  */
 function drawHadirPanel(
   doc: JsPdfWithAutoTable,
@@ -288,16 +288,20 @@ function drawHadirPanel(
   rows: CrewLine[]
 ): number {
   const gap = 1.2;
-  const bodyY = drawHadirHeader(doc, x, y, width, code, dateLabel, period);
-  if (!rows.length) return bodyY;
-
   const [left, right] = splitCrewColumns(rows);
+
+  // Single column (≤10)
   if (!right.length) {
+    const bodyY = drawHadirHeader(doc, x, y, width, code, dateLabel, period);
+    if (!left.length) return bodyY;
     return drawCrewListTable(doc, x, bodyY, width, null, left, {
       highlightFirstName: true,
     });
   }
+
+  // Dual newspaper columns when >10 (image 2)
   const colW = (width - gap) / 2;
+  const bodyY = drawHadirHeader(doc, x, y, colW, code, dateLabel, period);
   const y1 = drawCrewListTable(doc, x, bodyY, colW, null, left, {
     highlightFirstName: true,
   });
@@ -522,23 +526,20 @@ function estimateUnitCardHeight(
   unit: HandoverFormUnitRow,
   cardWidth: number
 ): number {
-  // Reference image 2: one meta row (Unit No | Unit in) + optional desc lines
-  const rowH = 5;
+  // Reference: 2 meta rows (Unit No/Priority + Unit in/Est dt) + description
+  const metaH = 10;
   const pad = 1;
-  const desc = String(unit.description || "").trim();
-  const priority = unit.priority && unit.priority !== "—" ? unit.priority : "";
-  const extra = [priority && `Priority: ${priority}`, desc]
-    .filter(Boolean)
-    .join("\n");
-  if (!extra) return rowH + pad;
-  const lines = doc.splitTextToSize(extra, Math.max(12, cardWidth - 8));
-  return rowH + Math.max(4, lines.length * 3.1 + 2) + pad;
+  const desc = String(unit.description || "").trim() || "—";
+  const lines = doc.splitTextToSize(desc, Math.max(12, cardWidth - 8));
+  const descH = Math.max(5, lines.length * 3.1 + 2);
+  return metaH + descH + pad;
 }
 
 /**
- * Unit block matching reference image 2:
- *  [#] [Unit No|val] [Unit in|val]
- *      description / priority under (if any)
+ * Unit block (reference — no column header above this):
+ *  [#] Unit No | val | Unit in | val
+ *      Priority | val | Est dt  | val
+ *      description (full width)
  */
 function drawUnitCard(
   doc: jsPDF,
@@ -564,14 +565,14 @@ function drawUnitCard(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...BODY_TEXT);
-  doc.text(String(index), x + idxW / 2, y + Math.min(height / 2, rowH), {
+  doc.text(String(index), x + idxW / 2, y + Math.min(height / 2, 8), {
     align: "center",
     baseline: "middle",
   });
 
-  const fitValueFont = (text: string, maxW: number) => {
+  const fitValueFont = (text: string, maxW: number, bold = false) => {
     let size = 7.5;
-    doc.setFont("helvetica", "bold");
+    doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.setFontSize(size);
     while (size > 5 && doc.getTextWidth(text) > maxW) {
       size -= 0.4;
@@ -586,7 +587,8 @@ function drawUnitCard(
     value: string,
     lw: number,
     vw: number,
-    h: number
+    h: number,
+    boldVal = false
   ) => {
     doc.setFillColor(...HEADER_BLUE);
     doc.setDrawColor(0, 0, 0);
@@ -598,13 +600,12 @@ function drawUnitCard(
     doc.setFillColor(255, 255, 255);
     doc.rect(px + lw, py, vw, h, "FD");
     const val = String(value || "").trim();
-    fitValueFont(val, Math.max(3, vw - 1.5));
+    fitValueFont(val, Math.max(3, vw - 1.5), boldVal);
     doc.setTextColor(...BODY_TEXT);
     doc.text(val, px + lw + 0.8, py + h / 2, { baseline: "middle" });
   };
 
-  // Row 1 like reference: Unit No | val | Unit in | val
-  drawPair(innerX, y, "Unit No", unit.unit_no, labelW, valueW, rowH);
+  drawPair(innerX, y, "Unit No", unit.unit_no, labelW, valueW, rowH, true);
   drawPair(
     innerX + pairW,
     y,
@@ -614,30 +615,42 @@ function drawUnitCard(
     valueW,
     rowH
   );
+  drawPair(
+    innerX,
+    y + rowH,
+    "Priority",
+    unit.priority === "—" ? "" : unit.priority,
+    labelW,
+    valueW,
+    rowH
+  );
+  drawPair(
+    innerX + pairW,
+    y + rowH,
+    "Est dt",
+    unit.est_dt || "",
+    labelW,
+    valueW,
+    rowH
+  );
 
-  // Extra lines (priority / description) under the pairs
-  const restY = y + rowH;
-  const restH = Math.max(0, height - rowH);
-  if (restH > 2) {
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(0, 0, 0);
-    doc.rect(innerX, restY, innerW, restH, "FD");
-    const priority =
-      unit.priority && unit.priority !== "—" ? `Priority: ${unit.priority}` : "";
-    const desc = String(unit.description || "").trim();
-    const text = [priority, desc].filter(Boolean).join("\n") || "";
-    if (text) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.5);
-      doc.setTextColor(...BODY_TEXT);
-      const lines = doc.splitTextToSize(text, innerW - 2);
-      let ty = restY + 2.5;
-      for (const line of lines) {
-        if (ty > restY + restH - 1) break;
-        doc.text(line, innerX + 1, ty);
-        ty += 3;
-      }
-    }
+  const descY = y + rowH * 2;
+  const descH = Math.max(5, height - rowH * 2);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(0, 0, 0);
+  doc.rect(innerX, descY, innerW, descH, "FD");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...BODY_TEXT);
+  const descLines = doc.splitTextToSize(
+    String(unit.description || "").trim() || "—",
+    innerW - 2
+  );
+  let ty = descY + 2.5;
+  for (const line of descLines) {
+    if (ty > descY + descH - 1) break;
+    doc.text(line, innerX + 1, ty);
+    ty += 3;
   }
 }
 
@@ -825,14 +838,26 @@ export async function buildHandoverFormPdfBuffer(date: string): Promise<{
     },
     theme: "grid",
     didParseCell: (data) => {
-      // Thick black rule under header (reference)
       if (data.section === "head") {
-        data.cell.styles.lineWidth = {
-          bottom: 0.8,
-          top: 0.35,
-          left: 0.35,
-          right: 0.35,
-        };
+        // Unit block: no header box — white, no top/side borders (reference)
+        if (data.column.index === 0) {
+          data.cell.styles.fillColor = [255, 255, 255];
+          data.cell.styles.textColor = BODY_TEXT;
+          data.cell.styles.lineWidth = {
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0.8,
+          };
+        } else {
+          // Progress / Prev / Hand Over / Plan — blue header with full border
+          data.cell.styles.lineWidth = {
+            bottom: 0.8,
+            top: 0.35,
+            left: 0.35,
+            right: 0.35,
+          };
+        }
       }
       if (data.section !== "body" || data.column.index !== 0) return;
       if (!units.length) return;

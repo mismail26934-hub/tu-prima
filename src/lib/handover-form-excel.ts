@@ -395,27 +395,42 @@ export async function buildHandoverFormExcelBuffer(date: string): Promise<{
     { start: 13, end: 14, label: "Hand Over" },
     { start: 15, end: 16, label: "Plan M/P" },
   ];
-  const thickBottom: Partial<ExcelJS.Borders> = {
+  const headerBoxBorder: Partial<ExcelJS.Borders> = {
     top: { style: "thin", color: { argb: "FF000000" } },
     left: { style: "thin", color: { argb: "FF000000" } },
     right: { style: "thin", color: { argb: "FF000000" } },
     bottom: { style: "medium", color: { argb: "FF000000" } },
   };
+  // Unit header area: no box — only thick bottom rule like reference
+  const unitBlankBorder: Partial<ExcelJS.Borders> = {
+    bottom: { style: "medium", color: { argb: "FF000000" } },
+  };
   for (const h of unitHeads) {
     if (h.end > h.start) sheet.mergeCells(row, h.start, row, h.end);
     sheet.getCell(row, h.start).value = h.label;
-    styleHeaderCell(sheet.getCell(row, h.start));
-    sheet.getCell(row, h.start).font = {
-      bold: true,
-      size: 10,
-      color: { argb: BODY_FONT },
-    };
+    const isUnitBlank = !h.label;
+    if (isUnitBlank) {
+      sheet.getCell(row, h.start).font = { size: 10, color: { argb: BODY_FONT } };
+      sheet.getCell(row, h.start).alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+    } else {
+      styleHeaderCell(sheet.getCell(row, h.start));
+      sheet.getCell(row, h.start).font = {
+        bold: true,
+        size: 10,
+        color: { argb: BODY_FONT },
+      };
+    }
     for (let c = h.start; c <= h.end; c++) {
-      sheet.getCell(row, c).border = thickBottom;
+      sheet.getCell(row, c).border = isUnitBlank
+        ? unitBlankBorder
+        : headerBoxBorder;
       sheet.getCell(row, c).fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: HEADER_FILL },
+        fgColor: { argb: isUnitBlank ? "FFFFFFFF" : HEADER_FILL },
       };
     }
   }

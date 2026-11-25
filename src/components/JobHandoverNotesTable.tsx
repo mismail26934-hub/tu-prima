@@ -12,7 +12,11 @@ import { EditIcon, TrashIcon } from "@/components/ActionIcons";
 import { DragScroll } from "@/components/DragScroll";
 import { JOB_HANDOVER_COLUMN_LABEL_KEY } from "@/components/JobHandoverColumnSettings";
 import { useT } from "@/i18n/useT";
-import { planMpLabel, prevMpLabel } from "@/lib/handover-form-format";
+import {
+  formatHandoverDate,
+  planMpLabel,
+  prevMpLabel,
+} from "@/lib/handover-form-format";
 import {
   resolveJobHandoverDisplayColumns,
   stickyLeftFromWidths,
@@ -30,6 +34,8 @@ export type JobHandoverNoteRow = {
   to_user_id: string;
   from_name: string;
   from_user_id: string;
+  from_shift_name?: string;
+  to_shift_name?: string;
   note: string;
   progress_text: string;
   handover_text: string;
@@ -42,6 +48,8 @@ type Props = {
   job: JobWithDetails;
   rows: JobHandoverNoteRow[];
   boardTechnicians?: Technician[];
+  /** userId → Master Shift name (Shift = from, Next Shift = to). */
+  shiftLabelByUserId?: Record<string, string>;
   busy?: boolean;
   actionMode: "none" | "edit" | "delete";
   onEdit: (row: JobHandoverNoteRow) => void;
@@ -74,6 +82,7 @@ export function JobHandoverNotesTable({
   job,
   rows,
   boardTechnicians = [],
+  shiftLabelByUserId = {},
   busy = false,
   actionMode,
   onEdit,
@@ -133,11 +142,27 @@ export function JobHandoverNotesTable({
       case "no":
         return row.order;
       case "shiftDate":
-        return row.shift_date || "—";
+        return formatHandoverDate(row.shift_date) || "—";
       case "from":
         return row.from_name || "—";
       case "to":
         return row.to_name || "—";
+      case "crew": {
+        const fromId = String(row.from_user_id || "").trim();
+        return (
+          String(row.from_shift_name || "").trim() ||
+          (fromId && shiftLabelByUserId[fromId]) ||
+          "—"
+        );
+      }
+      case "nextCrew": {
+        const toId = String(row.to_user_id || "").trim();
+        return (
+          String(row.to_shift_name || "").trim() ||
+          (toId && shiftLabelByUserId[toId]) ||
+          "—"
+        );
+      }
       case "progress":
         return (
           <textarea

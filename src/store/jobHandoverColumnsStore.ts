@@ -9,7 +9,7 @@ import {
   type JobHandoverColumnPrefs,
 } from "@/lib/job-handover-columns";
 
-const STORAGE_KEY = "tus-job-handover-columns-v2";
+const STORAGE_KEY = "tus-job-handover-columns-v3";
 
 type State = JobHandoverColumnPrefs & {
   setHidden: (id: JobHandoverColumnId, hidden: boolean) => void;

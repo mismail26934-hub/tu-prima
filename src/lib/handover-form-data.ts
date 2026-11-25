@@ -18,6 +18,8 @@ export type HandoverFormCrewMember = {
   name: string;
   status: string;
   note?: string;
+  /** Pernr / SN when known (Next Crew column). */
+  sn?: string;
 };
 
 export type HandoverFormUnitRow = {
@@ -38,6 +40,12 @@ export type HandoverFormUnitRow = {
 export type HandoverFormPayload = {
   date: string;
   printed_at: string;
+  /** Dominant current-shift label from handovers (e.g. Crew B). */
+  current_shift_label: string;
+  /** Dominant next-shift label from handovers (e.g. Crew A). */
+  next_shift_label: string;
+  /** Day/Night (or DWS) hint from attendance when available. */
+  shift_period: string;
   hadir: HandoverFormCrewMember[];
   sakit: HandoverFormCrewMember[];
   next_crew: HandoverFormCrewMember[];
@@ -91,14 +99,58 @@ export function pickHandoverForShiftDate(
 function formLinesFromHandover(
   job: JobWithDetails,
   shiftDate: string
-): { progress: string[]; handover: string[]; planIds: string[] } {
+): {
+  progress: string[];
+  handover: string[];
+  planIds: string[];
+  from_shift_name: string;
+  to_shift_name: string;
+} {
   const h = pickHandoverForShiftDate(job, shiftDate);
-  if (!h) return { progress: [], handover: [], planIds: [] };
+  if (!h) {
+    return {
+      progress: [],
+      handover: [],
+      planIds: [],
+      from_shift_name: "",
+      to_shift_name: "",
+    };
+  }
   return {
     progress: linesFromText(String(h.progress_text || "")),
     handover: linesFromText(String(h.handover_text || "")),
     planIds: h.plan_technician_ids || [],
+    from_shift_name: String(h.from_shift_name || "").trim(),
+    to_shift_name: String(h.to_shift_name || "").trim(),
   };
+}
+
+function majorityLabel(labels: string[]): string {
+  const counts = new Map<string, number>();
+  for (const raw of labels) {
+    const k = String(raw || "").trim();
+    if (!k) continue;
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  let best = "";
+  let n = 0;
+  for (const [k, c] of counts) {
+    if (c > n) {
+      best = k;
+      n = c;
+    }
+  }
+  return best;
+}
+
+/** Short code for header (Crew B → B, Night → Night). */
+export function shiftShortCode(label: string): string {
+  const s = String(label || "").trim();
+  if (!s) return "";
+  const crew = s.match(/\bcrew\s*([A-Za-z0-9]+)\b/i);
+  if (crew?.[1]) return crew[1].toUpperCase();
+  if (s.length <= 4) return s.toUpperCase();
+  return s;
 }
 
 function mapAttendanceRow(r: mysql.RowDataPacket): Attendance {
@@ -159,14 +211,16 @@ async function loadTechniciansById(
 
 function crewFromAttendance(
   rows: Attendance[],
-  status: AttendanceStatus
+  statuses: AttendanceStatus | AttendanceStatus[]
 ): HandoverFormCrewMember[] {
+  const set = new Set(Array.isArray(statuses) ? statuses : [statuses]);
   return rows
-    .filter((a) => a.status === status)
+    .filter((a) => set.has(a.status))
     .map((a) => ({
       name: a.technician_name || a.technician_id || "—",
       status: a.status,
       note: a.note || a.absence || "",
+      sn: a.pernr || "",
     }));
 }
 
@@ -216,24 +270,40 @@ export async function buildHandoverFormPayload(
   });
   const techById = await loadTechniciansById(planIds);
   const attendance = await loadAttendanceForDate(ymd);
-  const nextCrewNames = new Set<string>();
+
+  const fromShiftLabels: string[] = [];
+  const toShiftLabels: string[] = [];
+  const nextCrewById = new Map<string, HandoverFormCrewMember>();
   for (const j of jobs) {
     const form = formLinesFromHandover(j, ymd);
+    if (form.from_shift_name) fromShiftLabels.push(form.from_shift_name);
+    if (form.to_shift_name) toShiftLabels.push(form.to_shift_name);
     for (const id of form.planIds) {
-      const name = techById.get(id)?.name;
-      if (name) nextCrewNames.add(name);
+      if (nextCrewById.has(id)) continue;
+      const tech = techById.get(id);
+      if (!tech?.name) continue;
+      nextCrewById.set(id, {
+        name: tech.name,
+        status: "plan",
+        sn: tech.sn || tech.badge_id || "",
+      });
     }
   }
+
+  const shift_period =
+    attendance.map((a) => String(a.dws || "").trim()).find(Boolean) || "";
 
   return {
     date: ymd,
     printed_at: new Date().toISOString(),
+    current_shift_label: majorityLabel(fromShiftLabels),
+    next_shift_label: majorityLabel(toShiftLabels),
+    shift_period,
     hadir: crewFromAttendance(attendance, "hadir"),
-    sakit: crewFromAttendance(attendance, "sakit"),
-    next_crew: Array.from(nextCrewNames).map((name) => ({
-      name,
-      status: "plan",
-    })),
+    sakit: crewFromAttendance(attendance, ["sakit", "izin"]),
+    next_crew: Array.from(nextCrewById.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, "id")
+    ),
     units: jobs.map((j) => toUnitRow(j, techById, ymd)),
   };
 }

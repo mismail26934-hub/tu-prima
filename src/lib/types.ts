@@ -286,10 +286,14 @@ export interface JobHandover {
   /** Foreman the handover is from. */
   from_name: string;
   from_user_id: string;
+  /** Snapshot of sender's Master Shift name at save time (Shift column). */
+  from_shift_name: string;
   /** Free-text recipient (who the handover is directed to). */
   to_name: string;
   /** Foreman user id for WhatsApp DM (stable even if the display name changes). */
   to_user_id: string;
+  /** Snapshot of recipient's Master Shift name at save time (Next Shift column). */
+  to_shift_name: string;
   /** "1" = Yes/done, "0" = No */
   done: string;
   note: string;

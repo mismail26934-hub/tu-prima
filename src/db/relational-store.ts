@@ -385,8 +385,10 @@ function handoverHeaders(scope: JobScope): string[] {
     "shift_date",
     "from_name",
     "from_user_id",
+    "from_shift_name",
     "to_name",
     "to_user_id",
+    "to_shift_name",
     "done",
     "note",
     "progress_text",
@@ -496,8 +498,10 @@ function handoverRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       shift_date: str(r.shift_date),
       from_name: str(r.from_name),
       from_user_id: str(r.from_user_id),
+      from_shift_name: str(r.from_shift_name),
       to_name: str(r.to_name),
       to_user_id: str(r.to_user_id),
+      to_shift_name: str(r.to_shift_name),
       done: flag01(r.done) ? "1" : "0",
       note: str(r.note),
       progress_text: str(r.progress_text),
@@ -681,10 +685,10 @@ async function saveScopedJobs(
     await conn.query(
       `INSERT INTO job_handovers (
          id, job_id, handover_order, title, shift_date,
-         from_name, from_user_id, to_name, to_user_id, done, note,
+         from_name, from_user_id, from_shift_name, to_name, to_user_id, to_shift_name, done, note,
          progress_text, handover_text, plan_technician_ids,
          user_id, user_name, updated_at
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -693,8 +697,10 @@ async function saveScopedJobs(
         str(row.shift_date),
         str(row.from_name),
         str(row.from_user_id),
+        str(row.from_shift_name),
         str(row.to_name),
         str(row.to_user_id),
+        str(row.to_shift_name),
         flag01(row.done),
         str(row.note),
         str(row.progress_text),
@@ -1214,8 +1220,10 @@ export async function ensureRelationalSchema() {
       shift_date VARCHAR(16) NOT NULL DEFAULT '',
       from_name VARCHAR(255) NOT NULL DEFAULT '',
       from_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      from_shift_name VARCHAR(255) NOT NULL DEFAULT '',
       to_name VARCHAR(255) NOT NULL DEFAULT '',
       to_user_id VARCHAR(64) NOT NULL DEFAULT '',
+      to_shift_name VARCHAR(255) NOT NULL DEFAULT '',
       done TINYINT(1) NOT NULL DEFAULT 0,
       note TEXT,
       progress_text TEXT,
@@ -1407,6 +1415,33 @@ export async function ensureRelationalSchema() {
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS plan_technician_ids TEXT`
   );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS from_shift_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS to_shift_name VARCHAR(255) NOT NULL DEFAULT ''`
+  );
+  // Backfill empty shift snapshots from current user → shift assignment.
+  try {
+    await p.query(
+      `UPDATE job_handovers h
+       LEFT JOIN users u ON u.id = h.from_user_id
+       LEFT JOIN shifts s ON s.id = u.shift_id
+       SET h.from_shift_name = COALESCE(NULLIF(TRIM(s.name), ''), NULLIF(TRIM(s.code), ''), '')
+       WHERE TRIM(IFNULL(h.from_shift_name, '')) = ''
+         AND TRIM(IFNULL(h.from_user_id, '')) <> ''`
+    );
+    await p.query(
+      `UPDATE job_handovers h
+       LEFT JOIN users u ON u.id = h.to_user_id
+       LEFT JOIN shifts s ON s.id = u.shift_id
+       SET h.to_shift_name = COALESCE(NULLIF(TRIM(s.name), ''), NULLIF(TRIM(s.code), ''), '')
+       WHERE TRIM(IFNULL(h.to_shift_name, '')) = ''
+         AND TRIM(IFNULL(h.to_user_id, '')) <> ''`
+    );
+  } catch {
+    /* users/shifts tables may be unavailable during early migrate */
+  }
   try {
     await p.query(
       `CREATE INDEX idx_job_handovers_shift ON job_handovers (shift_date)`

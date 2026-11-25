@@ -30,6 +30,7 @@ import {
   type NavAlertItem,
   type NavAlertsPayload,
 } from "@/lib/nav-alerts";
+import { normalizeShiftDateTime } from "@/lib/handover-form-format";
 
 export type JobListSection = "active" | "queue" | "done" | "cancelled";
 export type JobOwnershipFilter =
@@ -235,11 +236,13 @@ function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
     job_id: str(r.job_id),
     order: num(r.handover_order),
     title: str(r.title),
-    shift_date: str(r.shift_date).slice(0, 10),
+    shift_date: normalizeShiftDateTime(r.shift_date) || str(r.shift_date).slice(0, 16),
     from_name: str(r.from_name),
     from_user_id: str(r.from_user_id),
+    from_shift_name: str(r.from_shift_name),
     to_name: str(r.to_name),
     to_user_id: str(r.to_user_id),
+    to_shift_name: str(r.to_shift_name),
     done: num(r.done) ? "1" : "0",
     note: str(r.note),
     progress_text: str(r.progress_text),

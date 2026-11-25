@@ -1533,11 +1533,16 @@ export function applyOptimisticMutation(
       job_id: jobId,
       order: 0,
       title: String(body.title || ""),
-      shift_date: String(body.shift_date || "").slice(0, 10),
+      shift_date: String(body.shift_date || "")
+        .trim()
+        .replace(" ", "T")
+        .slice(0, 16),
       from_name: String(body.from_name || ""),
       from_user_id: String(body.from_user_id || ""),
+      from_shift_name: String(body.from_shift_name || "").trim(),
       to_name: String(body.to_name || ""),
       to_user_id: String(body.to_user_id || ""),
+      to_shift_name: String(body.to_shift_name || "").trim(),
       done: body.done ? "1" : "0",
       note: String(body.note || ""),
       progress_text: String(body.progress_text || ""),
@@ -1579,7 +1584,10 @@ export function applyOptimisticMutation(
                   title: body.title != null ? String(body.title) : h.title,
                   shift_date:
                     body.shift_date != null
-                      ? String(body.shift_date).slice(0, 10)
+                      ? String(body.shift_date)
+                          .trim()
+                          .replace(" ", "T")
+                          .slice(0, 16)
                       : h.shift_date || "",
                   from_name:
                     body.from_name != null ? String(body.from_name) : h.from_name,
@@ -1587,11 +1595,19 @@ export function applyOptimisticMutation(
                     body.from_user_id != null
                       ? String(body.from_user_id)
                       : h.from_user_id,
+                  from_shift_name:
+                    body.from_shift_name != null
+                      ? String(body.from_shift_name).trim()
+                      : h.from_shift_name || "",
                   to_name: body.to_name != null ? String(body.to_name) : h.to_name,
                   to_user_id:
                     body.to_user_id != null
                       ? String(body.to_user_id)
                       : h.to_user_id,
+                  to_shift_name:
+                    body.to_shift_name != null
+                      ? String(body.to_shift_name).trim()
+                      : h.to_shift_name || "",
                   note: body.note != null ? String(body.note) : h.note,
                   progress_text:
                     body.progress_text != null
@@ -1621,7 +1637,10 @@ export function applyOptimisticMutation(
                 title: body.title != null ? String(body.title) : h.title,
                 shift_date:
                   body.shift_date != null
-                    ? String(body.shift_date).slice(0, 10)
+                    ? String(body.shift_date)
+                        .trim()
+                        .replace(" ", "T")
+                        .slice(0, 16)
                     : h.shift_date || "",
                 from_name:
                   body.from_name != null ? String(body.from_name) : h.from_name,
@@ -1629,11 +1648,19 @@ export function applyOptimisticMutation(
                   body.from_user_id != null
                     ? String(body.from_user_id)
                     : h.from_user_id,
+                from_shift_name:
+                  body.from_shift_name != null
+                    ? String(body.from_shift_name).trim()
+                    : h.from_shift_name || "",
                 to_name: body.to_name != null ? String(body.to_name) : h.to_name,
                 to_user_id:
                   body.to_user_id != null
                     ? String(body.to_user_id)
                     : h.to_user_id,
+                to_shift_name:
+                  body.to_shift_name != null
+                    ? String(body.to_shift_name).trim()
+                    : h.to_shift_name || "",
                 note: body.note != null ? String(body.note) : h.note,
                 progress_text:
                   body.progress_text != null

@@ -62,6 +62,34 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/**
+ * Normalize shift timestamp for storage (VARCHAR(16)).
+ * Accepts `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm` (space/`T`, optional seconds).
+ */
+export function normalizeShiftDateTime(raw: unknown): string {
+  const s = String(raw || "")
+    .trim()
+    .replace(" ", "T");
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return "";
+  if (m[2] != null) return `${m[1]}T${m[2]}:${m[3]}`;
+  return m[1];
+}
+
+/** Value for `<input type="datetime-local">` (`YYYY-MM-DDTHH:mm`). */
+export function toDatetimeLocalValue(raw: string): string {
+  const n = normalizeShiftDateTime(raw);
+  if (!n) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(n)) return `${n}T00:00`;
+  return n;
+}
+
+/** Current local date-time for datetime-local inputs. */
+export function nowDatetimeLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 /** Display like 13-Oct-26 or 13-Oct-26 14:30 */
 export function formatHandoverDate(raw: string): string {
   const s = String(raw || "").trim();

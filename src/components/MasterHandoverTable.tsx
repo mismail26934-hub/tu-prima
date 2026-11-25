@@ -307,14 +307,18 @@ export function MasterHandoverTable({
                 const fromUserId = String(h.from_user_id || "").trim();
                 const toUserId = String(h.to_user_id || "").trim();
                 const crewShift =
-                  (fromUserId && shiftLabelByUserId[fromUserId]) || "—";
+                  String(h.from_shift_name || "").trim() ||
+                  (fromUserId && shiftLabelByUserId[fromUserId]) ||
+                  "—";
                 const nextShift =
-                  (toUserId && shiftLabelByUserId[toUserId]) || "—";
+                  String(h.to_shift_name || "").trim() ||
+                  (toUserId && shiftLabelByUserId[toUserId]) ||
+                  "—";
 
                 const handoverCell = (id: MasterHandoverColumnId) => {
                   switch (id) {
                     case "shiftDate":
-                      return h.shift_date || "—";
+                      return formatHandoverDate(h.shift_date) || "—";
                     case "from":
                       return h.from_name || "—";
                     case "to":

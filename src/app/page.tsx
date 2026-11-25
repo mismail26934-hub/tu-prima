@@ -60,7 +60,12 @@ import {
   stepTechnicianNames,
 } from "@/lib/step-technicians";
 import { downloadJobPdf } from "@/lib/job-pdf";
-import { formatHandoverDate } from "@/lib/handover-form-format";
+import {
+  formatHandoverDate,
+  normalizeShiftDateTime,
+  nowDatetimeLocal,
+  toDatetimeLocalValue,
+} from "@/lib/handover-form-format";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
@@ -3156,6 +3161,8 @@ export default function HomePage() {
     to_user_id: string;
     from_name: string;
     from_user_id: string;
+    from_shift_name?: string;
+    to_shift_name?: string;
     note: string;
     progress_text: string;
     handover_text: string;
@@ -3940,10 +3947,9 @@ export default function HomePage() {
       mode: "create",
       draft: {
         title: "",
-        shift_date:
-          opts?.shiftDate ||
-          handoverFormDate ||
-          new Date().toISOString().slice(0, 10),
+        shift_date: toDatetimeLocalValue(
+          opts?.shiftDate || handoverFormDate || nowDatetimeLocal()
+        ),
         from_name: from.from_name,
         from_user_id: from.from_user_id,
         to_name: "",
@@ -3972,10 +3978,9 @@ export default function HomePage() {
       handoverId: row.id,
       draft: {
         title: row.title || "",
-        shift_date:
-          server?.shift_date ||
-          handoverFormDate ||
-          new Date().toISOString().slice(0, 10),
+        shift_date: toDatetimeLocalValue(
+          server?.shift_date || handoverFormDate || nowDatetimeLocal()
+        ),
         from_name: row.from_name || "",
         from_user_id: row.from_user_id || "",
         to_name: row.to_name || "",
@@ -4036,8 +4041,9 @@ export default function HomePage() {
     const editor = handoverFormEditor;
     if (!editor || editor.jobId !== job.id) return;
     const draft = editor.draft;
-    if (!draft.shift_date.trim()) {
-      setError("Tanggal shift wajib diisi");
+    const shiftDate = normalizeShiftDateTime(draft.shift_date);
+    if (!shiftDate) {
+      setError("Tanggal & waktu shift wajib diisi");
       return;
     }
     if (!draft.progress_text.trim()) {
@@ -4056,13 +4062,21 @@ export default function HomePage() {
     });
     setError("");
     try {
+      const fromUserId = draft.from_user_id.trim();
+      const toUserId = draft.to_user_id.trim();
       const body = {
         title: draft.title.trim(),
-        shift_date: draft.shift_date.trim(),
+        shift_date: shiftDate,
         from_name: draft.from_name.trim(),
-        from_user_id: draft.from_user_id.trim(),
+        from_user_id: fromUserId,
+        from_shift_name: fromUserId
+          ? handoverShiftLabelByUserId[fromUserId] || ""
+          : "",
         to_name: draft.to_name.trim(),
-        to_user_id: draft.to_user_id.trim(),
+        to_user_id: toUserId,
+        to_shift_name: toUserId
+          ? handoverShiftLabelByUserId[toUserId] || ""
+          : "",
         note: draft.note.trim(),
         progress_text: draft.progress_text,
         handover_text: draft.handover_text,
@@ -5260,8 +5274,10 @@ export default function HomePage() {
       shift_date: h.shift_date || "",
       from_name: h.from_name || h.user_name || "",
       from_user_id: h.from_user_id || h.user_id || "",
+      from_shift_name: h.from_shift_name || "",
       to_name: h.to_name || "",
       to_user_id: h.to_user_id || "",
+      to_shift_name: h.to_shift_name || "",
       note: h.note,
       progress_text: h.progress_text || "",
       handover_text: h.handover_text || "",
@@ -6511,6 +6527,7 @@ export default function HomePage() {
                 job={job}
                 rows={getHandoverLocal(job)}
                 boardTechnicians={data?.technicians || []}
+                shiftLabelByUserId={handoverShiftLabelByUserId}
                 busy={busy}
                 actionMode={
                   notesDeleteOk && getHandoverMode(job.id) === "hapus"
@@ -7794,8 +7811,10 @@ export default function HomePage() {
               <label>
                 {t("job.shiftDate")} <span aria-hidden="true">*</span>
                 <input
-                  type="date"
-                  value={handoverFormEditor.draft.shift_date}
+                  type="datetime-local"
+                  value={toDatetimeLocalValue(
+                    handoverFormEditor.draft.shift_date
+                  )}
                   disabled={busy}
                   required
                   onChange={(e) =>

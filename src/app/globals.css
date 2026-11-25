@@ -2479,6 +2479,17 @@ html[data-theme='light'] .nav-alerts-chip {
   border-color: transparent;
 }
 
+.btn.btn-icon:disabled,
+.btn.btn-icon[aria-disabled='true'],
+.btn-icon:disabled,
+.btn-icon[aria-disabled='true'] {
+  background: var(--ds-btn-disabled);
+  color: var(--ds-text-disabled);
+  border-color: transparent;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .btn-icon.btn-md {
   width: var(--ds-btn-md-height);
   height: var(--ds-btn-md-height);

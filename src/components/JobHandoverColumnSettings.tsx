@@ -17,6 +17,8 @@ const LABEL_KEY: Record<JobHandoverColumnId, MessageKey> = {
   shiftDate: "job.shiftDate",
   from: "job.handoverFrom",
   to: "job.handoverTo",
+  crew: "master.col.crew",
+  nextCrew: "master.col.nextCrew",
   progress: "job.progressText",
   handover: "job.handoverText",
   prevMp: "job.prevMp",

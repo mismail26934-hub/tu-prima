@@ -633,11 +633,13 @@ function mapHandover(r: Row): JobHandover {
     job_id: String(r.job_id || ""),
     order: Number(r.order || 0),
     title: String(r.title || ""),
-    shift_date: String(r.shift_date || "").slice(0, 10),
+    shift_date: normalizeShiftDate(r.shift_date),
     from_name: String(r.from_name || ""),
     from_user_id: String(r.from_user_id || ""),
+    from_shift_name: String(r.from_shift_name || "").trim(),
     to_name: String(r.to_name || ""),
     to_user_id: String(r.to_user_id || ""),
+    to_shift_name: String(r.to_shift_name || "").trim(),
     done: String(r.done || "0") === "1" ? "1" : "0",
     note: String(r.note || ""),
     progress_text: String(r.progress_text || ""),
@@ -793,7 +795,7 @@ function handoverToRow(h: JobHandover): Row {
   return {
     ...h,
     order: h.order,
-    shift_date: String(h.shift_date || "").slice(0, 10),
+    shift_date: normalizeShiftDate(h.shift_date),
     progress_text: String(h.progress_text || ""),
     handover_text: String(h.handover_text || ""),
     plan_technician_ids: serializePlanTechnicianIds(h.plan_technician_ids),
@@ -913,8 +915,10 @@ const HANDOVER_HEADERS = [
   "shift_date",
   "from_name",
   "from_user_id",
+  "from_shift_name",
   "to_name",
   "to_user_id",
+  "to_shift_name",
   "done",
   "note",
   "progress_text",
@@ -1574,6 +1578,21 @@ function resolveHandoverRecipient(
 ): { to_user_id: string; to_name: string; phone: string } {
   const party = resolveHandoverParty(users, to_user_id, to_name);
   return { to_user_id: party.user_id, to_name: party.name, phone: party.phone };
+}
+
+/** Master Shift display name for a user (empty if unset / unknown). */
+function shiftNameForUserId(
+  users: AppUser[],
+  userId: string,
+  shifts: Shift[]
+): string {
+  const id = String(userId || "").trim();
+  if (!id) return "";
+  const u = users.find((x) => x.id === id);
+  const shiftId = String(u?.shift_id || "").trim();
+  if (!shiftId) return "";
+  const s = shifts.find((x) => x.id === shiftId);
+  return s ? shiftLabel(s) : "";
 }
 
 function loadUnits(wb: MysqlWorkbook, jobs: Job[]): Unit[] {
@@ -2278,13 +2297,18 @@ export async function deleteJob(
 }
 
 function normalizeShiftDate(raw: unknown): string {
-  const s = String(raw || "").trim().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  return "";
+  const s = String(raw || "")
+    .trim()
+    .replace(" ", "T");
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return "";
+  if (m[2] != null) return `${m[1]}T${m[2]}:${m[3]}`;
+  return m[1];
 }
 
 function defaultHandoverTitle(shiftDate: string): string {
-  return shiftDate ? `Hand Over ${shiftDate}` : "Hand Over";
+  const label = String(shiftDate || "").replace("T", " ").trim();
+  return label ? `Hand Over ${label}` : "Hand Over";
 }
 
 export async function createJobHandover(input: {
@@ -2342,6 +2366,7 @@ export async function createJobHandover(input: {
       forJob.reduce((max, h) => Math.max(max, h.order), 0) + 1;
     const at = nowIso();
     const users = readUsers(wb);
+    const shifts = await listShifts({ includeInactive: true });
     const recipient = resolveHandoverParty(
       users,
       input.to_user_id,
@@ -2367,8 +2392,10 @@ export async function createJobHandover(input: {
       shift_date,
       from_name: sender.name,
       from_user_id: sender.user_id,
+      from_shift_name: shiftNameForUserId(users, sender.user_id, shifts),
       to_name: recipient.name,
       to_user_id: recipient.user_id,
+      to_shift_name: shiftNameForUserId(users, recipient.user_id, shifts),
       done: input.done ? "1" : "0",
       note: (input.note || "").trim(),
       progress_text,
@@ -2490,6 +2517,7 @@ export async function updateJobHandover(
       ).filter((id) => validTech.has(id));
     }
     const users = readUsers(wb);
+    const shifts = await listShifts({ includeInactive: true });
     if (input.from_user_id !== undefined || input.from_name !== undefined) {
       const sender = resolveHandoverParty(
         users,
@@ -2498,6 +2526,7 @@ export async function updateJobHandover(
       );
       row.from_user_id = sender.user_id;
       row.from_name = sender.name;
+      row.from_shift_name = shiftNameForUserId(users, sender.user_id, shifts);
     }
     if (input.to_user_id !== undefined || input.to_name !== undefined) {
       const recipient = resolveHandoverParty(
@@ -2507,6 +2536,14 @@ export async function updateJobHandover(
       );
       row.to_user_id = recipient.user_id;
       row.to_name = recipient.name;
+      row.to_shift_name = shiftNameForUserId(users, recipient.user_id, shifts);
+    }
+    // Keep snapshots filled for legacy rows even when From/To were not edited.
+    if (!String(row.from_shift_name || "").trim() && row.from_user_id) {
+      row.from_shift_name = shiftNameForUserId(users, row.from_user_id, shifts);
+    }
+    if (!String(row.to_shift_name || "").trim() && row.to_user_id) {
+      row.to_shift_name = shiftNameForUserId(users, row.to_user_id, shifts);
     }
     if (input.note !== undefined) row.note = input.note.trim();
     if (input.done !== undefined) row.done = input.done ? "1" : "0";

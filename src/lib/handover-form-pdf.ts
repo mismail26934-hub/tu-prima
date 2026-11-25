@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import {
   buildHandoverFormPayload,
   formatHandoverDate,
+  otherStatusLabel,
   shiftShortCode,
   type HandoverFormCrewMember,
   type HandoverFormPayload,
@@ -73,7 +74,7 @@ function toOtherLines(rows: HandoverFormCrewMember[]): CrewLine[] {
   return rows.map((r, i) => ({
     no: i + 1,
     name: r.name,
-    col3: r.note || r.status || "Sakit",
+    col3: otherStatusLabel(r),
   }));
 }
 

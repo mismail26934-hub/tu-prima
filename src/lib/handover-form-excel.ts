@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import {
   buildHandoverFormPayload,
   formatHandoverDate,
+  otherStatusLabel,
   shiftShortCode,
   type HandoverFormPayload,
   type HandoverFormUnitRow,
@@ -170,7 +171,7 @@ function writeCrewNewspaper(
   const other: CrewLine[] = payload.sakit.map((r, i) => ({
     no: i + 1,
     name: r.name,
-    col3: r.note || r.status || "Sakit",
+    col3: otherStatusLabel(r),
   }));
   const next: CrewLine[] = payload.next_crew.map((r, i) => ({
     no: i + 1,
@@ -483,7 +484,7 @@ export async function buildHandoverFormExcelBuffer(date: string): Promise<{
       no: i + 1,
       name: r.name,
       sn: r.sn || "",
-      ket: r.note || r.status || "Sakit",
+      ket: otherStatusLabel(r),
     });
   });
   payload.next_crew.forEach((r, i) => {

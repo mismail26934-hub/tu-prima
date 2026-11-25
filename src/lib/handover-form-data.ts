@@ -178,6 +178,46 @@ async function loadAttendanceForDate(date: string): Promise<Attendance[]> {
   return rows.map(mapAttendanceRow);
 }
 
+/**
+ * Controlling foreman for a job's crew:
+ * Delegasi if set, otherwise Penugas (assigned_by).
+ */
+export function controllingForemanId(
+  job: Pick<JobWithDetails, "assigned_by_user_id" | "delegated_to_user_id">
+): string {
+  const delegated = String(job.delegated_to_user_id || "").trim();
+  if (delegated) return delegated;
+  return String(job.assigned_by_user_id || "").trim();
+}
+
+/** Technician ids whose superior is one of the given foreman user ids. */
+async function loadTechnicianIdsBySuperior(
+  superiorUserIds: string[]
+): Promise<Set<string>> {
+  const unique = [...new Set(superiorUserIds.map(String).filter(Boolean))];
+  const out = new Set<string>();
+  if (!unique.length) return out;
+  const p = getPool();
+  const ph = unique.map(() => "?").join(",");
+  const [rows] = await p.query<mysql.RowDataPacket[]>(
+    `SELECT id FROM technicians WHERE superior_user_id IN (${ph})`,
+    unique
+  );
+  for (const r of rows) {
+    const id = String(r.id || "").trim();
+    if (id) out.add(id);
+  }
+  return out;
+}
+
+function filterAttendanceByTechnicianIds(
+  rows: Attendance[],
+  techIds: Set<string>
+): Attendance[] {
+  if (!techIds.size) return [];
+  return rows.filter((a) => techIds.has(String(a.technician_id || "").trim()));
+}
+
 async function loadTechniciansById(
   ids: string[]
 ): Promise<Map<string, Technician>> {
@@ -209,6 +249,20 @@ async function loadTechniciansById(
   return map;
 }
 
+/** Statuses that mean not available → Other Status panel. */
+export const OTHER_STATUS_ATTENDANCE: AttendanceStatus[] = [
+  "sakit",
+  "izin",
+  "off",
+  "alpha",
+];
+
+function capitalizeStatus(status: string): string {
+  const s = String(status || "").trim();
+  if (!s) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
 function crewFromAttendance(
   rows: Attendance[],
   statuses: AttendanceStatus | AttendanceStatus[]
@@ -221,7 +275,15 @@ function crewFromAttendance(
       status: a.status,
       note: a.note || a.absence || "",
       sn: a.pernr || "",
-    }));
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "id"));
+}
+
+/** Label shown in Other Status third column (Sakit / Izin / Off / Alpha / note). */
+export function otherStatusLabel(member: HandoverFormCrewMember): string {
+  const note = String(member.note || "").trim();
+  if (note) return note;
+  return capitalizeStatus(member.status) || "Other";
 }
 
 function toUnitRow(
@@ -269,7 +331,18 @@ export async function buildHandoverFormPayload(
     return form.planIds;
   });
   const techById = await loadTechniciansById(planIds);
-  const attendance = await loadAttendanceForDate(ymd);
+  const attendanceAll = await loadAttendanceForDate(ymd);
+
+  // Crew panels: only technicians under each job's controlling foreman
+  // (Delegasi if set, else Penugas).
+  const foremanIds = [
+    ...new Set(jobs.map((j) => controllingForemanId(j)).filter(Boolean)),
+  ];
+  const crewTechIds = await loadTechnicianIdsBySuperior(foremanIds);
+  const attendance = filterAttendanceByTechnicianIds(
+    attendanceAll,
+    crewTechIds
+  );
 
   const fromShiftLabels: string[] = [];
   const toShiftLabels: string[] = [];
@@ -291,7 +364,9 @@ export async function buildHandoverFormPayload(
   }
 
   const shift_period =
-    attendance.map((a) => String(a.dws || "").trim()).find(Boolean) || "";
+    attendance.map((a) => String(a.dws || "").trim()).find(Boolean) ||
+    attendanceAll.map((a) => String(a.dws || "").trim()).find(Boolean) ||
+    "";
 
   return {
     date: ymd,
@@ -300,7 +375,8 @@ export async function buildHandoverFormPayload(
     next_shift_label: majorityLabel(toShiftLabels),
     shift_period,
     hadir: crewFromAttendance(attendance, "hadir"),
-    sakit: crewFromAttendance(attendance, ["sakit", "izin"]),
+    // Not available on that date → Other Status (same foreman crew)
+    sakit: crewFromAttendance(attendance, OTHER_STATUS_ATTENDANCE),
     next_crew: Array.from(nextCrewById.values()).sort((a, b) =>
       a.name.localeCompare(b.name, "id")
     ),

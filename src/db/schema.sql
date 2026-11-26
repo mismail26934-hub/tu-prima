@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS job_handovers (
   handover_text              TEXT,
   plan_technician_ids        TEXT,
   next_crew_technician_ids   TEXT,
+  prev_mp_technician_ids     TEXT,
   user_id                    VARCHAR(64)  NOT NULL DEFAULT '',
   user_name                  VARCHAR(255) NOT NULL DEFAULT '',
   updated_at                 VARCHAR(64)  NOT NULL DEFAULT '',

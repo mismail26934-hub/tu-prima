@@ -26,6 +26,9 @@ export async function PATCH(
     )
       ? body.next_crew_technician_ids.map(String).filter(Boolean)
       : undefined;
+    const prev_mp_technician_ids = Array.isArray(body.prev_mp_technician_ids)
+      ? body.prev_mp_technician_ids.map(String).filter(Boolean)
+      : undefined;
     const row = await updateJobHandover(handoverId, {
       title: body.title != null ? String(body.title) : undefined,
       shift_date: body.shift_date != null ? String(body.shift_date) : undefined,
@@ -41,6 +44,7 @@ export async function PATCH(
         body.handover_text != null ? String(body.handover_text) : undefined,
       plan_technician_ids,
       next_crew_technician_ids,
+      prev_mp_technician_ids,
       done: typeof body.done === "boolean" ? body.done : undefined,
       actor,
     });

@@ -648,6 +648,7 @@ function mapHandover(r: Row): JobHandover {
     next_crew_technician_ids: parsePlanTechnicianIds(
       r.next_crew_technician_ids
     ),
+    prev_mp_technician_ids: parsePlanTechnicianIds(r.prev_mp_technician_ids),
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),
@@ -804,6 +805,26 @@ function nextCrewIdsForJob(
     .map((t) => t.id);
 }
 
+/** Prev M/P snapshot: explicit list, else current job assignees. */
+function prevMpIdsForJob(
+  jobId: string,
+  assignees: JobAssignee[],
+  techs: Technician[],
+  explicit?: string[] | null
+): string[] {
+  const valid = new Set(techs.map((t) => t.id));
+  if (explicit != null) {
+    return parsePlanTechnicianIds(explicit).filter((id) => valid.has(id));
+  }
+  const ids: string[] = [];
+  for (const a of assignees) {
+    if (a.job_id !== jobId) continue;
+    const id = String(a.technician_id || "").trim();
+    if (id && valid.has(id) && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
 function stepToRow(s: JobStep): Row {
   return {
     ...s,
@@ -835,6 +856,7 @@ function handoverToRow(h: JobHandover): Row {
     next_crew_technician_ids: serializePlanTechnicianIds(
       h.next_crew_technician_ids
     ),
+    prev_mp_technician_ids: serializePlanTechnicianIds(h.prev_mp_technician_ids),
   };
 }
 
@@ -961,6 +983,7 @@ const HANDOVER_HEADERS = [
   "handover_text",
   "plan_technician_ids",
   "next_crew_technician_ids",
+  "prev_mp_technician_ids",
   "user_id",
   "user_name",
   "updated_at",
@@ -2362,6 +2385,7 @@ export async function createJobHandover(input: {
   handover_text?: string;
   plan_technician_ids?: string[];
   next_crew_technician_ids?: string[];
+  prev_mp_technician_ids?: string[];
   done?: boolean;
   actor?: AuditActor | null;
 }): Promise<JobHandover> {
@@ -2396,6 +2420,14 @@ export async function createJobHandover(input: {
       techs,
       input.next_crew_technician_ids !== undefined
         ? input.next_crew_technician_ids
+        : null
+    );
+    const prev_mp_technician_ids = prevMpIdsForJob(
+      input.job_id,
+      assignees,
+      techs,
+      input.prev_mp_technician_ids !== undefined
+        ? input.prev_mp_technician_ids
         : null
     );
 
@@ -2447,6 +2479,7 @@ export async function createJobHandover(input: {
       handover_text,
       plan_technician_ids,
       next_crew_technician_ids,
+      prev_mp_technician_ids,
       user_id: input.actor?.user_id || "",
       user_name: input.actor?.user_name || "",
       updated_at: at,
@@ -2510,6 +2543,7 @@ export async function updateJobHandover(
     handover_text?: string;
     plan_technician_ids?: string[];
     next_crew_technician_ids?: string[];
+    prev_mp_technician_ids?: string[];
     done?: boolean;
     actor?: AuditActor | null;
   }
@@ -2536,6 +2570,7 @@ export async function updateJobHandover(
       ...row,
       plan_technician_ids: [...(row.plan_technician_ids || [])],
       next_crew_technician_ids: [...(row.next_crew_technician_ids || [])],
+      prev_mp_technician_ids: [...(row.prev_mp_technician_ids || [])],
     };
 
     if (input.shift_date !== undefined) {
@@ -2572,6 +2607,21 @@ export async function updateJobHandover(
         ? input.next_crew_technician_ids
         : null
     );
+    if (input.prev_mp_technician_ids !== undefined) {
+      row.prev_mp_technician_ids = prevMpIdsForJob(
+        row.job_id,
+        assignees,
+        techs,
+        input.prev_mp_technician_ids
+      );
+    } else if (!(row.prev_mp_technician_ids || []).length) {
+      row.prev_mp_technician_ids = prevMpIdsForJob(
+        row.job_id,
+        assignees,
+        techs,
+        null
+      );
+    }
     const users = readUsers(wb);
     const shifts = await listShifts({ includeInactive: true });
     if (input.from_user_id !== undefined || input.from_name !== undefined) {

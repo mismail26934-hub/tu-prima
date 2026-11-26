@@ -77,6 +77,14 @@ export function handoverCandidateSteps(job: JobWithDetails) {
     .sort((a, b) => a.order - b.order);
 }
 
+export function prevMpAssigneeIds(job: JobWithDetails): string[] {
+  if (job.technicians?.length) {
+    return job.technicians.map((t) => t.id).filter(Boolean);
+  }
+  if (job.technician?.id) return [job.technician.id];
+  return [];
+}
+
 export function prevMpNames(job: JobWithDetails): string[] {
   if (job.technicians?.length) {
     return job.technicians.map((t) => t.name).filter(Boolean);
@@ -104,6 +112,7 @@ function formLinesFromHandover(
   handover: string[];
   planIds: string[];
   nextCrewIds: string[];
+  prevMpIds: string[];
   from_shift_name: string;
   to_shift_name: string;
 } {
@@ -114,6 +123,7 @@ function formLinesFromHandover(
       handover: [],
       planIds: [],
       nextCrewIds: [],
+      prevMpIds: [],
       from_shift_name: "",
       to_shift_name: "",
     };
@@ -123,6 +133,7 @@ function formLinesFromHandover(
     handover: linesFromText(String(h.handover_text || "")),
     planIds: h.plan_technician_ids || [],
     nextCrewIds: h.next_crew_technician_ids || [],
+    prevMpIds: h.prev_mp_technician_ids || [],
     from_shift_name: String(h.from_shift_name || "").trim(),
     to_shift_name: String(h.to_shift_name || "").trim(),
   };
@@ -348,6 +359,9 @@ function toUnitRow(
   const plan_mp = form.planIds
     .map((id) => techById.get(id)?.name || "")
     .filter(Boolean);
+  const prevFromSnapshot = form.prevMpIds
+    .map((id) => techById.get(id)?.name || "")
+    .filter(Boolean);
   return {
     job_id: job.id,
     unit_no: unitNoFromJob(job),
@@ -358,7 +372,7 @@ function toUnitRow(
     smu: smu > 0 ? String(smu) : "",
     description: String(job.description || job.title || "").trim(),
     progress: form.progress,
-    prev_mp: prevMpNames(job),
+    prev_mp: prevFromSnapshot.length ? prevFromSnapshot : prevMpNames(job),
     handover: form.handover,
     plan_mp,
   };
@@ -379,11 +393,15 @@ export async function buildHandoverFormPayload(
     "paused",
   ]);
   const snapshotNextCrewIds: string[] = [];
+  const snapshotPrevMpIds: string[] = [];
   const planIds: string[] = [];
   for (const j of jobs) {
     const form = formLinesFromHandover(j, ymd);
     planIds.push(...form.planIds);
     snapshotNextCrewIds.push(...form.nextCrewIds);
+    snapshotPrevMpIds.push(
+      ...(form.prevMpIds.length ? form.prevMpIds : prevMpAssigneeIds(j))
+    );
   }
 
   // Crew panels: technicians under controlling foreman (Delegasi || Penugas)
@@ -403,6 +421,7 @@ export async function buildHandoverFormPayload(
   const techById = await loadTechniciansById([
     ...planIds,
     ...nextCrewSourceIds,
+    ...snapshotPrevMpIds,
   ]);
   const attendanceAll = await loadAttendanceForDate(ymd);
   const attendance = resolveCrewAttendance(

@@ -357,6 +357,7 @@ type Modal =
   | { type: "handover-form"; job: JobWithDetails }
   | { type: "handover-plan-mp"; job: JobWithDetails }
   | { type: "handover-next-crew"; job: JobWithDetails }
+  | { type: "handover-prev-mp"; job: JobWithDetails }
   | {
       type: "handover-pick-steps";
       job: JobWithDetails;
@@ -382,6 +383,7 @@ type HandoverFormDraft = {
   handover_text: string;
   plan_technician_ids: string[];
   next_crew_technician_ids: string[];
+  prev_mp_technician_ids: string[];
   done: boolean;
 };
 
@@ -435,6 +437,7 @@ function activeNavForModal(modal: Modal): string | null {
     case "handover-form":
     case "handover-plan-mp":
     case "handover-next-crew":
+    case "handover-prev-mp":
     case "handover-pick-steps":
     case "handover-to":
       return "handoverForm";
@@ -1281,6 +1284,11 @@ export default function HomePage() {
   const [nextCrewPage, setNextCrewPage] = useState(1);
   /** Staging selection while Next Crew modal is open. */
   const [nextCrewStagingIds, setNextCrewStagingIds] = useState<string[]>([]);
+  const [prevMpDraft, setPrevMpDraft] = useState("");
+  const [prevMpQuery, setPrevMpQuery] = useState("");
+  const [prevMpPage, setPrevMpPage] = useState(1);
+  /** Staging selection while Prev M/P modal is open. */
+  const [prevMpStagingIds, setPrevMpStagingIds] = useState<string[]>([]);
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
   const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
@@ -1334,6 +1342,7 @@ export default function HomePage() {
         modal?.type === "handover-form-export" ||
         modal?.type === "handover-plan-mp" ||
         modal?.type === "handover-next-crew" ||
+        modal?.type === "handover-prev-mp" ||
         modal?.type === "handover-pick-steps" ||
         modal?.type === "handover-to"));
   const prioritiesModalOpen =
@@ -3177,6 +3186,7 @@ export default function HomePage() {
     handover_text: string;
     plan_technician_ids: string[];
     next_crew_technician_ids: string[];
+    prev_mp_technician_ids: string[];
     done: boolean;
     order: number;
   };
@@ -3932,6 +3942,12 @@ export default function HomePage() {
     setNextCrewPage(1);
   }
 
+  function resetPrevMpPicker() {
+    setPrevMpDraft("");
+    setPrevMpQuery("");
+    setPrevMpPage(1);
+  }
+
   function crewIdsUnderForeman(
     job: JobWithDetails,
     techs: { id: string; superior_user_id?: string }[]
@@ -3943,6 +3959,14 @@ export default function HomePage() {
     return techs
       .filter((t) => String(t.superior_user_id || "").trim() === foreman)
       .map((t) => t.id);
+  }
+
+  function assigneeIdsFromJob(job: JobWithDetails): string[] {
+    if (job.technicians?.length) {
+      return job.technicians.map((t) => t.id).filter(Boolean);
+    }
+    if (job.technician?.id) return [job.technician.id];
+    return [];
   }
 
   function openPlanMpPicker(job: JobWithDetails) {
@@ -3990,6 +4014,27 @@ export default function HomePage() {
     reopenHandoverFormModal(job);
   }
 
+  function openPrevMpPicker(job: JobWithDetails) {
+    resetPrevMpPicker();
+    setPrevMpStagingIds([
+      ...(handoverFormEditor?.draft.prev_mp_technician_ids || []),
+    ]);
+    setModal({ type: "handover-prev-mp", job });
+  }
+
+  function applyPrevMpPicker(job: JobWithDetails) {
+    patchHandoverFormDraft({
+      prev_mp_technician_ids: [...prevMpStagingIds],
+    });
+    setPrevMpStagingIds([]);
+    reopenHandoverFormModal(job);
+  }
+
+  function cancelPrevMpPicker(job: JobWithDetails) {
+    setPrevMpStagingIds([]);
+    reopenHandoverFormModal(job);
+  }
+
   function openHandoverFormCreate(
     job: JobWithDetails,
     opts?: { fromMaster?: boolean; shiftDate?: string }
@@ -3997,6 +4042,7 @@ export default function HomePage() {
     const from = currentHandoverFrom();
     resetPlanMpPicker();
     resetNextCrewPicker();
+    resetPrevMpPicker();
     setHandoverFormFromMaster(Boolean(opts?.fromMaster));
     setHandoverFormEditor({
       jobId: job.id,
@@ -4018,6 +4064,7 @@ export default function HomePage() {
           job,
           data?.technicians || []
         ),
+        prev_mp_technician_ids: assigneeIdsFromJob(job),
         done: false,
       },
     });
@@ -4032,8 +4079,10 @@ export default function HomePage() {
     const server = (job.handovers || []).find((h) => h.id === row.id);
     resetPlanMpPicker();
     resetNextCrewPicker();
+    resetPrevMpPicker();
     setHandoverFormFromMaster(Boolean(opts?.fromMaster));
     const savedNext = server?.next_crew_technician_ids || [];
+    const savedPrev = server?.prev_mp_technician_ids || [];
     setHandoverFormEditor({
       jobId: job.id,
       mode: "edit",
@@ -4054,6 +4103,9 @@ export default function HomePage() {
         next_crew_technician_ids: savedNext.length
           ? savedNext
           : crewIdsUnderForeman(job, data?.technicians || []),
+        prev_mp_technician_ids: savedPrev.length
+          ? savedPrev
+          : assigneeIdsFromJob(job),
         done: row.done,
       },
     });
@@ -4147,6 +4199,7 @@ export default function HomePage() {
         handover_text: draft.handover_text,
         plan_technician_ids: draft.plan_technician_ids,
         next_crew_technician_ids: draft.next_crew_technician_ids,
+        prev_mp_technician_ids: draft.prev_mp_technician_ids,
         done: draft.done,
       };
       if (editor.mode === "create") {
@@ -4466,10 +4519,12 @@ export default function HomePage() {
     status: "all",
     page: 1,
     limit: 500,
-    q: nextCrewQuery,
+    q: nextCrewQuery || prevMpQuery,
     enabled:
       isLoggedIn &&
-      (modal?.type === "handover-next-crew" || handoverFormEditor != null),
+      (modal?.type === "handover-next-crew" ||
+        modal?.type === "handover-prev-mp" ||
+        handoverFormEditor != null),
   });
   const availableTechs = useMemo(
     () => assignPoolQuery.data?.items || [],
@@ -4784,6 +4839,128 @@ export default function HomePage() {
     return ids.map((id) => byId.get(id) || id).join(", ");
   }, [
     handoverFormEditor?.draft.next_crew_technician_ids,
+    data?.technicians,
+    nextCrewPoolQuery.data,
+  ]);
+
+  const prevMpSelectedIds =
+    modal?.type === "handover-prev-mp"
+      ? prevMpStagingIds
+      : handoverFormEditor?.draft.prev_mp_technician_ids || [];
+
+  const prevMpSelectableTechs = useMemo(() => {
+    type PrevMpTech = {
+      id: string;
+      name: string;
+      sn: string;
+    };
+    const map = new Map<string, PrevMpTech>();
+    const job =
+      modal?.type === "handover-prev-mp"
+        ? modal.job
+        : handoverFormEditor
+          ? (data?.jobs || []).find((j) => j.id === handoverFormEditor.jobId) ||
+            null
+          : null;
+    const assigneeIds = new Set(job ? assigneeIdsFromJob(job) : []);
+    for (const t of nextCrewPoolQuery.data?.items || []) {
+      map.set(t.id, {
+        id: t.id,
+        name: t.name,
+        sn: String(t.sn || ""),
+      });
+    }
+    for (const t of data?.technicians || []) {
+      if (!map.has(t.id)) {
+        map.set(t.id, {
+          id: t.id,
+          name: t.name,
+          sn: String(t.sn || ""),
+        });
+      }
+    }
+    if (job?.technicians) {
+      for (const t of job.technicians) {
+        if (!map.has(t.id)) {
+          map.set(t.id, {
+            id: t.id,
+            name: t.name,
+            sn: String(t.sn || ""),
+          });
+        }
+      }
+    }
+    for (const id of prevMpSelectedIds) {
+      if (!map.has(id)) {
+        map.set(id, { id, name: id, sn: "" });
+      }
+    }
+    const q = prevMpQuery.trim().toLowerCase();
+    const checkedOrder = new Map(prevMpSelectedIds.map((id, i) => [id, i]));
+    const rank = (t: PrevMpTech) => {
+      if (checkedOrder.has(t.id)) return 0;
+      if (assigneeIds.has(t.id)) return 1;
+      return 2;
+    };
+    return [...map.values()]
+      .filter(
+        (t) =>
+          !q ||
+          t.name.toLowerCase().includes(q) ||
+          t.sn.toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 0) {
+          return (checkedOrder.get(a.id) ?? 0) - (checkedOrder.get(b.id) ?? 0);
+        }
+        return a.name.localeCompare(b.name, "id");
+      });
+  }, [
+    nextCrewPoolQuery.data,
+    prevMpSelectedIds,
+    prevMpQuery,
+    data?.technicians,
+    data?.jobs,
+    modal,
+    handoverFormEditor,
+  ]);
+
+  useEffect(() => {
+    setPrevMpPage(1);
+  }, [prevMpQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(prevMpSelectableTechs.length / TECH_PAGE_SIZE)
+    );
+    setPrevMpPage((p) => (p > totalPages ? totalPages : p));
+  }, [prevMpSelectableTechs.length, TECH_PAGE_SIZE]);
+
+  const prevMpTotalPages = Math.max(
+    1,
+    Math.ceil(prevMpSelectableTechs.length / TECH_PAGE_SIZE)
+  );
+  const prevMpPageSafe = Math.min(prevMpPage, prevMpTotalPages);
+  const pagedPrevMpTechs = prevMpSelectableTechs.slice(
+    (prevMpPageSafe - 1) * TECH_PAGE_SIZE,
+    prevMpPageSafe * TECH_PAGE_SIZE
+  );
+
+  const prevMpDraftSummary = useMemo(() => {
+    const ids = handoverFormEditor?.draft.prev_mp_technician_ids || [];
+    if (!ids.length) return "";
+    const byId = new Map<string, string>();
+    for (const t of data?.technicians || []) byId.set(t.id, t.name);
+    for (const t of nextCrewPoolQuery.data?.items || []) {
+      if (!byId.has(t.id)) byId.set(t.id, t.name);
+    }
+    return ids.map((id) => byId.get(id) || id).join(", ");
+  }, [
+    handoverFormEditor?.draft.prev_mp_technician_ids,
     data?.technicians,
     nextCrewPoolQuery.data,
   ]);
@@ -5492,6 +5669,7 @@ export default function HomePage() {
       handover_text: h.handover_text || "",
       plan_technician_ids: h.plan_technician_ids || [],
       next_crew_technician_ids: h.next_crew_technician_ids || [],
+      prev_mp_technician_ids: h.prev_mp_technician_ids || [],
       done: h.done === "1",
       order: h.order,
     }));
@@ -8114,14 +8292,30 @@ export default function HomePage() {
                 />
               </div>
               <div className="handover-report-label">
-                <span>{t("job.prevMp")}</span>
+                <div className="handover-report-label-row">
+                  <span>{t("job.prevMp")}</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() => openPrevMpPicker(modal.job)}
+                  >
+                    {t("job.prevMpPick")}
+                  </button>
+                </div>
+                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                  {t("job.prevMpHint")}
+                </p>
+                <p className="handover-plan-mp-summary">
+                  {prevMpDraftSummary || t("job.prevMpNone")}
+                </p>
                 <p className="step-hint" style={{ margin: "4px 0 0" }}>
-                  {(modal.job.technicians?.length
-                    ? modal.job.technicians.map((tech) => tech.name)
-                    : modal.job.technician?.name
-                      ? [modal.job.technician.name]
-                      : []
-                  ).join(", ") || "—"}
+                  {t("job.prevMpSelected").replace(
+                    "{n}",
+                    String(
+                      handoverFormEditor.draft.prev_mp_technician_ids.length
+                    )
+                  )}
                 </p>
               </div>
               <div className="handover-report-label">
@@ -8233,6 +8427,184 @@ export default function HomePage() {
                     }
                     pending="Menyimpan..."
                   />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "handover-prev-mp" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => cancelPrevMpPicker(modal.job)}
+        >
+          <div
+            className="modal modal-wide modal-handover-plan-mp"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="handover-prev-mp-title"
+          >
+            <div className="modal-header">
+              <h3 id="handover-prev-mp-title">{t("job.prevMpTitle")}</h3>
+            </div>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p className="step-hint" style={{ margin: "0 0 10px" }}>
+              {t("job.prevMpHint")}
+            </p>
+            <div className="form">
+              <label>
+                Cari teknisi
+                <div
+                  className="panel-search-row"
+                  style={{ justifyContent: "stretch", marginTop: 4 }}
+                >
+                  <div className="search-pair">
+                    <input
+                      className="panel-search"
+                      style={{ maxWidth: "none" }}
+                      type="search"
+                      value={prevMpDraft}
+                      disabled={busy}
+                      placeholder={t("job.prevMpSearch")}
+                      autoFocus
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPrevMpDraft(v);
+                        if (!v.trim()) {
+                          setPrevMpQuery("");
+                          setPrevMpPage(1);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setPrevMpQuery(prevMpDraft.trim());
+                          setPrevMpPage(1);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label="Cari"
+                      disabled={busy}
+                      onClick={() => {
+                        setPrevMpQuery(prevMpDraft.trim());
+                        setPrevMpPage(1);
+                      }}
+                    >
+                      <SearchIcon />
+                    </button>
+                  </div>
+                  {prevMpQuery ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setPrevMpDraft("");
+                        setPrevMpQuery("");
+                        setPrevMpPage(1);
+                      }}
+                    >
+                      Reset
+                    </button>
+                  ) : null}
+                </div>
+              </label>
+              <div className="check-list check-list-paged handover-plan-mp-list">
+                {nextCrewPoolQuery.isLoading &&
+                  prevMpSelectableTechs.length === 0 && (
+                    <span className="step-hint">Memuat...</span>
+                  )}
+                {!nextCrewPoolQuery.isLoading &&
+                  prevMpSelectableTechs.length === 0 && (
+                    <span className="step-hint">
+                      {prevMpQuery
+                        ? t("job.prevMpNoMatch")
+                        : t("job.prevMpEmpty")}
+                    </span>
+                  )}
+                {pagedPrevMpTechs.map((tech) => {
+                  const checked = prevMpStagingIds.includes(tech.id);
+                  return (
+                    <label key={tech.id} className="check-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={busy}
+                        onChange={() => {
+                          setPrevMpStagingIds((prev) =>
+                            checked
+                              ? prev.filter((id) => id !== tech.id)
+                              : [...prev, tech.id]
+                          );
+                        }}
+                      />
+                      <span>
+                        {tech.name}
+                        {tech.sn ? (
+                          <span style={{ color: "var(--muted)" }}>
+                            {" "}
+                            — {tech.sn}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {prevMpSelectableTechs.length > TECH_PAGE_SIZE ? (
+                <Pager
+                  page={prevMpPageSafe}
+                  totalPages={prevMpTotalPages}
+                  onChange={setPrevMpPage}
+                />
+              ) : null}
+              <p className="step-hint" style={{ margin: "6px 0 0" }}>
+                {t("job.prevMpSelected").replace(
+                  "{n}",
+                  String(prevMpStagingIds.length)
+                )}
+              </p>
+              <div className="actions">
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => cancelPrevMpPicker(modal.job)}
+                >
+                  Batal
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setPrevMpStagingIds(assigneeIdsFromJob(modal.job))
+                  }
+                >
+                  {t("job.prevMpFromAssignees")}
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy || prevMpStagingIds.length === 0}
+                  onClick={() => setPrevMpStagingIds([])}
+                >
+                  {t("job.prevMpClear")}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => applyPrevMpPicker(modal.job)}
+                >
+                  {t("job.prevMpApply")}
                 </button>
               </div>
             </div>

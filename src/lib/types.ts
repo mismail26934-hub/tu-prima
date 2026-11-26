@@ -308,6 +308,8 @@ export interface JobHandover {
    * (Delegasi || Penugas) at handover save time.
    */
   next_crew_technician_ids: string[];
+  /** Snapshot of previous manpower technician ids at handover save time. */
+  prev_mp_technician_ids: string[];
   user_id: string;
   user_name: string;
   updated_at: string;

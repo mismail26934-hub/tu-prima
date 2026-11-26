@@ -1553,6 +1553,9 @@ export function applyOptimisticMutation(
       next_crew_technician_ids: Array.isArray(body.next_crew_technician_ids)
         ? body.next_crew_technician_ids.map(String).filter(Boolean)
         : [],
+      prev_mp_technician_ids: Array.isArray(body.prev_mp_technician_ids)
+        ? body.prev_mp_technician_ids.map(String).filter(Boolean)
+        : [],
       user_id: "",
       user_name: "",
       updated_at: nowIso(),
@@ -1628,6 +1631,11 @@ export function applyOptimisticMutation(
                   )
                     ? body.next_crew_technician_ids.map(String).filter(Boolean)
                     : h.next_crew_technician_ids || [],
+                  prev_mp_technician_ids: Array.isArray(
+                    body.prev_mp_technician_ids
+                  )
+                    ? body.prev_mp_technician_ids.map(String).filter(Boolean)
+                    : h.prev_mp_technician_ids || [],
                   done:
                     typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                   updated_at: nowIso(),
@@ -1686,6 +1694,11 @@ export function applyOptimisticMutation(
                 )
                   ? body.next_crew_technician_ids.map(String).filter(Boolean)
                   : h.next_crew_technician_ids || [],
+                prev_mp_technician_ids: Array.isArray(
+                  body.prev_mp_technician_ids
+                )
+                  ? body.prev_mp_technician_ids.map(String).filter(Boolean)
+                  : h.prev_mp_technician_ids || [],
                 done:
                   typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                 updated_at: nowIso(),

@@ -328,6 +328,7 @@ function mapHandoverRow(r: Row): JobHandover {
     handover_text: String(r.handover_text || ""),
     plan_technician_ids: parseTechIdList(r.plan_technician_ids),
     next_crew_technician_ids: parseTechIdList(r.next_crew_technician_ids),
+    prev_mp_technician_ids: parseTechIdList(r.prev_mp_technician_ids),
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),

@@ -40,6 +40,7 @@ export type JobHandoverNoteRow = {
   progress_text: string;
   handover_text: string;
   plan_technician_ids: string[];
+  next_crew_technician_ids: string[];
   done: boolean;
   order: number;
 };

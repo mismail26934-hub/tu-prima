@@ -20,6 +20,11 @@ export async function POST(
     const plan_technician_ids = Array.isArray(body.plan_technician_ids)
       ? body.plan_technician_ids.map(String).filter(Boolean)
       : undefined;
+    const next_crew_technician_ids = Array.isArray(
+      body.next_crew_technician_ids
+    )
+      ? body.next_crew_technician_ids.map(String).filter(Boolean)
+      : undefined;
     const row = await createJobHandover({
       id: body.id ? String(body.id) : undefined,
       job_id: id,
@@ -35,6 +40,7 @@ export async function POST(
       handover_text:
         body.handover_text != null ? String(body.handover_text) : undefined,
       plan_technician_ids,
+      next_crew_technician_ids,
       done: Boolean(body.done),
       actor,
     });

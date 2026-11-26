@@ -394,6 +394,7 @@ function handoverHeaders(scope: JobScope): string[] {
     "progress_text",
     "handover_text",
     "plan_technician_ids",
+    "next_crew_technician_ids",
     "user_id",
     "user_name",
     "updated_at",
@@ -507,6 +508,7 @@ function handoverRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       progress_text: str(r.progress_text),
       handover_text: str(r.handover_text),
       plan_technician_ids: str(r.plan_technician_ids),
+      next_crew_technician_ids: str(r.next_crew_technician_ids),
       user_id: str(r.user_id),
       user_name: str(r.user_name),
       updated_at: str(r.updated_at),
@@ -686,9 +688,9 @@ async function saveScopedJobs(
       `INSERT INTO job_handovers (
          id, job_id, handover_order, title, shift_date,
          from_name, from_user_id, from_shift_name, to_name, to_user_id, to_shift_name, done, note,
-         progress_text, handover_text, plan_technician_ids,
+         progress_text, handover_text, plan_technician_ids, next_crew_technician_ids,
          user_id, user_name, updated_at
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -706,6 +708,7 @@ async function saveScopedJobs(
         str(row.progress_text),
         str(row.handover_text),
         str(row.plan_technician_ids),
+        str(row.next_crew_technician_ids),
         str(row.user_id),
         str(row.user_name),
         str(row.updated_at),
@@ -1229,6 +1232,7 @@ export async function ensureRelationalSchema() {
       progress_text TEXT,
       handover_text TEXT,
       plan_technician_ids TEXT,
+      next_crew_technician_ids TEXT,
       user_id VARCHAR(64) NOT NULL DEFAULT '',
       user_name VARCHAR(255) NOT NULL DEFAULT '',
       updated_at VARCHAR(64) NOT NULL DEFAULT '',
@@ -1414,6 +1418,9 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS plan_technician_ids TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS next_crew_technician_ids TEXT`
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS from_shift_name VARCHAR(255) NOT NULL DEFAULT ''`

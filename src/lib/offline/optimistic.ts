@@ -1550,6 +1550,9 @@ export function applyOptimisticMutation(
       plan_technician_ids: Array.isArray(body.plan_technician_ids)
         ? body.plan_technician_ids.map(String).filter(Boolean)
         : [],
+      next_crew_technician_ids: Array.isArray(body.next_crew_technician_ids)
+        ? body.next_crew_technician_ids.map(String).filter(Boolean)
+        : [],
       user_id: "",
       user_name: "",
       updated_at: nowIso(),
@@ -1620,6 +1623,11 @@ export function applyOptimisticMutation(
                   plan_technician_ids: Array.isArray(body.plan_technician_ids)
                     ? body.plan_technician_ids.map(String).filter(Boolean)
                     : h.plan_technician_ids || [],
+                  next_crew_technician_ids: Array.isArray(
+                    body.next_crew_technician_ids
+                  )
+                    ? body.next_crew_technician_ids.map(String).filter(Boolean)
+                    : h.next_crew_technician_ids || [],
                   done:
                     typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                   updated_at: nowIso(),
@@ -1673,6 +1681,11 @@ export function applyOptimisticMutation(
                 plan_technician_ids: Array.isArray(body.plan_technician_ids)
                   ? body.plan_technician_ids.map(String).filter(Boolean)
                   : h.plan_technician_ids || [],
+                next_crew_technician_ids: Array.isArray(
+                  body.next_crew_technician_ids
+                )
+                  ? body.next_crew_technician_ids.map(String).filter(Boolean)
+                  : h.next_crew_technician_ids || [],
                 done:
                   typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                 updated_at: nowIso(),

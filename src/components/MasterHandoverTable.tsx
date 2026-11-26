@@ -38,6 +38,7 @@ export type MasterHandoverLocalRow = {
   progress_text: string;
   handover_text: string;
   plan_technician_ids: string[];
+  next_crew_technician_ids: string[];
   done: boolean;
   order: number;
 };
@@ -295,6 +296,7 @@ export function MasterHandoverTable({
                   progress_text: h.progress_text || "",
                   handover_text: h.handover_text || "",
                   plan_technician_ids: h.plan_technician_ids || [],
+                  next_crew_technician_ids: h.next_crew_technician_ids || [],
                   done: h.done === "1",
                 };
                 const planMp =

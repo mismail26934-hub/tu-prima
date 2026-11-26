@@ -289,19 +289,24 @@ function mapAssigneeRow(r: Row): JobAssignee {
   };
 }
 
-function mapHandoverRow(r: Row): JobHandover {
-  let planIds: string[] = [];
-  const rawPlan = String(r.plan_technician_ids || "").trim();
-  if (rawPlan) {
-    try {
-      const parsed = JSON.parse(rawPlan) as unknown;
-      if (Array.isArray(parsed)) {
-        planIds = parsed.map((v) => String(v || "").trim()).filter(Boolean);
-      }
-    } catch {
-      planIds = rawPlan.split(/[,;\s]+/).map((v) => v.trim()).filter(Boolean);
+function parseTechIdList(raw: unknown): string[] {
+  const s = String(raw || "").trim();
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((v) => String(v || "").trim()).filter(Boolean);
     }
+  } catch {
+    /* fall through */
   }
+  return s
+    .split(/[,;\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function mapHandoverRow(r: Row): JobHandover {
   return {
     id: String(r.id || ""),
     job_id: String(r.job_id || ""),
@@ -321,7 +326,8 @@ function mapHandoverRow(r: Row): JobHandover {
     note: String(r.note || ""),
     progress_text: String(r.progress_text || ""),
     handover_text: String(r.handover_text || ""),
-    plan_technician_ids: planIds,
+    plan_technician_ids: parseTechIdList(r.plan_technician_ids),
+    next_crew_technician_ids: parseTechIdList(r.next_crew_technician_ids),
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),

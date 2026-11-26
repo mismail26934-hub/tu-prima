@@ -301,8 +301,13 @@ export interface JobHandover {
   progress_text: string;
   /** Hand Over Form: hand over lines (in_progress / pending steps + free text). */
   handover_text: string;
-  /** Planned manpower technician ids for next shift. */
+  /** Planned manpower technician ids for next shift (subset of next crew). */
   plan_technician_ids: string[];
+  /**
+   * Snapshot of full next-shift crew under the controlling foreman
+   * (Delegasi || Penugas) at handover save time.
+   */
+  next_crew_technician_ids: string[];
   user_id: string;
   user_name: string;
   updated_at: string;

@@ -645,6 +645,9 @@ function mapHandover(r: Row): JobHandover {
     progress_text: String(r.progress_text || ""),
     handover_text: String(r.handover_text || ""),
     plan_technician_ids: parsePlanTechnicianIds(r.plan_technician_ids),
+    next_crew_technician_ids: parsePlanTechnicianIds(
+      r.next_crew_technician_ids
+    ),
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),
@@ -771,6 +774,36 @@ export function serializePlanTechnicianIds(ids: unknown): string {
   return list.length ? JSON.stringify(list) : "";
 }
 
+/** Controlling foreman: Delegasi if set, otherwise Penugas. */
+function controllingForemanUserId(job: {
+  delegated_to_user_id?: string;
+  assigned_by_user_id?: string;
+}): string {
+  const delegated = String(job.delegated_to_user_id || "").trim();
+  if (delegated) return delegated;
+  return String(job.assigned_by_user_id || "").trim();
+}
+
+/**
+ * Next Crew snapshot: all technicians under the job's controlling foreman.
+ * If `explicit` is provided, validate against master techs instead.
+ */
+function nextCrewIdsForJob(
+  job: { delegated_to_user_id?: string; assigned_by_user_id?: string },
+  techs: Technician[],
+  explicit?: string[] | null
+): string[] {
+  const valid = new Set(techs.map((t) => t.id));
+  if (explicit != null) {
+    return parsePlanTechnicianIds(explicit).filter((id) => valid.has(id));
+  }
+  const foreman = controllingForemanUserId(job);
+  if (!foreman) return [];
+  return techs
+    .filter((t) => String(t.superior_user_id || "").trim() === foreman)
+    .map((t) => t.id);
+}
+
 function stepToRow(s: JobStep): Row {
   return {
     ...s,
@@ -799,6 +832,9 @@ function handoverToRow(h: JobHandover): Row {
     progress_text: String(h.progress_text || ""),
     handover_text: String(h.handover_text || ""),
     plan_technician_ids: serializePlanTechnicianIds(h.plan_technician_ids),
+    next_crew_technician_ids: serializePlanTechnicianIds(
+      h.next_crew_technician_ids
+    ),
   };
 }
 
@@ -924,6 +960,7 @@ const HANDOVER_HEADERS = [
   "progress_text",
   "handover_text",
   "plan_technician_ids",
+  "next_crew_technician_ids",
   "user_id",
   "user_name",
   "updated_at",
@@ -2324,6 +2361,7 @@ export async function createJobHandover(input: {
   progress_text?: string;
   handover_text?: string;
   plan_technician_ids?: string[];
+  next_crew_technician_ids?: string[];
   done?: boolean;
   actor?: AuditActor | null;
 }): Promise<JobHandover> {
@@ -2353,6 +2391,13 @@ export async function createJobHandover(input: {
     const plan_technician_ids = parsePlanTechnicianIds(
       input.plan_technician_ids
     ).filter((id) => validTech.has(id));
+    const next_crew_technician_ids = nextCrewIdsForJob(
+      job,
+      techs,
+      input.next_crew_technician_ids !== undefined
+        ? input.next_crew_technician_ids
+        : null
+    );
 
     const handovers = loadHandovers(wb);
     const audits = loadAuditLog(wb);
@@ -2401,6 +2446,7 @@ export async function createJobHandover(input: {
       progress_text,
       handover_text,
       plan_technician_ids,
+      next_crew_technician_ids,
       user_id: input.actor?.user_id || "",
       user_name: input.actor?.user_name || "",
       updated_at: at,
@@ -2463,6 +2509,7 @@ export async function updateJobHandover(
     progress_text?: string;
     handover_text?: string;
     plan_technician_ids?: string[];
+    next_crew_technician_ids?: string[];
     done?: boolean;
     actor?: AuditActor | null;
   }
@@ -2488,6 +2535,7 @@ export async function updateJobHandover(
     const beforeRow = {
       ...row,
       plan_technician_ids: [...(row.plan_technician_ids || [])],
+      next_crew_technician_ids: [...(row.next_crew_technician_ids || [])],
     };
 
     if (input.shift_date !== undefined) {
@@ -2516,6 +2564,14 @@ export async function updateJobHandover(
         input.plan_technician_ids
       ).filter((id) => validTech.has(id));
     }
+    // Refresh Next Crew snapshot on every save (foreman/crew can change per shift).
+    row.next_crew_technician_ids = nextCrewIdsForJob(
+      job,
+      techs,
+      input.next_crew_technician_ids !== undefined
+        ? input.next_crew_technician_ids
+        : null
+    );
     const users = readUsers(wb);
     const shifts = await listShifts({ includeInactive: true });
     if (input.from_user_id !== undefined || input.from_name !== undefined) {

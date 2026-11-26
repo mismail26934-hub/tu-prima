@@ -356,6 +356,7 @@ type Modal =
   | { type: "handover-form-export" }
   | { type: "handover-form"; job: JobWithDetails }
   | { type: "handover-plan-mp"; job: JobWithDetails }
+  | { type: "handover-next-crew"; job: JobWithDetails }
   | {
       type: "handover-pick-steps";
       job: JobWithDetails;
@@ -380,6 +381,7 @@ type HandoverFormDraft = {
   progress_text: string;
   handover_text: string;
   plan_technician_ids: string[];
+  next_crew_technician_ids: string[];
   done: boolean;
 };
 
@@ -432,6 +434,7 @@ function activeNavForModal(modal: Modal): string | null {
     case "handover-form-export":
     case "handover-form":
     case "handover-plan-mp":
+    case "handover-next-crew":
     case "handover-pick-steps":
     case "handover-to":
       return "handoverForm";
@@ -1273,6 +1276,11 @@ export default function HomePage() {
   const [planMpPage, setPlanMpPage] = useState(1);
   /** Staging selection while Plan M/P modal is open. */
   const [planMpStagingIds, setPlanMpStagingIds] = useState<string[]>([]);
+  const [nextCrewDraft, setNextCrewDraft] = useState("");
+  const [nextCrewQuery, setNextCrewQuery] = useState("");
+  const [nextCrewPage, setNextCrewPage] = useState(1);
+  /** Staging selection while Next Crew modal is open. */
+  const [nextCrewStagingIds, setNextCrewStagingIds] = useState<string[]>([]);
   const [delegateForemanId, setDelegateForemanId] = useState("");
   const [foremanOptions, setForemanOptions] = useState<AppUserPublic[]>([]);
   const [handoverRecipientOptions, setHandoverRecipientOptions] = useState<
@@ -1325,6 +1333,7 @@ export default function HomePage() {
       (modal?.type === "handover-form" ||
         modal?.type === "handover-form-export" ||
         modal?.type === "handover-plan-mp" ||
+        modal?.type === "handover-next-crew" ||
         modal?.type === "handover-pick-steps" ||
         modal?.type === "handover-to"));
   const prioritiesModalOpen =
@@ -3167,6 +3176,7 @@ export default function HomePage() {
     progress_text: string;
     handover_text: string;
     plan_technician_ids: string[];
+    next_crew_technician_ids: string[];
     done: boolean;
     order: number;
   };
@@ -3916,6 +3926,25 @@ export default function HomePage() {
     setPlanMpPage(1);
   }
 
+  function resetNextCrewPicker() {
+    setNextCrewDraft("");
+    setNextCrewQuery("");
+    setNextCrewPage(1);
+  }
+
+  function crewIdsUnderForeman(
+    job: JobWithDetails,
+    techs: { id: string; superior_user_id?: string }[]
+  ): string[] {
+    const foreman =
+      String(job.delegated_to_user_id || "").trim() ||
+      String(job.assigned_by_user_id || "").trim();
+    if (!foreman) return [];
+    return techs
+      .filter((t) => String(t.superior_user_id || "").trim() === foreman)
+      .map((t) => t.id);
+  }
+
   function openPlanMpPicker(job: JobWithDetails) {
     resetPlanMpPicker();
     setPlanMpStagingIds([
@@ -3935,12 +3964,39 @@ export default function HomePage() {
     reopenHandoverFormModal(job);
   }
 
+  function openNextCrewPicker(job: JobWithDetails) {
+    resetNextCrewPicker();
+    setNextCrewStagingIds([
+      ...(handoverFormEditor?.draft.next_crew_technician_ids || []),
+    ]);
+    setModal({ type: "handover-next-crew", job });
+  }
+
+  function applyNextCrewPicker(job: JobWithDetails) {
+    const nextIds = [...nextCrewStagingIds];
+    const planIds = (
+      handoverFormEditor?.draft.plan_technician_ids || []
+    ).filter((id) => nextIds.includes(id));
+    patchHandoverFormDraft({
+      next_crew_technician_ids: nextIds,
+      plan_technician_ids: planIds,
+    });
+    setNextCrewStagingIds([]);
+    reopenHandoverFormModal(job);
+  }
+
+  function cancelNextCrewPicker(job: JobWithDetails) {
+    setNextCrewStagingIds([]);
+    reopenHandoverFormModal(job);
+  }
+
   function openHandoverFormCreate(
     job: JobWithDetails,
     opts?: { fromMaster?: boolean; shiftDate?: string }
   ) {
     const from = currentHandoverFrom();
     resetPlanMpPicker();
+    resetNextCrewPicker();
     setHandoverFormFromMaster(Boolean(opts?.fromMaster));
     setHandoverFormEditor({
       jobId: job.id,
@@ -3958,6 +4014,10 @@ export default function HomePage() {
         progress_text: "",
         handover_text: "",
         plan_technician_ids: [],
+        next_crew_technician_ids: crewIdsUnderForeman(
+          job,
+          data?.technicians || []
+        ),
         done: false,
       },
     });
@@ -3971,7 +4031,9 @@ export default function HomePage() {
   ) {
     const server = (job.handovers || []).find((h) => h.id === row.id);
     resetPlanMpPicker();
+    resetNextCrewPicker();
     setHandoverFormFromMaster(Boolean(opts?.fromMaster));
+    const savedNext = server?.next_crew_technician_ids || [];
     setHandoverFormEditor({
       jobId: job.id,
       mode: "edit",
@@ -3989,6 +4051,9 @@ export default function HomePage() {
         progress_text: server?.progress_text || "",
         handover_text: server?.handover_text || "",
         plan_technician_ids: server?.plan_technician_ids || [],
+        next_crew_technician_ids: savedNext.length
+          ? savedNext
+          : crewIdsUnderForeman(job, data?.technicians || []),
         done: row.done,
       },
     });
@@ -4081,6 +4146,7 @@ export default function HomePage() {
         progress_text: draft.progress_text,
         handover_text: draft.handover_text,
         plan_technician_ids: draft.plan_technician_ids,
+        next_crew_technician_ids: draft.next_crew_technician_ids,
         done: draft.done,
       };
       if (editor.mode === "create") {
@@ -4396,6 +4462,15 @@ export default function HomePage() {
     isLoggedIn &&
       (modal?.type === "handover-plan-mp" || handoverFormEditor != null)
   );
+  const nextCrewPoolQuery = useTechniciansList({
+    status: "all",
+    page: 1,
+    limit: 500,
+    q: nextCrewQuery,
+    enabled:
+      isLoggedIn &&
+      (modal?.type === "handover-next-crew" || handoverFormEditor != null),
+  });
   const availableTechs = useMemo(
     () => assignPoolQuery.data?.items || [],
     [assignPoolQuery.data]
@@ -4483,6 +4558,10 @@ export default function HomePage() {
       superior_user_id: string;
     };
     const map = new Map<string, PlanMpTech>();
+    const nextCrewAllow = new Set(
+      handoverFormEditor?.draft.next_crew_technician_ids || []
+    );
+    const limitToNextCrew = nextCrewAllow.size > 0;
     for (const t of planMpPoolQuery.data?.items || []) {
       map.set(t.id, {
         id: t.id,
@@ -4492,7 +4571,10 @@ export default function HomePage() {
       });
     }
     for (const t of data?.technicians || []) {
-      if (!map.has(t.id) && planMpSelectedIds.includes(t.id)) {
+      if (
+        !map.has(t.id) &&
+        (planMpSelectedIds.includes(t.id) || nextCrewAllow.has(t.id))
+      ) {
         map.set(t.id, {
           id: t.id,
           name: t.name,
@@ -4517,7 +4599,9 @@ export default function HomePage() {
       .filter(
         (t) =>
           planMpSelectedIds.includes(t.id) ||
-          (planMpPoolQuery.data?.items || []).some((x) => x.id === t.id)
+          (limitToNextCrew
+            ? nextCrewAllow.has(t.id)
+            : (planMpPoolQuery.data?.items || []).some((x) => x.id === t.id))
       )
       .filter(
         (t) =>
@@ -4540,6 +4624,7 @@ export default function HomePage() {
     planMpQuery,
     data?.technicians,
     userId,
+    handoverFormEditor?.draft.next_crew_technician_ids,
   ]);
 
   useEffect(() => {
@@ -4577,6 +4662,130 @@ export default function HomePage() {
     handoverFormEditor?.draft.plan_technician_ids,
     data?.technicians,
     planMpPoolQuery.data,
+  ]);
+
+  const nextCrewSelectedIds =
+    modal?.type === "handover-next-crew"
+      ? nextCrewStagingIds
+      : handoverFormEditor?.draft.next_crew_technician_ids || [];
+
+  const nextCrewSelectableTechs = useMemo(() => {
+    type NextCrewTech = {
+      id: string;
+      name: string;
+      sn: string;
+      superior_user_id: string;
+    };
+    const map = new Map<string, NextCrewTech>();
+    const job =
+      modal?.type === "handover-next-crew"
+        ? modal.job
+        : handoverFormEditor
+          ? (data?.jobs || []).find((j) => j.id === handoverFormEditor.jobId) ||
+            null
+          : null;
+    const foreman = job
+      ? String(job.delegated_to_user_id || "").trim() ||
+        String(job.assigned_by_user_id || "").trim()
+      : "";
+    for (const t of nextCrewPoolQuery.data?.items || []) {
+      map.set(t.id, {
+        id: t.id,
+        name: t.name,
+        sn: String(t.sn || ""),
+        superior_user_id: String(t.superior_user_id || ""),
+      });
+    }
+    for (const t of data?.technicians || []) {
+      if (!map.has(t.id)) {
+        map.set(t.id, {
+          id: t.id,
+          name: t.name,
+          sn: String(t.sn || ""),
+          superior_user_id: String(t.superior_user_id || ""),
+        });
+      }
+    }
+    for (const id of nextCrewSelectedIds) {
+      if (!map.has(id)) {
+        map.set(id, { id, name: id, sn: "", superior_user_id: "" });
+      }
+    }
+    const q = nextCrewQuery.trim().toLowerCase();
+    const checkedOrder = new Map(nextCrewSelectedIds.map((id, i) => [id, i]));
+    const rank = (t: NextCrewTech) => {
+      if (checkedOrder.has(t.id)) return 0;
+      if (foreman && t.superior_user_id === foreman) return 1;
+      return 2;
+    };
+    return [...map.values()]
+      .filter(
+        (t) =>
+          nextCrewSelectedIds.includes(t.id) ||
+          !foreman ||
+          t.superior_user_id === foreman ||
+          (nextCrewPoolQuery.data?.items || []).some((x) => x.id === t.id)
+      )
+      .filter(
+        (t) =>
+          !q ||
+          t.name.toLowerCase().includes(q) ||
+          t.sn.toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 0) {
+          return (checkedOrder.get(a.id) ?? 0) - (checkedOrder.get(b.id) ?? 0);
+        }
+        return a.name.localeCompare(b.name, "id");
+      });
+  }, [
+    nextCrewPoolQuery.data,
+    nextCrewSelectedIds,
+    nextCrewQuery,
+    data?.technicians,
+    data?.jobs,
+    modal,
+    handoverFormEditor,
+  ]);
+
+  useEffect(() => {
+    setNextCrewPage(1);
+  }, [nextCrewQuery]);
+
+  useEffect(() => {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(nextCrewSelectableTechs.length / TECH_PAGE_SIZE)
+    );
+    setNextCrewPage((p) => (p > totalPages ? totalPages : p));
+  }, [nextCrewSelectableTechs.length, TECH_PAGE_SIZE]);
+
+  const nextCrewTotalPages = Math.max(
+    1,
+    Math.ceil(nextCrewSelectableTechs.length / TECH_PAGE_SIZE)
+  );
+  const nextCrewPageSafe = Math.min(nextCrewPage, nextCrewTotalPages);
+  const pagedNextCrewTechs = nextCrewSelectableTechs.slice(
+    (nextCrewPageSafe - 1) * TECH_PAGE_SIZE,
+    nextCrewPageSafe * TECH_PAGE_SIZE
+  );
+
+  const nextCrewDraftSummary = useMemo(() => {
+    const ids = handoverFormEditor?.draft.next_crew_technician_ids || [];
+    if (!ids.length) return "";
+    const byId = new Map<string, string>();
+    for (const t of data?.technicians || []) byId.set(t.id, t.name);
+    for (const t of nextCrewPoolQuery.data?.items || []) {
+      if (!byId.has(t.id)) byId.set(t.id, t.name);
+    }
+    return ids.map((id) => byId.get(id) || id).join(", ");
+  }, [
+    handoverFormEditor?.draft.next_crew_technician_ids,
+    data?.technicians,
+    nextCrewPoolQuery.data,
   ]);
 
   const attendanceTechListQuery = useTechniciansList({
@@ -5282,6 +5491,7 @@ export default function HomePage() {
       progress_text: h.progress_text || "",
       handover_text: h.handover_text || "",
       plan_technician_ids: h.plan_technician_ids || [],
+      next_crew_technician_ids: h.next_crew_technician_ids || [],
       done: h.done === "1",
       order: h.order,
     }));
@@ -7916,6 +8126,33 @@ export default function HomePage() {
               </div>
               <div className="handover-report-label">
                 <div className="handover-report-label-row">
+                  <span>{t("job.nextCrew")}</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() => openNextCrewPicker(modal.job)}
+                  >
+                    {t("job.nextCrewPick")}
+                  </button>
+                </div>
+                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                  {t("job.nextCrewHint")}
+                </p>
+                <p className="handover-plan-mp-summary">
+                  {nextCrewDraftSummary || t("job.nextCrewNone")}
+                </p>
+                <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                  {t("job.nextCrewSelected").replace(
+                    "{n}",
+                    String(
+                      handoverFormEditor.draft.next_crew_technician_ids.length
+                    )
+                  )}
+                </p>
+              </div>
+              <div className="handover-report-label">
+                <div className="handover-report-label-row">
                   <span>{t("job.planMp")}</span>
                   <button
                     type="button"
@@ -7996,6 +8233,189 @@ export default function HomePage() {
                     }
                     pending="Menyimpan..."
                   />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.type === "handover-next-crew" && (
+        <div
+          className="modal-backdrop"
+          onClick={() => cancelNextCrewPicker(modal.job)}
+        >
+          <div
+            className="modal modal-wide modal-handover-plan-mp"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="handover-next-crew-title"
+          >
+            <div className="modal-header">
+              <h3 id="handover-next-crew-title">{t("job.nextCrewTitle")}</h3>
+            </div>
+            <p style={{ color: "var(--muted)", marginTop: 0 }}>
+              {modal.job.title} — {modal.job.unit}
+            </p>
+            <p className="step-hint" style={{ margin: "0 0 10px" }}>
+              {t("job.nextCrewHint")}
+            </p>
+            <div className="form">
+              <label>
+                Cari teknisi
+                <div
+                  className="panel-search-row"
+                  style={{ justifyContent: "stretch", marginTop: 4 }}
+                >
+                  <div className="search-pair">
+                    <input
+                      className="panel-search"
+                      style={{ maxWidth: "none" }}
+                      type="search"
+                      value={nextCrewDraft}
+                      disabled={busy}
+                      placeholder={t("job.nextCrewSearch")}
+                      autoFocus
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setNextCrewDraft(v);
+                        if (!v.trim()) {
+                          setNextCrewQuery("");
+                          setNextCrewPage(1);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setNextCrewQuery(nextCrewDraft.trim());
+                          setNextCrewPage(1);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label="Cari"
+                      disabled={busy}
+                      onClick={() => {
+                        setNextCrewQuery(nextCrewDraft.trim());
+                        setNextCrewPage(1);
+                      }}
+                    >
+                      <SearchIcon />
+                    </button>
+                  </div>
+                  {nextCrewQuery ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setNextCrewDraft("");
+                        setNextCrewQuery("");
+                        setNextCrewPage(1);
+                      }}
+                    >
+                      Reset
+                    </button>
+                  ) : null}
+                </div>
+              </label>
+              <div className="check-list check-list-paged handover-plan-mp-list">
+                {nextCrewPoolQuery.isLoading &&
+                  nextCrewSelectableTechs.length === 0 && (
+                    <span className="step-hint">Memuat...</span>
+                  )}
+                {!nextCrewPoolQuery.isLoading &&
+                  nextCrewSelectableTechs.length === 0 && (
+                    <span className="step-hint">
+                      {nextCrewQuery
+                        ? t("job.nextCrewNoMatch")
+                        : t("job.nextCrewEmpty")}
+                    </span>
+                  )}
+                {pagedNextCrewTechs.map((tech) => {
+                  const checked = nextCrewStagingIds.includes(tech.id);
+                  return (
+                    <label key={tech.id} className="check-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={busy}
+                        onChange={() => {
+                          setNextCrewStagingIds((prev) =>
+                            checked
+                              ? prev.filter((id) => id !== tech.id)
+                              : [...prev, tech.id]
+                          );
+                        }}
+                      />
+                      <span>
+                        {tech.name}
+                        {tech.sn ? (
+                          <span style={{ color: "var(--muted)" }}>
+                            {" "}
+                            — {tech.sn}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {nextCrewSelectableTechs.length > TECH_PAGE_SIZE ? (
+                <Pager
+                  page={nextCrewPageSafe}
+                  totalPages={nextCrewTotalPages}
+                  onChange={setNextCrewPage}
+                />
+              ) : null}
+              <p className="step-hint" style={{ margin: "6px 0 0" }}>
+                {t("job.nextCrewSelected").replace(
+                  "{n}",
+                  String(nextCrewStagingIds.length)
+                )}
+              </p>
+              <div className="actions">
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => cancelNextCrewPicker(modal.job)}
+                >
+                  Batal
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setNextCrewStagingIds(
+                      crewIdsUnderForeman(modal.job, [
+                        ...(data?.technicians || []),
+                        ...(nextCrewPoolQuery.data?.items || []),
+                      ])
+                    )
+                  }
+                >
+                  {t("job.nextCrewFromForeman")}
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy || nextCrewStagingIds.length === 0}
+                  onClick={() => setNextCrewStagingIds([])}
+                >
+                  {t("job.nextCrewClear")}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => applyNextCrewPicker(modal.job)}
+                >
+                  {t("job.nextCrewApply")}
                 </button>
               </div>
             </div>

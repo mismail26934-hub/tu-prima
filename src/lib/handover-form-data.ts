@@ -103,6 +103,7 @@ function formLinesFromHandover(
   progress: string[];
   handover: string[];
   planIds: string[];
+  nextCrewIds: string[];
   from_shift_name: string;
   to_shift_name: string;
 } {
@@ -112,6 +113,7 @@ function formLinesFromHandover(
       progress: [],
       handover: [],
       planIds: [],
+      nextCrewIds: [],
       from_shift_name: "",
       to_shift_name: "",
     };
@@ -120,6 +122,7 @@ function formLinesFromHandover(
     progress: linesFromText(String(h.progress_text || "")),
     handover: linesFromText(String(h.handover_text || "")),
     planIds: h.plan_technician_ids || [],
+    nextCrewIds: h.next_crew_technician_ids || [],
     from_shift_name: String(h.from_shift_name || "").trim(),
     to_shift_name: String(h.to_shift_name || "").trim(),
   };
@@ -154,13 +157,14 @@ export function shiftShortCode(label: string): string {
 }
 
 function mapAttendanceRow(r: mysql.RowDataPacket): Attendance {
+  const rawStatus = String(r.status || "hadir").trim().toLowerCase();
   return {
     id: String(r.id || ""),
     date: String(r.attendance_date || r.date || ""),
     technician_id: String(r.technician_id || ""),
     technician_name: String(r.technician_name || ""),
     pernr: String(r.pernr || ""),
-    status: String(r.status || "hadir") as AttendanceStatus,
+    status: (rawStatus || "hadir") as AttendanceStatus,
     dws: String(r.dws || ""),
     check_in: String(r.check_in || ""),
     check_out: String(r.check_out || ""),
@@ -190,32 +194,80 @@ export function controllingForemanId(
   return String(job.assigned_by_user_id || "").trim();
 }
 
-/** Technician ids whose superior is one of the given foreman user ids. */
-async function loadTechnicianIdsBySuperior(
+/** Technicians whose superior is one of the given foreman user ids. */
+async function loadTechniciansBySuperior(
   superiorUserIds: string[]
-): Promise<Set<string>> {
+): Promise<{ ids: Set<string>; names: Set<string> }> {
   const unique = [...new Set(superiorUserIds.map(String).filter(Boolean))];
-  const out = new Set<string>();
-  if (!unique.length) return out;
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  if (!unique.length) return { ids, names };
   const p = getPool();
   const ph = unique.map(() => "?").join(",");
   const [rows] = await p.query<mysql.RowDataPacket[]>(
-    `SELECT id FROM technicians WHERE superior_user_id IN (${ph})`,
+    `SELECT id, name FROM technicians WHERE superior_user_id IN (${ph})`,
     unique
   );
   for (const r of rows) {
     const id = String(r.id || "").trim();
-    if (id) out.add(id);
+    const name = String(r.name || "").trim().toLowerCase();
+    if (id) ids.add(id);
+    if (name) names.add(name);
   }
-  return out;
+  return { ids, names };
 }
 
-function filterAttendanceByTechnicianIds(
-  rows: Attendance[],
-  techIds: Set<string>
+/**
+ * Attendance for Hadir / Other Status:
+ * - Prefer technicians under controlling foremen (Delegasi || Penugas)
+ * - Also include assignees on those foremen's jobs
+ * - Match by technician_id or technician_name (attendance ids can drift)
+ * - If no foreman on jobs, or filter yields nothing while attendance exists →
+ *   fall back to all attendance so the form is not blank
+ */
+function resolveCrewAttendance(
+  attendanceAll: Attendance[],
+  jobs: JobWithDetails[],
+  crewTechIds: Set<string>,
+  crewTechNames: Set<string>,
+  foremanIds: string[]
 ): Attendance[] {
-  if (!techIds.size) return [];
-  return rows.filter((a) => techIds.has(String(a.technician_id || "").trim()));
+  if (!attendanceAll.length) return [];
+
+  // Collect assignees on jobs owned by those foremen (or all jobs if no foreman ids)
+  const assigneeIds = new Set<string>();
+  const assigneeNames = new Set<string>();
+  for (const j of jobs) {
+    const owner = controllingForemanId(j);
+    if (foremanIds.length && owner && !foremanIds.includes(owner)) continue;
+    for (const t of j.technicians || []) {
+      if (t.id) assigneeIds.add(String(t.id));
+      const n = String(t.name || "").trim().toLowerCase();
+      if (n) assigneeNames.add(n);
+    }
+    if (j.technician?.id) assigneeIds.add(String(j.technician.id));
+    const single = String(j.technician?.name || "").trim().toLowerCase();
+    if (single) assigneeNames.add(single);
+  }
+
+  const idAllow = new Set([...crewTechIds, ...assigneeIds]);
+  const nameAllow = new Set([...crewTechNames, ...assigneeNames]);
+
+  const filtered = attendanceAll.filter((a) => {
+    const tid = String(a.technician_id || "").trim();
+    const tname = String(a.technician_name || "").trim().toLowerCase();
+    if (tid && idAllow.has(tid)) return true;
+    if (tname && nameAllow.has(tname)) return true;
+    return false;
+  });
+
+  // No penugas/delegasi on jobs → cannot scope; show all attendance
+  if (!foremanIds.length) return attendanceAll;
+
+  // Scoped filter empty but data exists → superior links likely incomplete; show all
+  if (!filtered.length && attendanceAll.length) return attendanceAll;
+
+  return filtered;
 }
 
 async function loadTechniciansById(
@@ -326,41 +378,59 @@ export async function buildHandoverFormPayload(
     "in_progress",
     "paused",
   ]);
-  const planIds = jobs.flatMap((j) => {
+  const snapshotNextCrewIds: string[] = [];
+  const planIds: string[] = [];
+  for (const j of jobs) {
     const form = formLinesFromHandover(j, ymd);
-    return form.planIds;
-  });
-  const techById = await loadTechniciansById(planIds);
-  const attendanceAll = await loadAttendanceForDate(ymd);
+    planIds.push(...form.planIds);
+    snapshotNextCrewIds.push(...form.nextCrewIds);
+  }
 
-  // Crew panels: only technicians under each job's controlling foreman
-  // (Delegasi if set, else Penugas).
+  // Crew panels: technicians under controlling foreman (Delegasi || Penugas)
+  // plus assignees on those jobs; fall back if filter would blank the form.
   const foremanIds = [
     ...new Set(jobs.map((j) => controllingForemanId(j)).filter(Boolean)),
   ];
-  const crewTechIds = await loadTechnicianIdsBySuperior(foremanIds);
-  const attendance = filterAttendanceByTechnicianIds(
+  const { ids: crewTechIds, names: crewTechNames } =
+    await loadTechniciansBySuperior(foremanIds);
+
+  // Prefer handover Next Crew snapshots; fall back to live foreman roster
+  // for legacy rows that predate next_crew_technician_ids.
+  const nextCrewSourceIds = snapshotNextCrewIds.length
+    ? snapshotNextCrewIds
+    : [...crewTechIds];
+
+  const techById = await loadTechniciansById([
+    ...planIds,
+    ...nextCrewSourceIds,
+  ]);
+  const attendanceAll = await loadAttendanceForDate(ymd);
+  const attendance = resolveCrewAttendance(
     attendanceAll,
-    crewTechIds
+    jobs,
+    crewTechIds,
+    crewTechNames,
+    foremanIds
   );
 
   const fromShiftLabels: string[] = [];
   const toShiftLabels: string[] = [];
-  const nextCrewById = new Map<string, HandoverFormCrewMember>();
   for (const j of jobs) {
     const form = formLinesFromHandover(j, ymd);
     if (form.from_shift_name) fromShiftLabels.push(form.from_shift_name);
     if (form.to_shift_name) toShiftLabels.push(form.to_shift_name);
-    for (const id of form.planIds) {
-      if (nextCrewById.has(id)) continue;
-      const tech = techById.get(id);
-      if (!tech?.name) continue;
-      nextCrewById.set(id, {
-        name: tech.name,
-        status: "plan",
-        sn: tech.sn || tech.badge_id || "",
-      });
-    }
+  }
+
+  const nextCrewById = new Map<string, HandoverFormCrewMember>();
+  for (const id of nextCrewSourceIds) {
+    if (nextCrewById.has(id)) continue;
+    const tech = techById.get(id);
+    if (!tech?.name) continue;
+    nextCrewById.set(id, {
+      name: tech.name,
+      status: "crew",
+      sn: tech.sn || tech.badge_id || "",
+    });
   }
 
   const shift_period =

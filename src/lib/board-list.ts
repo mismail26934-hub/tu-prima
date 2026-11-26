@@ -248,6 +248,9 @@ function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
     progress_text: str(r.progress_text),
     handover_text: str(r.handover_text),
     plan_technician_ids: parsePlanTechnicianIdsLocal(r.plan_technician_ids),
+    next_crew_technician_ids: parsePlanTechnicianIdsLocal(
+      r.next_crew_technician_ids
+    ),
     user_id: str(r.user_id),
     user_name: str(r.user_name),
     updated_at: str(r.updated_at),

@@ -5,6 +5,7 @@ import {
   otherStatusLabel,
   shiftShortCode,
   type HandoverFormPayload,
+  type HandoverFormPayloadOverrides,
   type HandoverFormUnitRow,
 } from "@/lib/handover-form-data";
 import { fmtFileStamp } from "@/lib/file-stamp";
@@ -330,12 +331,15 @@ function writeUnitCard(
   return r3 + 1;
 }
 
-export async function buildHandoverFormExcelBuffer(date: string): Promise<{
+export async function buildHandoverFormExcelBuffer(
+  date: string,
+  overrides?: HandoverFormPayloadOverrides | null
+): Promise<{
   buffer: Buffer;
   filename: string;
   payload: HandoverFormPayload;
 }> {
-  const payload = await buildHandoverFormPayload(date);
+  const payload = await buildHandoverFormPayload(date, overrides);
   const wb = new ExcelJS.Workbook();
   wb.creator = "TU-PRIMA";
   wb.created = new Date();

@@ -396,6 +396,9 @@ function handoverHeaders(scope: JobScope): string[] {
     "plan_technician_ids",
     "next_crew_technician_ids",
     "prev_mp_technician_ids",
+    "header_shift_code",
+    "header_next_shift_code",
+    "header_period",
     "user_id",
     "user_name",
     "updated_at",
@@ -511,6 +514,9 @@ function handoverRowFromDb(r: mysql.RowDataPacket, scope: JobScope): DbRow {
       plan_technician_ids: str(r.plan_technician_ids),
       next_crew_technician_ids: str(r.next_crew_technician_ids),
       prev_mp_technician_ids: str(r.prev_mp_technician_ids),
+      header_shift_code: str(r.header_shift_code),
+      header_next_shift_code: str(r.header_next_shift_code),
+      header_period: str(r.header_period),
       user_id: str(r.user_id),
       user_name: str(r.user_name),
       updated_at: str(r.updated_at),
@@ -691,8 +697,9 @@ async function saveScopedJobs(
          id, job_id, handover_order, title, shift_date,
          from_name, from_user_id, from_shift_name, to_name, to_user_id, to_shift_name, done, note,
          progress_text, handover_text, plan_technician_ids, next_crew_technician_ids,
-         prev_mp_technician_ids, user_id, user_name, updated_at
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         prev_mp_technician_ids, header_shift_code, header_next_shift_code, header_period,
+         user_id, user_name, updated_at
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         str(row.id),
         str(row.job_id),
@@ -712,6 +719,9 @@ async function saveScopedJobs(
         str(row.plan_technician_ids),
         str(row.next_crew_technician_ids),
         str(row.prev_mp_technician_ids),
+        str(row.header_shift_code),
+        str(row.header_next_shift_code),
+        str(row.header_period),
         str(row.user_id),
         str(row.user_name),
         str(row.updated_at),
@@ -1237,6 +1247,9 @@ export async function ensureRelationalSchema() {
       plan_technician_ids TEXT,
       next_crew_technician_ids TEXT,
       prev_mp_technician_ids TEXT,
+      header_shift_code VARCHAR(64) NOT NULL DEFAULT '',
+      header_next_shift_code VARCHAR(64) NOT NULL DEFAULT '',
+      header_period VARCHAR(64) NOT NULL DEFAULT '',
       user_id VARCHAR(64) NOT NULL DEFAULT '',
       user_name VARCHAR(255) NOT NULL DEFAULT '',
       updated_at VARCHAR(64) NOT NULL DEFAULT '',
@@ -1428,6 +1441,15 @@ export async function ensureRelationalSchema() {
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS prev_mp_technician_ids TEXT`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS header_shift_code VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS header_next_shift_code VARCHAR(64) NOT NULL DEFAULT ''`
+  );
+  await p.query(
+    `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS header_period VARCHAR(64) NOT NULL DEFAULT ''`
   );
   await p.query(
     `ALTER TABLE job_handovers ADD COLUMN IF NOT EXISTS from_shift_name VARCHAR(255) NOT NULL DEFAULT ''`

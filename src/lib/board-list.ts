@@ -254,6 +254,9 @@ function mapHandoverRow(r: mysql.RowDataPacket): JobHandover {
     prev_mp_technician_ids: parsePlanTechnicianIdsLocal(
       r.prev_mp_technician_ids
     ),
+    header_shift_code: str(r.header_shift_code),
+    header_next_shift_code: str(r.header_next_shift_code),
+    header_period: str(r.header_period),
     user_id: str(r.user_id),
     user_name: str(r.user_name),
     updated_at: str(r.updated_at),

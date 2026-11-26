@@ -3,12 +3,28 @@ import { getCurrentLevel } from "@/lib/access";
 import { canAccess } from "@/lib/permissions";
 import { buildHandoverFormExcelBuffer } from "@/lib/handover-form-excel";
 import { buildHandoverFormPdfBuffer } from "@/lib/handover-form-pdf";
-import { buildHandoverFormPayload } from "@/lib/handover-form-data";
+import {
+  buildHandoverFormPayload,
+  type HandoverFormPayloadOverrides,
+} from "@/lib/handover-form-data";
 
 export const dynamic = "force-dynamic";
 
 function isYmd(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function overridesFromSearchParams(
+  searchParams: URLSearchParams
+): HandoverFormPayloadOverrides {
+  return {
+    current_shift_label:
+      String(searchParams.get("current_shift") || "").trim() || undefined,
+    next_shift_label:
+      String(searchParams.get("next_shift") || "").trim() || undefined,
+    shift_period:
+      String(searchParams.get("shift_period") || "").trim() || undefined,
+  };
 }
 
 export async function GET(req: Request) {
@@ -31,6 +47,7 @@ export async function GET(req: Request) {
     String(searchParams.get("date") || "").trim() ||
     new Date().toISOString().slice(0, 10);
   const format = String(searchParams.get("format") || "xlsx").toLowerCase();
+  const overrides = overridesFromSearchParams(searchParams);
 
   if (!isYmd(date)) {
     return NextResponse.json(
@@ -41,11 +58,14 @@ export async function GET(req: Request) {
 
   try {
     if (format === "json") {
-      const payload = await buildHandoverFormPayload(date);
+      const payload = await buildHandoverFormPayload(date, overrides);
       return NextResponse.json(payload);
     }
     if (format === "pdf") {
-      const { buffer, filename } = await buildHandoverFormPdfBuffer(date);
+      const { buffer, filename } = await buildHandoverFormPdfBuffer(
+        date,
+        overrides
+      );
       return new NextResponse(Buffer.from(buffer), {
         status: 200,
         headers: {
@@ -56,7 +76,10 @@ export async function GET(req: Request) {
       });
     }
 
-    const { buffer, filename } = await buildHandoverFormExcelBuffer(date);
+    const { buffer, filename } = await buildHandoverFormExcelBuffer(
+      date,
+      overrides
+    );
     return new NextResponse(Buffer.from(buffer), {
       status: 200,
       headers: {

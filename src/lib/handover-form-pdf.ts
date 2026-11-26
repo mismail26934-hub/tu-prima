@@ -4,6 +4,8 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   buildHandoverFormPayload,
+  resolvePeriodLabel,
+  type HandoverFormPayloadOverrides,
   formatHandoverDate,
   otherStatusLabel,
   shiftShortCode,
@@ -88,12 +90,7 @@ function toNextLines(rows: HandoverFormCrewMember[]): CrewLine[] {
 }
 
 function periodLabel(payload: HandoverFormPayload): string {
-  const p = String(payload.shift_period || "").trim();
-  if (p) return p;
-  const blob = `${payload.current_shift_label} ${payload.next_shift_label}`;
-  if (/night/i.test(blob)) return "Night";
-  if (/day/i.test(blob)) return "Day";
-  return "";
+  return resolvePeriodLabel(payload);
 }
 
 function resetPdfColors(doc: jsPDF) {
@@ -744,12 +741,15 @@ function crewTableBlock(
   return y0 + boxH + 2;
 }
 
-export async function buildHandoverFormPdfBuffer(date: string): Promise<{
+export async function buildHandoverFormPdfBuffer(
+  date: string,
+  overrides?: HandoverFormPayloadOverrides | null
+): Promise<{
   buffer: Uint8Array;
   filename: string;
   payload: HandoverFormPayload;
 }> {
-  const payload = await buildHandoverFormPayload(date);
+  const payload = await buildHandoverFormPayload(date, overrides);
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",

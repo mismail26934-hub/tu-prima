@@ -66,6 +66,10 @@ import {
   nowDatetimeLocal,
   toDatetimeLocalValue,
 } from "@/lib/handover-form-format";
+import {
+  resolvePeriodLabel,
+  shiftShortCode,
+} from "@/lib/handover-form-data";
 import { useAssignStore } from "@/store/assignStore";
 import { useJobFormStore } from "@/store/jobFormStore";
 import { useTechnicianBoardStore } from "@/store/technicianBoardStore";
@@ -384,6 +388,9 @@ type HandoverFormDraft = {
   plan_technician_ids: string[];
   next_crew_technician_ids: string[];
   prev_mp_technician_ids: string[];
+  header_shift_code: string;
+  header_next_shift_code: string;
+  header_period: string;
   done: boolean;
 };
 
@@ -1264,6 +1271,13 @@ export default function HomePage() {
   const [handoverFormDate, setHandoverFormDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  /** Editable Hadir header overrides for export (Shift | Date | Period). */
+  const [handoverFormShiftCode, setHandoverFormShiftCode] = useState("");
+  const [handoverFormNextShiftCode, setHandoverFormNextShiftCode] =
+    useState("");
+  const [handoverFormPeriod, setHandoverFormPeriod] = useState("");
+  const [handoverFormHeaderLoading, setHandoverFormHeaderLoading] =
+    useState(false);
   const [handoversMasterQ, setHandoversMasterQ] = useState("");
   const [handoversMasterQDraft, setHandoversMasterQDraft] = useState("");
   const [handoversMasterPage, setHandoversMasterPage] = useState(1);
@@ -3187,6 +3201,9 @@ export default function HomePage() {
     plan_technician_ids: string[];
     next_crew_technician_ids: string[];
     prev_mp_technician_ids: string[];
+    header_shift_code?: string;
+    header_next_shift_code?: string;
+    header_period?: string;
     done: boolean;
     order: number;
   };
@@ -3619,7 +3636,14 @@ export default function HomePage() {
     const nextId = user ? user.id : "";
     if (target === "draft") {
       if (handoverFormEditor?.jobId === job.id) {
-        patchHandoverFormDraft({ to_name: nextName, to_user_id: nextId });
+        patchHandoverFormDraft({
+          to_name: nextName,
+          to_user_id: nextId,
+          header_next_shift_code:
+            shiftShortCode(handoverShiftLabelByUserId[nextId] || "") ||
+            handoverFormEditor?.draft.header_next_shift_code ||
+            "",
+        });
         reopenHandoverFormModal(job);
         return;
       }
@@ -3876,16 +3900,53 @@ export default function HomePage() {
     setModal({ type: "handovers" });
   }
 
+  async function loadHandoverFormHeaderDefaults(date: string) {
+    const ymd = String(date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+    setHandoverFormHeaderLoading(true);
+    try {
+      const res = await fetch(
+        `/api/reports/handover-form?${new URLSearchParams({
+          date: ymd,
+          format: "json",
+        }).toString()}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return;
+      const payload = (await res.json()) as {
+        current_shift_label?: string;
+        next_shift_label?: string;
+        shift_period?: string;
+      };
+      setHandoverFormShiftCode(
+        shiftShortCode(String(payload.current_shift_label || "")) ||
+          String(payload.current_shift_label || "").trim()
+      );
+      setHandoverFormNextShiftCode(
+        shiftShortCode(String(payload.next_shift_label || "")) ||
+          String(payload.next_shift_label || "").trim()
+      );
+      setHandoverFormPeriod(resolvePeriodLabel(payload));
+    } catch {
+      /* keep manual values */
+    } finally {
+      setHandoverFormHeaderLoading(false);
+    }
+  }
+
   function openHandoverFormExport(opts?: { fromMaster?: boolean }) {
     if (!isLoggedIn) {
       setError(t("nav.exportNeedLogin"));
       return;
     }
     setHandoverFormFromMaster(Boolean(opts?.fromMaster));
+    const ymd =
+      handoverFormDate || new Date().toISOString().slice(0, 10);
     if (!handoverFormDate) {
-      setHandoverFormDate(new Date().toISOString().slice(0, 10));
+      setHandoverFormDate(ymd);
     }
     setModal({ type: "handover-form-export" });
+    void loadHandoverFormHeaderDefaults(ymd);
   }
 
   function returnFromHandoverForm() {
@@ -4065,6 +4126,11 @@ export default function HomePage() {
           data?.technicians || []
         ),
         prev_mp_technician_ids: assigneeIdsFromJob(job),
+        header_shift_code: shiftShortCode(
+          handoverShiftLabelByUserId[from.from_user_id] || ""
+        ),
+        header_next_shift_code: "",
+        header_period: "",
         done: false,
       },
     });
@@ -4083,6 +4149,14 @@ export default function HomePage() {
     setHandoverFormFromMaster(Boolean(opts?.fromMaster));
     const savedNext = server?.next_crew_technician_ids || [];
     const savedPrev = server?.prev_mp_technician_ids || [];
+    const fromShift =
+      server?.from_shift_name ||
+      handoverShiftLabelByUserId[row.from_user_id] ||
+      "";
+    const toShift =
+      server?.to_shift_name ||
+      handoverShiftLabelByUserId[row.to_user_id] ||
+      "";
     setHandoverFormEditor({
       jobId: job.id,
       mode: "edit",
@@ -4106,6 +4180,13 @@ export default function HomePage() {
         prev_mp_technician_ids: savedPrev.length
           ? savedPrev
           : assigneeIdsFromJob(job),
+        header_shift_code:
+          String(server?.header_shift_code || "").trim() ||
+          shiftShortCode(fromShift),
+        header_next_shift_code:
+          String(server?.header_next_shift_code || "").trim() ||
+          shiftShortCode(toShift),
+        header_period: String(server?.header_period || "").trim(),
         done: row.done,
       },
     });
@@ -4200,6 +4281,9 @@ export default function HomePage() {
         plan_technician_ids: draft.plan_technician_ids,
         next_crew_technician_ids: draft.next_crew_technician_ids,
         prev_mp_technician_ids: draft.prev_mp_technician_ids,
+        header_shift_code: draft.header_shift_code,
+        header_next_shift_code: draft.header_next_shift_code,
+        header_period: draft.header_period,
         done: draft.done,
       };
       if (editor.mode === "create") {
@@ -4251,6 +4335,15 @@ export default function HomePage() {
         date: handoverFormDate,
         format,
       });
+      if (handoverFormShiftCode.trim()) {
+        params.set("current_shift", handoverFormShiftCode.trim());
+      }
+      if (handoverFormNextShiftCode.trim()) {
+        params.set("next_shift", handoverFormNextShiftCode.trim());
+      }
+      if (handoverFormPeriod.trim()) {
+        params.set("shift_period", handoverFormPeriod.trim());
+      }
       const res = await fetch(
         `/api/reports/handover-form?${params.toString()}`,
         { credentials: "include" }
@@ -5670,6 +5763,9 @@ export default function HomePage() {
       plan_technician_ids: h.plan_technician_ids || [],
       next_crew_technician_ids: h.next_crew_technician_ids || [],
       prev_mp_technician_ids: h.prev_mp_technician_ids || [],
+      header_shift_code: h.header_shift_code || "",
+      header_next_shift_code: h.header_next_shift_code || "",
+      header_period: h.header_period || "",
       done: h.done === "1",
       order: h.order,
     }));
@@ -8128,14 +8224,62 @@ export default function HomePage() {
               {t("handoverForm.hint")}
             </p>
             <div className="form">
+              <p className="step-hint" style={{ margin: "0 0 8px" }}>
+                {t("handoverForm.headerHint")}
+              </p>
+              <div className="handover-export-header-grid">
+                <label>
+                  {t("handoverForm.currentShift")}
+                  <input
+                    type="text"
+                    value={handoverFormShiftCode}
+                    disabled={busy || handoverFormHeaderLoading}
+                    placeholder="B"
+                    onChange={(e) =>
+                      setHandoverFormShiftCode(e.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  {t("handoverForm.date")}
+                  <input
+                    type="date"
+                    value={handoverFormDate}
+                    disabled={busy || handoverFormHeaderLoading}
+                    required
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHandoverFormDate(v);
+                      void loadHandoverFormHeaderDefaults(v);
+                    }}
+                  />
+                </label>
+                <label>
+                  {t("handoverForm.period")}
+                  <input
+                    type="text"
+                    value={handoverFormPeriod}
+                    disabled={busy || handoverFormHeaderLoading}
+                    placeholder="Night / Day"
+                    list="handover-form-period-options"
+                    onChange={(e) => setHandoverFormPeriod(e.target.value)}
+                  />
+                  <datalist id="handover-form-period-options">
+                    <option value="Day" />
+                    <option value="Night" />
+                  </datalist>
+                </label>
+              </div>
               <label>
-                {t("handoverForm.date")}
+                {t("handoverForm.nextShift")}
                 <input
-                  type="date"
-                  value={handoverFormDate}
-                  disabled={busy}
-                  onChange={(e) => setHandoverFormDate(e.target.value)}
-                  required
+                  type="text"
+                  value={handoverFormNextShiftCode}
+                  disabled={busy || handoverFormHeaderLoading}
+                  placeholder="A"
+                  onChange={(e) =>
+                    setHandoverFormNextShiftCode(e.target.value)
+                  }
                 />
               </label>
               <div className="actions">
@@ -8235,6 +8379,60 @@ export default function HomePage() {
                   handoverFormEditor.draft.to_user_id
                 )}
               </label>
+              <section className="handover-crew-group handover-crew-group--header">
+                <p className="step-hint" style={{ margin: "0 0 6px" }}>
+                  {t("job.headerFieldsHint")}
+                </p>
+                <div className="handover-export-header-grid">
+                  <label>
+                    {t("job.headerShiftCode")}
+                    <input
+                      type="text"
+                      value={handoverFormEditor.draft.header_shift_code}
+                      disabled={busy}
+                      placeholder="B"
+                      onChange={(e) =>
+                        patchHandoverFormDraft({
+                          header_shift_code: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("job.headerPeriod")}
+                    <input
+                      type="text"
+                      value={handoverFormEditor.draft.header_period}
+                      disabled={busy}
+                      placeholder="Night / Day"
+                      list="handover-form-header-period-options"
+                      onChange={(e) =>
+                        patchHandoverFormDraft({
+                          header_period: e.target.value,
+                        })
+                      }
+                    />
+                    <datalist id="handover-form-header-period-options">
+                      <option value="Day" />
+                      <option value="Night" />
+                    </datalist>
+                  </label>
+                  <label>
+                    {t("job.headerNextShiftCode")}
+                    <input
+                      type="text"
+                      value={handoverFormEditor.draft.header_next_shift_code}
+                      disabled={busy}
+                      placeholder="A"
+                      onChange={(e) =>
+                        patchHandoverFormDraft({
+                          header_next_shift_code: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </section>
               <div className="handover-report-label">
                 <div className="handover-report-label-row">
                   <span>

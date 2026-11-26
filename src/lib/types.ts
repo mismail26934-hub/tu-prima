@@ -310,6 +310,12 @@ export interface JobHandover {
   next_crew_technician_ids: string[];
   /** Snapshot of previous manpower technician ids at handover save time. */
   prev_mp_technician_ids: string[];
+  /** Hadir header shift code (e.g. B) — editable on Hand Over Form. */
+  header_shift_code: string;
+  /** Next Crew header shift code (e.g. A). */
+  header_next_shift_code: string;
+  /** Hadir header period (Day / Night). */
+  header_period: string;
   user_id: string;
   user_name: string;
   updated_at: string;

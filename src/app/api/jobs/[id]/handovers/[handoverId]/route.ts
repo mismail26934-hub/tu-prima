@@ -45,6 +45,16 @@ export async function PATCH(
       plan_technician_ids,
       next_crew_technician_ids,
       prev_mp_technician_ids,
+      header_shift_code:
+        body.header_shift_code != null
+          ? String(body.header_shift_code)
+          : undefined,
+      header_next_shift_code:
+        body.header_next_shift_code != null
+          ? String(body.header_next_shift_code)
+          : undefined,
+      header_period:
+        body.header_period != null ? String(body.header_period) : undefined,
       done: typeof body.done === "boolean" ? body.done : undefined,
       actor,
     });

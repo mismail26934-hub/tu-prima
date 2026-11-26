@@ -1556,6 +1556,9 @@ export function applyOptimisticMutation(
       prev_mp_technician_ids: Array.isArray(body.prev_mp_technician_ids)
         ? body.prev_mp_technician_ids.map(String).filter(Boolean)
         : [],
+      header_shift_code: String(body.header_shift_code || "").trim(),
+      header_next_shift_code: String(body.header_next_shift_code || "").trim(),
+      header_period: String(body.header_period || "").trim(),
       user_id: "",
       user_name: "",
       updated_at: nowIso(),
@@ -1636,6 +1639,18 @@ export function applyOptimisticMutation(
                   )
                     ? body.prev_mp_technician_ids.map(String).filter(Boolean)
                     : h.prev_mp_technician_ids || [],
+                  header_shift_code:
+                    body.header_shift_code != null
+                      ? String(body.header_shift_code).trim()
+                      : h.header_shift_code || "",
+                  header_next_shift_code:
+                    body.header_next_shift_code != null
+                      ? String(body.header_next_shift_code).trim()
+                      : h.header_next_shift_code || "",
+                  header_period:
+                    body.header_period != null
+                      ? String(body.header_period).trim()
+                      : h.header_period || "",
                   done:
                     typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                   updated_at: nowIso(),
@@ -1699,6 +1714,18 @@ export function applyOptimisticMutation(
                 )
                   ? body.prev_mp_technician_ids.map(String).filter(Boolean)
                   : h.prev_mp_technician_ids || [],
+                header_shift_code:
+                  body.header_shift_code != null
+                    ? String(body.header_shift_code).trim()
+                    : h.header_shift_code || "",
+                header_next_shift_code:
+                  body.header_next_shift_code != null
+                    ? String(body.header_next_shift_code).trim()
+                    : h.header_next_shift_code || "",
+                header_period:
+                  body.header_period != null
+                    ? String(body.header_period).trim()
+                    : h.header_period || "",
                 done:
                   typeof body.done === "boolean" ? (body.done ? "1" : "0") : h.done,
                 updated_at: nowIso(),

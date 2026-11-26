@@ -42,6 +42,9 @@ export type JobHandoverNoteRow = {
   plan_technician_ids: string[];
   next_crew_technician_ids: string[];
   prev_mp_technician_ids: string[];
+  header_shift_code?: string;
+  header_next_shift_code?: string;
+  header_period?: string;
   done: boolean;
   order: number;
 };

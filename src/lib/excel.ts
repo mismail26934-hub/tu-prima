@@ -649,6 +649,9 @@ function mapHandover(r: Row): JobHandover {
       r.next_crew_technician_ids
     ),
     prev_mp_technician_ids: parsePlanTechnicianIds(r.prev_mp_technician_ids),
+    header_shift_code: String(r.header_shift_code || "").trim(),
+    header_next_shift_code: String(r.header_next_shift_code || "").trim(),
+    header_period: String(r.header_period || "").trim(),
     user_id: String(r.user_id || ""),
     user_name: String(r.user_name || ""),
     updated_at: String(r.updated_at || ""),
@@ -775,6 +778,16 @@ export function serializePlanTechnicianIds(ids: unknown): string {
   return list.length ? JSON.stringify(list) : "";
 }
 
+/** Short code for Hadir header (Crew B → B). */
+function shortShiftCode(label: string): string {
+  const s = String(label || "").trim();
+  if (!s) return "";
+  const crew = s.match(/\bcrew\s*([A-Za-z0-9]+)\b/i);
+  if (crew?.[1]) return crew[1].toUpperCase();
+  if (s.length <= 4) return s.toUpperCase();
+  return s;
+}
+
 /** Controlling foreman: Delegasi if set, otherwise Penugas. */
 function controllingForemanUserId(job: {
   delegated_to_user_id?: string;
@@ -857,6 +870,9 @@ function handoverToRow(h: JobHandover): Row {
       h.next_crew_technician_ids
     ),
     prev_mp_technician_ids: serializePlanTechnicianIds(h.prev_mp_technician_ids),
+    header_shift_code: String(h.header_shift_code || "").trim(),
+    header_next_shift_code: String(h.header_next_shift_code || "").trim(),
+    header_period: String(h.header_period || "").trim(),
   };
 }
 
@@ -984,6 +1000,9 @@ const HANDOVER_HEADERS = [
   "plan_technician_ids",
   "next_crew_technician_ids",
   "prev_mp_technician_ids",
+  "header_shift_code",
+  "header_next_shift_code",
+  "header_period",
   "user_id",
   "user_name",
   "updated_at",
@@ -2386,6 +2405,9 @@ export async function createJobHandover(input: {
   plan_technician_ids?: string[];
   next_crew_technician_ids?: string[];
   prev_mp_technician_ids?: string[];
+  header_shift_code?: string;
+  header_next_shift_code?: string;
+  header_period?: string;
   done?: boolean;
   actor?: AuditActor | null;
 }): Promise<JobHandover> {
@@ -2461,6 +2483,15 @@ export async function createJobHandover(input: {
         input.actor?.user_name
       );
     }
+    const from_shift_name = shiftNameForUserId(users, sender.user_id, shifts);
+    const to_shift_name = shiftNameForUserId(users, recipient.user_id, shifts);
+    const header_shift_code =
+      String(input.header_shift_code || "").trim() ||
+      shortShiftCode(from_shift_name);
+    const header_next_shift_code =
+      String(input.header_next_shift_code || "").trim() ||
+      shortShiftCode(to_shift_name);
+    const header_period = String(input.header_period || "").trim();
     const row: JobHandover = {
       id: requestedId || uuidv4(),
       job_id: input.job_id,
@@ -2469,10 +2500,10 @@ export async function createJobHandover(input: {
       shift_date,
       from_name: sender.name,
       from_user_id: sender.user_id,
-      from_shift_name: shiftNameForUserId(users, sender.user_id, shifts),
+      from_shift_name,
       to_name: recipient.name,
       to_user_id: recipient.user_id,
-      to_shift_name: shiftNameForUserId(users, recipient.user_id, shifts),
+      to_shift_name,
       done: input.done ? "1" : "0",
       note: (input.note || "").trim(),
       progress_text,
@@ -2480,6 +2511,9 @@ export async function createJobHandover(input: {
       plan_technician_ids,
       next_crew_technician_ids,
       prev_mp_technician_ids,
+      header_shift_code,
+      header_next_shift_code,
+      header_period,
       user_id: input.actor?.user_id || "",
       user_name: input.actor?.user_name || "",
       updated_at: at,
@@ -2544,6 +2578,9 @@ export async function updateJobHandover(
     plan_technician_ids?: string[];
     next_crew_technician_ids?: string[];
     prev_mp_technician_ids?: string[];
+    header_shift_code?: string;
+    header_next_shift_code?: string;
+    header_period?: string;
     done?: boolean;
     actor?: AuditActor | null;
   }
@@ -2622,6 +2659,17 @@ export async function updateJobHandover(
         null
       );
     }
+    if (input.header_shift_code !== undefined) {
+      row.header_shift_code = String(input.header_shift_code || "").trim();
+    }
+    if (input.header_next_shift_code !== undefined) {
+      row.header_next_shift_code = String(
+        input.header_next_shift_code || ""
+      ).trim();
+    }
+    if (input.header_period !== undefined) {
+      row.header_period = String(input.header_period || "").trim();
+    }
     const users = readUsers(wb);
     const shifts = await listShifts({ includeInactive: true });
     if (input.from_user_id !== undefined || input.from_name !== undefined) {
@@ -2650,6 +2698,12 @@ export async function updateJobHandover(
     }
     if (!String(row.to_shift_name || "").trim() && row.to_user_id) {
       row.to_shift_name = shiftNameForUserId(users, row.to_user_id, shifts);
+    }
+    if (!String(row.header_shift_code || "").trim()) {
+      row.header_shift_code = shortShiftCode(row.from_shift_name);
+    }
+    if (!String(row.header_next_shift_code || "").trim()) {
+      row.header_next_shift_code = shortShiftCode(row.to_shift_name);
     }
     if (input.note !== undefined) row.note = input.note.trim();
     if (input.done !== undefined) row.done = input.done ? "1" : "0";

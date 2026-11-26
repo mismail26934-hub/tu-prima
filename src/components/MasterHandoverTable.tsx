@@ -40,6 +40,9 @@ export type MasterHandoverLocalRow = {
   plan_technician_ids: string[];
   next_crew_technician_ids: string[];
   prev_mp_technician_ids: string[];
+  header_shift_code?: string;
+  header_next_shift_code?: string;
+  header_period?: string;
   done: boolean;
   order: number;
 };
@@ -299,6 +302,9 @@ export function MasterHandoverTable({
                   plan_technician_ids: h.plan_technician_ids || [],
                   next_crew_technician_ids: h.next_crew_technician_ids || [],
                   prev_mp_technician_ids: h.prev_mp_technician_ids || [],
+                  header_shift_code: h.header_shift_code || "",
+                  header_next_shift_code: h.header_next_shift_code || "",
+                  header_period: h.header_period || "",
                   done: h.done === "1",
                 };
                 const planMp =

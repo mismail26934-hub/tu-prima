@@ -115,6 +115,9 @@ function formLinesFromHandover(
   prevMpIds: string[];
   from_shift_name: string;
   to_shift_name: string;
+  header_shift_code: string;
+  header_next_shift_code: string;
+  header_period: string;
 } {
   const h = pickHandoverForShiftDate(job, shiftDate);
   if (!h) {
@@ -126,6 +129,9 @@ function formLinesFromHandover(
       prevMpIds: [],
       from_shift_name: "",
       to_shift_name: "",
+      header_shift_code: "",
+      header_next_shift_code: "",
+      header_period: "",
     };
   }
   return {
@@ -136,6 +142,9 @@ function formLinesFromHandover(
     prevMpIds: h.prev_mp_technician_ids || [],
     from_shift_name: String(h.from_shift_name || "").trim(),
     to_shift_name: String(h.to_shift_name || "").trim(),
+    header_shift_code: String(h.header_shift_code || "").trim(),
+    header_next_shift_code: String(h.header_next_shift_code || "").trim(),
+    header_period: String(h.header_period || "").trim(),
   };
 }
 
@@ -165,6 +174,42 @@ export function shiftShortCode(label: string): string {
   if (crew?.[1]) return crew[1].toUpperCase();
   if (s.length <= 4) return s.toUpperCase();
   return s;
+}
+
+/** Day/Night (or DWS) for Hadir header third cell. */
+export function resolvePeriodLabel(payload: {
+  shift_period?: string;
+  current_shift_label?: string;
+  next_shift_label?: string;
+}): string {
+  const p = String(payload.shift_period || "").trim();
+  if (p) return p;
+  const blob = `${payload.current_shift_label || ""} ${payload.next_shift_label || ""}`;
+  if (/night/i.test(blob)) return "Night";
+  if (/day/i.test(blob)) return "Day";
+  return "";
+}
+
+export type HandoverFormPayloadOverrides = {
+  current_shift_label?: string;
+  next_shift_label?: string;
+  shift_period?: string;
+};
+
+export function applyHandoverFormOverrides(
+  payload: HandoverFormPayload,
+  overrides?: HandoverFormPayloadOverrides | null
+): HandoverFormPayload {
+  if (!overrides) return payload;
+  const current = String(overrides.current_shift_label || "").trim();
+  const next = String(overrides.next_shift_label || "").trim();
+  const period = String(overrides.shift_period || "").trim();
+  return {
+    ...payload,
+    current_shift_label: current || payload.current_shift_label,
+    next_shift_label: next || payload.next_shift_label,
+    shift_period: period || payload.shift_period,
+  };
 }
 
 function mapAttendanceRow(r: mysql.RowDataPacket): Attendance {
@@ -380,7 +425,8 @@ function toUnitRow(
 
 /** Build Hand Over Form payload for a calendar date (YYYY-MM-DD). */
 export async function buildHandoverFormPayload(
-  date: string
+  date: string,
+  overrides?: HandoverFormPayloadOverrides | null
 ): Promise<HandoverFormPayload> {
   const ymd = String(date || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
@@ -434,10 +480,18 @@ export async function buildHandoverFormPayload(
 
   const fromShiftLabels: string[] = [];
   const toShiftLabels: string[] = [];
+  const headerShiftCodes: string[] = [];
+  const headerNextShiftCodes: string[] = [];
+  const headerPeriods: string[] = [];
   for (const j of jobs) {
     const form = formLinesFromHandover(j, ymd);
     if (form.from_shift_name) fromShiftLabels.push(form.from_shift_name);
     if (form.to_shift_name) toShiftLabels.push(form.to_shift_name);
+    if (form.header_shift_code) headerShiftCodes.push(form.header_shift_code);
+    if (form.header_next_shift_code) {
+      headerNextShiftCodes.push(form.header_next_shift_code);
+    }
+    if (form.header_period) headerPeriods.push(form.header_period);
   }
 
   const nextCrewById = new Map<string, HandoverFormCrewMember>();
@@ -457,18 +511,26 @@ export async function buildHandoverFormPayload(
     attendanceAll.map((a) => String(a.dws || "").trim()).find(Boolean) ||
     "";
 
-  return {
-    date: ymd,
-    printed_at: new Date().toISOString(),
-    current_shift_label: majorityLabel(fromShiftLabels),
-    next_shift_label: majorityLabel(toShiftLabels),
-    shift_period,
-    hadir: crewFromAttendance(attendance, "hadir"),
-    // Not available on that date → Other Status (same foreman crew)
-    sakit: crewFromAttendance(attendance, OTHER_STATUS_ATTENDANCE),
-    next_crew: Array.from(nextCrewById.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, "id")
-    ),
-    units: jobs.map((j) => toUnitRow(j, techById, ymd)),
-  };
+  const currentFromHeader = majorityLabel(headerShiftCodes);
+  const nextFromHeader = majorityLabel(headerNextShiftCodes);
+  const periodFromHeader = majorityLabel(headerPeriods);
+
+  return applyHandoverFormOverrides(
+    {
+      date: ymd,
+      printed_at: new Date().toISOString(),
+      current_shift_label:
+        currentFromHeader || majorityLabel(fromShiftLabels),
+      next_shift_label: nextFromHeader || majorityLabel(toShiftLabels),
+      shift_period: periodFromHeader || shift_period,
+      hadir: crewFromAttendance(attendance, "hadir"),
+      // Not available on that date → Other Status (same foreman crew)
+      sakit: crewFromAttendance(attendance, OTHER_STATUS_ATTENDANCE),
+      next_crew: Array.from(nextCrewById.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, "id")
+      ),
+      units: jobs.map((j) => toUnitRow(j, techById, ymd)),
+    },
+    overrides
+  );
 }

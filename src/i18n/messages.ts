@@ -293,6 +293,11 @@ const id = {
   "job.handoverFormEditTitle": "Ubah Hand Over Form",
   "job.handoverFormSaveCreate": "Simpan handover",
   "job.handoverFormSaveEdit": "Simpan perubahan",
+  "job.headerShiftCode": "Shift (Hadir)",
+  "job.headerNextShiftCode": "Next Shift",
+  "job.headerPeriod": "Periode (Day/Night)",
+  "job.headerFieldsHint":
+    "Isi header form: Shift | Tanggal | Periode (tampil di panel Hadir PDF).",
   "job.prevMp": "Prev M/P",
   "job.prevMpHint":
     "Manpower sebelumnya pada unit ini. Default dari teknisi yang sedang di-assign; bisa diubah manual.",
@@ -360,6 +365,11 @@ const id = {
   "master.col.actions": "Aksi",
   "handoverForm.title": "Hand Over Form",
   "handoverForm.date": "Tanggal",
+  "handoverForm.currentShift": "Shift (Hadir)",
+  "handoverForm.nextShift": "Next Shift",
+  "handoverForm.period": "Periode (Day/Night)",
+  "handoverForm.headerHint":
+    "Header Hadir: Shift | Tanggal | Periode. Bisa diubah sebelum export.",
   "handoverForm.exportPdf": "Export PDF",
   "handoverForm.exportExcel": "Export Excel",
   "handoverForm.hint":
@@ -854,6 +864,11 @@ const en: Record<MessageKey, string> = {
   "job.handoverFormEditTitle": "Edit Hand Over Form",
   "job.handoverFormSaveCreate": "Save handover",
   "job.handoverFormSaveEdit": "Save changes",
+  "job.headerShiftCode": "Shift (Hadir)",
+  "job.headerNextShiftCode": "Next Shift",
+  "job.headerPeriod": "Period (Day/Night)",
+  "job.headerFieldsHint":
+    "Form header: Shift | Date | Period (shown on the Hadir PDF panel).",
   "job.prevMp": "Prev M/P",
   "job.prevMpHint":
     "Previous manpower on this unit. Defaults to current assignees; editable.",
@@ -921,6 +936,11 @@ const en: Record<MessageKey, string> = {
   "master.col.actions": "Actions",
   "handoverForm.title": "Hand Over Form",
   "handoverForm.date": "Date",
+  "handoverForm.currentShift": "Shift (Hadir)",
+  "handoverForm.nextShift": "Next Shift",
+  "handoverForm.period": "Period (Day/Night)",
+  "handoverForm.headerHint":
+    "Hadir header: Shift | Date | Period. Editable before export.",
   "handoverForm.exportPdf": "Export PDF",
   "handoverForm.exportExcel": "Export Excel",
   "handoverForm.hint":

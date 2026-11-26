@@ -4485,6 +4485,22 @@ html[data-theme='light'] .job-priority-pill--custom {
   word-break: break-word;
 }
 
+.handover-export-header-grid {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.7fr) minmax(140px, 1.2fr) minmax(
+      100px,
+      1fr
+    );
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 560px) {
+  .handover-export-header-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .handover-crew-groups {
   display: flex;
   flex-direction: column;
@@ -4531,6 +4547,10 @@ html[data-theme='light'] .job-priority-pill--custom {
 
 .handover-crew-group--plan .handover-crew-group-title {
   color: #1f8a5b;
+}
+
+.handover-crew-group--header {
+  border-left-color: #6b7280;
 }
 
 .modal.modal-handover-plan-mp {

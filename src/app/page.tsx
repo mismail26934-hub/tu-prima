@@ -8291,86 +8291,95 @@ export default function HomePage() {
                   }
                 />
               </div>
-              <div className="handover-report-label">
-                <div className="handover-report-label-row">
-                  <span>{t("job.prevMp")}</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={busy}
-                    onClick={() => openPrevMpPicker(modal.job)}
-                  >
-                    {t("job.prevMpPick")}
-                  </button>
-                </div>
-                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
-                  {t("job.prevMpHint")}
-                </p>
-                <p className="handover-plan-mp-summary">
-                  {prevMpDraftSummary || t("job.prevMpNone")}
-                </p>
-                <p className="step-hint" style={{ margin: "4px 0 0" }}>
-                  {t("job.prevMpSelected").replace(
-                    "{n}",
-                    String(
-                      handoverFormEditor.draft.prev_mp_technician_ids.length
-                    )
-                  )}
-                </p>
-              </div>
-              <div className="handover-report-label">
-                <div className="handover-report-label-row">
-                  <span>{t("job.nextCrew")}</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={busy}
-                    onClick={() => openNextCrewPicker(modal.job)}
-                  >
-                    {t("job.nextCrewPick")}
-                  </button>
-                </div>
-                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
-                  {t("job.nextCrewHint")}
-                </p>
-                <p className="handover-plan-mp-summary">
-                  {nextCrewDraftSummary || t("job.nextCrewNone")}
-                </p>
-                <p className="step-hint" style={{ margin: "4px 0 0" }}>
-                  {t("job.nextCrewSelected").replace(
-                    "{n}",
-                    String(
-                      handoverFormEditor.draft.next_crew_technician_ids.length
-                    )
-                  )}
-                </p>
-              </div>
-              <div className="handover-report-label">
-                <div className="handover-report-label-row">
-                  <span>{t("job.planMp")}</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={busy}
-                    onClick={() => openPlanMpPicker(modal.job)}
-                  >
-                    {t("job.planMpPick")}
-                  </button>
-                </div>
-                <p className="step-hint" style={{ margin: "4px 0 6px" }}>
-                  {t("job.planMpHint")}
-                </p>
-                <p className="handover-plan-mp-summary">
-                  {planMpDraftSummary || t("job.planMpNone")}
-                </p>
-                <p className="step-hint" style={{ margin: "4px 0 0" }}>
-                  {t("job.planMpSelected").replace(
-                    "{n}",
-                    String(
-                      handoverFormEditor.draft.plan_technician_ids.length
-                    )
-                  )}
-                </p>
+              <div className="handover-crew-groups" role="group" aria-label="Crew">
+                <section className="handover-crew-group handover-crew-group--prev">
+                  <div className="handover-report-label-row">
+                    <span className="handover-crew-group-title">
+                      {t("job.prevMp")}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => openPrevMpPicker(modal.job)}
+                    >
+                      {t("job.prevMpPick")}
+                    </button>
+                  </div>
+                  <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                    {t("job.prevMpHint")}
+                  </p>
+                  <p className="handover-plan-mp-summary">
+                    {prevMpDraftSummary || t("job.prevMpNone")}
+                  </p>
+                  <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                    {t("job.prevMpSelected").replace(
+                      "{n}",
+                      String(
+                        handoverFormEditor.draft.prev_mp_technician_ids.length
+                      )
+                    )}
+                  </p>
+                </section>
+                <section className="handover-crew-group handover-crew-group--next">
+                  <div className="handover-report-label-row">
+                    <span className="handover-crew-group-title">
+                      {t("job.nextCrew")}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => openNextCrewPicker(modal.job)}
+                    >
+                      {t("job.nextCrewPick")}
+                    </button>
+                  </div>
+                  <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                    {t("job.nextCrewHint")}
+                  </p>
+                  <p className="handover-plan-mp-summary">
+                    {nextCrewDraftSummary || t("job.nextCrewNone")}
+                  </p>
+                  <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                    {t("job.nextCrewSelected").replace(
+                      "{n}",
+                      String(
+                        handoverFormEditor.draft.next_crew_technician_ids
+                          .length
+                      )
+                    )}
+                  </p>
+                </section>
+                <section className="handover-crew-group handover-crew-group--plan">
+                  <div className="handover-report-label-row">
+                    <span className="handover-crew-group-title">
+                      {t("job.planMp")}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy}
+                      onClick={() => openPlanMpPicker(modal.job)}
+                    >
+                      {t("job.planMpPick")}
+                    </button>
+                  </div>
+                  <p className="step-hint" style={{ margin: "4px 0 6px" }}>
+                    {t("job.planMpHint")}
+                  </p>
+                  <p className="handover-plan-mp-summary">
+                    {planMpDraftSummary || t("job.planMpNone")}
+                  </p>
+                  <p className="step-hint" style={{ margin: "4px 0 0" }}>
+                    {t("job.planMpSelected").replace(
+                      "{n}",
+                      String(
+                        handoverFormEditor.draft.plan_technician_ids.length
+                      )
+                    )}
+                  </p>
+                </section>
               </div>
               <label>
                 Note
